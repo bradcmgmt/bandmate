@@ -946,6 +946,22 @@ input,select,textarea{font:inherit;color:inherit}
 .travel-share.muted-share{color:var(--warm-mute);font-family:'JetBrains Mono',monospace;font-size:10px;
   letter-spacing:.06em;font-style:italic}
 
+/* Tasks · Archive section (TM-only collapsible drawer below the live list) */
+.archive-toggle{width:100%;display:flex;align-items:center;gap:10px;padding:10px 14px;
+  background:rgba(232,148,58,.04);border:1px solid var(--line-2);border-radius:8px;cursor:pointer;
+  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--warm-mute);font-weight:700;transition:all .15s ease}
+.archive-toggle:hover{color:var(--warm);background:rgba(232,148,58,.08);border-color:var(--line-glow)}
+.archive-toggle .at-chev{display:inline-block;transition:transform .18s ease;font-size:12px;color:var(--hi)}
+.archive-toggle .at-label{flex:1;text-align:left}
+.archive-toggle .at-count{padding:2px 9px;border-radius:999px;background:rgba(232,148,58,.14);
+  border:1px solid rgba(232,148,58,.3);color:var(--hi);font-size:10.5px}
+.archived-tbl .task-row{opacity:.7;background:rgba(255,255,255,.015)}
+.archived-tbl .task-row:hover{opacity:1}
+.archived-tbl .task-row .label{color:var(--warm-mute)}
+.archive-btn{color:var(--warm-mute) !important}
+.archive-btn:hover{color:var(--hi) !important;border-color:rgba(232,148,58,.4) !important}
+
 /* Phone view tasks — tappable checkbox rows that sync with the TM Tasks tab. */
 .phone-task{display:flex;gap:10px;align-items:flex-start;padding:8px 6px;border-radius:6px;
   cursor:pointer;transition:background .12s ease,opacity .12s ease;-webkit-tap-highlight-color:transparent}
@@ -3471,8 +3487,8 @@ function renderDashboard() {
   const settled = T().dates.filter(d => d.settlement.settled).length;
   const totalSettled = T().dates.filter(d => d.settlement.settled)
     .reduce((s, d) => s + (parseFloat(d.settlement.finalAmount) || 0), 0);
-  const openTasks = T().tasks.filter(t => !t.done).length;
-  const dueToday = T().tasks.filter(t => !t.done && t.due === todayISO()).length;
+  const openTasks = T().tasks.filter(t => !t.done && !t.archived).length;
+  const dueToday = T().tasks.filter(t => !t.done && !t.archived && t.due === todayISO()).length;
   const todayGuests = (ad.guests || []).length;
 
   const scheduleHtml = ad.schedule.length
@@ -3620,7 +3636,7 @@ function renderTodayFlags(ad) {
     if (allots[p] && used > allots[p]) flags.push({ kind: 'amb', h: `${p} over allotment`, s: `${used} / ${allots[p]} — review in <b>Guest List</b>` });
   });
   T().tasks.forEach(t => {
-    if (!t.done && t.dateId === ad.id) flags.push({ kind: 'cool', h: esc(t.label), s: `Task — ${t.due ? 'due ' + fmtDate(t.due) : 'no due date'}` });
+    if (!t.done && !t.archived && t.dateId === ad.id) flags.push({ kind: 'cool', h: esc(t.label), s: `Task — ${t.due ? 'due ' + fmtDate(t.due) : 'no due date'}` });
   });
   if (!flags.length) return `<div class="alert-item"><span class="pin cool"></span><div class="body"><div class="h">All clear</div><div class="s">Nothing flagged for this date.</div></div></div>`;
   return flags.slice(0, 6).map(f => `
@@ -4217,21 +4233,66 @@ async function handleContactUpload(file) {
    ===================================================================== */
 function renderTasks() {
   const root = $('#p-tasks');
-  const tasks = [...T().tasks].sort((a, b) => {
+  // Split: live = open + done-but-not-archived (the working list)
+  //        archived = done AND archived (collapsible section, TM-only)
+  const live = T().tasks.filter(t => !t.archived);
+  const archived = T().tasks.filter(t => t.archived);
+  const liveSorted = [...live].sort((a, b) => {
     if (a.done !== b.done) return a.done ? 1 : -1;
     return (a.due || 'zz').localeCompare(b.due || 'zz');
   });
-  const open = T().tasks.filter(t => !t.done).length;
-  const dueToday = T().tasks.filter(t => !t.done && t.due === todayISO()).length;
+  const open = live.filter(t => !t.done).length;
+  const dueToday = live.filter(t => !t.done && t.due === todayISO()).length;
+  const completedNotArchived = live.filter(t => t.done).length;
+  const showArchive = !!state.ui?.tasksArchiveOpen;
+
+  const renderRow = (t, isArchived = false) => {
+    const linked = t.dateId ? T().dates.find(d => d.id === t.dateId) : null;
+    const assignee = t.assignee ? T().crew.find(c => c.id === t.assignee) : null;
+    const dueClass = (!t.done && t.due && t.due <= todayISO()) ? 'hot' : '';
+    const doneNote = t.done && t.doneBy
+      ? ` · ✓ Done by ${esc(t.doneBy.split(' ')[0])}${t.doneAt ? ' · ' + fmtMD(new Date(t.doneAt).toISOString().slice(0,10)) : ''}`
+      : '';
+    const archivedNote = isArchived && t.archivedAt
+      ? ` · 📦 Archived ${fmtMD(new Date(t.archivedAt).toISOString().slice(0,10))}`
+      : '';
+    const subParts = [];
+    if (linked) subParts.push(esc(linked.city) + ' · ' + fmtMD(linked.date));
+    if (t.notes) subParts.push(esc(t.notes));
+    const subline = subParts.join(' · ')
+      + (doneNote ? `<span style="color:var(--good);margin-left:4px">${doneNote}</span>` : '')
+      + (archivedNote ? `<span style="color:var(--warm-mute);margin-left:4px">${archivedNote}</span>` : '');
+    // Action button changes based on state:
+    //  - Open task → no extra button (just Edit)
+    //  - Done but not archived → "Archive" button (TM only — but Tasks tab is TM-only anyway)
+    //  - Archived → "Unarchive" + "Edit"
+    const actionBtns = isArchived
+      ? `<button type="button" onclick="unarchiveTask('${t.id}')" title="Move back to active list">Unarchive</button>
+         <button type="button" onclick="openTaskModal('${t.id}')">Edit</button>`
+      : t.done
+      ? `<button type="button" class="archive-btn" onclick="archiveTask('${t.id}')" title="Move out of the working list — kept for the record">📦 Archive</button>
+         <button type="button" onclick="openTaskModal('${t.id}')">Edit</button>`
+      : `<button type="button" onclick="openTaskModal('${t.id}')">Edit</button>`;
+    return `
+      <div class="task-row ${t.done?'done':''} ${isArchived?'archived':''}">
+        <div class="cb" onclick="toggleTask('${t.id}')" title="${t.done ? 'Click to reopen' : 'Click to mark done'}">${t.done?'✓':''}</div>
+        <div class="label">${esc(t.label)}${subline ? `<span>${subline}</span>` : ''}</div>
+        <div class="due ${dueClass}">${t.due ? 'DUE ' + fmtMD(t.due).toUpperCase() : '—'}</div>
+        <div class="who-tag">${assignee ? esc(assignee.name) : 'Anyone'}</div>
+        <div class="tbl-actions">${actionBtns}</div>
+      </div>
+    `;
+  };
 
   root.innerHTML = `
     <div class="section-title">
       <h2>Tasks</h2>
-      <span class="crumb">/ ${open} OPEN · ${dueToday} DUE TODAY</span>
+      <span class="crumb">/ ${open} OPEN · ${dueToday} DUE TODAY${completedNotArchived ? ' · ' + completedNotArchived + ' DONE' : ''}</span>
+      ${completedNotArchived > 1 ? `<button type="button" class="add-btn" onclick="archiveAllCompleted()" title="Archive every completed task in one click">📦 Archive all done</button>` : ''}
       <button type="button" class="add-btn" onclick="openTaskModal()">+ Add task</button>
     </div>
 
-    ${tasks.length === 0 ? `
+    ${liveSorted.length === 0 ? `
       <div class="empty">
         <h3>No tasks yet</h3>
         <p>Track advance work, settlements to chase, contracts to sign, anything you'd write down on a list.</p>
@@ -4239,33 +4300,71 @@ function renderTasks() {
       </div>
     ` : `
       <div class="tbl">
-        ${tasks.map(t => {
-          const linked = t.dateId ? T().dates.find(d => d.id === t.dateId) : null;
-          const assignee = t.assignee ? T().crew.find(c => c.id === t.assignee) : null;
-          const dueClass = (!t.done && t.due && t.due <= todayISO()) ? 'hot' : '';
-          // When a task is done, surface who checked it off and when, so the
-          // touring party can see at a glance that "Riley wrapped this 20 min
-          // ago" — including completions originating from the phone view.
-          const doneNote = t.done && t.doneBy
-            ? ` · ✓ Done by ${esc(t.doneBy.split(' ')[0])}${t.doneAt ? ' · ' + fmtMD(new Date(t.doneAt).toISOString().slice(0,10)) : ''}`
-            : '';
-          const subParts = [];
-          if (linked) subParts.push(esc(linked.city) + ' · ' + fmtMD(linked.date));
-          if (t.notes) subParts.push(esc(t.notes));
-          const subline = subParts.join(' · ') + (doneNote ? `<span style="color:var(--good);margin-left:4px">${doneNote}</span>` : '');
-          return `
-            <div class="task-row ${t.done?'done':''}">
-              <div class="cb" onclick="toggleTask('${t.id}')" title="${t.done ? 'Click to reopen' : 'Click to mark done'}">${t.done?'✓':''}</div>
-              <div class="label">${esc(t.label)}${subline ? `<span>${subline}</span>` : ''}</div>
-              <div class="due ${dueClass}">${t.due ? 'DUE ' + fmtMD(t.due).toUpperCase() : '—'}</div>
-              <div class="who-tag">${assignee ? esc(assignee.name) : 'Anyone'}</div>
-              <div class="tbl-actions"><button type="button" onclick="openTaskModal('${t.id}')">Edit</button></div>
-            </div>
-          `;
-        }).join('')}
+        ${liveSorted.map(t => renderRow(t, false)).join('')}
       </div>
     `}
+
+    ${archived.length ? `
+      <div class="archive-section" style="margin-top:24px">
+        <button type="button" class="archive-toggle" onclick="toggleTasksArchive()">
+          <span class="at-chev" style="transform:rotate(${showArchive?90:0}deg)">▸</span>
+          <span class="at-label">Archived tasks</span>
+          <span class="at-count">${archived.length}</span>
+        </button>
+        ${showArchive ? `
+          <div class="tbl archived-tbl" style="margin-top:8px">
+            ${archived.sort((a,b) => (b.archivedAt||0) - (a.archivedAt||0)).map(t => renderRow(t, true)).join('')}
+          </div>
+        ` : ''}
+      </div>
+    ` : ''}
   `;
+}
+
+// Archive a completed task. TM-only — moves it out of the active working
+// list but keeps a permanent record under the collapsible Archived section.
+// Archiving an open task force-completes it first (so the record is honest).
+function archiveTask(id) {
+  const t = T().tasks.find(x => x.id === id);
+  if (!t) return;
+  if (!t.done) {
+    t.done = true;
+    t.doneAt = Date.now();
+    const u = U();
+    t.doneBy = u ? (u.name || 'Tour Manager') : 'Tour Manager';
+    t.doneById = (u && u.id) || 'tm';
+  }
+  t.archived = true;
+  t.archivedAt = Date.now();
+  saveState();
+  renderAll();
+  toast('Task archived');
+}
+
+function unarchiveTask(id) {
+  const t = T().tasks.find(x => x.id === id);
+  if (!t) return;
+  t.archived = false;
+  t.archivedAt = null;
+  saveState();
+  renderAll();
+}
+
+function archiveAllCompleted() {
+  const done = T().tasks.filter(t => t.done && !t.archived);
+  if (!done.length) return;
+  const now = Date.now();
+  done.forEach(t => { t.archived = true; t.archivedAt = now; });
+  saveState();
+  renderAll();
+  toast(`Archived ${done.length} task${done.length===1?'':'s'}`);
+}
+
+function toggleTasksArchive() {
+  if (!state.ui) state.ui = {};
+  state.ui.tasksArchiveOpen = !state.ui.tasksArchiveOpen;
+  saveUIPrefs();
+  renderTasks();
 }
 
 function toggleTask(id) {
@@ -4407,7 +4506,7 @@ function renderPhone() {
         // sees only tasks assigned to them. Recently-completed (last 24h) tasks
         // are shown too, with a strikethrough, so the touring party has a live
         // "what just got done" feed.
-        const all = T().tasks.filter(t => t.dateId===ad.id || !t.dateId);
+        const all = T().tasks.filter(t => !t.archived && (t.dateId===ad.id || !t.dateId));
         const dayMs = 24 * 60 * 60 * 1000;
         const now = Date.now();
         const myTasks = isTM
@@ -8882,6 +8981,8 @@ Object.assign(window, {
   openContactUpload, handleContactUpload, toggleAllDay,
   checkCrewEmailMatch, findUserByEmail, findCrewMatchesByEmail,
   confirmTyped,
+  archiveTask, unarchiveTask, archiveAllCompleted, toggleTasksArchive,
+  tourStartDate, tourEndDate, addDaysISO,
   toggleExportMenu, closeExportMenu, downloadTourBookPDF, downloadTourBookFromHere, closeTourBook,
   scoutNearVenue,
   openTravelAssistant, closeTravelAssistant, setTaTab, searchHotels, resetHotelFilters, bookHotelToActiveDate, searchFlights, resetFlightFilters, addFlightToTravel,
