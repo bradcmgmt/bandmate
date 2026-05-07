@@ -2085,6 +2085,9 @@ function onbChooseSample() {
       if (!tour.memberIds.includes(c.userId)) tour.memberIds.push(c.userId);
     });
 
+    // Flesh out: every date gets schedule/hotel/travel/guests/setList/attachments
+    _fleshOutSampleTour(tour);
+
     state.tours[tour.id] = tour;
     state.currentTourId = tour.id;
     state.onboarded = true;
@@ -2109,6 +2112,7 @@ function onbChooseSample() {
     // Plus a couple of crew (Marco TM & Eden PM cross-tour too)
     const tmCrew = tour.crew.find(c => c.role === 'Tour Manager');
     if (tmCrew) { tour2.crew.push({ ...tmCrew, id: uid('cw') }); if (tmCrew.userId && !tour2.memberIds.includes(tmCrew.userId)) tour2.memberIds.push(tmCrew.userId); }
+    _fleshOutSampleTour(tour2);
     state.tours[tour2.id] = tour2;
 
     saveState();
@@ -7363,6 +7367,145 @@ function submitFeedback(text) {
   window.location.href = `mailto:${FEEDBACK_EMAIL}?subject=${subject}&body=${body}`;
   toast('Email composed — send when ready', 'good');
 }
+
+
+
+const _SET_LIST_TEMPLATE = [
+  { kind:'tag', title:'Open / lights to half', length:'', feat:'' },
+  { kind:'song', title:'North Star Theory', length:'3:42', feat:'' },
+  { kind:'song', title:'Lighthouse, Burning', length:'4:18', feat:'' },
+  { kind:'song', title:'Compass Rose', length:'3:55', feat:'' },
+  { kind:'song', title:'Crossings', length:'4:48', feat:'banter, intro Joss' },
+  { kind:'song', title:'Highway 41', length:'3:30', feat:'' },
+  { kind:'song', title:'Slow Tide', length:'5:02', feat:'solo / acoustic' },
+  { kind:'song', title:'Atlas Dreaming', length:'4:14', feat:'' },
+  { kind:'song', title:'Wayfinder', length:'5:30', feat:'' },
+  { kind:'song', title:'Paper Streets', length:'3:48', feat:'' },
+  { kind:'song', title:'Magnetic Field', length:'4:08', feat:'' },
+  { kind:'song', title:"Cartographer's Daughter", length:'4:38', feat:'' },
+  { kind:'tag', title:'Encore break · 90 sec', length:'', feat:'' },
+  { kind:'song', title:'Old Maps', length:'3:50', feat:'' },
+  { kind:'song', title:'Due North', length:'7:20', feat:'extended outro' },
+];
+
+const _CITY_HOTELS = {
+  'Brooklyn':       { name:'Wythe Hotel',                address:'80 Wythe Ave, Brooklyn NY',           phone:'+1 718-460-8000' },
+  'Boston':         { name:'The Liberty Hotel',          address:'215 Charles St, Boston MA',           phone:'+1 617-224-4000' },
+  'Philadelphia':   { name:'The Logan Philadelphia',     address:'1 N 17th St, Philadelphia PA',        phone:'+1 215-963-1500' },
+  'Washington':     { name:'Yotel Washington DC',        address:'415 New Jersey Ave NW, Washington DC',phone:'+1 202-638-1616' },
+  'Toronto':        { name:'Hyatt Regency Toronto',      address:'370 King St W, Toronto ON',           phone:'+1 416-343-1234' },
+  'Chicago':        { name:'Soho House Chicago',         address:'113 N Green St, Chicago IL',          phone:'+1 312-521-8000' },
+  'Minneapolis':    { name:'Loews Minneapolis Hotel',    address:'601 N 1st Ave, Minneapolis MN',       phone:'+1 612-677-1100' },
+  'Denver':         { name:'The Crawford Hotel',         address:'1701 Wynkoop St, Denver CO',          phone:'+1 720-460-3700' },
+  'Salt Lake City': { name:'Kimpton Hotel Monaco SLC',   address:'15 W 200 S, Salt Lake City UT',       phone:'+1 801-595-0000' },
+  'Portland':       { name:'The Nines',                  address:'525 SW Morrison St, Portland OR',     phone:'+1 877-229-9995' },
+  'Seattle':        { name:'Hotel Sorrento',             address:'900 Madison St, Seattle WA',          phone:'+1 206-622-6400' },
+  'San Francisco':  { name:'Kimpton Buchanan Hotel',     address:'1800 Sutter St, San Francisco CA',    phone:'+1 415-921-4000' },
+  'Los Angeles':    { name:'The Hoxton Downtown LA',     address:'1060 S Broadway, Los Angeles CA',     phone:'+1 213-725-1700' },
+};
+
+function _buildSchedule(d, nextCity) {
+  const doors = d.doors || '19:00';
+  const setT  = d.setTime || '21:15';
+  const items = [
+    { time:'08:30', what:'Bus arrival · '+d.city, who:'DRIVER',     groups:['Driver'] },
+    { time:'10:00', what:'Hotel check-in window', who:'ALL',        groups:['All'] },
+    { time:'11:30', what:'Load-in',               who:'CREW',       groups:['Crew'] },
+    { time:'13:00', what:'Lunch · catering',      who:'ALL',        groups:['All'] },
+    { time:'14:30', what:'Line check',            who:'DEVON · LILA', groups:['Crew'] },
+    { time:'15:30', what:'Soundcheck',            who:'BAND',       groups:['Band'] },
+    { time:'17:30', what:'Dinner · catering',     who:'ALL',        groups:['All'] },
+    { time:'18:30', what:'Meet & Greet · 12 fans',who:'BAND',       groups:['Band'] },
+    { time: doors,  what:'Doors',                 who:'FOH',        groups:['Crew'] },
+    { time:'20:00', what:'Support · Halsey Coast',who:'SUPPORT',    groups:['Support'] },
+    { time: setT,   what:'SET · The Cartographers', who:'BAND', notes:'75 min', groups:['Band'] },
+    { time:'23:00', what:'Load-out',              who:'CREW',       groups:['Crew'] },
+  ];
+  if (nextCity) items.push({ time:'02:00', what:`Bus call → ${nextCity}`, who:'ALL', groups:['All'] });
+  return items.map(it => ({ id: uid('s'), notes: it.notes || '', ...it }));
+}
+
+function _buildHotel(city, crew) {
+  const h = _CITY_HOTELS[city] || { name: city + ' Hotel', address: city, phone:'' };
+  const types = ['King','Queen','Queen','Queen','Queen','King','King','Twin/Twin share','Twin/Twin share','Queen','King','King'];
+  const rooms = (crew || []).slice(0, 12).map((c, i) => ({
+    id: uid('rm'),
+    personId: c.id,
+    personName: '',
+    roomNum: String(401 + i * 2),
+    roomType: types[i] || 'Queen',
+    notes: i === 0 ? 'Quiet floor' : (i === 7 || i === 8 ? 'Share' : (i === 10 ? 'Day room — driver sleep block' : '')),
+  }));
+  return {
+    name: h.name,
+    address: h.address,
+    conf: 'CONF-' + city.replace(/[^A-Z0-9]/gi,'').toUpperCase().slice(0,4) + '-2026',
+    phone: h.phone || '',
+    checkIn: '15:00',
+    checkOut: '11:00',
+    notes: '',
+    rooms,
+  };
+}
+
+function _buildTravel(fromCity, toCity) {
+  if (!toCity) return [];
+  return [
+    { id: uid('tv'), type:'bus', description:`Sleeper bus → ${toCity}`, time:'02:00', conf:'NOC-422', person:'ALL', notes:`Driver Junior · ETA 07:30` },
+    { id: uid('tv'), type:'van', description:`Backline van → ${toCity}`, time:'02:00', conf:'B-2204', person:'Casey W.', notes:'14ft Sprinter' },
+  ];
+}
+
+function _buildGuests(city) {
+  return [
+    { id: uid('gl'), name:'Lena Greco', plus:1, submittedBy:'Sam Ortega · BAND', passType:'AAA', status:'approved', email:'lena.greco@warner.com', notes:'Label A&R', submittedAt: Date.now() },
+    { id: uid('gl'), name:`${city} family`, plus:2, submittedBy:'Maren Holloway · BAND', passType:'+1', status:'approved', email:'', notes:'', submittedAt: Date.now() },
+    { id: uid('gl'), name:'Press · local', plus:0, submittedBy:'PR · Jenna L.', passType:'Photo', status:'approved', email:'press@example.com', notes:'First 3 songs only', submittedAt: Date.now() },
+    { id: uid('gl'), name:'Hannah Yu', plus:0, submittedBy:'Riley Park · BAND', passType:'+1', status:'approved', email:'hannah.yu@gmail.com', notes:'Kal Sound founder', submittedAt: Date.now() },
+    { id: uid('gl'), name:'Local Promoter Rep', plus:1, submittedBy:'Marco Velez · TM', passType:'AAA', status:'approved', email:'', notes:'', submittedAt: Date.now() },
+  ];
+}
+
+function _buildSetList() {
+  return _SET_LIST_TEMPLATE.map(s => ({ id: uid('sl'), ...s }));
+}
+
+function _buildAttachments(city) {
+  return [
+    { id: uid('at'), name: city.replace(/\s+/g,'-') + '-performance-agreement.pdf', type:'Contract', size:'1.2 MB', link:'', tags:'Legal · Promoter', addedAt: Date.now() },
+    { id: uid('at'), name: 'tech-hospitality-rider-v2.3.pdf', type:'Rider', size:'2.4 MB', link:'', tags:'Tech · Hospitality', addedAt: Date.now() },
+    { id: uid('at'), name: 'stage-plot-' + city.replace(/\s+/g,'-').toLowerCase() + '.png', type:'Stage Plot', size:'880 KB', link:'', tags:'Tech', addedAt: Date.now() },
+  ];
+}
+
+function _fleshOutSampleTour(tour) {
+  // For each date in the sample tour, fill in any empty schedule/hotel/travel/guests/setList/attachments
+  // Detroit (or any date that already has full data) is left untouched.
+  tour.dates.forEach((d, idx) => {
+    const next = tour.dates[idx + 1];
+    const nextCity = next ? next.city : null;
+    if (d.status === 'show') {
+      if (!d.schedule || !d.schedule.length) d.schedule = _buildSchedule(d, nextCity);
+      if (!d.hotel) d.hotel = _buildHotel(d.city, tour.crew);
+      if (!d.travel || !d.travel.length) d.travel = _buildTravel(d.city, nextCity);
+      if (!d.guests || !d.guests.length) d.guests = _buildGuests(d.city);
+      if (!d.setList || !d.setList.length) d.setList = _buildSetList();
+      if (!d.attachments || !d.attachments.length) d.attachments = _buildAttachments(d.city);
+    } else if (d.status === 'travel') {
+      // Travel day — populate travel items between previous and next show
+      const prev = tour.dates[idx - 1];
+      if ((!d.travel || !d.travel.length) && prev && next) {
+        d.travel = [
+          { id: uid('tv'), type:'bus', description:`${prev.city} → ${next.city}`, time:'02:00', conf:'NOC-422', person:'ALL', notes:'Sleeper bus overnight · ETA 07:30' },
+          { id: uid('tv'), type:'van', description:`Backline van ${prev.city} → ${next.city}`, time:'02:00', conf:'B-2204', person:'Casey W.', notes:'14ft Sprinter' },
+          { id: uid('tv'), type:'flight', description:'Riley Park · LGA → ORD', time:'12:42', conf:'AA 484', person:'Riley Park', notes:'Connecting through hub' },
+        ];
+      }
+    }
+  });
+  return tour;
+}
+
 
 const SAMPLE_TOUR = {
   meta: {
