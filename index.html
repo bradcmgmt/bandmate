@@ -3124,12 +3124,14 @@ function renderDashboard() {
     <div class="dash-hero">
       <div class="day-sheet">
         <div class="ribbon">${status}</div>
-        <h3>${esc(ad.city.toUpperCase())} · DAY ${(T().dates.findIndex(d=>d.id===ad.id)+1).toString().padStart(2,'0')} / ${T().dates.length.toString().padStart(2,'0')}</h3>
-        <div class="city">${esc(ad.venue || ad.city)}</div>
-        <div class="venue">${ad.venue ? esc(ad.city) + (ad.state ? ', ' + esc(ad.state) : '') : ''}${ad.capacity ? ' · Capacity ' + esc(ad.capacity) : ''}</div>
+        <h3>${esc((ad.city || ad.status === 'off' ? 'DAY OFF' : 'TRAVEL').toUpperCase())} · DAY ${(T().dates.findIndex(d=>d.id===ad.id)+1).toString().padStart(2,'0')} / ${T().dates.length.toString().padStart(2,'0')}</h3>
+        <div class="city">${ad.status === 'off' ? 'Day off' : ad.status === 'travel' ? 'Travel day' : esc(ad.venue || ad.city)}</div>
+        ${ad.status === 'show' || ad.status === 'press' ? `
+          <div class="venue">${ad.venue ? esc(ad.city) + (ad.state ? ', ' + esc(ad.state) : '') : ''}${ad.capacity ? ' · Capacity ' + esc(ad.capacity) : ''}</div>
+        ` : (ad.city ? `<div class="venue">${esc(ad.city)}${ad.state ? ', ' + esc(ad.state) : ''}</div>` : '')}
         <div class="gridrun">${scheduleHtml}</div>
         <div class="meta">
-          <div class="m"><div class="l">Promoter</div><div class="v">${esc(promoter)}</div></div>
+          ${(ad.status === 'show' || ad.status === 'press') ? `<div class="m"><div class="l">Promoter</div><div class="v">${esc(promoter)}</div></div>` : ''}
           <div class="m"><div class="l">Hotel</div><div class="v">${esc(hotelMeta)}</div></div>
           <div class="m"><div class="l">Next stop</div><div class="v">${esc(nextHop)}</div></div>
         </div>
@@ -4717,13 +4719,32 @@ function mapCSVRow(row, kind) {
   };
 
   if (kind === 'date') {
+    let city = get('city');
+    let venue = get('venue', 'venuename', 'club');
+    let status = (get('status', 'type', 'showtype', 'daytype') || 'show').toLowerCase();
+    // Auto-detect off-days: if city or venue or status literally says "OFF" / "DAY OFF" / "OFF DAY"
+    const cityU = city.toUpperCase().trim();
+    const venueU = venue.toUpperCase().trim();
+    const statusU = status.toUpperCase().trim();
+    if (cityU === 'OFF' || cityU === 'DAY OFF' || cityU === 'OFF DAY' ||
+        venueU === 'OFF' || venueU === 'DAY OFF' || venueU === 'OFF DAY' ||
+        statusU === 'OFF' || statusU === 'DAY OFF' || statusU === 'OFF DAY') {
+      status = 'off';
+      // Strip "OFF" placeholders so the field doesn't visually pollute the city column
+      if (cityU === 'OFF' || cityU === 'DAY OFF' || cityU === 'OFF DAY') city = '';
+      if (venueU === 'OFF' || venueU === 'DAY OFF' || venueU === 'OFF DAY') venue = '';
+    }
+    // Auto-detect travel days similarly
+    if (cityU === 'TRAVEL' || venueU === 'TRAVEL' || statusU === 'TRAVEL' || statusU === 'TRAVEL DAY') {
+      status = 'travel';
+    }
     return {
       date: normalizeDate(get('date', 'showdate', 'dateofshow', 'showday')),
-      city: get('city'),
+      city,
       state: get('state', 'stateregion', 'region', 'province'),
-      venue: get('venue', 'venuename', 'club'),
+      venue,
       capacity: get('capacity', 'cap', 'roomcap', 'venuecap', 'venuecapacity', 'tickets', 'ticketcap'),
-      status: (get('status', 'type', 'showtype', 'daytype') || 'show').toLowerCase(),
+      status,
       doors: normalizeTime(get('doors', 'doortime', 'doorsopen', 'door')),
       setTime: normalizeTime(get('settime', 'set', 'showtime', 'stagetime', 'headline', 'headlineset', 'onstage', 'startshow')),
       loadIn: normalizeTime(get('loadin', 'load')),
@@ -4961,8 +4982,14 @@ function mergeImportResults(results) {
 
 function calcDateGaps(d) {
   const missing = [];
+  const status = (d.status || 'show').toLowerCase();
   if (!d.date) missing.push('date');
+  // Off days only need a date — no venue/capacity/doors/setTime/promoter required
+  if (status === 'off') return missing;
   if (!d.city) missing.push('city');
+  // Travel days need a destination city but not show-day fields
+  if (status === 'travel') return missing;
+  // Show / press days
   if (!d.venue) missing.push('venue');
   if (!d.capacity) missing.push('capacity');
   if (!d.doors) missing.push('doors');
@@ -7776,20 +7803,24 @@ function _fleshOutSampleTour(tour) {
 
 function calcLiveDateGaps(d) {
   const missing = [];
+  const status = (d.status || 'show').toLowerCase();
   if (!d.date) missing.push('date');
+  // Off days only need a date
+  if (status === 'off') return missing;
   if (!d.city) missing.push('city');
-  if (d.status === 'show') {
-    if (!d.venue) missing.push('venue');
-    if (!d.capacity) missing.push('capacity');
-    if (!d.doors) missing.push('doors');
-    if (!d.setTime) missing.push('set time');
-    if (!d.promoter) missing.push('promoter');
-    if (!d.hotel) missing.push('hotel');
-    else if (!d.hotel.rooms || !d.hotel.rooms.length) missing.push('hotel rooms');
-    if (!d.schedule || !d.schedule.length) missing.push('schedule');
-  } else if (d.status === 'travel') {
+  if (status === 'travel') {
     if (!d.travel || !d.travel.length) missing.push('travel items');
+    return missing;
   }
+  // Show / press days require the full kit
+  if (!d.venue) missing.push('venue');
+  if (!d.capacity) missing.push('capacity');
+  if (!d.doors) missing.push('doors');
+  if (!d.setTime) missing.push('set time');
+  if (!d.promoter) missing.push('promoter');
+  if (!d.hotel) missing.push('hotel');
+  else if (!d.hotel.rooms || !d.hotel.rooms.length) missing.push('hotel rooms');
+  if (!d.schedule || !d.schedule.length) missing.push('schedule');
   return missing;
 }
 
