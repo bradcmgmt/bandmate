@@ -7048,7 +7048,16 @@ function showLoginScreen() {
   const screen = document.getElementById('loginScreen');
   screen.hidden = false;
   renderLoginAccounts();
-  showLoginForm();
+  // First-time visitor (no claimed accounts) → default to signup form
+  // Returning visitor (has accounts) → default to sign-in form
+  const claimedCount = state && state.users
+    ? Object.values(state.users).filter(u => u.claimed).length
+    : 0;
+  if (claimedCount === 0) {
+    showSignupForm();
+  } else {
+    showLoginForm();
+  }
 }
 
 function hideLoginScreen() {
@@ -7533,10 +7542,10 @@ function init() {
     });
   } catch (e) { console.error('outsideClick bind:', e); }
   try {
-    if (state && state.users && Object.keys(state.users).length && !state.currentUserId) {
-      // Have accounts but not logged in → show login
+    if (!state || !state.currentUserId) {
+      // No state OR no logged-in user → require login/signup first
       showLoginScreen();
-    } else if (!state || !state.onboarded) {
+    } else if (!state.onboarded) {
       document.getElementById('onboarding').classList.remove('hidden');
       document.getElementById('app').hidden = true;
     } else {
