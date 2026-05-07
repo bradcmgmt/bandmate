@@ -123,7 +123,10 @@ input,select,textarea{font:inherit;color:inherit}
   box-shadow:0 8px 16px -8px rgba(0,0,0,.5);
   display:flex;align-items:stretch;gap:10px;padding:10px 22px;
 }
-.day-strip{display:flex;gap:6px;overflow-x:auto;flex:1;scroll-behavior:smooth;padding-bottom:2px}
+.day-strip{display:flex;gap:6px;overflow-x:auto;flex:1;scroll-behavior:smooth;padding:0 18px 2px 0;min-width:0;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 14px,#000 calc(100% - 28px),transparent 100%);
+  mask-image:linear-gradient(90deg,transparent 0,#000 14px,#000 calc(100% - 28px),transparent 100%);
+}
 .day-strip::-webkit-scrollbar{height:0}
 .day-pill{
   flex:none;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;
@@ -788,6 +791,8 @@ input,select,textarea{font:inherit;color:inherit}
 .iz-gap:last-child{border-bottom:none}
 .iz-gap.muted{color:var(--warm-mute);font-style:italic}
 .iz-gap .gtag{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--red);background:rgba(232,69,69,.08);padding:3px 7px;border-radius:4px;border:1px solid rgba(232,69,69,.25);flex:none}
+.iz-gap.tw{border-bottom-color:rgba(249,115,22,.20)}
+.iz-gap .gtag.tw{color:#fb923c;background:rgba(249,115,22,.10);border-color:rgba(249,115,22,.35)}
 
 /* day pill flag for imported dates needing review */
 .day-pill.needs-review{box-shadow:inset 0 0 0 1px rgba(232,69,69,.5)}
@@ -1555,7 +1560,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 
 
 /* ============ ROUTE PANEL (DASHBOARD) ============ */
-.route-rows{display:flex;flex-direction:column;gap:1px;max-height:300px;overflow-y:auto;margin:0 -4px}
+.route-rows{display:flex;flex-direction:column;gap:1px;max-height:300px;overflow-y:auto;margin:14px -4px 0}
 .route-row{
   display:grid;grid-template-columns:58px 1fr auto;gap:10px;align-items:baseline;
   padding:8px 10px;border-radius:6px;cursor:pointer;
@@ -7817,7 +7822,7 @@ function calcLiveDateGaps(d) {
   if (!d.capacity) missing.push('capacity');
   if (!d.doors) missing.push('doors');
   if (!d.setTime) missing.push('set time');
-  if (!d.promoter) missing.push('promoter');
+  // promoter is optional — intentionally not flagged as missing
   if (!d.hotel) missing.push('hotel');
   else if (!d.hotel.rooms || !d.hotel.rooms.length) missing.push('hotel rooms');
   if (!d.schedule || !d.schedule.length) missing.push('schedule');
@@ -7906,9 +7911,9 @@ function openTourScan() {
         <div class="iz-gaps" style="margin-top:18px">
           <h4>⚠ NEEDS YOUR MANUAL ENTRY · ${totalGaps} item${totalGaps===1?'':'s'}</h4>
           ${scan.globalGaps.map(g => `
-            <div class="iz-gap">
-              <span class="gtag">tour-wide</span>
-              <span><b style="color:var(--warm)">${esc(g.what)}.</b> <span class="muted" style="font-size:11.5px">${esc(g.fix)}</span></span>
+            <div class="iz-gap tw">
+              <span class="gtag tw">tour-wide</span>
+              <span><b style="color:#fdba74">${esc(g.what)}.</b> <span class="muted" style="font-size:11.5px">${esc(g.fix)}</span></span>
             </div>
           `).join('')}
           ${scan.incompleteDates.map(({date, missing}) => `
