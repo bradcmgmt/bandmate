@@ -4078,14 +4078,14 @@ function renderImportStart() {
         <div class="iz-icon">⊕</div>
         <div class="iz-h">Drop tour documents here</div>
         <div class="iz-sub">Tour grids, deal memos, contracts, contact lists, hotel blocks, crew rosters. Up to 50 files. Bandmate reads each one and extracts whatever it can.</div>
-        <div class="iz-formats">CSV · JSON · PDF · TXT · MD</div>
+        <div class="iz-formats">CSV · XLSX · JSON · PDF · TXT · MD</div>
       </div>
-      <input type="file" id="iz_input" multiple accept=".csv,.txt,.md,.json,.pdf" style="display:none" onchange="izAddFiles(this.files)">
+      <input type="file" id="iz_input" multiple accept=".csv,.txt,.md,.json,.pdf,.xlsx,.xls,.xlsm,.numbers" style="display:none" onchange="izAddFiles(this.files)">
 
       <div id="iz_filelist" class="file-list mt12"></div>
 
       <div class="iz-tip">
-        <b>Tip:</b> CSV files with headers like <code>Date</code> / <code>City</code> / <code>Venue</code> populate dates automatically.
+        <b>Tip:</b> CSV / XLSX files with headers like <code>Date</code> / <code>City</code> / <code>Venue</code> populate dates automatically. Excel workbooks with multiple sheets get scanned across all sheets — drop in a tour grid, hotel block, contacts list, and crew roster as separate sheets and Bandmate detects each.
         Deal memos as PDFs or text get scanned for date, venue, capacity, doors, set time, promoter, and guarantee.
         <button type="button" class="iz-template" onclick="downloadCSVTemplate()">↓ Tour grid CSV template</button>
       </div>
@@ -4153,6 +4153,8 @@ function fileExtBadge(name) {
   if (ext === 'txt') return 'TXT';
   if (ext === 'md') return 'MD';
   if (ext === 'doc' || ext === 'docx') return 'DOC';
+  if (ext === 'xlsx' || ext === 'xls' || ext === 'xlsm') return 'XLS';
+  if (ext === 'numbers') return 'NUM';
   return 'FILE';
 }
 
@@ -4249,6 +4251,59 @@ async function processImportFile(file) {
       result.kind = 'json_invalid';
       result.notes.push('JSON did not parse: ' + e.message);
     }
+  } else if (ext === 'xlsx' || ext === 'xls' || ext === 'xlsm') {
+    const sheets = await extractXLSXSheets(file);
+    if (sheets && Object.keys(sheets).length) {
+      let processed = false;
+      const sheetNotes = [];
+      for (const sheetName of Object.keys(sheets)) {
+        const rows = sheets[sheetName];
+        if (!rows.length) continue;
+        const headers = Object.keys(rows[0]).map(h => String(h).toLowerCase().trim());
+        const kind = detectCSVKind(headers);
+        if (kind === 'tour_grid') {
+          const dates = rows.map(r => mapCSVRow(r, 'date')).filter(d => d.date && d.city);
+          result.extracted.dates.push(...dates);
+          sheetNotes.push(`"${sheetName}": ${dates.length} tour dates`);
+          processed = true;
+        } else if (kind === 'hotels') {
+          const hotels = rows.map(r => mapCSVRow(r, 'hotel')).filter(h => h.name);
+          result.extracted.hotels.push(...hotels);
+          sheetNotes.push(`"${sheetName}": ${hotels.length} hotels`);
+          processed = true;
+        } else if (kind === 'contacts') {
+          const contacts = rows.map(r => mapCSVRow(r, 'contact')).filter(c => c.name);
+          result.extracted.contacts.push(...contacts);
+          sheetNotes.push(`"${sheetName}": ${contacts.length} contacts`);
+          processed = true;
+        } else if (kind === 'crew') {
+          const crew = rows.map(r => mapCSVRow(r, 'crew')).filter(c => c.name);
+          result.extracted.crew.push(...crew);
+          sheetNotes.push(`"${sheetName}": ${crew.length} crew`);
+          processed = true;
+        } else {
+          sheetNotes.push(`"${sheetName}": format not recognized (${headers.slice(0,4).join(', ')})`);
+        }
+      }
+      result.kind = processed ? 'xlsx' : 'xlsx_unknown';
+      result.notes.push(...sheetNotes);
+      if (!processed) {
+        result.notes.push('Excel sheets parsed but no recognized tour-grid/hotels/contacts/crew shape found. Try renaming columns to: Date, City, Venue, Capacity, Doors, SetTime, Promoter');
+      }
+    } else {
+      result.kind = 'xlsx_unread';
+      result.extracted.attachOnly = true;
+      const fnExt = extractFromFilename(file.name);
+      addFromFilenameHints(fnExt, file, result);
+      result.notes.push('Excel parser failed to load — kept as attachment with filename hints.');
+    }
+  } else if (ext === 'numbers') {
+    // Apple Numbers — proprietary binary, hard to parse in browser
+    result.kind = 'numbers';
+    result.extracted.attachOnly = true;
+    const fnExt = extractFromFilename(file.name);
+    addFromFilenameHints(fnExt, file, result);
+    result.notes.push('Apple Numbers files can\'t be parsed in-browser yet — export as CSV or XLSX from Numbers (File → Export To → Excel) and re-upload for full extraction.');
   } else if (ext === 'pdf') {
     const text = await extractPDFText(file);
     if (text) {
@@ -4348,6 +4403,46 @@ function loadPDFjs() {
     document.head.appendChild(s);
   });
   return _pdfjsLoaderPromise;
+}
+
+
+
+let _xlsxLoaderPromise = null;
+function loadXLSX() {
+  if (_xlsxLoaderPromise) return _xlsxLoaderPromise;
+  _xlsxLoaderPromise = new Promise((resolve, reject) => {
+    if (typeof XLSX !== 'undefined') return resolve(window.XLSX);
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = () => {
+      if (window.XLSX) resolve(window.XLSX);
+      else reject(new Error('XLSX global missing'));
+    };
+    s.onerror = () => reject(new Error('XLSX failed to load'));
+    document.head.appendChild(s);
+  });
+  return _xlsxLoaderPromise;
+}
+
+async function extractXLSXSheets(file) {
+  let lib;
+  try { lib = await loadXLSX(); } catch (e) { return null; }
+  if (!lib) return null;
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = lib.read(buf, { type: 'array' });
+    const allSheets = {};
+    wb.SheetNames.forEach(name => {
+      const ws = wb.Sheets[name];
+      // Convert to array of objects with row 1 as headers
+      const rows = lib.utils.sheet_to_json(ws, { defval: '', raw: false });
+      // Normalize: also try header=A so we can detect if first row is headers
+      if (rows.length > 0) allSheets[name] = rows;
+    });
+    return allSheets;
+  } catch (e) {
+    return null;
+  }
 }
 
 async function extractPDFText(file) {
