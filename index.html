@@ -790,8 +790,11 @@ input,select,textarea{font:inherit;color:inherit}
 
 .iz-gaps{padding:14px;background:rgba(232,69,69,.06);border:1px dashed rgba(232,69,69,.3);border-radius:10px}
 .iz-gaps h4{margin:0 0 10px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--red)}
-.iz-gap{padding:6px 0;font-size:13px;color:var(--warm);border-bottom:1px solid rgba(232,69,69,.15);display:flex;gap:8px;align-items:baseline}
+.iz-gap{padding:6px 8px;font-size:13px;color:var(--warm);border-bottom:1px solid rgba(232,69,69,.15);display:flex;gap:8px;align-items:baseline;border-radius:6px;transition:background .12s ease,box-shadow .12s ease;margin:0 -8px}
 .iz-gap:last-child{border-bottom:none}
+.iz-gap:hover{background:rgba(232,148,58,.08);box-shadow:inset 0 0 0 1px rgba(232,148,58,.25)}
+.iz-gap[onclick]:hover{background:rgba(232,148,58,.12);cursor:pointer}
+.iz-gap.tw:hover{background:rgba(249,115,22,.10);box-shadow:inset 0 0 0 1px rgba(249,115,22,.3)}
 .iz-gap.muted{color:var(--warm-mute);font-style:italic}
 .iz-gap .gtag{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--red);background:rgba(232,69,69,.08);padding:3px 7px;border-radius:4px;border:1px solid rgba(232,69,69,.25);flex:none}
 .iz-gap.tw{border-bottom-color:rgba(249,115,22,.20)}
@@ -2159,6 +2162,41 @@ function todayISO() {
   const d = new Date();
   return d.toISOString().slice(0, 10);
 }
+// Add N days to an ISO date string (YYYY-MM-DD). Returns '' if input is invalid.
+function addDaysISO(iso, n) {
+  if (!iso || typeof iso !== 'string') return '';
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '';
+  const dt = new Date(Date.UTC(+m[1], +m[2]-1, +m[3]));
+  if (isNaN(dt)) return '';
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return dt.toISOString().slice(0, 10);
+}
+// Tour range helpers — robust to dates with empty .date (off rows that were
+// never resolved) and gives a smarter end date: if the last actual day on
+// the tour is a SHOW, the tour effectively wraps the next morning, so
+// we display end+1. Off / travel / press days end on the day itself.
+function tourStartDate(tour) {
+  const dates = (tour && tour.dates) || [];
+  for (let i = 0; i < dates.length; i++) {
+    if (dates[i] && dates[i].date) return dates[i].date;
+  }
+  return '';
+}
+function tourEndDate(tour) {
+  const dates = (tour && tour.dates) || [];
+  for (let i = dates.length - 1; i >= 0; i--) {
+    const d = dates[i];
+    if (d && d.date) {
+      const status = (d.status || 'show').toLowerCase();
+      // Show day → tour ends the next day (load-out, drive home, etc.)
+      if (status === 'show' || status === 'press') return addDaysISO(d.date, 1) || d.date;
+      // Off / travel day → use as-is
+      return d.date;
+    }
+  }
+  return '';
+}
 function daysFromTodayClass(iso) {
   if (!iso) return '';
   if (iso < todayISO()) return 'past';
@@ -2315,12 +2353,65 @@ function downloadCSVTemplate() {
   downloadFile('bandmate-tour-grid-template.csv', csv, 'text/csv');
 }
 
+// Typed-confirmation gate for destructive actions. The user has to type the
+// magic word exactly (in caps) before the primary button enables.
+function confirmTyped({ title, message, magic, confirmLabel, danger = true, onConfirm }) {
+  openModal({
+    title,
+    size: '',
+    hideFooter: true,
+    body: `
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="font-size:13.5px;line-height:1.55;color:var(--warm)">${message}</div>
+        <div class="field">
+          <label>Type <b style="color:${danger?'var(--red)':'var(--hi)'};letter-spacing:.16em">${esc(magic)}</b> to confirm</label>
+          <input id="ct_input" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="${esc(magic)}" style="font-family:'JetBrains Mono',monospace;letter-spacing:.16em;text-transform:uppercase">
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--line);padding-top:14px">
+          <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+          <button type="button" class="btn ${danger?'danger':'primary'}" id="ct_confirm" disabled style="opacity:.45;cursor:not-allowed">${esc(confirmLabel || magic)}</button>
+        </div>
+      </div>
+    `
+  });
+  setTimeout(() => {
+    const input = document.getElementById('ct_input');
+    const btn = document.getElementById('ct_confirm');
+    if (!input || !btn) return;
+    input.focus();
+    const check = () => {
+      const ok = (input.value || '').trim() === magic;
+      btn.disabled = !ok;
+      btn.style.opacity = ok ? '1' : '.45';
+      btn.style.cursor = ok ? 'pointer' : 'not-allowed';
+    };
+    input.addEventListener('input', check);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !btn.disabled) { e.preventDefault(); btn.click(); }
+    });
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+      closeModal();
+      try { onConfirm && onConfirm(); } catch(e) { console.error(e); }
+    });
+  }, 30);
+}
+
 function resetTour() {
-  if (!confirm('Reset everything and start over? This cannot be undone.\n\nTip: Export your tour first if you want a backup.')) return;
-  localStorage.removeItem(STORAGE_KEY);
-  state = null;
-  $('#app').hidden = true;
-  $('#onboarding').classList.remove('hidden');
+  confirmTyped({
+    title: 'Reset everything?',
+    message: 'This wipes <b>all</b> tours, crew, contacts, and settings on this device. It cannot be undone.<br><br>Tip: Export your tour first if you want a backup.',
+    magic: 'RESET',
+    confirmLabel: 'Reset everything',
+    danger: true,
+    onConfirm: () => {
+      localStorage.removeItem(STORAGE_KEY);
+      state = null;
+      $('#app').hidden = true;
+      $('#onboarding').classList.remove('hidden');
+      toast('Everything reset');
+    }
+  });
 }
 
 function exportTour() {
@@ -3201,8 +3292,12 @@ function renderTopBar() {
   $('#tourName').textContent = (T().meta.tourName || 'Untitled tour') + (T().meta.artist ? ' · ' + T().meta.artist : '');
   $('#tourStats').textContent = `${T().dates.length} DATES`;
   if (T().dates.length) {
-    const first = T().dates[0].date, last = T().dates[T().dates.length - 1].date;
-    $('#tourRange').textContent = `${fmtDate(first).toUpperCase()} → ${fmtDate(last).toUpperCase()}`;
+    const first = tourStartDate(T()), last = tourEndDate(T());
+    if (first || last) {
+      $('#tourRange').textContent = `${fmtDate(first).toUpperCase()} → ${fmtDate(last).toUpperCase()}`;
+    } else {
+      $('#tourRange').textContent = '— DATES NOT YET RESOLVED —';
+    }
   } else $('#tourRange').textContent = '— NO DATES YET —';
   $('#tourPresenter').textContent = (T().meta.presenter || 'BANDMATE TOUR').toUpperCase();
 }
@@ -7625,8 +7720,10 @@ function renderTourSwitcher() {
     <div class="ts-section">Your tours · ${myTours.length}</div>
     ${myTours.map(t => {
       const isCurrent = t.id === state.currentTourId;
-      const dateRange = t.dates && t.dates.length
-        ? fmtMD(t.dates[0].date) + ' → ' + fmtMD(t.dates[t.dates.length-1].date)
+      const startISO = tourStartDate(t);
+      const endISO = tourEndDate(t);
+      const dateRange = (startISO || endISO)
+        ? `${fmtMD(startISO)} → ${fmtMD(endISO)}`
         : 'no dates yet';
       return `
         <button class="ts-tour-item ${isCurrent?'active':''}" type="button" onclick="switchToTour('${t.id}')">
@@ -7759,12 +7856,23 @@ function deleteCurrentTour() {
   if (!t || t.id === '_empty') return;
   const others = userOwnedTours().filter(x => x.id !== t.id);
   if (!others.length) { toast('Can\'t delete the only tour — create another first or Reset to start over', 'error'); return; }
-  if (!confirm(`Delete "${t.name}"? This cannot be undone.`)) return;
-  delete state.tours[t.id];
-  state.currentTourId = others[0].id;
-  saveState();
-  renderAll();
-  toast('Tour deleted', '');
+  const tourName = t.name || 'Untitled tour';
+  const dateCount = (t.dates || []).length;
+  const crewCount = (t.crew || []).length;
+  confirmTyped({
+    title: `Delete "${esc(tourName)}"?`,
+    message: `This permanently removes the tour, including <b>${dateCount} date${dateCount===1?'':'s'}</b>, <b>${crewCount} crew member${crewCount===1?'':'s'}</b>, all schedules, settlements, and notes. Crew members linked to this tour will lose access. This cannot be undone.`,
+    magic: 'DELETE',
+    confirmLabel: 'Delete tour',
+    danger: true,
+    onConfirm: () => {
+      delete state.tours[t.id];
+      state.currentTourId = others[0].id;
+      saveState();
+      renderAll();
+      toast('Tour deleted');
+    }
+  });
 }
 
 
@@ -8033,7 +8141,6 @@ function renderAccountMenu() {
   if (!menu) return;
   if (!amOpen) { menu.classList.remove('open'); return; }
   const me = U();
-  const others = Object.values(state.users).filter(u => u.id !== state.currentUserId && u.claimed).sort((a,b) => (b.lastLoginAt||0) - (a.lastLoginAt||0));
   menu.classList.add('open');
   menu.innerHTML = `
     <div class="am-current">
@@ -8043,17 +8150,6 @@ function renderAccountMenu() {
         <div class="am-meta">${esc(me?.email || '')} · ${me?.role === 'tm' ? 'Tour Manager' : 'Crew'}</div>
       </div>
     </div>
-    ${others.length ? `<div class="am-section">Switch account</div>` : ''}
-    ${others.map(u => `
-      <button class="am-item" type="button" onclick="loginAsExisting('${u.id}');closeAccountMenu()">
-        <span class="am-ic ${u.role==='crew'?'crew':''}">${esc(u.avatar || '??')}</span>
-        <span><div>${esc(u.name)}</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.06em;font-weight:500">${esc(u.email)} · ${u.role==='tm'?'TM':'CREW'}</div></span>
-      </button>
-    `).join('')}
-    <div class="am-section">Account</div>
-    <button class="am-item" type="button" onclick="closeAccountMenu();showLoginScreen();showSignupForm()">
-      <span class="am-ic">+</span><span>Sign in / sign up as different user</span>
-    </button>
     <button class="am-item danger" type="button" onclick="logout()">
       <span class="am-ic" style="color:var(--red);border-color:rgba(232,69,69,.3)">×</span><span>Sign out</span>
     </button>
@@ -8708,6 +8804,7 @@ Object.assign(window, {
   scanTour, openTourScan, calcLiveDateGaps,
   openContactUpload, handleContactUpload, toggleAllDay,
   checkCrewEmailMatch, findUserByEmail, findCrewMatchesByEmail,
+  confirmTyped,
   toggleExportMenu, closeExportMenu, downloadTourBookPDF, downloadTourBookFromHere, closeTourBook,
   scoutNearVenue,
   openTravelAssistant, closeTravelAssistant, setTaTab, searchHotels, resetHotelFilters, bookHotelToActiveDate, searchFlights, resetFlightFilters, addFlightToTravel,
