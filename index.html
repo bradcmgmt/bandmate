@@ -1910,6 +1910,28 @@ function loadState() {
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
     }
   }
+  // Backfill: any tour dates with literal "OFF" / "DAY OFF" strings in city/venue
+  // — normalize to status='off' and clear those placeholder cells so gap analysis,
+  // dashboards, and rendering treat them as actual off days.
+  if (state && state.tours) {
+    let didOffMigrate = false;
+    Object.values(state.tours).forEach(tour => {
+      (tour.dates || []).forEach(d => {
+        const cityU = String(d.city || '').toUpperCase().trim();
+        const venueU = String(d.venue || '').toUpperCase().trim();
+        const isOffPlaceholder = ['OFF','DAY OFF','OFF DAY'];
+        if (isOffPlaceholder.includes(cityU) || isOffPlaceholder.includes(venueU)) {
+          d.status = 'off';
+          if (isOffPlaceholder.includes(cityU)) d.city = '';
+          if (isOffPlaceholder.includes(venueU)) d.venue = '';
+          didOffMigrate = true;
+        }
+      });
+    });
+    if (didOffMigrate) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+    }
+  }
   return state;
 }
 
@@ -4309,9 +4331,10 @@ async function processImportFile(file) {
         const kind = detectCSVKind(headers);
         const headerPreview = headers.slice(0, 5).filter(Boolean).join(', ') || '(no headers)';
         if (kind === 'tour_grid') {
-          const dates = rows.map(r => mapCSVRow(r, 'date')).filter(d => d.date && d.city);
+          const filled = _forwardFillDate(rows);
+          const dates = filled.map(r => mapCSVRow(r, 'date')).filter(_validImportedDate);
           result.extracted.dates.push(...dates);
-          sheetNotes.push(`"${sheetName}" → ${dates.length} tour date${dates.length===1?'':'s'} extracted${dates.length === 0 ? ' (recognized as tour grid but no rows had both Date+City — check date format and city column)' : ''}`);
+          sheetNotes.push(`"${sheetName}" → ${dates.length} tour date${dates.length===1?'':'s'} extracted`);
           processed = true;
         } else if (kind === 'hotels') {
           const hotels = rows.map(r => mapCSVRow(r, 'hotel')).filter(h => h.name);
@@ -4330,7 +4353,8 @@ async function processImportFile(file) {
           processed = true;
         } else {
           // Unknown — try a fallback: if any rows have a date-like value, treat as tour grid
-          const fallbackDates = rows.map(r => mapCSVRow(r, 'date')).filter(d => d.date && (d.city || d.venue));
+          const filled = _forwardFillDate(rows);
+          const fallbackDates = filled.map(r => mapCSVRow(r, 'date')).filter(_validImportedDate);
           if (fallbackDates.length) {
             result.extracted.dates.push(...fallbackDates);
             sheetNotes.push(`"${sheetName}" → ${fallbackDates.length} tour date${fallbackDates.length===1?'':'s'} (fuzzy-matched · headers: ${headerPreview})`);
@@ -4394,7 +4418,8 @@ async function processCSV(text, file, result) {
   const kind = detectCSVKind(headers);
   result.kind = 'csv_' + kind;
   if (kind === 'tour_grid') {
-    result.extracted.dates = rows.map(r => mapCSVRow(r, 'date')).filter(d => d.date && d.city);
+    const filled = _forwardFillDate(rows);
+    result.extracted.dates = filled.map(r => mapCSVRow(r, 'date')).filter(_validImportedDate);
     result.notes.push(`Tour grid · ${result.extracted.dates.length} dates`);
   } else if (kind === 'hotels') {
     result.extracted.hotels = rows.map(r => mapCSVRow(r, 'hotel')).filter(h => h.name);
@@ -4622,6 +4647,37 @@ function titleCase(s) {
   return s.replace(/\w\S*/g, t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
 }
 
+
+
+function _forwardFillDate(rows) {
+  if (!rows || !rows.length) return rows;
+  const dateKeys = Object.keys(rows[0]).filter(k => {
+    const nk = String(k).toLowerCase().replace(/[\s_\-/.()]+/g,'');
+    return nk === 'date' || nk === 'showdate' || nk === 'dateofshow' || nk === 'showday';
+  });
+  if (!dateKeys.length) return rows;
+  const dk = dateKeys[0];
+  let last = '';
+  return rows.map(r => {
+    const v = r[dk];
+    if (v != null && String(v).trim()) {
+      last = String(v).trim();
+    } else if (last) {
+      r = { ...r, [dk]: last };
+    }
+    return r;
+  });
+}
+
+function _validImportedDate(d) {
+  if (!d.date) return false;
+  if (d.city) return true;
+  if (d.venue) return true;
+  if (d.status === 'off' || d.status === 'travel' || d.status === 'press') return true;
+  return false;
+}
+
+
 function detectCSVKind(headers) {
   const hh = headers.map(h => String(h).toLowerCase().replace(/[\s_\-/.()]+/g,'')).join('|');
   const hasDate = /\b(date|showdate|dateofshow|showday)\b/.test('|'+hh+'|') || hh.includes('date');
@@ -4646,6 +4702,9 @@ function _normalizeKey(s) { return String(s).toLowerCase().replace(/[\s_\-/.()]+
 function normalizeDate(s) {
   if (!s) return '';
   s = String(s).trim();
+  if (!s || s === 'undefined' || s === 'null' || s === 'NaN') return '';
+  // Strip leading day-of-week prefix: "Sunday, May 3, 2026" → "May 3, 2026"
+  s = s.replace(/^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)(?:day|nesday|sday|urday)?,?\s*/i, '').trim();
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
   // M/D/YYYY or M-D-YYYY (also DD/MM if culturally)
   let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
@@ -4724,9 +4783,18 @@ function mapCSVRow(row, kind) {
   };
 
   if (kind === 'date') {
-    let city = get('city');
+    let city = get('city', 'cityst', 'citystate');
+    let state = get('state', 'stateregion', 'region', 'province');
     let venue = get('venue', 'venuename', 'club');
     let status = (get('status', 'type', 'showtype', 'daytype') || 'show').toLowerCase();
+    // Split "City, ST" if state column wasn't separately specified
+    if (!state && city && city.includes(',')) {
+      const parts = city.split(',').map(p => p.trim());
+      if (parts.length === 2 && parts[1].length <= 4) {
+        city = parts[0];
+        state = parts[1];
+      }
+    }
     // Auto-detect off-days: if city or venue or status literally says "OFF" / "DAY OFF" / "OFF DAY"
     const cityU = city.toUpperCase().trim();
     const venueU = venue.toUpperCase().trim();
@@ -4746,7 +4814,7 @@ function mapCSVRow(row, kind) {
     return {
       date: normalizeDate(get('date', 'showdate', 'dateofshow', 'showday')),
       city,
-      state: get('state', 'stateregion', 'region', 'province'),
+      state,
       venue,
       capacity: get('capacity', 'cap', 'roomcap', 'venuecap', 'venuecapacity', 'tickets', 'ticketcap'),
       status,
@@ -4987,11 +5055,16 @@ function mergeImportResults(results) {
 
 function calcDateGaps(d) {
   const missing = [];
-  const status = (d.status || 'show').toLowerCase();
+  let status = (d.status || 'show').toLowerCase();
+  // Defensive: if city/venue is the literal string "OFF" (legacy data, pre-migration),
+  // treat as off so gap analysis doesn't ask for venue/capacity/etc on day-off rows.
+  const cityU = String(d.city || '').toUpperCase().trim();
+  const venueU = String(d.venue || '').toUpperCase().trim();
+  if (['OFF','DAY OFF','OFF DAY'].includes(cityU) || ['OFF','DAY OFF','OFF DAY'].includes(venueU)) status = 'off';
   if (!d.date) missing.push('date');
   // Off days only need a date — no venue/capacity/doors/setTime/promoter required
   if (status === 'off') return missing;
-  if (!d.city) missing.push('city');
+  if (!d.city || cityU === 'OFF') missing.push('city');
   // Travel days need a destination city but not show-day fields
   if (status === 'travel') return missing;
   // Show / press days
