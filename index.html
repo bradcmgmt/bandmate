@@ -191,8 +191,11 @@ input,select,textarea{font:inherit;color:inherit}
 
 /* tabs */
 .tabs{display:flex;overflow-x:auto;border-bottom:1px solid var(--line);
-  background:linear-gradient(180deg,rgba(10,7,5,.6),rgba(17,12,8,.4));scrollbar-width:thin}
-.tabs::-webkit-scrollbar{height:0}
+  background:linear-gradient(180deg,rgba(10,7,5,.6),rgba(17,12,8,.4));
+  scrollbar-width:none;-ms-overflow-style:none}
+.tabs::-webkit-scrollbar{display:none;width:0;height:0}
+.tabs::-webkit-scrollbar-thumb{display:none}
+.tabs::-webkit-scrollbar-track{display:none}
 .tab{padding:12px 16px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
   color:var(--warm-mute);white-space:nowrap;border-right:1px solid var(--line);
   display:flex;align-items:center;gap:8px;position:relative;transition:color .15s,background .15s}
@@ -2923,7 +2926,7 @@ function openCrewMemberModal(id) {
         <div class="field full"><label>Groups (controls which schedule items they see)</label>
           ${renderGroupPicker('cm_grp', v.groups || (v.type ? [v.type] : []), false)}
         </div>
-        <div class="field"><label>Email</label><input id="cm_email" value="${esc(v.email)}"></div>
+        <div class="field"><label>Email * <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(used to send invite)</span></label><input id="cm_email" type="email" value="${esc(v.email)}" placeholder="member@band.com"></div>
         <div class="field"><label>Phone</label><input id="cm_phone" value="${esc(v.phone)}"></div>
         <div class="field full"><label>Permissions</label>
           <select id="cm_perms">
@@ -2938,15 +2941,21 @@ function openCrewMemberModal(id) {
     onSubmit: () => {
       const name = $('#cm_name').value.trim();
       const role = $('#cm_role').value.trim();
-      if (!name || !role) { toast('Name and role required', 'error'); return false; }
+      const email = $('#cm_email').value.trim();
+      if (!name || !role) { toast('Name and role are required', 'error'); return false; }
+      if (!email) { toast('Email is required — it\'s how invites get sent', 'error'); return false; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('Please enter a valid email address', 'error'); return false; }
       const data = {
         name, role, type: $('#cm_type').value,
-        email: $('#cm_email').value.trim(), phone: $('#cm_phone').value.trim(),
+        email, phone: $('#cm_phone').value.trim(),
         permissions: $('#cm_perms').value,
         groups: readGroupPicker('cm_grp')
       };
       if (c) Object.assign(c, data);
-      else T().crew.push({ id: uid('cw'), ...data });
+      else {
+        // Track invite timestamp so the tour scan knows we've outreach'd this person
+        T().crew.push({ id: uid('cw'), invitedAt: Date.now(), ...data });
+      }
       saveState();
       setTimeout(openCrewModal, 100);
     }
@@ -3873,14 +3882,22 @@ function renderContacts() {
     <div class="section-title">
       <h2>Tour contacts</h2>
       <span class="crumb">/ ${contacts.length} CONTACTS</span>
+      <button type="button" class="add-btn" onclick="openContactUpload()" style="margin-left:auto">↑ Upload contacts</button>
       <button type="button" class="add-btn" onclick="openContactModal()">+ Add contact</button>
+      <input type="file" id="contact_upload_input" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleContactUpload(this.files[0])">
     </div>
 
     ${contacts.length === 0 ? `
       <div class="empty">
         <h3>No contacts yet</h3>
         <p>Add promoters, venues, hotels, runners, local crew, vendors. They become available throughout the app.</p>
-        <button type="button" onclick="openContactModal()">+ Add first contact</button>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:16px">
+          <button type="button" onclick="openContactUpload()">↑ Upload Excel / CSV</button>
+          <button type="button" onclick="openContactModal()">+ Add first contact</button>
+        </div>
+        <div class="muted mono" style="font-size:10.5px;letter-spacing:.1em;margin-top:14px;color:var(--warm-mute)">
+          Upload accepts columns like: name, role, organization, email, phone, city, notes
+        </div>
       </div>
     ` : `
       <div class="tbl">
@@ -3896,6 +3913,69 @@ function renderContacts() {
       </div>
     `}
   `;
+}
+
+function openContactUpload() {
+  const input = document.getElementById('contact_upload_input');
+  if (input) input.click();
+}
+
+async function handleContactUpload(file) {
+  if (!file) return;
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  let rows = [];
+  try {
+    if (ext === 'csv') {
+      const text = await file.text();
+      rows = parseCSV(text);
+    } else if (ext === 'xlsx' || ext === 'xls') {
+      const sheets = await extractXLSXSheets(file);
+      if (!sheets) {
+        toast('Excel parsing failed — try saving as CSV', 'error');
+        return;
+      }
+      // Walk sheets in order; pick the first one with data (skip __meta key)
+      const sheetKey = Object.keys(sheets).find(k => k !== '__meta' && Array.isArray(sheets[k]) && sheets[k].length);
+      rows = sheetKey ? sheets[sheetKey] : [];
+    } else {
+      toast('Unsupported file type — use .csv, .xlsx, or .xls', 'error');
+      return;
+    }
+  } catch (e) {
+    toast('Could not read file: ' + e.message, 'error');
+    return;
+  }
+
+  if (!rows.length) {
+    toast('No rows found in the file', 'error');
+    return;
+  }
+
+  // Map each row through the contact mapper, filter to anything with a name
+  const mapped = rows.map(r => mapCSVRow(r, 'contact')).filter(c => c.name && c.name.length > 1);
+  if (!mapped.length) {
+    toast('Could not extract any contacts — check that your file has a "name" column', 'error');
+    return;
+  }
+
+  // Dedupe vs. existing contacts on email or name+phone
+  const existing = T().contacts || [];
+  const exKey = c => (c.email || '').toLowerCase() || (c.name + '|' + (c.phone || '')).toLowerCase();
+  const existingKeys = new Set(existing.map(exKey));
+  const fresh = mapped.filter(c => !existingKeys.has(exKey(c)));
+  const skipped = mapped.length - fresh.length;
+
+  fresh.forEach(c => existing.push({ id: uid('co'), ...c }));
+  T().contacts = existing;
+  saveState();
+  renderContacts();
+  applyTabGapIndicators();
+
+  const msg = `Imported ${fresh.length} contact${fresh.length===1?'':'s'}` + (skipped ? ` (${skipped} duplicate${skipped===1?'':'s'} skipped)` : '');
+  toast(msg);
+  // Reset the input so re-upload of same file triggers change
+  const input = document.getElementById('contact_upload_input');
+  if (input) input.value = '';
 }
 
 /* =====================================================================
@@ -8119,22 +8199,41 @@ function scanTour(tour) {
   });
 
   // Tour-wide checks
-  if (!tour.crew || !tour.crew.length) {
-    scan.globalGaps.push({ what: 'No crew roster', fix: 'Add band + crew via Crew Roster button' });
-  } else {
-    scan.completeGlobal.push(`Crew roster · ${tour.crew.length} people`);
-    const crewNoGroup = tour.crew.filter(c => !c.groups || !c.groups.length);
-    if (crewNoGroup.length) {
-      scan.globalGaps.push({ what: `${crewNoGroup.length} crew member${crewNoGroup.length===1?'':'s'} not assigned to a group`, fix: 'Crew tab → Manage Groups → expand groups and add members' });
-    } else {
-      scan.completeGlobal.push('All crew assigned to groups');
-    }
-  }
-
+  // CONTACTS: gap clears as soon as the first contact is added (manual or upload)
   if (!tour.contacts || !tour.contacts.length) {
-    scan.globalGaps.push({ what: 'No contacts on file', fix: 'Contacts tab → add promoter, venue, hotel, runner contacts' });
+    scan.globalGaps.push({ what: 'No contacts on file', fix: 'Contacts tab → upload Excel/CSV or add promoter, venue, hotel, runner contacts' });
   } else {
     scan.completeGlobal.push(`Contacts · ${tour.contacts.length} entries`);
+  }
+
+  // CREW: gap stays open until every invited crew member has submitted their profile.
+  // - 0 crew added → "No crew roster"
+  // - N crew added but profiles still pending → "Awaiting M of N profile submissions"
+  // - All profiles submitted → complete
+  if (!tour.crew || !tour.crew.length) {
+    scan.globalGaps.push({ what: 'No crew roster', fix: 'Add band + crew via Crew Roster button — invites are sent to their email' });
+  } else {
+    const total = tour.crew.length;
+    const unsubmitted = tour.crew.filter(c => !c.profileSubmittedAt);
+    const noEmail = tour.crew.filter(c => !c.email || !c.email.trim());
+    if (noEmail.length) {
+      scan.globalGaps.push({ what: `${noEmail.length} crew member${noEmail.length===1?'':'s'} missing email`, fix: 'Crew Roster → add an email so invites can be sent' });
+    }
+    if (unsubmitted.length) {
+      scan.globalGaps.push({
+        what: `Awaiting ${unsubmitted.length} of ${total} crew profile submission${unsubmitted.length===1?'':'s'}`,
+        fix: `Pending: ${unsubmitted.slice(0,4).map(c => c.name).join(', ')}${unsubmitted.length>4?`, +${unsubmitted.length-4} more`:''} — Crew tab → Remind pending`
+      });
+    } else {
+      scan.completeGlobal.push(`Crew roster · ${total} ${total===1?'person':'people'} · all profiles submitted`);
+    }
+    // Group-assignment status (only surface as warning if it's the only crew issue)
+    const crewNoGroup = tour.crew.filter(c => !c.groups || !c.groups.length);
+    if (crewNoGroup.length && !unsubmitted.length) {
+      scan.globalGaps.push({ what: `${crewNoGroup.length} crew member${crewNoGroup.length===1?'':'s'} not assigned to a group`, fix: 'Crew tab → Manage Groups → expand groups and add members' });
+    } else if (!crewNoGroup.length && !unsubmitted.length) {
+      scan.completeGlobal.push('All crew assigned to groups');
+    }
   }
 
   // Settlements — past unpaid shows
@@ -8144,16 +8243,6 @@ function scanTour(tour) {
     scan.globalGaps.push({ what: `${pastUnpaid.length} past show${pastUnpaid.length===1?'':'s'} awaiting settlement`, fix: 'Settlements tab → log final amounts and check Settled' });
   } else if (dates.some(d => d.status === 'show' && d.settlement?.settled)) {
     scan.completeGlobal.push('All past show settlements recorded');
-  }
-
-  // Crew profiles
-  if (tour.crew && tour.crew.length) {
-    const unsubmitted = tour.crew.filter(c => !c.profileSubmittedAt);
-    if (unsubmitted.length) {
-      scan.globalGaps.push({ what: `${unsubmitted.length} crew profile${unsubmitted.length===1?'':'s'} not submitted`, fix: 'Crew tab → Remind pending or open profiles to claim' });
-    } else {
-      scan.completeGlobal.push('All crew profiles submitted');
-    }
   }
 
   return scan;
@@ -8455,6 +8544,7 @@ Object.assign(window, {
   setPhoneViewDate, jumpPhoneToToday, togglePhoneDateMenu, closePhoneDateMenu,
   openFeedbackModal, submitFeedback,
   scanTour, openTourScan, calcLiveDateGaps,
+  openContactUpload, handleContactUpload, toggleAllDay,
   toggleExportMenu, closeExportMenu, downloadTourBookPDF, downloadTourBookFromHere, closeTourBook,
   scoutNearVenue,
   openTravelAssistant, closeTravelAssistant, setTaTab, searchHotels, resetHotelFilters, bookHotelToActiveDate, searchFlights, resetFlightFilters, addFlightToTravel,
