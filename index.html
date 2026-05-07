@@ -147,11 +147,17 @@ input,select,textarea{font:inherit;color:inherit}
 .day-pill .pdate{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--hi);letter-spacing:.06em;grid-row:1/3;grid-column:1}
 .day-pill .pdow{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--warm-mute);letter-spacing:.18em;grid-row:1;grid-column:2}
 .day-pill .pcity{font-size:12.5px;font-weight:700;grid-row:2;grid-column:2;line-height:1.1;color:var(--warm)}
-.day-pill .pstatus{position:absolute;right:6px;top:6px;width:6px;height:6px;border-radius:50%;background:var(--warm-mute)}
-.day-pill.s-show .pstatus{background:var(--good);box-shadow:0 0 6px rgba(109,207,139,.5)}
-.day-pill.s-travel .pstatus{background:var(--cool)}
-.day-pill.s-off .pstatus{background:var(--warm-mute)}
-.day-pill.s-press .pstatus{background:var(--hot);box-shadow:0 0 6px rgba(255,122,31,.5)}
+/* Status dot in the top-right corner of each day pill.
+   Color key:
+     • Tan / muted-warm — status unknown or not yet set
+     • Green            — show day
+     • Blue             — travel OR off day (off uses softer blue)
+     • Yellow           — press day */
+.day-pill .pstatus{position:absolute;right:6px;top:6px;width:6px;height:6px;border-radius:50%;background:#c9a47a;box-shadow:0 0 4px rgba(201,164,122,.4)}
+.day-pill.s-show .pstatus{background:#6dcf8b;box-shadow:0 0 6px rgba(109,207,139,.55)}
+.day-pill.s-travel .pstatus{background:#8aa9d8;box-shadow:0 0 6px rgba(138,169,216,.55)}
+.day-pill.s-off .pstatus{background:#8aa9d8;box-shadow:0 0 6px rgba(138,169,216,.4)}
+.day-pill.s-press .pstatus{background:#f5d76e;box-shadow:0 0 6px rgba(245,215,110,.55)}
 .day-pill.is-today{outline:1px solid var(--hot);outline-offset:-1px}
 .day-strip-actions{display:flex;align-items:center;gap:6px;flex:none}
 .day-add-btn{
@@ -939,6 +945,25 @@ input,select,textarea{font:inherit;color:inherit}
 .travel-share{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .travel-share.muted-share{color:var(--warm-mute);font-family:'JetBrains Mono',monospace;font-size:10px;
   letter-spacing:.06em;font-style:italic}
+
+/* Phone view tasks — tappable checkbox rows that sync with the TM Tasks tab. */
+.phone-task{display:flex;gap:10px;align-items:flex-start;padding:8px 6px;border-radius:6px;
+  cursor:pointer;transition:background .12s ease,opacity .12s ease;-webkit-tap-highlight-color:transparent}
+.phone-task:hover{background:rgba(232,148,58,.06)}
+.phone-task:active{background:rgba(232,148,58,.12)}
+.phone-task .ptask-cb{flex:0 0 18px;width:18px;height:18px;margin-top:1px;border-radius:5px;
+  border:1.5px solid rgba(232,148,58,.45);display:flex;align-items:center;justify-content:center;
+  font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:900;color:var(--hi);
+  background:rgba(232,148,58,.04);transition:all .15s ease}
+.phone-task:hover .ptask-cb{border-color:var(--hi);background:rgba(232,148,58,.1)}
+.phone-task.done .ptask-cb{background:linear-gradient(135deg,rgba(109,207,139,.25),rgba(109,207,139,.1));
+  border-color:var(--good);color:var(--good)}
+.phone-task .ptask-body{flex:1;min-width:0}
+.phone-task .ptask-label{font-weight:600;font-size:13px;color:var(--warm);line-height:1.3}
+.phone-task.done .ptask-label{color:var(--warm-mute);text-decoration:line-through}
+.phone-task .ptask-meta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);
+  letter-spacing:.06em;margin-top:2px}
+.phone-task.done .ptask-meta{color:var(--good)}
 
 /* Email-match banner inside the Add Crew modal — surfaces when the typed email
    matches an existing Bandmate account so the TM knows they're inviting an
@@ -1753,6 +1778,11 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
       </div>
     </div>
     <div class="right-cluster">
+      <button type="button" class="icon-btn" title="Reset tour" onclick="resetTour()">⟲</button>
+      <div class="export-dropdown" id="exportDropdown">
+        <button type="button" class="icon-btn" title="Export tour" onclick="toggleExportMenu()">⇣</button>
+        <div class="export-menu" id="exportMenu" hidden></div>
+      </div>
       <div class="account-dropdown" id="accountDropdown">
         <button type="button" class="account-pill" onclick="toggleAccountMenu()">
           <span class="ap-avatar" id="apAvatar">??</span>
@@ -1760,11 +1790,6 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
           <span class="ap-chev">▾</span>
         </button>
         <div class="account-menu" id="accountMenu"></div>
-      </div>
-      <button type="button" class="icon-btn" title="Reset tour" onclick="resetTour()">⟲</button>
-      <div class="export-dropdown" id="exportDropdown">
-        <button type="button" class="icon-btn" title="Export tour" onclick="toggleExportMenu()">⇣</button>
-        <div class="export-menu" id="exportMenu" hidden></div>
       </div>
       <div class="tour-switcher" id="tourSwitcher">
         <button type="button" class="role-pill ts-trigger" onclick="toggleTourSwitcher()">
@@ -4218,10 +4243,20 @@ function renderTasks() {
           const linked = t.dateId ? T().dates.find(d => d.id === t.dateId) : null;
           const assignee = t.assignee ? T().crew.find(c => c.id === t.assignee) : null;
           const dueClass = (!t.done && t.due && t.due <= todayISO()) ? 'hot' : '';
+          // When a task is done, surface who checked it off and when, so the
+          // touring party can see at a glance that "Riley wrapped this 20 min
+          // ago" — including completions originating from the phone view.
+          const doneNote = t.done && t.doneBy
+            ? ` · ✓ Done by ${esc(t.doneBy.split(' ')[0])}${t.doneAt ? ' · ' + fmtMD(new Date(t.doneAt).toISOString().slice(0,10)) : ''}`
+            : '';
+          const subParts = [];
+          if (linked) subParts.push(esc(linked.city) + ' · ' + fmtMD(linked.date));
+          if (t.notes) subParts.push(esc(t.notes));
+          const subline = subParts.join(' · ') + (doneNote ? `<span style="color:var(--good);margin-left:4px">${doneNote}</span>` : '');
           return `
             <div class="task-row ${t.done?'done':''}">
-              <div class="cb" onclick="toggleTask('${t.id}')">${t.done?'✓':''}</div>
-              <div class="label">${esc(t.label)}${t.notes || linked ? `<span>${linked ? esc(linked.city) + ' · ' + fmtMD(linked.date) + (t.notes?' · ':'') : ''}${esc(t.notes || '')}</span>` : ''}</div>
+              <div class="cb" onclick="toggleTask('${t.id}')" title="${t.done ? 'Click to reopen' : 'Click to mark done'}">${t.done?'✓':''}</div>
+              <div class="label">${esc(t.label)}${subline ? `<span>${subline}</span>` : ''}</div>
               <div class="due ${dueClass}">${t.due ? 'DUE ' + fmtMD(t.due).toUpperCase() : '—'}</div>
               <div class="who-tag">${assignee ? esc(assignee.name) : 'Anyone'}</div>
               <div class="tbl-actions"><button type="button" onclick="openTaskModal('${t.id}')">Edit</button></div>
@@ -4237,7 +4272,25 @@ function toggleTask(id) {
   const t = T().tasks.find(x => x.id === id);
   if (!t) return;
   t.done = !t.done;
-  t.doneAt = t.done ? Date.now() : null;
+  if (t.done) {
+    t.doneAt = Date.now();
+    // Stamp who completed it. TM in TM mode → 'tm' marker. Crew in mobile view
+    // (viewerKey is the crew.id) → store the crew's display name + id so the
+    // touring party can see "Completed by Riley" without needing the user dir.
+    if (viewerKey === 'tm') {
+      const u = U();
+      t.doneBy = u ? u.name || 'Tour Manager' : 'Tour Manager';
+      t.doneById = (u && u.id) || 'tm';
+    } else {
+      const c = T().crew.find(x => x.id === viewerKey);
+      t.doneBy = c ? c.name : 'Crew';
+      t.doneById = viewerKey;
+    }
+  } else {
+    t.doneAt = null;
+    t.doneBy = null;
+    t.doneById = null;
+  }
   saveState(); renderAll();
 }
 
@@ -4349,21 +4402,45 @@ function renderPhone() {
     ` : ''}
 
     <div class="p-card">
-      <div class="lbl">${isTM ? 'OPEN TASKS' : 'YOUR FLAGS'} · ${(isTM ? T().tasks.filter(t=>!t.done && (t.dateId===ad.id || !t.dateId)) : T().tasks.filter(t=>!t.done && t.assignee===viewerKey && (t.dateId===ad.id || !t.dateId))).length}</div>
       ${(() => {
-        const tasks = isTM
-          ? T().tasks.filter(t=>!t.done && (t.dateId===ad.id || !t.dateId))
-          : T().tasks.filter(t=>!t.done && t.assignee===viewerKey && (t.dateId===ad.id || !t.dateId));
-        if (!tasks.length) return `<div class="sub">${isTM ? 'All clear — no open tasks.' : 'Nothing on your plate.'}</div>`;
-        return tasks.slice(0,3).map(t => {
-          const assignee = t.assignee ? T().crew.find(c => c.id === t.assignee) : null;
-          return `
-            <div style="display:flex;gap:8px;align-items:flex-start;margin-top:4px">
-              <span style="width:7px;height:7px;border-radius:50%;background:var(--hi);margin-top:8px;flex:none"></span>
-              <div><div style="font-weight:600;font-size:13px">${esc(t.label)}</div><div class="mono" style="font-size:10.5px;color:var(--warm-mute);letter-spacing:.06em">${t.due?'Due '+fmtMD(t.due):'No due date'}${isTM && assignee ? ' · '+esc(assignee.name.split(' ')[0]) : ''}</div></div>
-            </div>
-          `;
-        }).join('');
+        // Open tasks: TM sees all open tasks for this day (or unscoped), crew
+        // sees only tasks assigned to them. Recently-completed (last 24h) tasks
+        // are shown too, with a strikethrough, so the touring party has a live
+        // "what just got done" feed.
+        const all = T().tasks.filter(t => t.dateId===ad.id || !t.dateId);
+        const dayMs = 24 * 60 * 60 * 1000;
+        const now = Date.now();
+        const myTasks = isTM
+          ? all
+          : all.filter(t => t.assignee === viewerKey);
+        const open = myTasks.filter(t => !t.done);
+        const justDone = myTasks.filter(t => t.done && t.doneAt && (now - t.doneAt) < dayMs);
+        const list = [...open, ...justDone];
+        const lbl = isTM ? 'OPEN TASKS' : 'YOUR TASKS';
+        if (!list.length) return `
+          <div class="lbl">${lbl} · 0</div>
+          <div class="sub">${isTM ? 'All clear — no open tasks.' : 'Nothing on your plate.'}</div>
+        `;
+        return `
+          <div class="lbl">${lbl} · ${open.length} open${justDone.length ? ' · '+justDone.length+' just done' : ''}</div>
+          <div style="display:flex;flex-direction:column;gap:2px;margin-top:6px">
+            ${list.slice(0,5).map(t => {
+              const assignee = t.assignee ? T().crew.find(c => c.id === t.assignee) : null;
+              const meta = t.done
+                ? `Done${t.doneBy ? ' · ' + esc(t.doneBy.split(' ')[0]) : ''}${t.doneAt ? ' · ' + fmtMD(new Date(t.doneAt).toISOString().slice(0,10)) : ''}`
+                : `${t.due ? 'Due ' + fmtMD(t.due) : 'No due date'}${isTM && assignee ? ' · ' + esc(assignee.name.split(' ')[0]) : ''}`;
+              return `
+                <div class="phone-task ${t.done?'done':''}" onclick="event.stopPropagation();toggleTask('${t.id}')">
+                  <span class="ptask-cb">${t.done?'✓':''}</span>
+                  <div class="ptask-body">
+                    <div class="ptask-label">${esc(t.label)}</div>
+                    <div class="ptask-meta">${meta}</div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
       })()}
     </div>
   `;
