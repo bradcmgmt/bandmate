@@ -797,6 +797,8 @@ input,select,textarea{font:inherit;color:inherit}
 /* day pill flag for imported dates needing review */
 .day-pill.needs-review{box-shadow:inset 0 0 0 1px rgba(232,69,69,.5)}
 .day-pill.needs-review .pcity::after{content:" ⚠";color:var(--red)}
+.day-pill.needs-or{box-shadow:inset 0 0 0 1px rgba(138,169,216,.5)}
+.day-pill.needs-or .pcity::after{content:" !";color:#8aa9d8;font-family:'JetBrains Mono',monospace;font-weight:900}
 
 /* dashboard top banner for review */
 .review-banner{padding:12px 16px;border-radius:10px;
@@ -917,6 +919,10 @@ input,select,textarea{font:inherit;color:inherit}
 .field-warn::after{content:"⚠";position:absolute;top:0;right:0;font-size:11px;color:#fdba74;
   text-shadow:0 0 6px rgba(253,186,116,.6)}
 .field-warn > label{color:#fdba74 !important}
+.field-warn-or{position:relative}
+.field-warn-or::after{content:"!";position:absolute;top:0;right:2px;font-size:12px;color:#8aa9d8;
+  font-weight:900;font-family:'JetBrains Mono',monospace;text-shadow:0 0 6px rgba(138,169,216,.7)}
+.field-warn-or > label{color:#8aa9d8 !important}
 .rescan-nudge{margin:14px 0;padding:10px 14px;background:linear-gradient(135deg,rgba(109,207,139,.1),rgba(109,207,139,.04));
   border:1px solid rgba(109,207,139,.35);border-radius:9px;color:var(--good);font-size:12.5px;
   display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;letter-spacing:.04em}
@@ -927,6 +933,17 @@ input,select,textarea{font:inherit;color:inherit}
 .travel-share{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .travel-share.muted-share{color:var(--warm-mute);font-family:'JetBrains Mono',monospace;font-size:10px;
   letter-spacing:.06em;font-style:italic}
+
+/* Tour-scan modal: re-scan button pinned to the top, sticky as user scrolls the gap list */
+.scan-toolbar{display:flex;gap:8px;justify-content:flex-end;margin:-8px -4px 14px;padding:10px 4px;
+  position:sticky;top:-4px;background:linear-gradient(180deg,rgba(20,14,9,.98) 0%,rgba(20,14,9,.92) 80%,rgba(20,14,9,0) 100%);
+  backdrop-filter:blur(6px);z-index:5;border-bottom:1px solid var(--line)}
+
+/* Either-or gap indicator: blue/cyan to distinguish from regular orange ⚠ */
+.tab-warn-or::after{content:"!";position:absolute;top:5px;right:7px;font-size:11px;color:#8aa9d8;
+  font-weight:900;font-family:'JetBrains Mono',monospace;text-shadow:0 0 6px rgba(138,169,216,.7);
+  animation:tabwarnor 2s ease-in-out infinite}
+@keyframes tabwarnor{0%,100%{opacity:.7}50%{opacity:1}}
 
 /* list/table view */
 .crew-list-wrap{overflow-x:auto;border:1px solid var(--line-2);border-radius:10px;background:linear-gradient(180deg,rgba(24,17,11,.9),rgba(17,12,8,.9))}
@@ -3041,17 +3058,19 @@ function renderAll() {
 }
 
 // Paint a ⚠ indicator on tabs that have outstanding gaps for the active date.
-// Once a tab's gaps are filled, the indicator drops off and a re-scan nudge appears.
+// Hard gaps (definitely missing) get the orange ⚠. "Or" gaps (either-or, e.g. an
+// off day needs hotel OR travel) get a blue ! on both candidate tabs to signal
+// "fill this side OR the other to clear it."
 function applyTabGapIndicators() {
   const ad = getActiveDate();
-  $$('.tab').forEach(t => t.classList.remove('tab-warn'));
+  $$('.tab').forEach(t => t.classList.remove('tab-warn', 'tab-warn-or'));
   if (!ad) return;
   const map = gapsByTab(ad);
   Object.keys(map).forEach(tab => {
-    if (map[tab].length) {
-      const el = document.querySelector(`.tab[data-tab="${tab}"]`);
-      if (el) el.classList.add('tab-warn');
-    }
+    const el = document.querySelector(`.tab[data-tab="${tab}"]`);
+    if (!el) return;
+    if (map[tab].hard && map[tab].hard.length) el.classList.add('tab-warn');
+    else if (map[tab].or && map[tab].or.length) el.classList.add('tab-warn-or');
   });
 }
 
@@ -3101,11 +3120,13 @@ function renderDayStrip() {
     const isActive = d.id === T().activeDateId;
     const isToday = d.date === todayISO();
     const liveGaps = calcLiveDateGaps(d);
-    const needsReview = liveGaps.length > 0;
+    const onlyOr = liveGaps.length === 1 && liveGaps[0] === 'hotel or travel';
+    const hardGaps = liveGaps.filter(g => g !== 'hotel or travel').length > 0;
     const isOff = (d.status === 'off') || (d.city || '').toUpperCase() === 'OFF';
     const cityLabel = isOff ? 'Day off' : (d.city || '—');
+    const reviewClass = hardGaps ? ' needs-review' : (onlyOr ? ' needs-or' : '');
     return `
-      <button type="button" class="day-pill s-${d.status || 'show'} ${isActive ? 'active' : ''} ${isToday ? 'is-today' : ''} ${needsReview ? 'needs-review' : ''}" onclick="setActive('${d.id}')" title="${needsReview ? 'Needs: ' + liveGaps.join(', ') : 'Complete'}">
+      <button type="button" class="day-pill s-${d.status || 'show'} ${isActive ? 'active' : ''} ${isToday ? 'is-today' : ''}${reviewClass}" onclick="setActive('${d.id}')" title="${liveGaps.length ? 'Needs: ' + liveGaps.join(', ') : 'Complete'}">
         <span class="pdate">${fmtMD(d.date)}</span>
         <span class="pdow">${dow(d.date)}</span>
         <span class="pcity">${esc(cityLabel)}</span>
@@ -3230,15 +3251,27 @@ function renderDashboard() {
   // Live gap analysis for the active date (drives all the ⚠ markers below)
   const liveGaps = calcLiveDateGaps(ad);
   const isMissing = (field) => liveGaps.includes(field);
+  // "Or" gap: off-day needs either a hotel OR a travel item — render with the blue treatment
+  const isOrGap = (field) => field === 'hotel or travel' && liveGaps.includes('hotel or travel');
+  const onlyOrGap = liveGaps.length === 1 && liveGaps[0] === 'hotel or travel';
 
   // Live banner: either "needs work" or "complete + re-scan suggestion"
   const datesWithGaps = T().dates.filter(x => calcLiveDateGaps(x).length > 0);
   let reviewBanner = '';
-  if (liveGaps.length) {
+  if (onlyOrGap) {
+    reviewBanner = `
+      <div class="review-banner" style="background:linear-gradient(135deg,rgba(138,169,216,.12),rgba(138,169,216,.04));border-color:rgba(138,169,216,.4);color:#b1c8ee">
+        <span class="rb-icon" style="color:#8aa9d8;text-shadow:0 0 6px rgba(138,169,216,.7);font-family:'JetBrains Mono',monospace;font-weight:900">!</span>
+        <span>This off day needs <b>either</b> a hotel <b>or</b> a travel item logged. Pick whichever applies — staying in a city or moving overnight.</span>
+      </div>
+    `;
+  } else if (liveGaps.length) {
+    const hardGaps = liveGaps.filter(g => g !== 'hotel or travel');
+    const orPart = liveGaps.includes('hotel or travel') ? ' · also: hotel or travel (either)' : '';
     reviewBanner = `
       <div class="review-banner">
         <span class="rb-icon">⚠</span>
-        <span><b>${liveGaps.length}</b> field${liveGaps.length===1?'':'s'} on this date need${liveGaps.length===1?'s':''} entry: <span style="color:#fdba74">${liveGaps.join(', ')}</span></span>
+        <span><b>${hardGaps.length}</b> field${hardGaps.length===1?'':'s'} on this date need${hardGaps.length===1?'s':''} entry: <span style="color:#fdba74">${hardGaps.join(', ')}</span><span style="color:#b1c8ee">${orPart}</span></span>
       </div>
     `;
   } else if (datesWithGaps.length === 0) {
@@ -3286,7 +3319,7 @@ function renderDashboard() {
         <div class="gridrun">${scheduleHtml}</div>
         <div class="meta">
           ${(ad.status === 'show' || ad.status === 'press') ? `<div class="m"><div class="l">Promoter</div><div class="v">${esc(promoter)}</div></div>` : ''}
-          <div class="m${isMissing('hotel')||isMissing('hotel rooms')||isMissing('hotel or travel')?' field-warn':''}"><div class="l">Hotel</div><div class="v">${esc(hotelMeta)}</div></div>
+          <div class="m${isOrGap('hotel or travel') ? ' field-warn-or' : (isMissing('hotel')||isMissing('hotel rooms') ? ' field-warn' : '')}"><div class="l">Hotel${isOrGap('hotel or travel') ? ' <span class="muted mono" style="font-size:10px;color:#8aa9d8">(or travel)</span>' : ''}</div><div class="v">${esc(hotelMeta)}</div></div>
           <div class="m"><div class="l">Next stop</div><div class="v">${esc(nextHop)}</div></div>
         </div>
       </div>
@@ -8049,15 +8082,22 @@ function calcLiveDateGaps(d) {
 }
 
 // Field-to-tab map: lets us mark which tabs have outstanding gaps,
-// so we can paint a red ⚠ dot on the tab and on the relevant fields inside.
+// so we can paint a ⚠ dot on the tab and on the relevant fields inside.
+// Returns { tab: { hard: [...], or: [...] } } so we can render hard gaps
+// (must-fill orange ⚠) differently from "or" gaps (either-or blue !).
 function gapsByTab(d) {
   const m = calcLiveDateGaps(d);
-  const map = { dashboard: [], schedule: [], travel: [], hotels: [], contacts: [] };
+  const map = { dashboard: { hard:[], or:[] }, schedule: { hard:[], or:[] }, travel: { hard:[], or:[] }, hotels: { hard:[], or:[] } };
   m.forEach(g => {
-    if (g === 'date' || g === 'city' || g === 'venue' || g === 'capacity' || g === 'doors' || g === 'set time') map.dashboard.push(g);
-    else if (g === 'schedule') map.schedule.push(g);
-    else if (g === 'travel items' || g === 'hotel or travel') map.travel.push(g);
-    else if (g === 'hotel' || g === 'hotel rooms') map.hotels.push(g);
+    if (g === 'date' || g === 'city' || g === 'venue' || g === 'capacity' || g === 'doors' || g === 'set time') map.dashboard.hard.push(g);
+    else if (g === 'schedule') map.schedule.hard.push(g);
+    else if (g === 'travel items') map.travel.hard.push(g);
+    else if (g === 'hotel or travel') {
+      // either-or: surface on BOTH Travel and Hotels with the "or" treatment
+      map.travel.or.push(g);
+      map.hotels.or.push(g);
+    }
+    else if (g === 'hotel' || g === 'hotel rooms') map.hotels.hard.push(g);
   });
   return map;
 }
@@ -8133,6 +8173,10 @@ function openTourScan() {
     size: 'xl',
     hideFooter: true,
     body: `
+      <div class="scan-toolbar">
+        <button type="button" class="tb-btn primary" onclick="closeModal();setTimeout(openTourScan,50)">↻ Re-scan tour</button>
+        <button type="button" class="tb-btn" onclick="closeModal()">Done</button>
+      </div>
       <div class="iz-summary">
         <div class="iz-stat"><div class="iz-stat-num">${scan.totalDates}</div><div class="iz-stat-lbl">Total dates</div></div>
         <div class="iz-stat"><div class="iz-stat-num" style="background:linear-gradient(180deg,#fff,#7adc97);-webkit-background-clip:text;background-clip:text;color:transparent">${scan.completeDates.length}</div><div class="iz-stat-lbl">Complete</div></div>
@@ -8183,10 +8227,6 @@ function openTourScan() {
         </div>
       ` : ''}
 
-      <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--line);padding-top:14px">
-        <button type="button" class="tb-btn" onclick="closeModal()">Done</button>
-        <button type="button" class="tb-btn primary" onclick="closeModal();setTimeout(openTourScan,50)">↻ Re-scan</button>
-      </div>
     `
   });
 }
