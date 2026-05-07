@@ -1553,6 +1553,26 @@ body.crew-mobile-only .tape-strip .label {
 body.crew-mobile-only .crew-mode-banner { display: block; }
 .crew-mode-banner b { color: #b1c8ee; }
 
+
+/* ============ ROUTE PANEL (DASHBOARD) ============ */
+.route-rows{display:flex;flex-direction:column;gap:1px;max-height:300px;overflow-y:auto;margin:0 -4px}
+.route-row{
+  display:grid;grid-template-columns:58px 1fr auto;gap:10px;align-items:baseline;
+  padding:8px 10px;border-radius:6px;cursor:pointer;
+  border:1px solid transparent;
+}
+.route-row:hover{background:rgba(232,148,58,.04);border-color:var(--line-2)}
+.route-row.current{background:linear-gradient(135deg,rgba(232,148,58,.12),rgba(232,148,58,.03));border-color:var(--hi);box-shadow:0 0 12px rgba(232,148,58,.15)}
+.route-row.past{opacity:.5}
+.route-row.today .rr-date{color:var(--hot);text-shadow:0 0 8px rgba(255,122,31,.4)}
+.route-row.off{opacity:.6}
+.route-row.off .rr-city{color:var(--warm-mute);font-style:italic}
+.route-row .rr-date{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);letter-spacing:.1em;font-weight:700}
+.route-row.current .rr-date{color:var(--hi)}
+.route-row .rr-city{font-size:13px;font-weight:600;color:var(--warm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.route-row.current .rr-city{color:var(--hi)}
+.route-row .rr-venue{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
+
 </style>
 </head>
 <body>
@@ -1660,7 +1680,6 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
         </button>
         <div class="account-menu" id="accountMenu"></div>
       </div>
-      <button type="button" class="icon-btn" title="Send feedback" onclick="openFeedbackModal()" style="color:#b1c8ee;border-color:rgba(138,169,216,.35)">✉</button>
       <button type="button" class="icon-btn" title="Reset tour" onclick="resetTour()">⟲</button>
       <div class="export-dropdown" id="exportDropdown">
         <button type="button" class="icon-btn" title="Export tour" onclick="toggleExportMenu()">⇣</button>
@@ -2009,25 +2028,32 @@ function downloadFile(name, content, mime = 'text/plain') {
 
 /* ---------- date utils ---------- */
 function fmtDate(iso) {
-  if (!iso) return '—';
-  const [y, m, d] = iso.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
+  if (!iso || typeof iso !== 'string') return '—';
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return '—';
+  const dt = new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
+  if (isNaN(dt)) return '—';
   return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 function fmtShort(iso) {
-  if (!iso) return '—';
-  const [, m, d] = iso.split('-');
-  return `${m}/${d}`;
+  if (!iso || typeof iso !== 'string') return '—';
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '—';
+  return `${m[2]}/${m[3]}`;
 }
 function fmtMD(iso) {
-  if (!iso) return '—';
-  const [, m, d] = iso.split('-');
-  return `${m}.${d}`;
+  if (!iso || typeof iso !== 'string') return '—';
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '—';
+  return `${m[2]}.${m[3]}`;
 }
 function dow(iso) {
-  if (!iso) return '';
-  const [y, m, d] = iso.split('-').map(Number);
-  return ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][new Date(y, m - 1, d).getDay()];
+  if (!iso || typeof iso !== 'string') return '';
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return '';
+  const dt = new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
+  if (isNaN(dt)) return '';
+  return ['SUN','MON','TUE','WED','THU','FRI','SAT'][dt.getDay()];
 }
 function todayISO() {
   const d = new Date();
@@ -3092,6 +3118,7 @@ function renderDashboard() {
       <h2>${esc(ad.city)}</h2>
       <span class="crumb">/ DASHBOARD / ${fmtDate(ad.date).toUpperCase()}</span>
       <span class="stamp">${status}</span>
+      <button type="button" class="tb-btn primary" onclick="openTourScan()" style="margin-left:auto">⌕ Scan tour</button>
     </div>
 
     <div class="dash-hero">
@@ -3114,15 +3141,25 @@ function renderDashboard() {
           ${renderTodayFlags(ad)}
         </div>
         <div class="route">
-          <h4>Route — ${T().dates.length} dates</h4>
-          <div style="display:flex;flex-direction:column;gap:0;border-left:1px solid rgba(232,148,58,.18);padding-left:14px;margin-left:6px;max-height:240px;overflow-y:auto">
-            ${T().dates.map(d => `
-              <div class="stop ${d.id===ad.id?'next':''} ${d.date<todayISO()?'done':''} ${d.date===todayISO()?'today':''}" style="display:grid;grid-template-columns:58px 1fr auto;gap:10px;padding:8px 0;border-bottom:1px solid rgba(232,148,58,.06);align-items:center;position:relative;cursor:pointer" onclick="setActive('${d.id}')">
-                <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${d.id===ad.id?'var(--hi)':'var(--warm-mute)'};letter-spacing:.1em">${fmtMD(d.date)}</div>
-                <div style="font-size:13px;font-weight:600;color:${d.id===ad.id?'var(--hi)':'var(--warm)'}">${esc(d.city)}</div>
-                <div style="font-size:11px;color:var(--warm-mute);font-family:'JetBrains Mono',monospace">${esc(d.venue || '').slice(0,18)}</div>
-              </div>
-            `).join('')}
+          <h4>Route · ${T().dates.length} dates</h4>
+          <div class="route-rows">
+            ${T().dates.map(d => {
+              const isCurrent = d.id===ad.id;
+              const isPast = d.date && d.date<todayISO();
+              const isToday = d.date===todayISO();
+              const hasContent = (d.date || d.city || d.venue);
+              if (!hasContent) return '';
+              const isOff = d.status === 'off' || (d.city || '').toUpperCase() === 'OFF';
+              const cityLabel = isOff ? 'Day off' : (esc(d.city) || '—');
+              const venueLabel = isOff ? '' : esc(d.venue || '').slice(0,22);
+              return `
+                <div class="route-row${isCurrent?' current':''}${isPast?' past':''}${isToday?' today':''}${isOff?' off':''}" onclick="setActive('${d.id}')">
+                  <span class="rr-date">${fmtMD(d.date)}</span>
+                  <span class="rr-city">${cityLabel}</span>
+                  <span class="rr-venue">${venueLabel}</span>
+                </div>
+              `;
+            }).join('')}
           </div>
         </div>
       </div>
@@ -7731,6 +7768,161 @@ function _fleshOutSampleTour(tour) {
 }
 
 
+
+
+/* =====================================================================
+   TOUR SCAN — gap analysis, available from Dashboard at any time
+   ===================================================================== */
+
+function calcLiveDateGaps(d) {
+  const missing = [];
+  if (!d.date) missing.push('date');
+  if (!d.city) missing.push('city');
+  if (d.status === 'show') {
+    if (!d.venue) missing.push('venue');
+    if (!d.capacity) missing.push('capacity');
+    if (!d.doors) missing.push('doors');
+    if (!d.setTime) missing.push('set time');
+    if (!d.promoter) missing.push('promoter');
+    if (!d.hotel) missing.push('hotel');
+    else if (!d.hotel.rooms || !d.hotel.rooms.length) missing.push('hotel rooms');
+    if (!d.schedule || !d.schedule.length) missing.push('schedule');
+  } else if (d.status === 'travel') {
+    if (!d.travel || !d.travel.length) missing.push('travel items');
+  }
+  return missing;
+}
+
+function scanTour(tour) {
+  const dates = tour.dates || [];
+  const scan = {
+    totalDates: dates.length,
+    completeDates: [],
+    incompleteDates: [],
+    globalGaps: [],
+    completeGlobal: [],
+  };
+
+  dates.forEach(d => {
+    const missing = calcLiveDateGaps(d);
+    if (missing.length === 0) scan.completeDates.push(d);
+    else scan.incompleteDates.push({ date: d, missing });
+  });
+
+  // Tour-wide checks
+  if (!tour.crew || !tour.crew.length) {
+    scan.globalGaps.push({ what: 'No crew roster', fix: 'Add band + crew via Crew Roster button' });
+  } else {
+    scan.completeGlobal.push(`Crew roster · ${tour.crew.length} people`);
+    const crewNoGroup = tour.crew.filter(c => !c.groups || !c.groups.length);
+    if (crewNoGroup.length) {
+      scan.globalGaps.push({ what: `${crewNoGroup.length} crew member${crewNoGroup.length===1?'':'s'} not assigned to a group`, fix: 'Crew tab → Manage Groups → expand groups and add members' });
+    } else {
+      scan.completeGlobal.push('All crew assigned to groups');
+    }
+  }
+
+  if (!tour.contacts || !tour.contacts.length) {
+    scan.globalGaps.push({ what: 'No contacts on file', fix: 'Contacts tab → add promoter, venue, hotel, runner contacts' });
+  } else {
+    scan.completeGlobal.push(`Contacts · ${tour.contacts.length} entries`);
+  }
+
+  // Settlements — past unpaid shows
+  const today = todayISO();
+  const pastUnpaid = dates.filter(d => d.status === 'show' && d.date && d.date < today && !(d.settlement?.settled));
+  if (pastUnpaid.length) {
+    scan.globalGaps.push({ what: `${pastUnpaid.length} past show${pastUnpaid.length===1?'':'s'} awaiting settlement`, fix: 'Settlements tab → log final amounts and check Settled' });
+  } else if (dates.some(d => d.status === 'show' && d.settlement?.settled)) {
+    scan.completeGlobal.push('All past show settlements recorded');
+  }
+
+  // Crew profiles
+  if (tour.crew && tour.crew.length) {
+    const unsubmitted = tour.crew.filter(c => !c.profileSubmittedAt);
+    if (unsubmitted.length) {
+      scan.globalGaps.push({ what: `${unsubmitted.length} crew profile${unsubmitted.length===1?'':'s'} not submitted`, fix: 'Crew tab → Remind pending or open profiles to claim' });
+    } else {
+      scan.completeGlobal.push('All crew profiles submitted');
+    }
+  }
+
+  return scan;
+}
+
+function openTourScan() {
+  const tour = T();
+  if (!tour || !tour.dates.length) {
+    toast('Add tour dates first', 'error');
+    return;
+  }
+  const scan = scanTour(tour);
+  const totalGaps = scan.incompleteDates.reduce((n, x) => n + x.missing.length, 0) + scan.globalGaps.length;
+
+  openModal({
+    title: `Tour scan · ${esc(tour.name || 'Untitled')}`,
+    size: 'xl',
+    hideFooter: true,
+    body: `
+      <div class="iz-summary">
+        <div class="iz-stat"><div class="iz-stat-num">${scan.totalDates}</div><div class="iz-stat-lbl">Total dates</div></div>
+        <div class="iz-stat"><div class="iz-stat-num" style="background:linear-gradient(180deg,#fff,#7adc97);-webkit-background-clip:text;background-clip:text;color:transparent">${scan.completeDates.length}</div><div class="iz-stat-lbl">Complete</div></div>
+        <div class="iz-stat warn"><div class="iz-stat-num">${scan.incompleteDates.length}</div><div class="iz-stat-lbl">Need work</div></div>
+        <div class="iz-stat warn"><div class="iz-stat-num">${totalGaps}</div><div class="iz-stat-lbl">Total gaps</div></div>
+      </div>
+
+      ${totalGaps > 0 ? `
+        <div class="iz-gaps" style="margin-top:18px">
+          <h4>⚠ NEEDS YOUR MANUAL ENTRY · ${totalGaps} item${totalGaps===1?'':'s'}</h4>
+          ${scan.globalGaps.map(g => `
+            <div class="iz-gap">
+              <span class="gtag">tour-wide</span>
+              <span><b style="color:var(--warm)">${esc(g.what)}.</b> <span class="muted" style="font-size:11.5px">${esc(g.fix)}</span></span>
+            </div>
+          `).join('')}
+          ${scan.incompleteDates.map(({date, missing}) => `
+            <div class="iz-gap" style="cursor:pointer" onclick="closeModal();setActive('${date.id}');openDateModal('${date.id}')">
+              <span class="gtag">${esc((date.city || 'date').slice(0,18))}</span>
+              <span>${esc(fmtMD(date.date) || '?')} <span class="muted">— needs:</span> ${esc(missing.join(', '))}</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : `
+        <div class="iz-tip" style="margin-top:18px;background:rgba(109,207,139,.08);border:1px solid rgba(109,207,139,.4);color:var(--good)">
+          <b>✓ Tour fully populated</b> — every date has all required fields filled in. Nothing flagged for manual entry.
+        </div>
+      `}
+
+      ${scan.completeDates.length > 0 ? `
+        <div style="margin-top:22px">
+          <h4 style="margin:0 0 10px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--good);font-weight:700">✓ Complete dates · ${scan.completeDates.length}</h4>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px">
+            ${scan.completeDates.map(d => `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 11px;background:rgba(109,207,139,.06);border:1px solid rgba(109,207,139,.2);border-radius:6px;font-size:12.5px;cursor:pointer" onclick="closeModal();setActive('${d.id}')">
+                <div><b style="color:var(--warm)">${esc(d.city)}</b> <span class="mono muted" style="font-size:10.5px;margin-left:4px">${fmtMD(d.date)}</span></div>
+                <span style="color:var(--good)">✓</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      ${scan.completeGlobal.length > 0 ? `
+        <div style="margin-top:18px;padding:12px 14px;background:rgba(109,207,139,.04);border:1px solid rgba(109,207,139,.2);border-radius:10px">
+          <h4 style="margin:0 0 8px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--good);font-weight:700">✓ Tour-wide complete</h4>
+          ${scan.completeGlobal.map(g => `<div style="font-size:12.5px;padding:3px 0;color:var(--warm-mute)"><span style="color:var(--good);margin-right:6px">✓</span>${esc(g)}</div>`).join('')}
+        </div>
+      ` : ''}
+
+      <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--line);padding-top:14px">
+        <button type="button" class="tb-btn" onclick="closeModal()">Done</button>
+        <button type="button" class="tb-btn primary" onclick="closeModal();setTimeout(openTourScan,50)">↻ Re-scan</button>
+      </div>
+    `
+  });
+}
+
+
 const SAMPLE_TOUR = {
   meta: {
     tourName: 'Wayfinder North America Tour',
@@ -7953,6 +8145,7 @@ Object.assign(window, {
   toggleSchedPicker, closeSchedPicker, toggleSchedGroup, toggleSchedIndiv, clearSchedAssignments, renderVizPicker,
   setPhoneViewDate, jumpPhoneToToday, togglePhoneDateMenu, closePhoneDateMenu,
   openFeedbackModal, submitFeedback,
+  scanTour, openTourScan, calcLiveDateGaps,
   toggleExportMenu, closeExportMenu, downloadTourBookPDF, downloadTourBookFromHere, closeTourBook,
   scoutNearVenue,
   openTravelAssistant, closeTravelAssistant, setTaTab, searchHotels, resetHotelFilters, bookHotelToActiveDate, searchFlights, resetFlightFilters, addFlightToTravel,
