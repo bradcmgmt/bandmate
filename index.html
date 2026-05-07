@@ -4253,42 +4253,53 @@ async function processImportFile(file) {
     }
   } else if (ext === 'xlsx' || ext === 'xls' || ext === 'xlsm') {
     const sheets = await extractXLSXSheets(file);
-    if (sheets && Object.keys(sheets).length) {
+    const meta = sheets ? sheets.__meta || {} : {};
+    const sheetNames = sheets ? Object.keys(sheets).filter(k => k !== '__meta') : [];
+    if (sheets && sheetNames.length) {
       let processed = false;
       const sheetNotes = [];
-      for (const sheetName of Object.keys(sheets)) {
+      for (const sheetName of sheetNames) {
         const rows = sheets[sheetName];
         if (!rows.length) continue;
-        const headers = Object.keys(rows[0]).map(h => String(h).toLowerCase().trim());
+        const headers = Object.keys(rows[0]);
         const kind = detectCSVKind(headers);
+        const headerPreview = headers.slice(0, 5).filter(Boolean).join(', ') || '(no headers)';
         if (kind === 'tour_grid') {
           const dates = rows.map(r => mapCSVRow(r, 'date')).filter(d => d.date && d.city);
           result.extracted.dates.push(...dates);
-          sheetNotes.push(`"${sheetName}": ${dates.length} tour dates`);
+          sheetNotes.push(`"${sheetName}" → ${dates.length} tour date${dates.length===1?'':'s'} extracted${dates.length === 0 ? ' (recognized as tour grid but no rows had both Date+City — check date format and city column)' : ''}`);
           processed = true;
         } else if (kind === 'hotels') {
           const hotels = rows.map(r => mapCSVRow(r, 'hotel')).filter(h => h.name);
           result.extracted.hotels.push(...hotels);
-          sheetNotes.push(`"${sheetName}": ${hotels.length} hotels`);
+          sheetNotes.push(`"${sheetName}" → ${hotels.length} hotel${hotels.length===1?'':'s'}`);
           processed = true;
         } else if (kind === 'contacts') {
           const contacts = rows.map(r => mapCSVRow(r, 'contact')).filter(c => c.name);
           result.extracted.contacts.push(...contacts);
-          sheetNotes.push(`"${sheetName}": ${contacts.length} contacts`);
+          sheetNotes.push(`"${sheetName}" → ${contacts.length} contact${contacts.length===1?'':'s'}`);
           processed = true;
         } else if (kind === 'crew') {
           const crew = rows.map(r => mapCSVRow(r, 'crew')).filter(c => c.name);
           result.extracted.crew.push(...crew);
-          sheetNotes.push(`"${sheetName}": ${crew.length} crew`);
+          sheetNotes.push(`"${sheetName}" → ${crew.length} crew member${crew.length===1?'':'s'}`);
           processed = true;
         } else {
-          sheetNotes.push(`"${sheetName}": format not recognized (${headers.slice(0,4).join(', ')})`);
+          // Unknown — try a fallback: if any rows have a date-like value, treat as tour grid
+          const fallbackDates = rows.map(r => mapCSVRow(r, 'date')).filter(d => d.date && (d.city || d.venue));
+          if (fallbackDates.length) {
+            result.extracted.dates.push(...fallbackDates);
+            sheetNotes.push(`"${sheetName}" → ${fallbackDates.length} tour date${fallbackDates.length===1?'':'s'} (fuzzy-matched · headers: ${headerPreview})`);
+            processed = true;
+          } else {
+            sheetNotes.push(`"${sheetName}" → not recognized (headers: ${headerPreview})`);
+          }
         }
       }
       result.kind = processed ? 'xlsx' : 'xlsx_unknown';
       result.notes.push(...sheetNotes);
       if (!processed) {
-        result.notes.push('Excel sheets parsed but no recognized tour-grid/hotels/contacts/crew shape found. Try renaming columns to: Date, City, Venue, Capacity, Doors, SetTime, Promoter');
+        result.notes.push('Excel parsed but no recognized shape. Bandmate looks for headers like: Date, City, Venue, Capacity, Doors, Set Time, Promoter (any of those column names work).');
       }
     } else {
       result.kind = 'xlsx_unread';
@@ -4430,17 +4441,53 @@ async function extractXLSXSheets(file) {
   if (!lib) return null;
   try {
     const buf = await file.arrayBuffer();
-    const wb = lib.read(buf, { type: 'array' });
+    const wb = lib.read(buf, { type: 'array', cellDates: true });
     const allSheets = {};
+    const sheetMeta = {};
+
+    // Keywords that suggest a row is the header row of tour data
+    const HDR_KW = ['date','city','venue','capacity','cap','doors','set','setlist','promoter','show','load','soundcheck','load-in','door','time','name','role','phone','email','hotel','address','checkin','room'];
+
     wb.SheetNames.forEach(name => {
       const ws = wb.Sheets[name];
-      // Convert to array of objects with row 1 as headers
-      const rows = lib.utils.sheet_to_json(ws, { defval: '', raw: false });
-      // Normalize: also try header=A so we can detect if first row is headers
-      if (rows.length > 0) allSheets[name] = rows;
+      // Read as 2D array first so we can find the actual header row
+      const aoa = lib.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false, dateNF: 'yyyy-mm-dd' });
+      if (!aoa.length) return;
+
+      // Find the header row — first row in the first 8 rows that has 2+ tour-shaped keywords
+      let headerRowIdx = -1;
+      for (let i = 0; i < Math.min(aoa.length, 8); i++) {
+        const cells = aoa[i].map(c => String(c).toLowerCase().trim());
+        const matches = cells.filter(c => c && HDR_KW.some(kw => c.includes(kw))).length;
+        if (matches >= 2) { headerRowIdx = i; break; }
+      }
+      // Fallback: use first non-empty row as header
+      if (headerRowIdx === -1) {
+        for (let i = 0; i < aoa.length; i++) {
+          if (aoa[i].some(c => String(c).trim())) { headerRowIdx = i; break; }
+        }
+      }
+      if (headerRowIdx === -1) return;
+
+      const headers = aoa[headerRowIdx].map(h => String(h).trim());
+      const dataRows = aoa.slice(headerRowIdx + 1)
+        .filter(r => r.some(c => String(c).trim()))
+        .map(r => {
+          const obj = {};
+          headers.forEach((h, i) => { if (h) obj[h] = String(r[i] == null ? '' : r[i]).trim(); });
+          return obj;
+        });
+
+      if (dataRows.length) {
+        allSheets[name] = dataRows;
+        sheetMeta[name] = { headers, headerRow: headerRowIdx + 1, total: aoa.length };
+      }
     });
+    // Attach meta info as a non-enumerable hint
+    allSheets.__meta = sheetMeta;
     return allSheets;
   } catch (e) {
+    console.error('XLSX read failed:', e);
     return null;
   }
 }
@@ -4532,67 +4579,149 @@ function titleCase(s) {
 }
 
 function detectCSVKind(headers) {
-  const hh = headers.join('|');
-  const has = (...keys) => keys.every(k => hh.includes(k));
-  if (has('date', 'city') && (hh.includes('venue') || hh.includes('promoter') || hh.includes('capacity'))) return 'tour_grid';
-  if (hh.includes('hotel') && (hh.includes('date') || hh.includes('check'))) return 'hotels';
+  const hh = headers.map(h => String(h).toLowerCase().replace(/[\s_\-/.()]+/g,'')).join('|');
+  const hasDate = /\b(date|showdate|dateofshow|showday)\b/.test('|'+hh+'|') || hh.includes('date');
+  const hasCity = hh.includes('city');
+  const hasVenue = hh.includes('venue');
+  const hasCap = hh.includes('cap');
+  const hasPromoter = hh.includes('promoter');
+  const hasDoors = hh.includes('doors') || hh.includes('doortime');
+  const hasSetTime = hh.includes('settime') || hh.includes('showtime') || hh.includes('stagetime') || /\bset\b/.test('|'+hh+'|');
+  // Tour grid — needs date + at least one of city/venue/cap/promoter/doors/setTime
+  if (hasDate && (hasCity || hasVenue || hasCap || hasPromoter || hasDoors || hasSetTime)) return 'tour_grid';
+  // Hotels
+  if ((hh.includes('hotel') || hh.includes('property')) && (hasDate || hasCity || hh.includes('check') || hh.includes('conf'))) return 'hotels';
+  // Crew
   if (hh.includes('crew') || (hh.includes('name') && hh.includes('role') && hh.includes('type'))) return 'crew';
+  // Contacts
   if (hh.includes('name') && (hh.includes('phone') || hh.includes('email'))) return 'contacts';
   return 'unknown';
 }
 
+function _normalizeKey(s) { return String(s).toLowerCase().replace(/[\s_\-/.()]+/g,''); }
+function normalizeDate(s) {
+  if (!s) return '';
+  s = String(s).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  // M/D/YYYY or M-D-YYYY (also DD/MM if culturally)
+  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (m) {
+    let [, mo, d, y] = m;
+    if (y.length === 2) y = '20' + y;
+    return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
+  }
+  // Excel serial date number (rough heuristic)
+  if (/^\d{5}$/.test(s)) {
+    const n = parseInt(s);
+    if (n > 25569 && n < 73000) {
+      const date = new Date((n - 25569) * 86400 * 1000);
+      if (!isNaN(date)) return date.toISOString().slice(0,10);
+    }
+  }
+  // "May 6, 2026" or "May 06 2026"
+  m = s.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
+  if (m) {
+    const moMap = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+    const mn = moMap[m[1].toLowerCase().slice(0,3)];
+    if (mn) return `${m[3]}-${String(mn).padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+  }
+  // ISO with T (e.g. JS Date toString)
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return s.slice(0,10);
+  return s;
+}
+function normalizeTime(s) {
+  if (!s) return '';
+  s = String(s).trim();
+  // 24h already
+  if (/^\d{1,2}:\d{2}$/.test(s)) {
+    const [h, m] = s.split(':');
+    return `${h.padStart(2,'0')}:${m}`;
+  }
+  // 12h with am/pm
+  const m = s.match(/^(\d{1,2}):?(\d{2})?\s*(am|pm|AM|PM)$/);
+  if (m) {
+    let h = parseInt(m[1]);
+    const min = m[2] || '00';
+    const ampm = (m[3] || '').toLowerCase();
+    if (ampm === 'pm' && h < 12) h += 12;
+    if (ampm === 'am' && h === 12) h = 0;
+    return `${String(h).padStart(2,'0')}:${min}`;
+  }
+  // "7pm" or "9:15pm"
+  const m2 = s.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/i);
+  if (m2) {
+    let h = parseInt(m2[1]);
+    const min = m2[2] || '00';
+    const ampm = (m2[3] || '').toLowerCase();
+    if (ampm === 'pm' && h < 12) h += 12;
+    if (ampm === 'am' && h === 12) h = 0;
+    return `${String(h).padStart(2,'0')}:${min}`;
+  }
+  return s;
+}
+
 function mapCSVRow(row, kind) {
+  // Build a normalized lookup of the row's keys
+  const norm = {};
+  Object.keys(row).forEach(k => { norm[_normalizeKey(k)] = row[k]; });
+  // get(): tries each candidate key; first matches exact normalized, then substring
   const get = (...keys) => {
     for (const k of keys) {
-      for (const key of Object.keys(row)) {
-        if (key.toLowerCase().trim().replace(/\s+/g,'') === k.toLowerCase().replace(/\s+/g,'')) return (row[key] || '').trim();
+      const nk = _normalizeKey(k);
+      if (nk in norm) return String(norm[nk]).trim();
+    }
+    for (const k of keys) {
+      const nk = _normalizeKey(k);
+      for (const key of Object.keys(norm)) {
+        if (key.includes(nk)) return String(norm[key]).trim();
       }
     }
     return '';
   };
+
   if (kind === 'date') {
     return {
-      date: get('date'),
+      date: normalizeDate(get('date', 'showdate', 'dateofshow', 'showday')),
       city: get('city'),
-      state: get('state', 'region'),
-      venue: get('venue'),
-      capacity: get('capacity', 'cap'),
-      status: (get('status', 'type') || 'show').toLowerCase(),
-      doors: get('doors', 'doortime'),
-      setTime: get('settime', 'set'),
-      loadIn: get('loadin'),
-      soundcheck: get('soundcheck'),
-      promoter: get('promoter'),
-      guarantee: parseFloat(get('guarantee', 'gtee')) || 0,
-      notes: get('notes', 'note'),
+      state: get('state', 'stateregion', 'region', 'province'),
+      venue: get('venue', 'venuename', 'club'),
+      capacity: get('capacity', 'cap', 'roomcap', 'venuecap', 'venuecapacity', 'tickets', 'ticketcap'),
+      status: (get('status', 'type', 'showtype', 'daytype') || 'show').toLowerCase(),
+      doors: normalizeTime(get('doors', 'doortime', 'doorsopen', 'door')),
+      setTime: normalizeTime(get('settime', 'set', 'showtime', 'stagetime', 'headline', 'headlineset', 'onstage', 'startshow')),
+      loadIn: normalizeTime(get('loadin', 'load')),
+      soundcheck: normalizeTime(get('soundcheck', 'soundchk', 'sc')),
+      promoter: get('promoter', 'presentedby', 'presenter', 'localpromoter'),
+      guarantee: parseFloat(String(get('guarantee', 'gtee', 'fee', 'gross') || '').replace(/[^\d.]/g,'')) || 0,
+      notes: get('notes', 'note', 'remarks'),
     };
   } else if (kind === 'hotel') {
     return {
-      date: get('date'),
+      date: normalizeDate(get('date')),
       city: get('city'),
-      name: get('hotel', 'name', 'property'),
+      name: get('hotel', 'hotelname', 'property', 'name'),
       address: get('address'),
-      conf: get('conf', 'confirmation', 'confnum'),
-      checkIn: get('checkin'),
-      checkOut: get('checkout'),
+      conf: get('conf', 'confirmation', 'confnum', 'confirmationnumber'),
+      checkIn: get('checkin', 'checkindate'),
+      checkOut: get('checkout', 'checkoutdate'),
       phone: get('phone'),
       notes: get('notes'),
     };
   } else if (kind === 'contact') {
     return {
-      name: get('name'),
-      role: get('role') || 'Other',
-      organization: get('organization', 'org', 'company'),
-      phone: get('phone'),
+      name: get('name', 'contactname', 'fullname'),
+      role: get('role', 'title') || 'Other',
+      organization: get('organization', 'org', 'company', 'employer'),
+      phone: get('phone', 'cell', 'mobile'),
       email: get('email'),
       city: get('city'),
       notes: get('notes'),
     };
   } else if (kind === 'crew') {
     return {
-      name: get('name'),
-      role: get('role'),
-      type: get('type') || 'Crew',
+      name: get('name', 'fullname'),
+      role: get('role', 'position', 'title'),
+      type: get('type', 'department') || 'Crew',
       email: get('email'),
       phone: get('phone'),
       permissions: get('permissions') || 'standard',
