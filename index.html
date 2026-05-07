@@ -1468,7 +1468,8 @@ body.travel-assistant-mode #travelAssistantArea{
 
 .login-foot{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.14em;color:var(--warm-mute);text-align:center;border-top:1px dashed var(--line-2);padding-top:12px;line-height:1.5}
 
-#loginForm,#signupForm{display:flex;flex-direction:column;gap:14px}
+#loginForm,#signupForm{flex-direction:column;gap:14px}
+#loginForm:not([hidden]),#signupForm:not([hidden]){display:flex}
 
 /* ============ ACCOUNT MENU ============ */
 .account-pill{
@@ -7105,14 +7106,22 @@ function showSignupForm() {
 function loginWithEmail() {
   const email = (document.getElementById('li_email').value || '').trim().toLowerCase();
   if (!email) { toast('Enter your email', 'error'); return; }
-  if (!state || !state.users) { toast('No accounts exist on this device — sign up below', 'error'); return; }
-  const user = Object.values(state.users).find(u => (u.email || '').toLowerCase() === email);
-  if (!user) { toast('No account with that email — sign up below', 'error'); return; }
-  if (!user.claimed) {
-    toast(`That email is referenced as a tour crew member but no one has claimed the account yet — use "Create one" below`, 'error');
+  const switchToSignup = (msg) => {
+    toast(msg, 'error');
     showSignupForm();
-    document.getElementById('su_email').value = email;
-    return;
+    const su = document.getElementById('su_email');
+    if (su) su.value = email;
+    setTimeout(() => document.getElementById('su_name')?.focus(), 100);
+  };
+  if (!state || !state.users) {
+    return switchToSignup("No accounts on this device yet — let's create yours");
+  }
+  const user = Object.values(state.users).find(u => (u.email || '').toLowerCase() === email);
+  if (!user) {
+    return switchToSignup('No account with that email — create one below');
+  }
+  if (!user.claimed) {
+    return switchToSignup('That email is referenced in a tour but the account hasn\'t been claimed — create yours below');
   }
   loginAsExisting(user.id);
 }
