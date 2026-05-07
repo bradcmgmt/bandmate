@@ -2370,14 +2370,19 @@ function openScheduleModal(itemId) {
   const ad = getActiveDate();
   if (!ad) return;
   const item = itemId ? ad.schedule.find(i => i.id === itemId) : null;
-  const i = item || { time: '', what: '', who: '', notes: '' };
+  const i = item || { time: '', what: '', who: '', notes: '', allDay: false };
   openModal({
     title: item ? 'Edit schedule item' : 'Add schedule item',
     showDelete: !!item,
     onDelete: item ? () => { ad.schedule = ad.schedule.filter(x => x.id !== item.id); saveState(); } : null,
     body: `
       <div class="form-grid">
-        <div class="field"><label>Time *</label><input id="s_time" value="${esc(i.time)}" placeholder="HH:MM"></div>
+        <div class="field"><label>Time ${i.allDay ? '' : '*'}</label>
+          <div style="display:flex;gap:8px;align-items:stretch">
+            <input id="s_time" value="${esc(i.time)}" placeholder="HH:MM" ${i.allDay ? 'disabled style="opacity:.5"' : ''} style="flex:1">
+            <button type="button" id="s_allday_btn" class="group-pick ${i.allDay ? 'on' : ''}" onclick="(function(b){b.classList.toggle('on');const on=b.classList.contains('on');const t=document.getElementById('s_time');t.disabled=on;t.style.opacity=on?'.5':'';if(on){t.value='';}})(this)" style="flex:0 0 auto;padding:0 14px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-family:'JetBrains Mono',monospace">All day</button>
+          </div>
+        </div>
         <div class="field"><label>Who (legacy/free text)</label><input id="s_who" value="${esc(i.who)}" placeholder="e.g. BAND, FOH"></div>
         <div class="field full"><label>What *</label><input id="s_what" value="${esc(i.what)}" placeholder="e.g. Soundcheck, Lobby call, Doors"></div>
         <div class="field full"><label>Visible to groups <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span></label>
@@ -2394,16 +2399,23 @@ function openScheduleModal(itemId) {
       </div>
     `,
     onSubmit: () => {
-      const time = $('#s_time').value.trim();
+      const allDay = document.getElementById('s_allday_btn')?.classList.contains('on') || false;
+      const time = allDay ? '' : $('#s_time').value.trim();
       const what = $('#s_what').value.trim();
-      if (!time || !what) { toast('Time and what are required', 'error'); return false; }
+      if (!allDay && !time) { toast('Set a time or mark as All day', 'error'); return false; }
+      if (!what) { toast('What is required', 'error'); return false; }
       const groups = readGroupPicker('s_grp');
       const indivPicker = document.getElementById('s_ind_picker');
       const individuals = indivPicker ? [...indivPicker.querySelectorAll('.group-pick.on')].map(b => b.dataset.cid) : [];
-      const baseData = { time, what, who: $('#s_who').value.trim().toUpperCase(), notes: $('#s_notes').value.trim(), groups, individuals };
+      const baseData = { time, allDay, what, who: $('#s_who').value.trim().toUpperCase(), notes: $('#s_notes').value.trim(), groups, individuals };
       if (item) Object.assign(item, baseData);
       else ad.schedule.push({ id: uid('s'), ...baseData });
-      ad.schedule.sort((a, b) => a.time.localeCompare(b.time));
+      // All-day items sort first, then by time
+      ad.schedule.sort((a, b) => {
+        if (a.allDay && !b.allDay) return -1;
+        if (b.allDay && !a.allDay) return 1;
+        return (a.time || '').localeCompare(b.time || '');
+      });
       saveState();
     }
   });
@@ -2416,7 +2428,7 @@ function openTravelModal(itemId) {
   const ad = getActiveDate();
   if (!ad) return;
   const item = itemId ? ad.travel.find(i => i.id === itemId) : null;
-  const i = item || { type: 'bus', description: '', time: '', conf: '', person: '', notes: '' };
+  const i = item || { type: 'bus', description: '', time: '', conf: '', person: '', notes: '', allDay: false };
   openModal({
     title: item ? 'Edit travel' : 'Add travel item',
     showDelete: !!item,
@@ -2432,7 +2444,12 @@ function openTravelModal(itemId) {
             <option value="train" ${i.type==='train'?'selected':''}>Train</option>
           </select>
         </div>
-        <div class="field"><label>Time</label><input id="tv_time" value="${esc(i.time)}" placeholder="HH:MM"></div>
+        <div class="field"><label>Time</label>
+          <div style="display:flex;gap:8px;align-items:stretch">
+            <input id="tv_time" value="${esc(i.time)}" placeholder="HH:MM" ${i.allDay ? 'disabled style="opacity:.5"' : ''} style="flex:1">
+            <button type="button" id="tv_allday_btn" class="group-pick ${i.allDay ? 'on' : ''}" onclick="(function(b){b.classList.toggle('on');const on=b.classList.contains('on');const t=document.getElementById('tv_time');t.disabled=on;t.style.opacity=on?'.5':'';if(on){t.value='';}})(this)" style="flex:0 0 auto;padding:0 14px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-family:'JetBrains Mono',monospace">All day</button>
+          </div>
+        </div>
         <div class="field full"><label>Description *</label><input id="tv_desc" value="${esc(i.description)}" placeholder="e.g. Sleeper bus → Chicago"></div>
         <div class="field"><label>Person / Group</label><input id="tv_person" value="${esc(i.person)}" placeholder="e.g. ALL, Riley P., CREW"></div>
         <div class="field"><label>Conf #</label><input id="tv_conf" value="${esc(i.conf)}"></div>
@@ -2442,13 +2459,19 @@ function openTravelModal(itemId) {
     onSubmit: () => {
       const description = $('#tv_desc').value.trim();
       if (!description) { toast('Description required', 'error'); return false; }
+      const allDay = document.getElementById('tv_allday_btn')?.classList.contains('on') || false;
       const data = {
-        type: $('#tv_type').value, description, time: $('#tv_time').value.trim(),
+        type: $('#tv_type').value, description, time: allDay ? '' : $('#tv_time').value.trim(), allDay,
         person: $('#tv_person').value.trim(), conf: $('#tv_conf').value.trim(), notes: $('#tv_notes').value.trim()
       };
       if (item) Object.assign(item, data);
       else ad.travel.push({ id: uid('tv'), ...data });
-      ad.travel.sort((a, b) => (a.time || 'zz').localeCompare(b.time || 'zz'));
+      // All-day items sort first, then by time
+      ad.travel.sort((a, b) => {
+        if (a.allDay && !b.allDay) return -1;
+        if (b.allDay && !a.allDay) return 1;
+        return (a.time || 'zz').localeCompare(b.time || 'zz');
+      });
       saveState();
     }
   });
@@ -3116,7 +3139,7 @@ function renderDashboard() {
   const scheduleHtml = ad.schedule.length
     ? ad.schedule.map(s => `
         <div class="row">
-          <span class="t">${esc(s.time)}</span>
+          <span class="t">${s.allDay ? 'ALL DAY' : esc(s.time)}</span>
           <span class="what">${esc(s.what)}</span>
           <span class="who">${esc(s.who)}</span>
         </div>
@@ -3254,7 +3277,7 @@ function renderSchedule() {
       <div class="tbl">
         ${items.map(s => `
           <div class="item-row" style="grid-template-columns:80px 1fr 280px 80px;align-items:flex-start">
-            <span class="t" style="padding-top:8px">${esc(s.time)}</span>
+            <span class="t" style="padding-top:8px">${s.allDay ? 'ALL DAY' : esc(s.time)}</span>
             <span class="what" style="padding-top:6px">${esc(s.what)}${s.notes ? `<span class="note">${esc(s.notes)}</span>` : ''}</span>
             ${renderVizPicker(s)}
             <div class="tbl-actions" style="padding-top:6px"><button type="button" onclick="openScheduleModal('${s.id}')">Edit</button></div>
@@ -3293,7 +3316,7 @@ function renderTravel() {
         ${items.map(t => `
           <div class="item-row" style="grid-template-columns:60px 80px 1fr 140px 110px 80px">
             <span class="who" style="color:var(--hi)">${esc(TRAVEL_BADGE[t.type] || t.type.toUpperCase())}</span>
-            <span class="t">${esc(t.time || '—')}</span>
+            <span class="t">${t.allDay ? 'ALL DAY' : esc(t.time || '—')}</span>
             <span class="what">${esc(t.description)}${t.notes ? `<span class="note">${esc(t.notes)}</span>` : ''}</span>
             <span class="who">${esc(t.person || '')}</span>
             <span class="who" style="color:var(--warm-mute)">${esc(t.conf || '')}</span>
@@ -3871,7 +3894,7 @@ function renderPhone() {
       <div style="margin-top:8px">
         ${myItems.length ? myItems.slice(0, 8).map(s => `
           <div class="p-row">
-            <span class="t">${esc(s.time)}</span>
+            <span class="t">${s.allDay ? 'ALL' : esc(s.time)}</span>
             <span class="what">${esc(s.what)}</span>
             <span class="lbl">${esc(s.who || '')}</span>
           </div>
@@ -7881,11 +7904,16 @@ function _fleshOutSampleTour(tour) {
 
 function calcLiveDateGaps(d) {
   const missing = [];
-  const status = (d.status || 'show').toLowerCase();
+  let status = (d.status || 'show').toLowerCase();
+  // Defensive: if city/venue is the literal string "OFF" (legacy data, pre-migration),
+  // treat as off so gap analysis doesn't ask for venue/capacity/etc on day-off rows.
+  const cityU = String(d.city || '').toUpperCase().trim();
+  const venueU = String(d.venue || '').toUpperCase().trim();
+  if (['OFF','DAY OFF','OFF DAY'].includes(cityU) || ['OFF','DAY OFF','OFF DAY'].includes(venueU)) status = 'off';
   if (!d.date) missing.push('date');
   // Off days only need a date
   if (status === 'off') return missing;
-  if (!d.city) missing.push('city');
+  if (!d.city || cityU === 'OFF') missing.push('city');
   if (status === 'travel') {
     if (!d.travel || !d.travel.length) missing.push('travel items');
     return missing;
