@@ -937,6 +937,29 @@ input,select,textarea{font:inherit;color:inherit}
 .travel-share.muted-share{color:var(--warm-mute);font-family:'JetBrains Mono',monospace;font-size:10px;
   letter-spacing:.06em;font-style:italic}
 
+/* Email-match banner inside the Add Crew modal — surfaces when the typed email
+   matches an existing Bandmate account so the TM knows they're inviting an
+   existing user vs. a fresh sign-up. */
+.email-match{display:flex;gap:12px;padding:10px 14px;border-radius:9px;align-items:flex-start;
+  border:1px solid var(--line-2);background:rgba(232,148,58,.04)}
+.email-match .em-icon{flex:0 0 28px;height:28px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-family:'JetBrains Mono',monospace;font-weight:900;font-size:14px}
+.email-match .em-body{flex:1;min-width:0}
+.email-match .em-h{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.16em;
+  text-transform:uppercase;font-weight:700;margin-bottom:4px}
+.email-match .em-s{font-size:12.5px;line-height:1.5;color:var(--warm-mute)}
+.email-match.good{background:linear-gradient(135deg,rgba(109,207,139,.1),rgba(109,207,139,.04));
+  border-color:rgba(109,207,139,.4)}
+.email-match.good .em-icon{background:rgba(109,207,139,.2);color:var(--good)}
+.email-match.good .em-h{color:var(--good)}
+.email-match.info{background:linear-gradient(135deg,rgba(138,169,216,.1),rgba(138,169,216,.04));
+  border-color:rgba(138,169,216,.4)}
+.email-match.info .em-icon{background:rgba(138,169,216,.2);color:#b1c8ee}
+.email-match.info .em-h{color:#b1c8ee}
+.email-match.neutral{background:rgba(232,148,58,.04);border-color:var(--line-2)}
+.email-match.neutral .em-icon{background:rgba(232,148,58,.1);color:var(--warm-mute)}
+.email-match.neutral .em-h{color:var(--warm)}
+
 /* Tour-scan modal: re-scan button pinned to the top, sticky as user scrolls the gap list */
 .scan-toolbar{display:flex;gap:8px;justify-content:flex-end;margin:-8px -4px 14px;padding:10px 4px;
   position:sticky;top:-4px;background:linear-gradient(180deg,rgba(20,14,9,.98) 0%,rgba(20,14,9,.92) 80%,rgba(20,14,9,0) 100%);
@@ -2926,8 +2949,9 @@ function openCrewMemberModal(id) {
         <div class="field full"><label>Groups (controls which schedule items they see)</label>
           ${renderGroupPicker('cm_grp', v.groups || (v.type ? [v.type] : []), false)}
         </div>
-        <div class="field"><label>Email * <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(used to send invite)</span></label><input id="cm_email" type="email" value="${esc(v.email)}" placeholder="member@band.com"></div>
+        <div class="field"><label>Email * <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(used to send invite)</span></label><input id="cm_email" type="email" value="${esc(v.email)}" placeholder="member@band.com" oninput="checkCrewEmailMatch()" onblur="checkCrewEmailMatch()"></div>
         <div class="field"><label>Phone</label><input id="cm_phone" value="${esc(v.phone)}"></div>
+        <div class="field full"><div id="cm_email_match" style="margin:0"></div></div>
         <div class="field full"><label>Permissions</label>
           <select id="cm_perms">
             <option value="all" ${v.permissions==='all'?'selected':''}>Full access (Admin)</option>
@@ -2953,13 +2977,103 @@ function openCrewMemberModal(id) {
       };
       if (c) Object.assign(c, data);
       else {
-        // Track invite timestamp so the tour scan knows we've outreach'd this person
-        T().crew.push({ id: uid('cw'), invitedAt: Date.now(), ...data });
+        // Detect existing user by email — if one exists, link the new crew
+        // record to that account (rather than creating a parallel seeded user).
+        // This way the same person across multiple tours always resolves to
+        // the same login.
+        const existingUser = findUserByEmail(email);
+        let userId, claimed = false;
+        if (existingUser) {
+          userId = existingUser.id;
+          claimed = !!existingUser.claimed;
+          // Add this tour to their accessible tours if not already there
+          if (!T().memberIds) T().memberIds = [];
+          if (!T().memberIds.includes(userId)) T().memberIds.push(userId);
+        } else {
+          // Seed a new unclaimed user keyed off email — when they sign up,
+          // signUp() will find this seeded record and claim it.
+          const seed = email.replace(/[^a-z0-9]/g,'').slice(0, 30) || 'user' + Date.now();
+          userId = 'u_' + seed;
+          if (!state.users) state.users = {};
+          if (!state.users[userId]) {
+            state.users[userId] = {
+              id: userId, name, email,
+              role: 'crew',
+              avatar: name.split(' ').filter(Boolean).map(s=>s[0]).join('').slice(0,2).toUpperCase() || '??',
+              createdAt: Date.now(),
+              claimed: false,
+            };
+          }
+          if (!T().memberIds) T().memberIds = [];
+          if (!T().memberIds.includes(userId)) T().memberIds.push(userId);
+        }
+        T().crew.push({
+          id: uid('cw'),
+          userId,
+          invitedAt: Date.now(),
+          claimed,
+          ...data
+        });
+        if (existingUser && existingUser.claimed) {
+          toast(`${name.split(' ')[0]} added — they'll see this tour on their existing Bandmate login`, 'good');
+        }
       }
       saveState();
       setTimeout(openCrewModal, 100);
     }
   });
+  // Run match-check once on open in case we're editing a record with an email
+  setTimeout(() => { try { checkCrewEmailMatch(); } catch(e) {} }, 50);
+}
+
+// Live check while the TM types the email field on the Crew Add form.
+// Surfaces a banner when the email matches an existing Bandmate account.
+function checkCrewEmailMatch() {
+  const input = document.getElementById('cm_email');
+  const slot = document.getElementById('cm_email_match');
+  if (!input || !slot) return;
+  const email = (input.value || '').trim().toLowerCase();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    slot.innerHTML = '';
+    return;
+  }
+  const existing = findUserByEmail(email);
+  // Other tours where this email is on the crew roster
+  const otherTours = findCrewMatchesByEmail(email)
+    .filter(({ tour }) => tour.id !== T().id)
+    .map(({ tour }) => tour);
+
+  if (existing && existing.claimed) {
+    slot.innerHTML = `
+      <div class="email-match good">
+        <span class="em-icon">✓</span>
+        <div class="em-body">
+          <div class="em-h">Existing Bandmate account found</div>
+          <div class="em-s"><b>${esc(existing.name)}</b> already has a login. Adding them here will give them access to this tour on their existing account${otherTours.length ? ` — they're already on ${otherTours.length} other tour${otherTours.length===1?'':'s'} (${esc(otherTours.slice(0,3).map(t => t.name || 'Untitled').join(', '))}${otherTours.length>3?` +${otherTours.length-3} more`:''})` : ''}.</div>
+        </div>
+      </div>
+    `;
+  } else if (existing && !existing.claimed) {
+    slot.innerHTML = `
+      <div class="email-match info">
+        <span class="em-icon">!</span>
+        <div class="em-body">
+          <div class="em-h">Pending invite</div>
+          <div class="em-s">An invite has already been sent to this email${otherTours.length ? ` for ${otherTours.length} other tour${otherTours.length===1?'':'s'}` : ''}. They'll claim this tour too once they sign up.</div>
+        </div>
+      </div>
+    `;
+  } else {
+    slot.innerHTML = `
+      <div class="email-match neutral">
+        <span class="em-icon">→</span>
+        <div class="em-body">
+          <div class="em-h">New invite</div>
+          <div class="em-s">No Bandmate account found for this email. We'll send them a sign-up invite when you save.</div>
+        </div>
+      </div>
+    `;
+  }
 }
 
 function openTaskModal(id) {
@@ -7754,6 +7868,32 @@ function loginAsExisting(userId) {
   postLoginRouting();
 }
 
+// Find an existing user (claimed or unclaimed) by email — used by both signup
+// (to claim seeded crew accounts) and the Crew Roster Add Person form (to detect
+// when the TM is inviting someone who already has an account).
+function findUserByEmail(email) {
+  if (!email || !state || !state.users) return null;
+  const key = String(email).trim().toLowerCase();
+  if (!key) return null;
+  return Object.values(state.users).find(u => (u.email || '').toLowerCase() === key) || null;
+}
+
+// Given an email, return every crew record across every tour that uses that
+// email. Used at signup to bind the new account to all of the user's tours,
+// even ones added after the seeded user was created.
+function findCrewMatchesByEmail(email) {
+  const matches = [];
+  if (!email || !state || !state.tours) return matches;
+  const key = String(email).trim().toLowerCase();
+  if (!key) return matches;
+  Object.values(state.tours).forEach(tour => {
+    (tour.crew || []).forEach(c => {
+      if ((c.email || '').toLowerCase() === key) matches.push({ tour, crew: c });
+    });
+  });
+  return matches;
+}
+
 function signUp() {
   const name = (document.getElementById('su_name').value || '').trim();
   const email = (document.getElementById('su_email').value || '').trim().toLowerCase();
@@ -7768,32 +7908,54 @@ function signUp() {
     toast('Email already registered — sign in instead', 'error');
     return;
   }
+  let userId;
   if (existing && !existing.claimed) {
-    // Claim the existing crew/auto-seeded user
+    // Claim the existing seeded user (the one auto-created when a TM added
+    // them to a crew roster). Same id so all crew.userId references stay valid.
     existing.name = name;
     existing.role = role;
     existing.avatar = name.split(' ').filter(Boolean).map(s=>s[0]).join('').slice(0,2).toUpperCase() || existing.avatar;
     existing.claimed = true;
     existing.lastLoginAt = Date.now();
-    state.currentUserId = existing.id;
-    saveState();
-    postLoginRouting();
-    toast(`Welcome, ${name.split(' ')[0]} — claimed your existing crew account`, 'good');
-    return;
+    userId = existing.id;
+  } else {
+    // Brand-new user
+    userId = 'u_' + (email.replace(/[^a-z0-9]/g,'') || ('user'+Date.now())).slice(0,30);
+    state.users[userId] = {
+      id: userId, name, email, role,
+      avatar: name.split(' ').filter(Boolean).map(s=>s[0]).join('').slice(0,2).toUpperCase() || '??',
+      createdAt: Date.now(),
+      lastLoginAt: Date.now(),
+      claimed: true,
+    };
   }
-  // Brand-new user
-  const id = 'u_' + (email.replace(/[^a-z0-9]/g,'') || ('user'+Date.now())).slice(0,30);
-  state.users[id] = {
-    id, name, email, role,
-    avatar: name.split(' ').filter(Boolean).map(s=>s[0]).join('').slice(0,2).toUpperCase() || '??',
-    createdAt: Date.now(),
-    lastLoginAt: Date.now(),
-    claimed: true,
-  };
-  state.currentUserId = id;
+
+  // Match this email against EVERY crew record on EVERY tour and bind them
+  // to this user — covers TMs who added the person after the seeded user
+  // was created, and multi-tour scenarios where the same person appears on
+  // several tours under different crew records.
+  let linkedTours = 0;
+  const matches = findCrewMatchesByEmail(email);
+  matches.forEach(({ tour, crew }) => {
+    crew.userId = userId;
+    if (!tour.memberIds) tour.memberIds = [];
+    if (!tour.memberIds.includes(userId)) {
+      tour.memberIds.push(userId);
+      linkedTours++;
+    }
+  });
+
+  state.currentUserId = userId;
   saveState();
   postLoginRouting();
-  toast(`Welcome, ${name.split(' ')[0]}`, 'good');
+  const firstName = name.split(' ')[0];
+  if (linkedTours > 0) {
+    toast(`Welcome, ${firstName} — found you on ${linkedTours} tour${linkedTours===1?'':'s'}`, 'good');
+  } else if (matches.length > 0) {
+    toast(`Welcome, ${firstName} — claimed your existing crew account`, 'good');
+  } else {
+    toast(`Welcome, ${firstName}`, 'good');
+  }
 }
 
 function logout() {
@@ -8545,6 +8707,7 @@ Object.assign(window, {
   openFeedbackModal, submitFeedback,
   scanTour, openTourScan, calcLiveDateGaps,
   openContactUpload, handleContactUpload, toggleAllDay,
+  checkCrewEmailMatch, findUserByEmail, findCrewMatchesByEmail,
   toggleExportMenu, closeExportMenu, downloadTourBookPDF, downloadTourBookFromHere, closeTourBook,
   scoutNearVenue,
   openTravelAssistant, closeTravelAssistant, setTaTab, searchHotels, resetHotelFilters, bookHotelToActiveDate, searchFlights, resetFlightFilters, addFlightToTravel,
