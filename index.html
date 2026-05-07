@@ -898,6 +898,36 @@ input,select,textarea{font:inherit;color:inherit}
 .group-pick.on{background:linear-gradient(135deg,rgba(138,169,216,.2),rgba(138,169,216,.06));color:#b1c8ee;border-color:#b1c8ee}
 .group-pick:hover:not(.on){color:var(--warm);border-color:var(--line-glow)}
 
+/* All-day toggle (next to Time field on schedule + travel modals) */
+.time-row{display:flex;gap:14px;align-items:stretch}
+.time-row > input{flex:1 1 auto;min-width:0}
+.allday-btn{flex:0 0 auto;padding:0 16px;height:38px;border-radius:8px;font-family:'JetBrains Mono',monospace;
+  font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;cursor:pointer;
+  background:rgba(232,148,58,.04);color:var(--warm-mute);border:1px solid var(--line-2);
+  white-space:nowrap;transition:all .15s ease}
+.allday-btn:hover:not(.on){color:var(--warm);border-color:var(--line-glow);background:rgba(232,148,58,.08)}
+.allday-btn.on{background:linear-gradient(135deg,rgba(232,148,58,.22),rgba(232,148,58,.08));color:var(--hi);border-color:rgba(232,148,58,.5);box-shadow:0 0 0 1px rgba(232,148,58,.2) inset}
+
+/* Tab + field gap indicators */
+.tab-warn{position:relative}
+.tab-warn::after{content:"⚠";position:absolute;top:6px;right:6px;font-size:10px;color:#fdba74;
+  text-shadow:0 0 6px rgba(253,186,116,.6);animation:tabwarn 2s ease-in-out infinite}
+@keyframes tabwarn{0%,100%{opacity:.7}50%{opacity:1}}
+.field-warn{position:relative}
+.field-warn::after{content:"⚠";position:absolute;top:0;right:0;font-size:11px;color:#fdba74;
+  text-shadow:0 0 6px rgba(253,186,116,.6)}
+.field-warn > label{color:#fdba74 !important}
+.rescan-nudge{margin:14px 0;padding:10px 14px;background:linear-gradient(135deg,rgba(109,207,139,.1),rgba(109,207,139,.04));
+  border:1px solid rgba(109,207,139,.35);border-radius:9px;color:var(--good);font-size:12.5px;
+  display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;letter-spacing:.04em}
+.rescan-nudge button{margin-left:auto;background:rgba(109,207,139,.15);border:1px solid rgba(109,207,139,.5);
+  color:var(--good);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;
+  letter-spacing:.14em;text-transform:uppercase;font-family:inherit}
+
+.travel-share{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.travel-share.muted-share{color:var(--warm-mute);font-family:'JetBrains Mono',monospace;font-size:10px;
+  letter-spacing:.06em;font-style:italic}
+
 /* list/table view */
 .crew-list-wrap{overflow-x:auto;border:1px solid var(--line-2);border-radius:10px;background:linear-gradient(180deg,rgba(24,17,11,.9),rgba(17,12,8,.9))}
 .crew-list-table{border-collapse:collapse;min-width:100%;font-size:11.5px}
@@ -2378,9 +2408,9 @@ function openScheduleModal(itemId) {
     body: `
       <div class="form-grid">
         <div class="field"><label>Time ${i.allDay ? '' : '*'}</label>
-          <div style="display:flex;gap:8px;align-items:stretch">
-            <input id="s_time" value="${esc(i.time)}" placeholder="HH:MM" ${i.allDay ? 'disabled style="opacity:.5"' : ''} style="flex:1">
-            <button type="button" id="s_allday_btn" class="group-pick ${i.allDay ? 'on' : ''}" onclick="(function(b){b.classList.toggle('on');const on=b.classList.contains('on');const t=document.getElementById('s_time');t.disabled=on;t.style.opacity=on?'.5':'';if(on){t.value='';}})(this)" style="flex:0 0 auto;padding:0 14px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-family:'JetBrains Mono',monospace">All day</button>
+          <div class="time-row">
+            <input id="s_time" value="${esc(i.time)}" placeholder="HH:MM" ${i.allDay ? 'disabled style="opacity:.5"' : ''}>
+            <button type="button" id="s_allday_btn" class="allday-btn ${i.allDay ? 'on' : ''}" onclick="toggleAllDay('s_time','s_allday_btn')">All day</button>
           </div>
         </div>
         <div class="field"><label>Who (legacy/free text)</label><input id="s_who" value="${esc(i.who)}" placeholder="e.g. BAND, FOH"></div>
@@ -2428,7 +2458,7 @@ function openTravelModal(itemId) {
   const ad = getActiveDate();
   if (!ad) return;
   const item = itemId ? ad.travel.find(i => i.id === itemId) : null;
-  const i = item || { type: 'bus', description: '', time: '', conf: '', person: '', notes: '', allDay: false };
+  const i = item || { type: 'bus', description: '', time: '', conf: '', person: '', notes: '', allDay: false, groups: ['All'], individuals: [] };
   openModal({
     title: item ? 'Edit travel' : 'Add travel item',
     showDelete: !!item,
@@ -2445,14 +2475,24 @@ function openTravelModal(itemId) {
           </select>
         </div>
         <div class="field"><label>Time</label>
-          <div style="display:flex;gap:8px;align-items:stretch">
-            <input id="tv_time" value="${esc(i.time)}" placeholder="HH:MM" ${i.allDay ? 'disabled style="opacity:.5"' : ''} style="flex:1">
-            <button type="button" id="tv_allday_btn" class="group-pick ${i.allDay ? 'on' : ''}" onclick="(function(b){b.classList.toggle('on');const on=b.classList.contains('on');const t=document.getElementById('tv_time');t.disabled=on;t.style.opacity=on?'.5':'';if(on){t.value='';}})(this)" style="flex:0 0 auto;padding:0 14px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-family:'JetBrains Mono',monospace">All day</button>
+          <div class="time-row">
+            <input id="tv_time" value="${esc(i.time)}" placeholder="HH:MM" ${i.allDay ? 'disabled style="opacity:.5"' : ''}>
+            <button type="button" id="tv_allday_btn" class="allday-btn ${i.allDay ? 'on' : ''}" onclick="toggleAllDay('tv_time','tv_allday_btn')">All day</button>
           </div>
         </div>
         <div class="field full"><label>Description *</label><input id="tv_desc" value="${esc(i.description)}" placeholder="e.g. Sleeper bus → Chicago"></div>
-        <div class="field"><label>Person / Group</label><input id="tv_person" value="${esc(i.person)}" placeholder="e.g. ALL, Riley P., CREW"></div>
         <div class="field"><label>Conf #</label><input id="tv_conf" value="${esc(i.conf)}"></div>
+        <div class="field"><label>Person <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(legacy / free text)</span></label><input id="tv_person" value="${esc(i.person)}" placeholder="e.g. ALL, Riley P."></div>
+        <div class="field full"><label>Visible to groups <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span></label>
+          ${renderGroupPicker('tv_grp', i.groups && i.groups.length ? i.groups : ['All'], true)}
+        </div>
+        <div class="field full"><label>+ Specific individuals <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(in addition to groups)</span></label>
+          <div class="group-picker" id="tv_ind_picker">
+            ${T().crew.length ? T().crew.map(c => `
+              <button type="button" class="group-pick ${(i.individuals||[]).includes(c.id) ? 'on' : ''}" data-cid="${c.id}" onclick="this.classList.toggle('on')">${esc(c.name)}</button>
+            `).join('') : '<div class="muted mono" style="font-size:10.5px">No crew on roster yet</div>'}
+          </div>
+        </div>
         <div class="field full"><label>Notes</label><textarea id="tv_notes">${esc(i.notes)}</textarea></div>
       </div>
     `,
@@ -2460,9 +2500,13 @@ function openTravelModal(itemId) {
       const description = $('#tv_desc').value.trim();
       if (!description) { toast('Description required', 'error'); return false; }
       const allDay = document.getElementById('tv_allday_btn')?.classList.contains('on') || false;
+      const groups = readGroupPicker('tv_grp');
+      const indivPicker = document.getElementById('tv_ind_picker');
+      const individuals = indivPicker ? [...indivPicker.querySelectorAll('.group-pick.on')].map(b => b.dataset.cid) : [];
       const data = {
         type: $('#tv_type').value, description, time: allDay ? '' : $('#tv_time').value.trim(), allDay,
-        person: $('#tv_person').value.trim(), conf: $('#tv_conf').value.trim(), notes: $('#tv_notes').value.trim()
+        person: $('#tv_person').value.trim(), conf: $('#tv_conf').value.trim(), notes: $('#tv_notes').value.trim(),
+        groups, individuals
       };
       if (item) Object.assign(item, data);
       else ad.travel.push({ id: uid('tv'), ...data });
@@ -2475,6 +2519,18 @@ function openTravelModal(itemId) {
       saveState();
     }
   });
+}
+
+// Shared helpers used by schedule + travel modals
+function toggleAllDay(timeInputId, btnId) {
+  const b = document.getElementById(btnId);
+  const t = document.getElementById(timeInputId);
+  if (!b || !t) return;
+  b.classList.toggle('on');
+  const on = b.classList.contains('on');
+  t.disabled = on;
+  t.style.opacity = on ? '.5' : '';
+  if (on) t.value = '';
 }
 
 /* =====================================================================
@@ -2981,6 +3037,22 @@ function renderAll() {
   renderActivePanel();
   renderViewerSelect();
   renderPhone();
+  applyTabGapIndicators();
+}
+
+// Paint a ⚠ indicator on tabs that have outstanding gaps for the active date.
+// Once a tab's gaps are filled, the indicator drops off and a re-scan nudge appears.
+function applyTabGapIndicators() {
+  const ad = getActiveDate();
+  $$('.tab').forEach(t => t.classList.remove('tab-warn'));
+  if (!ad) return;
+  const map = gapsByTab(ad);
+  Object.keys(map).forEach(tab => {
+    if (map[tab].length) {
+      const el = document.querySelector(`.tab[data-tab="${tab}"]`);
+      if (el) el.classList.add('tab-warn');
+    }
+  });
 }
 
 function renderTopBar() {
@@ -3028,12 +3100,15 @@ function renderDayStrip() {
   strip.innerHTML = T().dates.map(d => {
     const isActive = d.id === T().activeDateId;
     const isToday = d.date === todayISO();
-    const needsReview = d._imported && d._missing && d._missing.length > 0;
+    const liveGaps = calcLiveDateGaps(d);
+    const needsReview = liveGaps.length > 0;
+    const isOff = (d.status === 'off') || (d.city || '').toUpperCase() === 'OFF';
+    const cityLabel = isOff ? 'Day off' : (d.city || '—');
     return `
-      <button type="button" class="day-pill s-${d.status || 'show'} ${isActive ? 'active' : ''} ${isToday ? 'is-today' : ''} ${needsReview ? 'needs-review' : ''}" onclick="setActive('${d.id}')" title="${needsReview ? 'Needs: ' + d._missing.join(', ') : ''}">
+      <button type="button" class="day-pill s-${d.status || 'show'} ${isActive ? 'active' : ''} ${isToday ? 'is-today' : ''} ${needsReview ? 'needs-review' : ''}" onclick="setActive('${d.id}')" title="${needsReview ? 'Needs: ' + liveGaps.join(', ') : 'Complete'}">
         <span class="pdate">${fmtMD(d.date)}</span>
         <span class="pdow">${dow(d.date)}</span>
-        <span class="pcity">${esc(d.city || '—')}</span>
+        <span class="pcity">${esc(cityLabel)}</span>
         <span class="pstatus"></span>
       </button>
     `;
@@ -3152,15 +3227,37 @@ function renderDashboard() {
   const nextDate = T().dates[T().dates.findIndex(d => d.id === ad.id) + 1];
   const nextHop = nextDate ? `${fmtMD(nextDate.date)} → ${esc(nextDate.city)}` : 'End of tour';
 
-  // Review banner for imported tours with gaps
-  const importedWithGaps = T().dates.filter(d => d._imported && d._missing && d._missing.length);
-  const reviewBanner = importedWithGaps.length ? `
-    <div class="review-banner">
-      <span class="rb-icon">⚠</span>
-      <span><b>${importedWithGaps.length}</b> imported date${importedWithGaps.length===1?'':'s'} need additional info — they're flagged in the day strip with a red outline.</span>
-      <span class="rb-link" onclick="setActive('${importedWithGaps[0].id}'); openDateModal('${importedWithGaps[0].id}')">First gap →</span>
-    </div>
-  ` : '';
+  // Live gap analysis for the active date (drives all the ⚠ markers below)
+  const liveGaps = calcLiveDateGaps(ad);
+  const isMissing = (field) => liveGaps.includes(field);
+
+  // Live banner: either "needs work" or "complete + re-scan suggestion"
+  const datesWithGaps = T().dates.filter(x => calcLiveDateGaps(x).length > 0);
+  let reviewBanner = '';
+  if (liveGaps.length) {
+    reviewBanner = `
+      <div class="review-banner">
+        <span class="rb-icon">⚠</span>
+        <span><b>${liveGaps.length}</b> field${liveGaps.length===1?'':'s'} on this date need${liveGaps.length===1?'s':''} entry: <span style="color:#fdba74">${liveGaps.join(', ')}</span></span>
+      </div>
+    `;
+  } else if (datesWithGaps.length === 0) {
+    // Whole tour is clean
+    reviewBanner = `
+      <div class="rescan-nudge">
+        <span>✓ All dates fully populated — re-scan to confirm tour status.</span>
+        <button type="button" onclick="openTourScan()">↻ Re-scan tour</button>
+      </div>
+    `;
+  } else {
+    // This date is clean but other dates still have gaps — nudge to re-scan
+    reviewBanner = `
+      <div class="rescan-nudge">
+        <span>✓ This date is complete. <b>${datesWithGaps.length}</b> other date${datesWithGaps.length===1?'':'s'} still need${datesWithGaps.length===1?'s':''} attention.</span>
+        <button type="button" onclick="openTourScan()">↻ Re-scan tour</button>
+      </div>
+    `;
+  }
 
   root.innerHTML = `
     ${reviewBanner}
@@ -3177,12 +3274,19 @@ function renderDashboard() {
         <h3>${esc((ad.city || ad.status === 'off' ? 'DAY OFF' : 'TRAVEL').toUpperCase())} · DAY ${(T().dates.findIndex(d=>d.id===ad.id)+1).toString().padStart(2,'0')} / ${T().dates.length.toString().padStart(2,'0')}</h3>
         <div class="city">${ad.status === 'off' ? 'Day off' : ad.status === 'travel' ? 'Travel day' : esc(ad.venue || ad.city)}</div>
         ${ad.status === 'show' || ad.status === 'press' ? `
-          <div class="venue">${ad.venue ? esc(ad.city) + (ad.state ? ', ' + esc(ad.state) : '') : ''}${ad.capacity ? ' · Capacity ' + esc(ad.capacity) : ''}</div>
+          <div class="venue">${ad.venue ? esc(ad.city) + (ad.state ? ', ' + esc(ad.state) : '') : ''}${ad.capacity ? ' · Capacity ' + esc(ad.capacity) : (isMissing('capacity') ? ' · <span style="color:#fdba74">Capacity ⚠</span>' : '')}</div>
         ` : (ad.city ? `<div class="venue">${esc(ad.city)}${ad.state ? ', ' + esc(ad.state) : ''}</div>` : '')}
+        ${(ad.status === 'show' || ad.status === 'press') ? `
+        <div class="meta" style="margin-bottom:8px">
+          <div class="m${isMissing('doors')?' field-warn':''}"><div class="l">Doors</div><div class="v">${ad.doors ? esc(ad.doors) : '<span style="color:#fdba74">Not set</span>'}</div></div>
+          <div class="m${isMissing('set time')?' field-warn':''}"><div class="l">Set time</div><div class="v">${ad.setTime ? esc(ad.setTime) : '<span style="color:#fdba74">Not set</span>'}</div></div>
+          <div class="m${isMissing('venue')?' field-warn':''}"><div class="l">Venue</div><div class="v">${ad.venue ? esc(ad.venue) : '<span style="color:#fdba74">Not set</span>'}</div></div>
+        </div>
+        ` : ''}
         <div class="gridrun">${scheduleHtml}</div>
         <div class="meta">
           ${(ad.status === 'show' || ad.status === 'press') ? `<div class="m"><div class="l">Promoter</div><div class="v">${esc(promoter)}</div></div>` : ''}
-          <div class="m"><div class="l">Hotel</div><div class="v">${esc(hotelMeta)}</div></div>
+          <div class="m${isMissing('hotel')||isMissing('hotel rooms')||isMissing('hotel or travel')?' field-warn':''}"><div class="l">Hotel</div><div class="v">${esc(hotelMeta)}</div></div>
           <div class="m"><div class="l">Next stop</div><div class="v">${esc(nextHop)}</div></div>
         </div>
       </div>
@@ -3300,7 +3404,7 @@ function renderTravel() {
   const items = ad.travel || [];
   root.innerHTML = `
     <div class="section-title">
-      <h2>Travel · ${esc(ad.city)}</h2>
+      <h2>Travel · ${esc(ad.city || (ad.status==='off' ? 'Day off' : 'Travel'))}</h2>
       <span class="crumb">/ ${fmtDate(ad.date).toUpperCase()}</span>
       <span class="stamp">${items.length} MOVES</span>
       <button type="button" class="add-btn" onclick="openTravelModal()">+ Add travel</button>
@@ -3313,16 +3417,22 @@ function renderTravel() {
       </div>
     ` : `
       <div class="tbl">
-        ${items.map(t => `
-          <div class="item-row" style="grid-template-columns:60px 80px 1fr 140px 110px 80px">
-            <span class="who" style="color:var(--hi)">${esc(TRAVEL_BADGE[t.type] || t.type.toUpperCase())}</span>
-            <span class="t">${t.allDay ? 'ALL DAY' : esc(t.time || '—')}</span>
-            <span class="what">${esc(t.description)}${t.notes ? `<span class="note">${esc(t.notes)}</span>` : ''}</span>
-            <span class="who">${esc(t.person || '')}</span>
-            <span class="who" style="color:var(--warm-mute)">${esc(t.conf || '')}</span>
-            <div class="tbl-actions"><button type="button" onclick="openTravelModal('${t.id}')">Edit</button></div>
-          </div>
-        `).join('')}
+        ${items.map(t => {
+          const grps = t.groups || [];
+          const indivs = t.individuals || [];
+          const indivCrew = indivs.map(id => T().crew.find(c => c.id === id)).filter(Boolean);
+          const sharedHtml = (grps.length || indivs.length)
+            ? `<div class="travel-share">${grps.map(g => `<span class="viz-chip group ${g==='All'?'all':''}">${esc(g)}</span>`).join('')}${indivCrew.map(c => `<span class="viz-chip indiv">${esc(c.name.split(' ')[0])}</span>`).join('')}</div>`
+            : `<div class="travel-share muted-share">Visible to all — set audience in Edit</div>`;
+          return `
+          <div class="item-row" style="grid-template-columns:60px 80px 1fr 110px 80px;align-items:flex-start">
+            <span class="who" style="color:var(--hi);padding-top:6px">${esc(TRAVEL_BADGE[t.type] || t.type.toUpperCase())}</span>
+            <span class="t" style="padding-top:6px">${t.allDay ? 'ALL DAY' : esc(t.time || '—')}</span>
+            <span class="what" style="padding-top:6px">${esc(t.description)}${t.notes ? `<span class="note">${esc(t.notes)}</span>` : ''}${sharedHtml}</span>
+            <span class="who" style="color:var(--warm-mute);padding-top:6px">${esc(t.conf || '')}</span>
+            <div class="tbl-actions" style="padding-top:6px"><button type="button" onclick="openTravelModal('${t.id}')">Edit</button></div>
+          </div>`;
+        }).join('')}
       </div>
     `}
   `;
@@ -4727,7 +4837,9 @@ function normalizeDate(s) {
   s = String(s).trim();
   if (!s || s === 'undefined' || s === 'null' || s === 'NaN') return '';
   // Strip leading day-of-week prefix: "Sunday, May 3, 2026" → "May 3, 2026"
-  s = s.replace(/^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)(?:day|nesday|sday|urday)?,?\s*/i, '').trim();
+  // Strip leading day-of-week prefix in any common form: Mon, Monday, Tue, Tues, Tuesday, Wed, Wednesday,
+  // Thu, Thur, Thurs, Thursday, Fri, Friday, Sat, Saturday, Sun, Sunday.
+  s = s.replace(/^(?:Sunday|Monday|Tuesday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sun|Mon|Tues|Tue|Wed|Thurs|Thur|Thu|Fri|Sat)\.?,?\s+/i, '').trim();
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
   // M/D/YYYY or M-D-YYYY (also DD/MM if culturally)
   let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
@@ -5095,7 +5207,7 @@ function calcDateGaps(d) {
   if (!d.capacity) missing.push('capacity');
   if (!d.doors) missing.push('doors');
   if (!d.setTime) missing.push('set time');
-  if (!d.promoter) missing.push('promoter');
+  // promoter is optional — never flagged as a gap
   return missing;
 }
 
@@ -6537,7 +6649,7 @@ function renderTourBook(opts) {
             <h4>Travel · ${d.travel.length}</h4>
             ${d.travel.map(t => `
               <div class="tb-sched-row">
-                <span class="tb-t">${esc(t.time || '—')}</span>
+                <span class="tb-t">${t.allDay ? 'ALL DAY' : esc(t.time || '—')}</span>
                 <span class="tb-w">${esc(t.description)}${t.person ? ` · ${esc(t.person)}` : ''}</span>
                 <span class="tb-grp">${esc(t.conf || (t.type || '').toUpperCase())}</span>
               </div>
@@ -7911,8 +8023,14 @@ function calcLiveDateGaps(d) {
   const venueU = String(d.venue || '').toUpperCase().trim();
   if (['OFF','DAY OFF','OFF DAY'].includes(cityU) || ['OFF','DAY OFF','OFF DAY'].includes(venueU)) status = 'off';
   if (!d.date) missing.push('date');
-  // Off days only need a date
-  if (status === 'off') return missing;
+  // Off days: complete if EITHER a hotel is set (band+crew staying somewhere)
+  // OR there's at least one travel item logged (overnight bus / repositioning day).
+  if (status === 'off') {
+    const hasHotel = !!d.hotel;
+    const hasTravel = !!(d.travel && d.travel.length);
+    if (!hasHotel && !hasTravel) missing.push('hotel or travel');
+    return missing;
+  }
   if (!d.city || cityU === 'OFF') missing.push('city');
   if (status === 'travel') {
     if (!d.travel || !d.travel.length) missing.push('travel items');
@@ -7923,11 +8041,25 @@ function calcLiveDateGaps(d) {
   if (!d.capacity) missing.push('capacity');
   if (!d.doors) missing.push('doors');
   if (!d.setTime) missing.push('set time');
-  // promoter is optional — intentionally not flagged as missing
+  // promoter is optional — never flagged as missing
   if (!d.hotel) missing.push('hotel');
   else if (!d.hotel.rooms || !d.hotel.rooms.length) missing.push('hotel rooms');
   if (!d.schedule || !d.schedule.length) missing.push('schedule');
   return missing;
+}
+
+// Field-to-tab map: lets us mark which tabs have outstanding gaps,
+// so we can paint a red ⚠ dot on the tab and on the relevant fields inside.
+function gapsByTab(d) {
+  const m = calcLiveDateGaps(d);
+  const map = { dashboard: [], schedule: [], travel: [], hotels: [], contacts: [] };
+  m.forEach(g => {
+    if (g === 'date' || g === 'city' || g === 'venue' || g === 'capacity' || g === 'doors' || g === 'set time') map.dashboard.push(g);
+    else if (g === 'schedule') map.schedule.push(g);
+    else if (g === 'travel items' || g === 'hotel or travel') map.travel.push(g);
+    else if (g === 'hotel' || g === 'hotel rooms') map.hotels.push(g);
+  });
+  return map;
 }
 
 function scanTour(tour) {
