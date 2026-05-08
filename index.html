@@ -990,6 +990,40 @@ input,select,textarea{font:inherit;color:inherit}
   color:var(--good);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;
   letter-spacing:.14em;text-transform:uppercase;font-family:inherit}
 
+/* Import Data — drop-zone modal that merges files into the current tour. */
+.idz-wrap{display:flex;flex-direction:column;gap:14px}
+.idz-help{font-size:12.5px;color:var(--warm-mute);line-height:1.5;padding:0 2px}
+.idz-help b{color:var(--warm)}
+.idz-drop{border:1.5px dashed var(--line-2);border-radius:11px;padding:30px 16px;text-align:center;
+  cursor:pointer;transition:all .15s ease;background:rgba(232,148,58,.02)}
+.idz-drop:hover,.idz-drop.dragging{border-color:var(--hi);background:rgba(232,148,58,.06);
+  box-shadow:inset 0 0 0 1px rgba(232,148,58,.2)}
+.idz-drop-icon{font-size:28px;color:var(--hi);font-weight:300;line-height:1;margin-bottom:8px;font-family:'JetBrains Mono',monospace}
+.idz-drop-h{font-size:14px;font-weight:600;color:var(--warm);margin-bottom:3px}
+.idz-drop-s{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.06em;color:var(--warm-mute)}
+.idz-list{border:1px solid var(--line-2);border-radius:9px;background:rgba(0,0,0,.18);overflow:hidden}
+.idz-list-head{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;
+  background:rgba(232,148,58,.04);border-bottom:1px solid var(--line);
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--warm-mute);font-weight:700}
+.idz-clear{background:transparent;border:1px solid var(--line-2);color:var(--warm-mute);
+  padding:3px 9px;border-radius:5px;font-family:inherit;font-size:10px;letter-spacing:.14em;cursor:pointer}
+.idz-clear:hover{color:var(--red);border-color:rgba(232,69,69,.4)}
+.idz-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid var(--line)}
+.idz-row:first-of-type{border-top:none}
+.idz-fname{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.idz-fext{flex:0 0 38px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:9px;
+  font-weight:800;letter-spacing:.06em;padding:5px 0;border-radius:5px;
+  background:rgba(232,148,58,.1);color:var(--hi);border:1px solid rgba(232,148,58,.3)}
+.idz-name{font-size:13px;font-weight:600;color:var(--warm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.idz-sub{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);letter-spacing:.04em;margin-top:2px}
+.idz-row.idz-analyzing .idz-sub{color:var(--hi)}
+.idz-row.idz-done .idz-sub{color:var(--good)}
+.idz-row.idz-error .idz-sub{color:var(--red)}
+.idz-x{flex:0 0 26px;width:26px;height:26px;border-radius:5px;border:1px solid var(--line-2);
+  background:transparent;color:var(--warm-mute);cursor:pointer;font-size:14px;font-weight:700}
+.idz-x:hover{color:var(--red);border-color:rgba(232,69,69,.4);background:rgba(232,69,69,.06)}
+.idz-actions{display:flex;gap:8px;justify-content:flex-end;padding-top:6px;border-top:1px solid var(--line);margin-top:4px;padding-top:14px}
+
 .travel-share{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .travel-share.muted-share{color:var(--warm-mute);font-family:'JetBrains Mono',monospace;font-size:10px;
   letter-spacing:.06em;font-style:italic}
@@ -5919,13 +5953,22 @@ async function extractPDFText(file) {
 // falls back to the single-show extractor.
 function _extractDealMemoBlocks(text) {
   if (!text) return null;
-  // Try "Memo #:" first (most reliable boundary)
+  // Detect deal-memo shape — even ONE memo per file should use this parser
+  // (TMs often upload deal memos one PDF per show). The presence of these
+  // marker phrases confirms it's a deal memo and not just any random text.
+  const isDealMemo = /\bDate of Engagement\b/i.test(text) && /\bEngagement Venue\b/i.test(text);
+  // Try "Memo #:" first (most reliable boundary for multi-memo bundles).
   let blocks = text.split(/\bMemo\s*#:\s*/i).filter(s => s.trim().length > 80);
-  // Fall back to "Deal Memo" header if Memo # markers aren't present
+  // Fall back to "Deal Memo" header if Memo # markers aren't present.
   if (blocks.length < 2) {
     blocks = text.split(/\bDeal\s+Memo\b/i).filter(s => s.trim().length > 80);
   }
-  if (blocks.length < 2) return null;
+  // If we still only have one block but the text IS a deal memo, treat the
+  // whole text as one memo block.
+  if (blocks.length < 2 && isDealMemo) {
+    blocks = [text];
+  }
+  if (!blocks.length) return null;
   const out = [];
   for (const b of blocks) {
     const parsed = _parseDealMemoBlock(b);
@@ -6103,11 +6146,15 @@ function _extractEmails(text) {
 }
 
 function processTextDoc(text, file, result) {
-  // First try the multi-deal-memo path: a single PDF containing many show
-  // memos (dozens, sometimes 30+ for a full North American run). If we find
-  // at least two memo blocks, parse each one as its own date.
+  // First try the deal-memo path. Touring agents either bundle ALL memos
+  // for a tour into one fat PDF, or send each show as its own file — many
+  // TMs end up uploading 30+ individual PDFs in one session. We use the
+  // deal-memo parser whenever the text shape matches, even for a single
+  // memo, so single-file uploads parse just as cleanly as bundled ones.
+  // Cross-file order is handled later by mergeImportResults (sort by date)
+  // and fillDateGapsWithOffDays (auto-insert off-days between legs).
   const memoBlocks = _extractDealMemoBlocks(text);
-  if (memoBlocks && memoBlocks.length > 1) {
+  if (memoBlocks && memoBlocks.length >= 1) {
     let totalShows = 0;
     memoBlocks.forEach(b => {
       // Multi-night memos (e.g. 2-night Detroit run) emit one date entry
@@ -6131,7 +6178,11 @@ function processTextDoc(text, file, result) {
         totalShows++;
       });
     });
-    result.notes.push(`Deal memos · ${totalShows} show${totalShows===1?'':'s'} across ${memoBlocks.length} memo${memoBlocks.length===1?'':'s'}`);
+    if (memoBlocks.length === 1) {
+      result.notes.push(`Deal memo · ${totalShows} show${totalShows===1?'':'s'} extracted`);
+    } else {
+      result.notes.push(`Deal memos · ${totalShows} show${totalShows===1?'':'s'} across ${memoBlocks.length} memo${memoBlocks.length===1?'':'s'}`);
+    }
     // Still pull emails for contacts
     const emails = _extractEmails(text);
     emails.slice(0, 30).forEach(e => {
@@ -9712,6 +9763,282 @@ function rbReflectReset() {
   // for backwards compat with the inline onmouseleave handler.
 }
 
+/* =====================================================================
+   IMPORT DATA — into the existing tour. Lets the TM upload one or more
+   files (PDF, Excel, CSV, Word, JSON), reuses the import-wizard's per-file
+   processor, then MERGES extracted data into the active tour by matching
+   dates and venues against what's already there. Fills only missing fields
+   so the TM's hand-typed data is never overwritten.
+   ===================================================================== */
+let _importStaging = []; // { file, status: 'queued'|'analyzing'|'done'|'error', result }
+
+function openImportData() {
+  if (!T() || T().id === '_empty') {
+    toast('Open a tour first', 'error');
+    return;
+  }
+  closeModal();
+  _importStaging = [];
+  setTimeout(() => _renderImportDataModal(), 80);
+}
+
+function _renderImportDataModal() {
+  openModal({
+    title: `Import data into · ${esc(T().name || T().meta?.tourName || 'Untitled tour')}`,
+    size: 'lg',
+    hideFooter: true,
+    body: _importDataBodyHTML(),
+  });
+  // Wire drag-drop after the body renders
+  setTimeout(() => {
+    const dz = document.getElementById('idz_drop');
+    if (!dz) return;
+    ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, e => {
+      e.preventDefault(); e.stopPropagation();
+      dz.classList.add('dragging');
+    }));
+    ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => {
+      e.preventDefault(); e.stopPropagation();
+      dz.classList.remove('dragging');
+    }));
+    dz.addEventListener('drop', e => {
+      const files = [...(e.dataTransfer?.files || [])];
+      _idzAddFiles(files);
+    });
+  }, 30);
+}
+
+function _importDataBodyHTML() {
+  const queued = _importStaging.filter(s => s.status === 'queued').length;
+  const done = _importStaging.filter(s => s.status === 'done').length;
+  const total = _importStaging.length;
+  return `
+    <div class="idz-wrap">
+      <div class="idz-help">
+        Upload deal memos, hotel blocks, contact sheets, run-of-show PDFs, or any tour file.
+        We'll extract whatever we can, then fill in <b>only the missing fields</b> on the dates
+        you already have — your existing entries stay intact.
+      </div>
+      <div class="idz-drop" id="idz_drop" onclick="document.getElementById('idz_input').click()">
+        <input id="idz_input" type="file" multiple accept=".pdf,.csv,.xlsx,.xls,.json,.docx,.doc,.txt,.md" style="display:none" onchange="_idzAddFiles([...this.files])">
+        <div class="idz-drop-icon">↑</div>
+        <div class="idz-drop-h">Drop files here or click to browse</div>
+        <div class="idz-drop-s">PDF · Excel · CSV · Word · JSON · TXT — multiple files OK</div>
+      </div>
+
+      ${total ? `
+        <div class="idz-list">
+          <div class="idz-list-head">
+            <span>${total} file${total===1?'':'s'} ready${done ? ` · ${done} analyzed` : ''}</span>
+            <button type="button" class="idz-clear" onclick="_idzClear()">Clear all</button>
+          </div>
+          ${_importStaging.map((s, i) => `
+            <div class="idz-row idz-${s.status}">
+              <div class="idz-fname">
+                <span class="idz-fext">${esc((s.file.name.split('.').pop() || '?').toUpperCase())}</span>
+                <div>
+                  <div class="idz-name">${esc(s.file.name)}</div>
+                  <div class="idz-sub">${_idzStatusText(s)}</div>
+                </div>
+              </div>
+              <button type="button" class="idz-x" onclick="_idzRemove(${i})" title="Remove">×</button>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      ${queued ? `
+        <div class="idz-actions">
+          <button type="button" class="tb-btn primary" onclick="_idzAnalyze()">⌕ Analyze ${queued} file${queued===1?'':'s'}</button>
+          <button type="button" class="tb-btn" onclick="closeModal()">Cancel</button>
+        </div>
+      ` : (total && _importStaging.every(s => s.status === 'done' || s.status === 'error') ? `
+        <div class="idz-actions">
+          <button type="button" class="tb-btn primary" onclick="_idzMergeNow()">→ Merge into tour</button>
+          <button type="button" class="tb-btn" onclick="closeModal()">Cancel</button>
+        </div>
+      ` : `
+        <div class="idz-actions">
+          <button type="button" class="tb-btn" onclick="closeModal()">Done</button>
+        </div>
+      `)}
+    </div>
+  `;
+}
+
+function _idzStatusText(s) {
+  if (s.status === 'queued') return 'Queued · click Analyze to extract';
+  if (s.status === 'analyzing') return 'Analyzing…';
+  if (s.status === 'error') return s.error || 'Analysis failed';
+  if (s.status === 'done' && s.result) {
+    const ex = s.result.extracted || {};
+    const bits = [];
+    if (ex.dates?.length) bits.push(`${ex.dates.length} date${ex.dates.length===1?'':'s'}`);
+    if (ex.contacts?.length) bits.push(`${ex.contacts.length} contact${ex.contacts.length===1?'':'s'}`);
+    if (ex.hotels?.length) bits.push(`${ex.hotels.length} hotel${ex.hotels.length===1?'':'s'}`);
+    if (ex.crew?.length) bits.push(`${ex.crew.length} crew`);
+    return bits.length ? `✓ ${bits.join(' · ')}` : '✓ No structured data found';
+  }
+  return '';
+}
+
+function _idzAddFiles(files) {
+  if (!files || !files.length) return;
+  files.forEach(f => _importStaging.push({ file: f, status: 'queued' }));
+  _renderImportDataModal();
+}
+
+function _idzRemove(i) {
+  _importStaging.splice(i, 1);
+  _renderImportDataModal();
+}
+
+function _idzClear() {
+  _importStaging = [];
+  _renderImportDataModal();
+}
+
+async function _idzAnalyze() {
+  const queued = _importStaging.filter(s => s.status === 'queued');
+  for (const s of queued) {
+    s.status = 'analyzing';
+    _renderImportDataModal();
+    try {
+      // Reuse the same per-file processor the import wizard uses.
+      const r = await processOne(s.file);
+      s.result = r;
+      s.status = 'done';
+    } catch (e) {
+      s.status = 'error';
+      s.error = e.message || String(e);
+    }
+    _renderImportDataModal();
+  }
+}
+
+// Merge whatever's been analyzed into the active tour. Match dates by ISO
+// date string; for hotel matches, prefer date but fall back to city.
+// Only fill EMPTY fields — never overwrite existing data.
+function _idzMergeNow() {
+  const tour = T();
+  if (!tour) return;
+  // Aggregate everything
+  const allDates = [];
+  const allContacts = [];
+  const allHotels = [];
+  const allCrew = [];
+  _importStaging.forEach(s => {
+    if (s.status === 'done' && s.result) {
+      const ex = s.result.extracted || {};
+      if (ex.dates) allDates.push(...ex.dates);
+      if (ex.contacts) allContacts.push(...ex.contacts);
+      if (ex.hotels) allHotels.push(...ex.hotels);
+      if (ex.crew) allCrew.push(...ex.crew);
+    }
+  });
+
+  const stats = { datesUpdated: 0, datesAdded: 0, hotelsAttached: 0, contactsAdded: 0, crewAdded: 0, fieldsFilled: 0 };
+
+  // ── Dates: match by ISO date, fill missing fields only ───────────────
+  allDates.forEach(d => {
+    if (!d.date) return;
+    const existing = tour.dates.find(x => x.date === d.date);
+    if (existing) {
+      const fillable = ['city','state','country','venue','capacity','doors','setTime','loadIn','soundcheck','promoter','notes'];
+      let filled = 0;
+      fillable.forEach(k => {
+        if ((!existing[k] || existing[k] === '' || existing[k] === 0) && d[k]) {
+          existing[k] = d[k];
+          filled++;
+        }
+      });
+      if (existing.status === 'off' && d.venue && d.city) existing.status = 'show';
+      if (filled > 0) stats.datesUpdated++;
+      stats.fieldsFilled += filled;
+      // Guarantee on settlement
+      if (existing.settlement && (!existing.settlement.guarantee || existing.settlement.guarantee === 0) && d.guarantee) {
+        existing.settlement.guarantee = d.guarantee;
+        stats.fieldsFilled++;
+      }
+    } else {
+      tour.dates.push({
+        id: uid('dt'),
+        date: d.date,
+        city: d.city || '', state: d.state || '', country: d.country || '',
+        venue: d.venue || '', capacity: d.capacity || '',
+        status: d.status || 'show',
+        doors: d.doors || '', setTime: d.setTime || '',
+        loadIn: d.loadIn || '', soundcheck: d.soundcheck || '',
+        promoter: d.promoter || '',
+        schedule: [], travel: [], guests: [], setList: [], attachments: [],
+        hotel: null,
+        settlement: { settled: false, guarantee: d.guarantee || 0, finalAmount: 0, deductions: '', notes: '' },
+        notes: d.notes || '',
+        _imported: true,
+      });
+      stats.datesAdded++;
+    }
+  });
+  if (allDates.length) {
+    tour.dates.sort((a, b) => (a.date || 'zz').localeCompare(b.date || 'zz'));
+    fillDateGapsWithOffDays();
+  }
+
+  // ── Hotels: attach to a matching date, never overwriting an existing hotel ──
+  allHotels.forEach(h => {
+    let target = null;
+    if (h.date) target = tour.dates.find(d => d.date === h.date);
+    if (!target && h.city) target = tour.dates.find(d => (d.city || '').toLowerCase() === (h.city || '').toLowerCase());
+    if (target && !target.hotel) {
+      target.hotel = {
+        name: h.name || '', address: h.address || '', conf: h.conf || '',
+        checkIn: h.checkIn || '', checkOut: h.checkOut || '',
+        phone: h.phone || '', notes: h.notes || '', rooms: []
+      };
+      stats.hotelsAttached++;
+      stats.fieldsFilled++;
+    }
+  });
+
+  // ── Contacts: dedupe by email, then by name ──────────────────────────
+  if (!tour.contacts) tour.contacts = [];
+  const cKey = c => (c.email || c.name || '').toLowerCase();
+  const haveC = new Set(tour.contacts.map(cKey));
+  allContacts.forEach(c => {
+    const k = cKey(c);
+    if (k && !haveC.has(k) && c.name) {
+      tour.contacts.push({ id: uid('co'), ...c });
+      haveC.add(k);
+      stats.contactsAdded++;
+    }
+  });
+
+  // ── Crew: dedupe by email, then name ─────────────────────────────────
+  if (!tour.crew) tour.crew = [];
+  const haveCr = new Set(tour.crew.map(c => (c.email || c.name || '').toLowerCase()));
+  allCrew.forEach(c => {
+    const k = (c.email || c.name || '').toLowerCase();
+    if (k && !haveCr.has(k) && c.name) {
+      tour.crew.push({ id: uid('cw'), ...c });
+      haveCr.add(k);
+      stats.crewAdded++;
+    }
+  });
+
+  saveState();
+  _importStaging = [];
+  closeModal();
+  renderAll();
+
+  const msgBits = [];
+  if (stats.datesUpdated) msgBits.push(`${stats.fieldsFilled} field${stats.fieldsFilled===1?'':'s'} filled across ${stats.datesUpdated} date${stats.datesUpdated===1?'':'s'}`);
+  if (stats.datesAdded) msgBits.push(`${stats.datesAdded} new date${stats.datesAdded===1?'':'s'}`);
+  if (stats.hotelsAttached) msgBits.push(`${stats.hotelsAttached} hotel${stats.hotelsAttached===1?'':'s'} attached`);
+  if (stats.contactsAdded) msgBits.push(`${stats.contactsAdded} new contact${stats.contactsAdded===1?'':'s'}`);
+  if (stats.crewAdded) msgBits.push(`${stats.crewAdded} new crew`);
+  toast(msgBits.length ? `Merged: ${msgBits.join(' · ')}` : 'Nothing new to merge', msgBits.length ? 'good' : '');
+}
+
 // Trigger the tour scan with a brief scanning animation on the source button
 // — gives the TM a small but tangible feedback beat that something happened
 // before the scan results modal opens (or re-opens). Animation runs ~700ms.
@@ -9743,6 +10070,7 @@ function openTourScan() {
     body: `
       <div class="scan-toolbar">
         <button type="button" class="tb-btn primary scan-btn" onclick="rescanTourAnimated(this)">↻ Re-scan tour</button>
+        <button type="button" class="tb-btn" onclick="openImportData()">↑ Import data</button>
         <button type="button" class="tb-btn" onclick="closeModal()">Done</button>
       </div>
       <div class="iz-summary">
@@ -10035,6 +10363,7 @@ Object.assign(window, {
   setPhoneViewDate, jumpPhoneToToday, togglePhoneDateMenu, closePhoneDateMenu,
   openFeedbackModal, submitFeedback,
   scanTour, openTourScan, rescanTourAnimated, calcLiveDateGaps,
+  openImportData, _idzAddFiles, _idzRemove, _idzClear, _idzAnalyze, _idzMergeNow,
   rbReflect, rbReflectReset,
   toggleSchedTemplateMenu, closeSchedTemplateMenu,
   saveScheduleAsTemplate, applyScheduleTemplate, renameScheduleTemplate, deleteScheduleTemplate,
