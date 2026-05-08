@@ -2018,7 +2018,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
         <button type="button" class="tab tab-fixed" data-tab="venues"><span class="num">09</span> Venues</button>
         <button type="button" class="tab tab-fixed" data-tab="contacts"><span class="num">10</span> Contacts</button>
         <button type="button" class="tab tab-fixed" data-tab="tasks"><span class="num">11</span> Tasks</button>
-        <button type="button" class="tab tab-fixed" data-tab="tags"><span class="num">12</span> Tags</button>
+        <button type="button" class="tab tab-fixed" data-tab="tags"><span class="num">12</span> Local Recs</button>
         <button type="button" class="tab tab-fixed" data-tab="profiles"><span class="num">13</span> Crew</button>
       </nav>
 
@@ -6787,6 +6787,13 @@ function renderImportReview() {
     hideFooter: true,
     body: `
       <div class="iz-review">
+        <div class="iz-apply-bar">
+          <div class="iz-apply-text">
+            <div class="iz-apply-h">Ready to build your tour</div>
+            <div class="iz-apply-s">${s.merged.dates.length} date${s.merged.dates.length===1?'':'s'} · ${s.merged.contacts.length} contact${s.merged.contacts.length===1?'':'s'}${s.merged.hotels.length?` · ${s.merged.hotels.length} hotel${s.merged.hotels.length===1?'':'s'}`:''} extracted from ${s.files.length} file${s.files.length===1?'':'s'}</div>
+          </div>
+          <button type="button" class="btn primary iz-apply-btn-top" onclick="izApply()">Apply to tour →</button>
+        </div>
         <div class="iz-summary">
           <div class="iz-stat"><div class="iz-stat-num">${s.merged.dates.length}</div><div class="iz-stat-lbl">Dates</div></div>
           <div class="iz-stat"><div class="iz-stat-num">${s.merged.contacts.length}</div><div class="iz-stat-lbl">Contacts</div></div>
