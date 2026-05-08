@@ -124,8 +124,25 @@ input,select,textarea{font:inherit;color:inherit}
   display:flex;align-items:stretch;gap:10px;padding:10px 22px;
 }
 .day-strip{display:flex;gap:6px;overflow-x:auto;flex:1;scroll-behavior:smooth;padding:0 18px 2px 0;min-width:0;
-  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 14px,#000 calc(100% - 28px),transparent 100%);
-  mask-image:linear-gradient(90deg,transparent 0,#000 14px,#000 calc(100% - 28px),transparent 100%);
+  /* Edge-aware fade mask: the strip is fully visible by default. The left
+     fade kicks in once .fade-l is set (user has scrolled right at all); the
+     right fade kicks in when .fade-r is set (more content lives off-screen
+     to the right). JS toggles these on every scroll. */
+  -webkit-mask-image:linear-gradient(90deg,#000 0,#000 100%);
+  mask-image:linear-gradient(90deg,#000 0,#000 100%);
+  transition:mask-image .18s ease, -webkit-mask-image .18s ease;
+}
+.day-strip.fade-l.fade-r{
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 18px,#000 calc(100% - 32px),transparent 100%);
+  mask-image:linear-gradient(90deg,transparent 0,#000 18px,#000 calc(100% - 32px),transparent 100%);
+}
+.day-strip.fade-l:not(.fade-r){
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 18px,#000 100%);
+  mask-image:linear-gradient(90deg,transparent 0,#000 18px,#000 100%);
+}
+.day-strip:not(.fade-l).fade-r{
+  -webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 32px),transparent 100%);
+  mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 32px),transparent 100%);
 }
 .day-strip::-webkit-scrollbar{height:0}
 .day-pill{
@@ -257,11 +274,28 @@ input,select,textarea{font:inherit;color:inherit}
 .day-sheet::before{content:"";position:absolute;inset:8px;border:1px solid rgba(232,148,58,.12);border-radius:10px;pointer-events:none}
 .day-sheet::after{content:"";position:absolute;left:50%;top:-1px;transform:translateX(-50%);width:60%;height:1px;
   background:linear-gradient(90deg,transparent,var(--hi),transparent);pointer-events:none}
+/* Show Day ribbon — only renders on actual show dates. The metallic body
+   gets a soft mouse-tracked shine via .rb-shine, repositioned in JS via the
+   --rx / --ry CSS vars set on the ribbon element. */
 .day-sheet .ribbon{position:absolute;right:18px;top:18px;
   background:linear-gradient(135deg,var(--hi),var(--hi-2));color:#0a0705;
   padding:6px 14px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.22em;font-weight:800;
   border-radius:4px;box-shadow:0 0 16px rgba(232,148,58,.4);
-  clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+  clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
+  overflow:hidden;isolation:isolate;cursor:default;
+  --rx:50%;--ry:50%;--ralpha:0;
+  transition:box-shadow .25s ease}
+.day-sheet .ribbon .rb-text{position:relative;z-index:2}
+.day-sheet .ribbon .rb-shine{
+  position:absolute;inset:-30%;z-index:1;pointer-events:none;
+  background:radial-gradient(circle 70px at var(--rx) var(--ry),
+    rgba(255,255,255,calc(var(--ralpha) * .55)) 0%,
+    rgba(255,255,255,calc(var(--ralpha) * .25)) 18%,
+    rgba(255,255,255,0) 55%);
+  mix-blend-mode:screen;
+  transition:opacity .15s ease;
+}
+.day-sheet .ribbon-show:hover{box-shadow:0 0 22px rgba(232,148,58,.6),inset 0 1px 0 rgba(255,255,255,.35)}
 .day-sheet h3{margin:0 0 6px;font-size:11px;letter-spacing:.28em;text-transform:uppercase;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--hi)}
 .day-sheet .city{font-weight:900;font-size:34px;letter-spacing:.005em;line-height:1;margin:0 0 6px;
   background:linear-gradient(180deg,#fff5e0,#e8943a);-webkit-background-clip:text;background-clip:text;color:transparent}
@@ -3439,6 +3473,30 @@ function renderDayStrip() {
   // scroll active into view
   const active = strip.querySelector('.active');
   try { if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' }); } catch(e) {}
+  // Wire up edge-aware fade masking — left fades only after scrolling, right
+  // fades only when more pills exist off-screen. Re-evaluate on every scroll
+  // and on resize. Bind once per strip via a sentinel attr.
+  if (!strip.dataset.fadeBound) {
+    strip.dataset.fadeBound = '1';
+    const updateFades = () => {
+      const sl = strip.scrollLeft;
+      const max = strip.scrollWidth - strip.clientWidth;
+      strip.classList.toggle('fade-l', sl > 4);
+      strip.classList.toggle('fade-r', sl < max - 4);
+    };
+    strip.addEventListener('scroll', updateFades, { passive: true });
+    window.addEventListener('resize', updateFades);
+    // Initial pass after scrollIntoView settles
+    setTimeout(updateFades, 60);
+  } else {
+    // Force re-evaluation when pills re-render with new content
+    setTimeout(() => {
+      const sl = strip.scrollLeft;
+      const max = strip.scrollWidth - strip.clientWidth;
+      strip.classList.toggle('fade-l', sl > 4);
+      strip.classList.toggle('fade-r', sl < max - 4);
+    }, 60);
+  }
 }
 
 function renderConsoleHead() {
@@ -3605,7 +3663,7 @@ function renderDashboard() {
 
     <div class="dash-hero">
       <div class="day-sheet">
-        <div class="ribbon">${status}</div>
+        ${ad.status === 'show' ? `<div class="ribbon ribbon-show" onmousemove="rbReflect(event,this)" onmouseleave="rbReflectReset(this)"><span class="rb-text">Show Day</span><span class="rb-shine"></span></div>` : ''}
         <h3>${esc((ad.city || ad.status === 'off' ? 'DAY OFF' : 'TRAVEL').toUpperCase())} · DAY ${(T().dates.findIndex(d=>d.id===ad.id)+1).toString().padStart(2,'0')} / ${T().dates.length.toString().padStart(2,'0')}</h3>
         <div class="city">${ad.status === 'off' ? 'Day off' : ad.status === 'travel' ? 'Travel day' : esc(ad.venue || ad.city)}</div>
         ${ad.status === 'show' || ad.status === 'press' ? `
@@ -8725,6 +8783,62 @@ function scanTour(tour) {
   return scan;
 }
 
+// Show Day ribbon: track the mouse globally and aim the glare in the mouse's
+// direction. When the cursor is inside the badge, the highlight follows it
+// directly. When the cursor leaves, the glare slides to the badge edge that
+// faces the cursor and dims with distance so it always looks like real light.
+let _rbTrackerBound = false;
+function _rbProjectGlare(e) {
+  const el = document.querySelector('.day-sheet .ribbon-show');
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  const cx = r.left + r.width / 2;
+  const cy = r.top + r.height / 2;
+  const mx = e.clientX, my = e.clientY;
+  const dx = mx - cx, dy = my - cy;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const inside = mx >= r.left && mx <= r.right && my >= r.top && my <= r.bottom;
+  let xPct, yPct;
+  if (inside) {
+    xPct = ((mx - r.left) / r.width) * 100;
+    yPct = ((my - r.top) / r.height) * 100;
+  } else {
+    // Project the cursor direction onto the badge perimeter so the glare
+    // sits on the edge facing the mouse — never disappears off the surface.
+    const halfW = r.width / 2, halfH = r.height / 2;
+    const ax = Math.abs(dx), ay = Math.abs(dy);
+    const tx = ax > 0.001 ? halfW / ax : Infinity;
+    const ty = ay > 0.001 ? halfH / ay : Infinity;
+    const t = Math.min(tx, ty);
+    const ex = dx * t, ey = dy * t;
+    xPct = ((ex + halfW) / r.width) * 100;
+    yPct = ((ey + halfH) / r.height) * 100;
+  }
+  // Distance falloff: full intensity inside the badge, dimming smoothly out
+  // to nothing around 600px away. Floor at 0 for clean exit.
+  const maxDist = 600;
+  let alpha;
+  if (inside) alpha = 1;
+  else alpha = Math.max(0, 1 - (dist / maxDist));
+  el.style.setProperty('--rx', xPct + '%');
+  el.style.setProperty('--ry', yPct + '%');
+  el.style.setProperty('--ralpha', alpha.toFixed(3));
+}
+function rbReflect(e, el) {
+  // Same behavior as the global listener — kept for the inline onmousemove.
+  _rbProjectGlare(e);
+  // Bind a single window listener the first time the ribbon is interacted
+  // with, so the glare keeps tracking after the cursor leaves the badge.
+  if (!_rbTrackerBound) {
+    _rbTrackerBound = true;
+    window.addEventListener('mousemove', _rbProjectGlare, { passive: true });
+  }
+}
+function rbReflectReset() {
+  // No-op — the global tracker handles fade-out via distance falloff. Kept
+  // for backwards compat with the inline onmouseleave handler.
+}
+
 // Trigger the tour scan with a brief scanning animation on the source button
 // — gives the TM a small but tangible feedback beat that something happened
 // before the scan results modal opens (or re-opens). Animation runs ~700ms.
@@ -8980,6 +9094,12 @@ function init() {
   try { loadUIPrefs(); } catch (e) { console.error('loadUIPrefs:', e); }
   try { bindTabs(); } catch (e) { console.error('bindTabs:', e); }
   try { bindPhoneNav(); } catch (e) { console.error('bindPhoneNav:', e); }
+  // Track mouse globally so the Show Day badge glare aims at the cursor even
+  // when the cursor is well outside the badge.
+  try {
+    window.addEventListener('mousemove', _rbProjectGlare, { passive: true });
+    _rbTrackerBound = true;
+  } catch (e) { console.error('rb tracker bind:', e); }
   try {
     document.addEventListener('click', (e) => {
       if (openSchedPicker && !e.target.closest('.viz-cell') && !e.target.closest('.viz-popover')) {
@@ -9036,6 +9156,7 @@ Object.assign(window, {
   setPhoneViewDate, jumpPhoneToToday, togglePhoneDateMenu, closePhoneDateMenu,
   openFeedbackModal, submitFeedback,
   scanTour, openTourScan, rescanTourAnimated, calcLiveDateGaps,
+  rbReflect, rbReflectReset,
   openContactUpload, handleContactUpload, toggleAllDay,
   checkCrewEmailMatch, findUserByEmail, findCrewMatchesByEmail,
   confirmTyped,
