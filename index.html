@@ -2470,6 +2470,57 @@ function nextHopMileage(currentDate, nextDate) {
   return { miles, driveClear, driveTraffic, prompt: null };
 }
 
+// Walk the active tour's dates in calendar order and insert empty off-day
+// entries for any missing calendar days between adjacent dates. Used right
+// after a file import so a tour like "Brooklyn 4/28 → Boston 4/30" gets a
+// 4/29 off-day inserted automatically — every calendar day on the route
+// gets its own tab on the dashboard. Idempotent (safe to call multiple times).
+function fillDateGapsWithOffDays() {
+  const tour = T();
+  if (!tour || !tour.dates || tour.dates.length < 2) return;
+  // Only operate on dates with valid ISO strings; sort by date.
+  const valid = tour.dates.filter(d => /^\d{4}-\d{2}-\d{2}/.test(d.date || ''));
+  if (valid.length < 2) return;
+  valid.sort((a, b) => a.date.localeCompare(b.date));
+  // Build a Set of dates already on the tour so we don't double-insert.
+  const have = new Set(valid.map(d => d.date.slice(0, 10)));
+  let inserted = 0;
+  for (let i = 0; i < valid.length - 1; i++) {
+    const cur = valid[i].date.slice(0, 10);
+    const nxt = valid[i + 1].date.slice(0, 10);
+    let probe = addDaysISO(cur, 1);
+    while (probe && probe < nxt) {
+      if (!have.has(probe)) {
+        tour.dates.push({
+          id: uid('dt'),
+          date: probe,
+          city: '',
+          state: '',
+          country: '',
+          venue: '',
+          capacity: '',
+          status: 'off',
+          doors: '', setTime: '', loadIn: '', soundcheck: '',
+          promoter: '',
+          schedule: [], travel: [], guests: [], setList: [], attachments: [],
+          hotel: null,
+          settlement: { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' },
+          notes: '',
+          _imported: true,
+          _autoFilled: true, // marker so the UI can hint these were inserted, not user-added
+        });
+        have.add(probe);
+        inserted++;
+      }
+      probe = addDaysISO(probe, 1);
+    }
+  }
+  if (inserted) {
+    tour.dates.sort((a, b) => (a.date || 'zz').localeCompare(b.date || 'zz'));
+  }
+  return inserted;
+}
+
 // Add N days to an ISO date string (YYYY-MM-DD). Returns '' if input is invalid.
 function addDaysISO(iso, n) {
   if (!iso || typeof iso !== 'string') return '';
@@ -5808,7 +5859,9 @@ async function extractPDFText(file) {
     const buf = await file.arrayBuffer();
     const pdf = await lib.getDocument({ data: buf }).promise;
     let out = '';
-    const pageLimit = Math.min(pdf.numPages, 12);
+    // Read up to 200 pages — enough for a fat agency deal-memo bundle (typically
+    // 3 pages per memo × 40 memos = 120 pages on a long North American run).
+    const pageLimit = Math.min(pdf.numPages, 200);
     for (let i = 1; i <= pageLimit; i++) {
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
@@ -5820,9 +5873,171 @@ async function extractPDFText(file) {
   }
 }
 
+// Multi-deal-memo PDF parser. Touring agents bundle every show on a leg
+// into one fat PDF — typically 25-40 deal memos back to back. Each memo
+// follows a stable Wasserman/CAA/UTA-style template:
+//
+//   Memo #:  50033767
+//   Deal Memo
+//   Artist:   Two Feet
+//   Date of Engagement:   Wednesday, March 4, 2026 (Confirmed)
+//   Engagement Venue:
+//     The Catalyst
+//     1011 Pacific Avenue
+//     Santa Cruz, CA 95060
+//     United States
+//   Tickets:  Tier / GA / Totals / Quantity / 1000 / -1000 / ...
+//   Compensation:  $12,000.00 USD Guarantee Versus 85% of...
+//
+// We split on "Memo #:" boundaries (or "Deal Memo" if Memo # isn't present),
+// then extract date, venue, city/state, capacity, and guarantee from each
+// block. Returns null when fewer than 2 memos are present so the caller
+// falls back to the single-show extractor.
+function _extractDealMemoBlocks(text) {
+  if (!text) return null;
+  // Try "Memo #:" first (most reliable boundary)
+  let blocks = text.split(/\bMemo\s*#:\s*/i).filter(s => s.trim().length > 80);
+  // Fall back to "Deal Memo" header if Memo # markers aren't present
+  if (blocks.length < 2) {
+    blocks = text.split(/\bDeal\s+Memo\b/i).filter(s => s.trim().length > 80);
+  }
+  if (blocks.length < 2) return null;
+  const out = [];
+  for (const b of blocks) {
+    const parsed = _parseDealMemoBlock(b);
+    if (parsed && (parsed.date || parsed.city || parsed.venue)) out.push(parsed);
+  }
+  return out.length ? out : null;
+}
+
+function _parseDealMemoBlock(block) {
+  const out = {};
+  // ── Date(s) of Engagement ────────────────────────────────────────────
+  // Singular ("Date of Engagement: Wed, March 4, 2026") or plural multi-night
+  // memos ("Dates of Engagement:" followed by multiple date lines). The
+  // label is matched permissively (`Dates?`) and we capture every date-like
+  // line in the block immediately after it; the caller emits one tour-date
+  // per match so a 2-night Detroit run becomes two dashboard tabs.
+  const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  const toIso = (monStr, day, year) => {
+    const idx = months.indexOf(monStr.slice(0, 3).toLowerCase());
+    if (idx < 0) return '';
+    return `${year}-${String(idx + 1).padStart(2, '0')}-${day.padStart(2, '0')}`;
+  };
+  // Find the chunk after the label up to the next major section
+  const dateBlock = block.match(/Dates? of Engagement[:\s]*([\s\S]+?)(?=\n\s*(?:Engagement Venue|Age Restriction|Tickets|Compensation|Schedule|Merchandise|Other Act|Walkout|Deposits|Billing|Notes)\b)/i);
+  const dateRe = /(?:[A-Z][a-z]+,?\s*)?([A-Z][a-z]+)\s+(\d{1,2}),?\s+(\d{4})/g;
+  const dates = [];
+  if (dateBlock) {
+    let mm;
+    while ((mm = dateRe.exec(dateBlock[1])) !== null) {
+      const iso = toIso(mm[1], mm[2], mm[3]);
+      if (iso && !dates.includes(iso)) dates.push(iso);
+    }
+  }
+  // Fallback: stand-alone "Month D, YYYY (Confirmed)" line anywhere in the block
+  if (!dates.length) {
+    const fb = /(?:[A-Z][a-z]+,?\s*)?([A-Z][a-z]+)\s+(\d{1,2}),?\s+(\d{4})\s*\(?Conf(?:irmed|Î®rmed)?/gi;
+    let mm;
+    while ((mm = fb.exec(block)) !== null) {
+      const iso = toIso(mm[1], mm[2], mm[3]);
+      if (iso && !dates.includes(iso)) dates.push(iso);
+    }
+  }
+  out.dates = dates;
+  out.date = dates[0] || '';
+  // ── Engagement Venue: → next 2-4 non-empty lines = name / street / "City, ST ZIP" / country ─
+  // Capture the block after the label up to the next labeled section
+  // (Age Restriction, Tickets, Compensation, Schedule, Merchandise, etc.).
+  const venueBlockMatch = block.match(/Engagement Venue[:\s]*\n+([\s\S]+?)(?=\n\s*(?:Age Restriction|Tickets|Compensation|Schedule|Merchandise|Other Act|Walkout|Deposits|Billing|Notes)\b|\n\n[A-Z])/i);
+  if (venueBlockMatch) {
+    const lines = venueBlockMatch[1].split('\n').map(l => l.trim()).filter(Boolean).slice(0, 5);
+    if (lines.length) out.venue = lines[0];
+    // Find the "City, ST [ZIP]" line in the captured block
+    for (let i = 1; i < lines.length; i++) {
+      // US: "Santa Cruz, CA 95060"
+      const us = lines[i].match(/^(.+?),\s*([A-Z]{2})\s+\d{5}/);
+      if (us) { out.city = us[1].trim(); out.state = us[2]; break; }
+      // Canada: "Toronto, ON M4M 1H2"
+      const ca = lines[i].match(/^(.+?),\s*(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT)\s+[A-Z]\d[A-Z]/);
+      if (ca) { out.city = ca[1].trim(); out.state = ca[2]; break; }
+      // Loose fallback: "City, XX" (any 2-letter code)
+      const loose = lines[i].match(/^(.+?),\s*([A-Z]{2})\b/);
+      if (loose) { out.city = loose[1].trim(); out.state = loose[2]; break; }
+    }
+  }
+  // ── Capacity ── the GA tier line is "1000\n-1000" (positive total / -kills).
+  // Look for a 3-5 digit number followed shortly by its negative twin.
+  let cap = block.match(/(?:Quantity[^\n]*\n+\s*)(\d{3,5})/);
+  if (!cap) cap = block.match(/\b(\d{3,5})\s*\n\s*-\d{3,5}\b/);
+  if (cap) out.capacity = cap[1];
+  // ── Guarantee ── "$12,000.00 USD Guarantee" or "$12,000 Flat Guarantee".
+  const gt = block.match(/\$\s*([0-9,]+(?:\.\d+)?)\s*(?:USD)?\s*(?:Flat\s+)?Guarantee/i);
+  if (gt) out.guarantee = parseFloat(gt[1].replace(/,/g, ''));
+  return out;
+}
+
+function _extractEmails(text) {
+  const re = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+  const seen = new Set();
+  const out = [];
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const k = m[0].toLowerCase();
+    if (!seen.has(k)) { seen.add(k); out.push(m[0]); }
+  }
+  return out;
+}
+
 function processTextDoc(text, file, result) {
+  // First try the multi-deal-memo path: a single PDF containing many show
+  // memos (dozens, sometimes 30+ for a full North American run). If we find
+  // at least two memo blocks, parse each one as its own date.
+  const memoBlocks = _extractDealMemoBlocks(text);
+  if (memoBlocks && memoBlocks.length > 1) {
+    let totalShows = 0;
+    memoBlocks.forEach(b => {
+      // Multi-night memos (e.g. 2-night Detroit run) emit one date entry
+      // per night so each night is its own tab on the dashboard. The
+      // venue / city / capacity / guarantee carry across all nights.
+      const nights = (b.dates && b.dates.length) ? b.dates : [b.date || ''];
+      nights.forEach((d, i) => {
+        result.extracted.dates.push({
+          date: d || '',
+          city: b.city || '',
+          state: b.state || '',
+          venue: b.venue || '',
+          capacity: b.capacity || '',
+          doors: '', setTime: '',
+          promoter: b.promoter || '',
+          guarantee: (b.guarantee || 0) / nights.length, // split guarantee across nights
+          status: 'show',
+          notes: nights.length > 1 ? `Deal memo · night ${i + 1} of ${nights.length}` : 'Deal memo · ' + file.name,
+          _source: file.name,
+        });
+        totalShows++;
+      });
+    });
+    result.notes.push(`Deal memos · ${totalShows} show${totalShows===1?'':'s'} across ${memoBlocks.length} memo${memoBlocks.length===1?'':'s'}`);
+    // Still pull emails for contacts
+    const emails = _extractEmails(text);
+    emails.slice(0, 30).forEach(e => {
+      const namePart = e.split('@')[0].replace(/[._]/g, ' ');
+      result.extracted.contacts.push({
+        name: titleCase(namePart),
+        email: e,
+        role: 'Other',
+        organization: e.split('@')[1].split('.')[0],
+        notes: 'Extracted from ' + file.name,
+      });
+    });
+    if (emails.length) result.notes.push(`Contacts · ${Math.min(emails.length, 30)} emails extracted`);
+    return;
+  }
+
+  // Fallback: single-show text doc (one deal memo, a venue confirmation
+  // email, a tour announcement) — use the existing single-candidate extractor.
   const ext2 = extractFromText(text, file.name);
-  // Build a candidate date from extracted hints
   if (ext2.candidateDate || ext2.candidateVenue || ext2.candidateCity) {
     result.extracted.dates.push({
       date: ext2.candidateDate || '',
@@ -6524,6 +6739,15 @@ function izApply() {
     });
   });
   T().dates.sort((a, b) => (a.date || 'zz').localeCompare(b.date || 'zz'));
+
+  // Fill calendar gaps between imported dates with empty off-days. The tour
+  // dashboard treats each tour day as its own tab, so a 5-day jump between
+  // shows leaves the TM with no place to log a hotel night, a travel call,
+  // a press hit, or a day-off plan. This walks the sorted list, detects any
+  // pair more than one day apart, and inserts a minimal off-day entry for
+  // every missing calendar day in between (load-out → travel → off → off →
+  // travel → next show).
+  fillDateGapsWithOffDays();
 
   s.merged.contacts.forEach(c => T().contacts.push({ id: uid('co'), ...c }));
   s.merged.crew.forEach(c => T().crew.push({ id: uid('cw'), ...c }));
@@ -9707,7 +9931,7 @@ Object.assign(window, {
   checkCrewEmailMatch, findUserByEmail, findCrewMatchesByEmail,
   confirmTyped,
   archiveTask, unarchiveTask, archiveAllCompleted, toggleTasksArchive,
-  tourStartDate, tourEndDate, addDaysISO,
+  tourStartDate, tourEndDate, addDaysISO, fillDateGapsWithOffDays,
   toggleExportMenu, closeExportMenu, downloadTourBookPDF, downloadTourBookFromHere, downloadDaySheetPDF, closeTourBook,
   scoutNearVenue,
   openTravelAssistant, closeTravelAssistant, setTaTab, searchHotels, resetHotelFilters, bookHotelToActiveDate, searchFlights, resetFlightFilters, addFlightToTravel,
