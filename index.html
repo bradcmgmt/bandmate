@@ -980,6 +980,33 @@ input,select,textarea{font:inherit;color:inherit}
 .travel-share.muted-share{color:var(--warm-mute);font-family:'JetBrains Mono',monospace;font-size:10px;
   letter-spacing:.06em;font-style:italic}
 
+/* Schedule · Templates dropdown — save current run-of-show, deploy saved ones. */
+.sched-template-wrap{display:inline-block}
+.sched-template-menu{position:absolute;top:calc(100% + 6px);right:0;min-width:320px;max-width:380px;
+  background:linear-gradient(180deg,#1c130b,#140d07);border:1px solid var(--line-glow);border-radius:10px;
+  box-shadow:0 16px 40px -12px rgba(0,0,0,.7),0 0 0 1px rgba(232,148,58,.06);
+  padding:6px;z-index:30}
+.stm-item{width:100%;display:flex;align-items:flex-start;gap:10px;padding:9px 10px;border-radius:7px;
+  border:1px solid transparent;background:transparent;cursor:pointer;text-align:left;color:var(--warm)}
+.stm-item:hover{background:rgba(232,148,58,.06);border-color:var(--line-2)}
+.stm-item .stm-ic{flex:0 0 22px;width:22px;height:22px;border-radius:5px;display:flex;align-items:center;
+  justify-content:center;background:rgba(232,148,58,.1);border:1px solid rgba(232,148,58,.3);
+  color:var(--hi);font-family:'JetBrains Mono',monospace;font-weight:900;font-size:12px;margin-top:1px}
+.stm-item .stm-h{font-size:13px;font-weight:600;color:var(--warm);line-height:1.3}
+.stm-item .stm-s{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);
+  letter-spacing:.06em;margin-top:2px}
+.stm-divider{padding:8px 10px 4px;font-family:'JetBrains Mono',monospace;font-size:10px;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--warm-mute);font-weight:700;
+  border-top:1px solid var(--line);margin-top:4px}
+.stm-row{display:flex;align-items:stretch;gap:2px}
+.stm-row .stm-apply{flex:1}
+.stm-mini{flex:0 0 28px;width:28px;border-radius:6px;border:1px solid var(--line-2);
+  background:rgba(232,148,58,.04);color:var(--warm-mute);cursor:pointer;font-size:12px;
+  display:flex;align-items:center;justify-content:center;font-weight:700}
+.stm-mini:hover{color:var(--hi);border-color:var(--line-glow)}
+.stm-mini.stm-del:hover{color:var(--red);border-color:rgba(232,69,69,.4);background:rgba(232,69,69,.06)}
+.stm-empty{padding:14px 10px;font-size:12px;color:var(--warm-mute);text-align:center;font-style:italic}
+
 /* Tasks · Archive section (TM-only collapsible drawer below the live list) */
 .archive-toggle{width:100%;display:flex;align-items:center;gap:10px;padding:10px 14px;
   background:rgba(232,148,58,.04);border:1px solid var(--line-2);border-radius:8px;cursor:pointer;
@@ -2658,6 +2685,108 @@ function deleteDate(id) {
 /* =====================================================================
    SCHEDULE CRUD
    ===================================================================== */
+/* =====================================================================
+   SCHEDULE TEMPLATES — saved per tour, reusable across dates.
+   A template stores schedule items (without ids); applying spawns fresh ids.
+   ===================================================================== */
+let _schedTemplateMenuOpen = false;
+function toggleSchedTemplateMenu() {
+  _schedTemplateMenuOpen = !_schedTemplateMenuOpen;
+  const menu = document.getElementById('schedTemplateMenu');
+  if (menu) menu.hidden = !_schedTemplateMenuOpen;
+}
+function closeSchedTemplateMenu() {
+  _schedTemplateMenuOpen = false;
+  const menu = document.getElementById('schedTemplateMenu');
+  if (menu) menu.hidden = true;
+}
+
+function saveScheduleAsTemplate() {
+  const ad = getActiveDate();
+  if (!ad) return;
+  if (!ad.schedule || !ad.schedule.length) {
+    toast('No items on this day to save', 'error');
+    closeSchedTemplateMenu();
+    return;
+  }
+  const defaultName = `${ad.city || 'Untitled'} run`;
+  const name = prompt('Template name:', defaultName);
+  if (!name || !name.trim()) { closeSchedTemplateMenu(); return; }
+  if (!T().scheduleTemplates) T().scheduleTemplates = [];
+  // Strip ids so applying creates fresh ones; preserve everything else
+  // (time, what, who, notes, allDay, groups, individuals).
+  const items = ad.schedule.map(s => {
+    const { id, ...rest } = s;
+    return rest;
+  });
+  T().scheduleTemplates.push({
+    id: uid('tpl'),
+    name: name.trim(),
+    items,
+    createdAt: Date.now(),
+  });
+  saveState();
+  closeSchedTemplateMenu();
+  toast(`Saved template "${name.trim()}"`, 'good');
+  renderSchedule();
+}
+
+function applyScheduleTemplate(tplId) {
+  const ad = getActiveDate();
+  if (!ad) return;
+  const tpl = (T().scheduleTemplates || []).find(t => t.id === tplId);
+  if (!tpl) return;
+  const existing = (ad.schedule || []).length;
+  let mode = 'append';
+  if (existing) {
+    const choice = prompt(
+      `This day already has ${existing} item${existing===1?'':'s'}.\n\n` +
+      `Type "REPLACE" to clear and load the template,\n` +
+      `or press OK to append the template's ${tpl.items.length} item${tpl.items.length===1?'':'s'}.`,
+      'append'
+    );
+    if (choice === null) { closeSchedTemplateMenu(); return; }
+    if (choice.trim().toUpperCase() === 'REPLACE') mode = 'replace';
+  }
+  if (mode === 'replace') ad.schedule = [];
+  if (!ad.schedule) ad.schedule = [];
+  tpl.items.forEach(it => {
+    ad.schedule.push({ id: uid('s'), ...it });
+  });
+  // Keep all-day pinned to top, then sort timed items
+  ad.schedule.sort((a, b) => {
+    if (a.allDay && !b.allDay) return -1;
+    if (b.allDay && !a.allDay) return 1;
+    return (a.time || '').localeCompare(b.time || '');
+  });
+  saveState();
+  closeSchedTemplateMenu();
+  toast(`Applied "${tpl.name}" · ${tpl.items.length} item${tpl.items.length===1?'':'s'} ${mode==='replace'?'replaced':'added'}`, 'good');
+  renderSchedule();
+}
+
+function renameScheduleTemplate(tplId) {
+  const tpl = (T().scheduleTemplates || []).find(t => t.id === tplId);
+  if (!tpl) return;
+  const next = prompt('Rename template:', tpl.name);
+  if (next == null) return;
+  const trimmed = next.trim();
+  if (!trimmed) return;
+  tpl.name = trimmed;
+  saveState();
+  renderSchedule();
+}
+
+function deleteScheduleTemplate(tplId) {
+  const tpl = (T().scheduleTemplates || []).find(t => t.id === tplId);
+  if (!tpl) return;
+  if (!confirm(`Delete template "${tpl.name}"? This can't be undone.`)) return;
+  T().scheduleTemplates = (T().scheduleTemplates || []).filter(t => t.id !== tplId);
+  saveState();
+  toast('Template deleted');
+  renderSchedule();
+}
+
 function openScheduleModal(itemId) {
   const ad = getActiveDate();
   if (!ad) return;
@@ -3774,11 +3903,34 @@ function renderSchedule() {
   if (!ad) { root.innerHTML = noDate(); return; }
 
   const items = ad.schedule || [];
+  const templates = (T().scheduleTemplates || []);
   root.innerHTML = `
     <div class="section-title">
       <h2>Schedule · ${esc(ad.city)}</h2>
       <span class="crumb">/ ${fmtDate(ad.date).toUpperCase()}</span>
       <span class="stamp">${items.length} ITEMS</span>
+      <div class="sched-template-wrap" id="schedTemplateWrap" style="position:relative;margin-left:auto">
+        <button type="button" class="add-btn" onclick="toggleSchedTemplateMenu()">⌜ Templates ${templates.length ? `· ${templates.length}` : ''} ▾</button>
+        <div class="sched-template-menu" id="schedTemplateMenu" hidden>
+          <button type="button" class="stm-item" onclick="saveScheduleAsTemplate()">
+            <span class="stm-ic">+</span>
+            <span><div class="stm-h">Save current as template</div><div class="stm-s">${items.length} item${items.length===1?'':'s'} on this day</div></span>
+          </button>
+          ${templates.length ? `
+            <div class="stm-divider">Saved templates</div>
+            ${templates.map(t => `
+              <div class="stm-row">
+                <button type="button" class="stm-item stm-apply" onclick="applyScheduleTemplate('${t.id}')">
+                  <span class="stm-ic">↓</span>
+                  <span><div class="stm-h">${esc(t.name)}</div><div class="stm-s">${t.items.length} item${t.items.length===1?'':'s'}${t.note ? ' · '+esc(t.note) : ''}</div></span>
+                </button>
+                <button type="button" class="stm-mini" title="Rename" onclick="event.stopPropagation();renameScheduleTemplate('${t.id}')">✎</button>
+                <button type="button" class="stm-mini stm-del" title="Delete" onclick="event.stopPropagation();deleteScheduleTemplate('${t.id}')">×</button>
+              </div>
+            `).join('')}
+          ` : `<div class="stm-empty">No saved templates yet — save your first run-of-show above</div>`}
+        </div>
+      </div>
       <button type="button" class="add-btn" onclick="openScheduleModal()">+ Add item</button>
     </div>
     ${items.length === 0 ? `
@@ -9146,6 +9298,9 @@ function init() {
       if (amOpen && !e.target.closest('#accountDropdown')) {
         closeAccountMenu();
       }
+      if (_schedTemplateMenuOpen && !e.target.closest('#schedTemplateWrap')) {
+        closeSchedTemplateMenu();
+      }
     });
   } catch (e) { console.error('outsideClick bind:', e); }
   try {
@@ -9186,6 +9341,8 @@ Object.assign(window, {
   openFeedbackModal, submitFeedback,
   scanTour, openTourScan, rescanTourAnimated, calcLiveDateGaps,
   rbReflect, rbReflectReset,
+  toggleSchedTemplateMenu, closeSchedTemplateMenu,
+  saveScheduleAsTemplate, applyScheduleTemplate, renameScheduleTemplate, deleteScheduleTemplate,
   openContactUpload, handleContactUpload, toggleAllDay,
   checkCrewEmailMatch, findUserByEmail, findCrewMatchesByEmail,
   confirmTyped,
