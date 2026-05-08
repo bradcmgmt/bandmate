@@ -1801,6 +1801,74 @@ body.travel-assistant-mode #travelAssistantArea{
 
 
 /* ============ LOGIN / SIGNUP ============ */
+/* ============ LANDING PAGE ============
+   Public-facing first impression. Massive headline, two role buttons, a short
+   ambiguous pitch. Same dark copper palette as the app — feels native if a
+   user comes from search and continues into the dashboard. */
+.landing-overlay{position:fixed;inset:0;z-index:200;background:#0a0705;
+  display:flex;align-items:center;justify-content:center;padding:40px 24px;
+  font-family:'Inter',sans-serif;color:var(--warm);overflow:auto}
+.landing-overlay[hidden]{display:none}
+.landing-bg{position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(900px 500px at 50% 0%,rgba(232,148,58,.18),transparent 65%),
+    radial-gradient(700px 400px at 50% 100%,rgba(232,148,58,.10),transparent 60%),
+    linear-gradient(180deg,#0a0705 0%,#110c08 60%,#0a0705 100%)}
+.landing-bg::after{content:"";position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(232,148,58,.04) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(232,148,58,.04) 1px,transparent 1px);
+  background-size:48px 48px;opacity:.5;mask-image:radial-gradient(ellipse 90% 70% at 50% 50%,#000,transparent 80%)}
+.landing-content{position:relative;z-index:1;max-width:980px;width:100%;text-align:center}
+
+.landing-brand{display:inline-flex;align-items:baseline;gap:10px;
+  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.32em;
+  color:var(--warm-mute);font-weight:700;margin-bottom:48px}
+.landing-brand .lb-mark{width:8px;height:8px;background:var(--hi);border-radius:50%;
+  box-shadow:0 0 12px var(--hi);align-self:center}
+.landing-brand .lb-name{color:var(--warm);font-weight:800;letter-spacing:.36em}
+.landing-brand .lb-version{color:rgba(232,148,58,.5);letter-spacing:.18em;font-size:10px}
+
+.landing-headline{margin:0 0 56px;font-family:'Inter',sans-serif;font-weight:900;
+  font-size:clamp(54px,9vw,128px);line-height:.95;letter-spacing:-.04em;
+  color:transparent;background:linear-gradient(180deg,#fff5e0 0%,#e8943a 75%,#9c5a18 100%);
+  -webkit-background-clip:text;background-clip:text}
+.landing-headline em{font-style:italic;font-weight:700;color:transparent;
+  background:linear-gradient(180deg,#e8943a 0%,#c47323 80%);
+  -webkit-background-clip:text;background-clip:text;letter-spacing:-.02em}
+
+.landing-cta{display:flex;gap:14px;justify-content:center;align-items:stretch;
+  margin-bottom:36px;flex-wrap:wrap}
+.landing-btn{position:relative;display:flex;flex-direction:column;align-items:flex-start;
+  gap:6px;padding:18px 28px;min-width:240px;text-align:left;cursor:pointer;
+  background:rgba(232,148,58,.04);border:1px solid var(--line-2);border-radius:12px;
+  font-family:'Inter',sans-serif;color:var(--warm);transition:all .15s ease}
+.landing-btn:hover{background:rgba(232,148,58,.08);border-color:var(--hi);
+  transform:translateY(-2px);box-shadow:0 12px 28px -10px rgba(232,148,58,.4)}
+.landing-btn .lcta-eyebrow{font-family:'JetBrains Mono',monospace;font-size:10px;
+  letter-spacing:.24em;color:var(--warm-mute);font-weight:700}
+.landing-btn .lcta-label{font-size:18px;font-weight:700;color:var(--warm);letter-spacing:-.005em}
+.landing-btn.primary{background:linear-gradient(135deg,rgba(232,148,58,.18),rgba(232,148,58,.06));
+  border-color:var(--hi);box-shadow:0 0 22px -4px rgba(232,148,58,.45),inset 0 1px 0 rgba(255,255,255,.04)}
+.landing-btn.primary .lcta-eyebrow{color:var(--hi)}
+.landing-btn.primary .lcta-label{color:#fff5e0}
+.landing-btn.primary:hover{box-shadow:0 0 32px -2px rgba(232,148,58,.6),0 12px 28px -10px rgba(232,148,58,.5)}
+
+.landing-pitch{margin:0 auto 60px;max-width:560px;font-size:16px;line-height:1.65;
+  color:var(--warm);font-weight:500;letter-spacing:.005em}
+.landing-pitch .lp-fade{color:var(--warm-mute);font-weight:400}
+
+.landing-foot{display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;
+  font-size:10px;letter-spacing:.28em;color:rgba(232,148,58,.5);font-weight:700}
+.landing-foot .lf-sep{opacity:.5}
+
+@media (max-width:560px){
+  .landing-headline{font-size:54px;margin-bottom:36px}
+  .landing-brand{margin-bottom:28px}
+  .landing-cta{flex-direction:column;align-items:stretch}
+  .landing-btn{min-width:0}
+}
+
 .login-overlay{
   position:fixed;inset:0;z-index:300;
   background:radial-gradient(800px 500px at 50% 30%,rgba(232,148,58,.10),transparent 60%),var(--ink);
@@ -1972,6 +2040,41 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 </style>
 </head>
 <body>
+
+<!-- ============ LANDING PAGE ============ -->
+<!-- Public-facing first impression. Anyone arriving from search or a fresh
+     load (and not yet logged in) lands here. Two role-keyed entry points
+     route into the existing login overlay below. -->
+<div class="landing-overlay" id="landingScreen" hidden>
+  <div class="landing-bg"></div>
+  <div class="landing-content">
+    <div class="landing-brand">
+      <span class="lb-mark"></span>
+      <span class="lb-name">BANDMATE</span>
+      <span class="lb-version">v0.3</span>
+    </div>
+
+    <h1 class="landing-headline">
+      Finally,<br><em>something&nbsp;better.</em>
+    </h1>
+
+    <div class="landing-cta">
+      <button type="button" class="landing-btn primary" onclick="landingChoose('tm')">
+        <span class="lcta-eyebrow">FOR TOUR MANAGERS</span>
+        <span class="lcta-label">Sign in →</span>
+      </button>
+      <button type="button" class="landing-btn" onclick="landingChoose('crew')">
+        <span class="lcta-eyebrow">FOR BAND &amp; CREW</span>
+        <span class="lcta-label">Sign in →</span>
+      </button>
+    </div>
+
+    <p class="landing-pitch">
+      Tour management, finally on the same page.<br>
+      <span class="lp-fade">Built for the people behind the curtain.</span>
+    </p>
+  </div>
+</div>
 
 <!-- ============ LOGIN / SIGNUP OVERLAY ============ -->
 <div class="login-overlay" id="loginScreen" hidden>
@@ -9296,9 +9399,34 @@ function deleteCurrentTour() {
 
 let amOpen = false;
 
+// Landing page — shown to anyone arriving without an active session. Has two
+// role-keyed CTAs (Tour Manager / Band & Crew) that route into the existing
+// login overlay with the right signup-form default.
+function showLandingScreen() {
+  document.getElementById('app').hidden = true;
+  document.getElementById('onboarding').classList.add('hidden');
+  document.getElementById('loginScreen').hidden = true;
+  document.getElementById('landingScreen').hidden = false;
+}
+function hideLandingScreen() {
+  document.getElementById('landingScreen').hidden = true;
+}
+function landingChoose(role) {
+  hideLandingScreen();
+  showLoginScreen();
+  // Default the signup form to the role they picked, even if they're a
+  // returning user landing on the sign-in form (the role select is only
+  // visible inside the signup variant, but we set both so it sticks).
+  setTimeout(() => {
+    const sel = document.getElementById('su_role');
+    if (sel) sel.value = role === 'crew' ? 'crew' : 'tm';
+  }, 30);
+}
+
 function showLoginScreen() {
   document.getElementById('app').hidden = true;
   document.getElementById('onboarding').classList.add('hidden');
+  document.getElementById('landingScreen').hidden = true;
   const screen = document.getElementById('loginScreen');
   screen.hidden = false;
   renderLoginAccounts();
@@ -9484,7 +9612,7 @@ function logout() {
   if (!confirm('Sign out? Your tour data stays on this device.')) return;
   state.currentUserId = null;
   saveState();
-  showLoginScreen();
+  showLandingScreen();
 }
 
 function postLoginRouting() {
@@ -10891,8 +11019,10 @@ function init() {
   } catch (e) { console.error('outsideClick bind:', e); }
   try {
     if (!state || !state.currentUserId) {
-      // No state OR no logged-in user → require login/signup first
-      showLoginScreen();
+      // No state OR no logged-in user → land on the public-facing landing
+      // page. From there, the user picks a role (TM / Band & Crew) and
+      // routes into the existing sign-in / sign-up overlay.
+      showLandingScreen();
     } else if (!state.onboarded) {
       document.getElementById('onboarding').classList.remove('hidden');
       document.getElementById('app').hidden = true;
@@ -10947,6 +11077,7 @@ Object.assign(window, {
   openTravelAssistant, closeTravelAssistant, setTaTab, searchHotels, resetHotelFilters, bookHotelToActiveDate, searchFlights, resetFlightFilters, addFlightToTravel,
   toggleTourSwitcher, closeTourSwitcher, switchToTour, switchToTourFromPhone, newTourFlow, newTourManualFlow, newTourImportFlow, renameCurrentTour, deleteCurrentTour,
   showLoginScreen, hideLoginScreen, loginWithEmail, loginAsExisting, signUp, logout, showLoginForm, showSignupForm, toggleAccountMenu, closeAccountMenu,
+  showLandingScreen, hideLandingScreen, landingChoose,
   downloadTourGridCSV, downloadHotelsCSV, downloadContactsCSV, downloadSettlementsCSV, downloadTasksCSV,
   deleteDate, getActiveDate
 });
