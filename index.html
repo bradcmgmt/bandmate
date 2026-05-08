@@ -1004,6 +1004,32 @@ input,select,textarea{font:inherit;color:inherit}
 .email-match.neutral .em-icon{background:rgba(232,148,58,.1);color:var(--warm-mute)}
 .email-match.neutral .em-h{color:var(--warm)}
 
+/* Scan / Re-scan button: animated sweep effect on click. A vertical highlight
+   bar slides left → right inside the button while the scan runs. */
+.scan-btn{position:relative;overflow:hidden;isolation:isolate}
+.scan-btn.scanning{pointer-events:none}
+.scan-btn.scanning::after{
+  content:"";
+  position:absolute;top:0;left:-40%;height:100%;width:35%;
+  background:linear-gradient(90deg,
+    transparent 0%,
+    rgba(232,148,58,.08) 25%,
+    rgba(232,148,58,.45) 50%,
+    rgba(232,148,58,.08) 75%,
+    transparent 100%);
+  filter:blur(1px);
+  animation:scanSweep .7s cubic-bezier(.22,.7,.32,1) forwards;
+  z-index:0;pointer-events:none;
+}
+.scan-btn > *{position:relative;z-index:1}
+.scan-btn.scanning{box-shadow:0 0 0 1px rgba(232,148,58,.4),0 0 12px rgba(232,148,58,.25)}
+@keyframes scanSweep{
+  0%   { left:-40%; opacity:0 }
+  10%  { opacity:1 }
+  90%  { opacity:1 }
+  100% { left:105%; opacity:0 }
+}
+
 /* Tour-scan modal: re-scan button pinned to the top, sticky as user scrolls the gap list */
 .scan-toolbar{display:flex;gap:8px;justify-content:flex-end;margin:-8px -4px 14px;padding:10px 4px;
   position:sticky;top:-4px;background:linear-gradient(180deg,rgba(20,14,9,.98) 0%,rgba(20,14,9,.92) 80%,rgba(20,14,9,0) 100%);
@@ -3555,7 +3581,7 @@ function renderDashboard() {
     reviewBanner = `
       <div class="rescan-nudge">
         <span>✓ All dates fully populated — re-scan to confirm tour status.</span>
-        <button type="button" onclick="openTourScan()">↻ Re-scan tour</button>
+        <button type="button" class="scan-btn" onclick="rescanTourAnimated(this)">↻ Re-scan tour</button>
       </div>
     `;
   } else {
@@ -3563,7 +3589,7 @@ function renderDashboard() {
     reviewBanner = `
       <div class="rescan-nudge">
         <span>✓ This date is complete. <b>${datesWithGaps.length}</b> other date${datesWithGaps.length===1?'':'s'} still need${datesWithGaps.length===1?'s':''} attention.</span>
-        <button type="button" onclick="openTourScan()">↻ Re-scan tour</button>
+        <button type="button" class="scan-btn" onclick="rescanTourAnimated(this)">↻ Re-scan tour</button>
       </div>
     `;
   }
@@ -3574,7 +3600,7 @@ function renderDashboard() {
       <h2>${esc(ad.city)}</h2>
       <span class="crumb">/ DASHBOARD / ${fmtDate(ad.date).toUpperCase()}</span>
       <span class="stamp">${status}</span>
-      <button type="button" class="tb-btn primary" onclick="openTourScan()" style="margin-left:auto">⌕ Scan tour</button>
+      <button type="button" class="tb-btn primary scan-btn" onclick="rescanTourAnimated(this)" style="margin-left:auto">⌕ Scan tour</button>
     </div>
 
     <div class="dash-hero">
@@ -8699,6 +8725,21 @@ function scanTour(tour) {
   return scan;
 }
 
+// Trigger the tour scan with a brief scanning animation on the source button
+// — gives the TM a small but tangible feedback beat that something happened
+// before the scan results modal opens (or re-opens). Animation runs ~700ms.
+function rescanTourAnimated(btn) {
+  if (btn) {
+    btn.classList.add('scanning');
+    setTimeout(() => { try { btn.classList.remove('scanning'); } catch(e) {} }, 800);
+  }
+  // Close any open modal first (e.g. the existing scan results), then re-open
+  // after the animation has had time to play.
+  const overlay = document.querySelector('.modal-overlay');
+  if (overlay) closeModal();
+  setTimeout(() => openTourScan(), 650);
+}
+
 function openTourScan() {
   const tour = T();
   if (!tour || !tour.dates.length) {
@@ -8714,7 +8755,7 @@ function openTourScan() {
     hideFooter: true,
     body: `
       <div class="scan-toolbar">
-        <button type="button" class="tb-btn primary" onclick="closeModal();setTimeout(openTourScan,50)">↻ Re-scan tour</button>
+        <button type="button" class="tb-btn primary scan-btn" onclick="rescanTourAnimated(this)">↻ Re-scan tour</button>
         <button type="button" class="tb-btn" onclick="closeModal()">Done</button>
       </div>
       <div class="iz-summary">
@@ -8994,7 +9035,7 @@ Object.assign(window, {
   toggleSchedPicker, closeSchedPicker, toggleSchedGroup, toggleSchedIndiv, clearSchedAssignments, renderVizPicker,
   setPhoneViewDate, jumpPhoneToToday, togglePhoneDateMenu, closePhoneDateMenu,
   openFeedbackModal, submitFeedback,
-  scanTour, openTourScan, calcLiveDateGaps,
+  scanTour, openTourScan, rescanTourAnimated, calcLiveDateGaps,
   openContactUpload, handleContactUpload, toggleAllDay,
   checkCrewEmailMatch, findUserByEmail, findCrewMatchesByEmail,
   confirmTyped,
