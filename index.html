@@ -227,6 +227,15 @@ input,select,textarea{font:inherit;color:inherit}
 .tab.active{color:var(--hi);background:linear-gradient(180deg,rgba(232,148,58,.12),rgba(232,148,58,.04));font-weight:700;text-shadow:0 0 10px rgba(232,148,58,.3)}
 .tab.active::before{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:linear-gradient(90deg,transparent,var(--hi),transparent)}
 .tab.active .num{color:var(--hi-bright)}
+/* Dashboard tab gets a warmer gold tint to mark it as the canonical "home"
+   view — slightly brighter and more yellow than the standard copper accent.
+   Applies to both default state and active state. */
+.tab[data-tab="dashboard"]{color:#f5d76e}
+.tab[data-tab="dashboard"] .num{color:rgba(245,215,110,.55)}
+.tab[data-tab="dashboard"]:hover{color:#fae29a;background:rgba(245,215,110,.05)}
+.tab[data-tab="dashboard"].active{color:#fae29a;background:linear-gradient(180deg,rgba(245,215,110,.16),rgba(245,215,110,.04));text-shadow:0 0 12px rgba(245,215,110,.4)}
+.tab[data-tab="dashboard"].active::before{background:linear-gradient(90deg,transparent,#f5d76e,transparent)}
+.tab[data-tab="dashboard"].active .num{color:#fae29a}
 /* tour-level reference tabs (no per-day data) */
 .tab.tab-fixed{color:var(--cool);background:linear-gradient(180deg,rgba(138,169,216,.04),transparent)}
 .tab.tab-fixed .num{color:rgba(138,169,216,.4)}
@@ -1574,6 +1583,27 @@ body.print-tourbook-mode #tourBookArea{display:block!important;position:fixed;in
   text-transform:uppercase;font-weight:700;margin:14px 0 6px}
 .pn-section-lbl:first-child{margin-top:0}
 .pn-aud-count{margin-left:6px;color:var(--hi);font-weight:700;letter-spacing:.06em;text-transform:none}
+/* Outstanding tasks → one-click nudge inside the Push Notifications modal. */
+.pn-tasks{display:flex;flex-direction:column;gap:5px}
+.pn-task-row{display:flex;align-items:center;gap:10px;padding:8px 11px;
+  border:1px solid var(--line-2);background:rgba(0,0,0,.18);border-radius:7px}
+.pn-task-row:hover{border-color:var(--line-glow);background:rgba(232,148,58,.04)}
+.pn-task-row.pn-task-overdue{border-color:rgba(232,69,69,.4);background:rgba(232,69,69,.04)}
+.pn-task-body{flex:1;min-width:0}
+.pn-task-label{font-size:12.5px;font-weight:600;color:var(--warm);line-height:1.3;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pn-task-meta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);
+  letter-spacing:.04em;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pn-task-overdue-meta{color:#e88080;font-weight:700}
+.pn-nudge-btn{flex:0 0 auto;background:rgba(232,148,58,.08);border:1px solid var(--hi);
+  color:var(--hi);padding:5px 11px;border-radius:5px;cursor:pointer;
+  font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.16em;font-weight:700;text-transform:uppercase}
+.pn-nudge-btn:hover{background:var(--hi);color:#0e0805}
+.pn-task-row.pn-task-overdue .pn-nudge-btn{border-color:#e26464;color:#e88080;background:rgba(232,69,69,.06)}
+.pn-task-row.pn-task-overdue .pn-nudge-btn:hover{background:#e26464;color:#0e0805}
+.pn-tasks-more{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);
+  letter-spacing:.06em;font-style:italic;padding:4px 11px}
+
 .pn-templates{display:flex;flex-wrap:wrap;gap:5px}
 .pn-tpl{padding:4px 10px;border:1px solid var(--line-2);border-radius:5px;background:transparent;
   font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm);letter-spacing:.06em;
@@ -10504,6 +10534,34 @@ function _renderPushNotificationsModal() {
               </div>
             ` : ''}
 
+            ${(() => {
+              // Outstanding tasks list — one-click nudge for any task assigned
+              // to a specific crew member. Skip done/archived/unassigned.
+              const open = (T().tasks || []).filter(t => !t.done && !t.archived && t.assignee);
+              if (!open.length) return '';
+              return `
+                <div class="pn-section-lbl">PING ABOUT A TASK <span class="pn-aud-count">${open.length} open</span></div>
+                <div class="pn-tasks">
+                  ${open.slice(0, 6).map(t => {
+                    const assignee = T().crew.find(c => c.id === t.assignee);
+                    if (!assignee) return '';
+                    const overdue = t.due && t.due < todayISO();
+                    const dueLabel = t.due ? (overdue ? 'OVERDUE · ' + fmtMD(t.due) : 'Due ' + fmtMD(t.due)) : 'No due date';
+                    return `
+                      <div class="pn-task-row ${overdue?'pn-task-overdue':''}">
+                        <div class="pn-task-body">
+                          <div class="pn-task-label">${esc(t.label)}</div>
+                          <div class="pn-task-meta">${esc(assignee.name)} · <span class="${overdue?'pn-task-overdue-meta':''}">${esc(dueLabel)}</span></div>
+                        </div>
+                        <button type="button" class="pn-nudge-btn" onclick="_pnNudgeTask('${t.id}')">NUDGE →</button>
+                      </div>
+                    `;
+                  }).join('')}
+                  ${open.length > 6 ? `<div class="pn-tasks-more">+ ${open.length - 6} more open task${open.length-6===1?'':'s'} (open the Tasks tab to ping)</div>` : ''}
+                </div>
+              `;
+            })()}
+
             <div class="pn-section-lbl">QUICK TEMPLATES</div>
             <div class="pn-templates">
               ${allTemplates.map(t => `
@@ -10675,6 +10733,27 @@ function _pnSmartSuggest(ad) {
     }
   }
   return null;
+}
+
+// Nudge a crew member about a specific outstanding task. Pre-fills the
+// composer with a friendly reminder, audience set to just that person, and
+// priority bumped to Important so it actually pings their phone.
+function _pnNudgeTask(taskId) {
+  const task = (T().tasks || []).find(t => t.id === taskId);
+  if (!task) return;
+  const assignee = T().crew.find(c => c.id === task.assignee);
+  if (!assignee) { toast('Task has no assignee', 'error'); return; }
+  const firstName = (assignee.name || '').split(' ')[0] || assignee.name;
+  const overdue = task.due && task.due < todayISO();
+  const dueBit = task.due
+    ? (overdue ? ` It was due ${fmtMD(task.due)}.` : ` Due ${fmtMD(task.due)}.`)
+    : '';
+  _pnDraft.body = `Hey ${firstName} — quick check on "${task.label}". Still open on my end.${dueBit} Let me know if you need a hand.`;
+  _pnDraft.groups = [];
+  _pnDraft.individuals = [task.assignee];
+  _pnDraft.priority = overdue ? 'urgent' : 'important';
+  _pnDraft.when = 'now';
+  _renderPushNotificationsModal();
 }
 
 function _pnApplySuggest() {
@@ -11060,7 +11139,7 @@ Object.assign(window, {
   _dateModalApplyStatus,
   toggleToolsMenu, closeToolsMenu,
   openPushNotifications, _pnToggleGroup, _pnUseTemplate, _pnSaveCustomTemplate,
-  _pnOpenIndividualPicker, _pnSend, _pnApplySuggest,
+  _pnOpenIndividualPicker, _pnSend, _pnApplySuggest, _pnNudgeTask,
   openDaySheetPDF,
   rbReflect, rbReflectReset,
   toggleSchedTemplateMenu, closeSchedTemplateMenu,
