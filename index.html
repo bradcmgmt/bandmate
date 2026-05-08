@@ -1546,7 +1546,11 @@ body.print-tourbook-mode #tourBookArea{display:block!important;position:fixed;in
   background:rgba(138,169,216,.1);border:1px solid rgba(138,169,216,.35);
   color:#b1c8ee;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;
   display:flex;align-items:center;justify-content:center;margin-top:1px}
-.tools-item .ti-name{font-size:13px;font-weight:600;color:var(--warm);line-height:1.25}
+.tools-item .ti-name{font-size:12px;font-weight:700;color:var(--warm);line-height:1.25;letter-spacing:.16em;text-transform:uppercase;flex:1}
+.tools-item .ti-badge{margin-left:auto;padding:2px 7px;border-radius:4px;
+  background:rgba(138,169,216,.16);border:1px solid rgba(138,169,216,.5);color:#b1c8ee;
+  font-family:'JetBrains Mono',monospace;font-size:8.5px;font-weight:800;letter-spacing:.18em;
+  align-self:center;flex:0 0 auto;text-transform:uppercase}
 .tools-item .ti-desc{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);
   letter-spacing:.04em;margin-top:2px}
 
@@ -5349,6 +5353,54 @@ function renderPhone() {
         <div class="sub">No room assigned to ${esc(viewer?.name || 'you')} yet</div>
       </div>
     ` : ''}
+
+    <div class="p-card">
+      ${(() => {
+        // Notifications: show the most recent notifications targeted at this
+        // viewer. The TM in mobile-preview mode sees everything; crew see
+        // only what's targeted at their groups or them individually.
+        const allNotes = [...(T().notifications || [])].sort((a,b) => (b.sentAt||0) - (a.sentAt||0));
+        const myNotes = isTM ? allNotes : allNotes.filter(n => {
+          const aud = n.audience || {};
+          if ((aud.individuals || []).includes(viewerKey)) return true;
+          if ((aud.groups || []).includes('All')) return true;
+          if (!viewer || !Array.isArray(viewer.groups)) return false;
+          return (aud.groups || []).some(g => viewer.groups.includes(g));
+        });
+        const recent = myNotes.slice(0, 4);
+        const lbl = isTM ? 'NOTIFICATIONS' : 'YOUR NOTIFICATIONS';
+        if (!recent.length) return `
+          <div class="lbl">${lbl} · 0</div>
+          <div class="sub">${isTM ? 'No notifications sent yet.' : 'Nothing new for you yet.'}</div>
+        `;
+        const PRIO = { standard:'●', important:'◐', urgent:'◉', silent:'○' };
+        const PRIO_COLOR = { standard:'var(--warm-mute)', important:'var(--hi)', urgent:'#e88080', silent:'var(--warm-mute)' };
+        return `
+          <div class="lbl">${lbl} · ${recent.length}${myNotes.length>recent.length?' / '+myNotes.length:''}</div>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">
+            ${recent.map(n => {
+              const dt = n.sentAt ? new Date(n.sentAt) : null;
+              const time = dt ? dt.toLocaleString([], { hour:'2-digit', minute:'2-digit', month:'numeric', day:'numeric' }) : '';
+              const isUrgent = n.priority === 'urgent';
+              const isImportant = n.priority === 'important';
+              const accent = PRIO_COLOR[n.priority] || PRIO_COLOR.standard;
+              const bg = isUrgent ? 'rgba(232,69,69,.05)' : isImportant ? 'rgba(232,148,58,.05)' : 'transparent';
+              const border = isUrgent ? '1px solid rgba(232,69,69,.4)' : isImportant ? '1px solid rgba(232,148,58,.4)' : '1px solid var(--line)';
+              return `
+                <div style="border:${border};background:${bg};border-radius:6px;padding:8px 10px">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;gap:8px">
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:${accent}">${PRIO[n.priority]||'●'} ${esc((n.priority||'standard').toUpperCase())}${n.audience?.label?' · '+esc(n.audience.label):''}</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.04em">${esc(time)}</span>
+                  </div>
+                  <div style="font-size:12.5px;color:var(--warm);line-height:1.4">${esc(n.body)}</div>
+                  ${n.sentBy ? `<div style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--warm-mute);letter-spacing:.06em;margin-top:3px">— ${esc(n.sentBy)}</div>` : ''}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      })()}
+    </div>
 
     <div class="p-card">
       ${(() => {
@@ -10218,6 +10270,7 @@ function toggleToolsMenu() {
       <button type="button" class="tools-item" onclick="closeToolsMenu();openTravelAssistant()">
         <span class="ti-icon">→</span>
         <span class="ti-name">Travel Assistant</span>
+        <span class="ti-badge">BETA</span>
       </button>
       <button type="button" class="tools-item" onclick="closeToolsMenu();openPushNotifications()">
         <span class="ti-icon">◆</span>
