@@ -1091,12 +1091,28 @@ input,select,textarea{font:inherit;color:inherit}
 .gl-row.pending{background:linear-gradient(90deg, rgba(232,148,58,.07), rgba(232,148,58,.02))}
 .gl-row.pending .name b::after{content:" ⌛";color:var(--hi);font-size:11px;letter-spacing:0}
 
-.gl-actions{display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+/* Guest list grid — single-line rows by default, with the Notes column the only
+   place we allow wrap when the note is genuinely long. Action column sized so
+   pending rows (3 buttons: ✓ ✗ Edit) fit comfortably without wrapping. */
+.gl-grid{grid-template-columns:1.6fr 1fr 70px 110px 1.2fr 130px;align-items:center}
+.gl-row{align-items:center;min-height:48px}
+.gl-c-truncate{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gl-c-truncate b, .gl-c-truncate span{display:inline-block;max-width:100%;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+/* Name column: stack name over email; both truncate independently */
+.gl-row .c.name{display:flex;flex-direction:column;gap:1px;min-width:0}
+.gl-row .c.name b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gl-row .c.name span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Notes is the one column allowed to wrap to a 2nd line for long notes */
+.gl-c-notes{white-space:normal;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;
+  -webkit-box-orient:vertical;overflow:hidden}
+
+.gl-actions{display:flex;gap:4px;align-items:center;flex-wrap:nowrap;justify-content:flex-end}
 .gl-act-btn{
-  width:28px;height:28px;display:grid;place-items:center;
+  width:26px;height:26px;display:grid;place-items:center;flex:none;
   border-radius:6px;border:1px solid var(--line-2);
   background:rgba(232,148,58,.04);color:var(--warm-mute);
-  font-size:14px;font-weight:700;line-height:1;
+  font-size:13px;font-weight:700;line-height:1;
 }
 .gl-act-btn:hover{transform:translateY(-1px)}
 .gl-act-btn.approve{color:var(--good);border-color:rgba(109,207,139,.4);background:rgba(109,207,139,.06)}
@@ -3866,7 +3882,7 @@ function renderGuestList() {
       </div>
     ` : `
       <div class="tbl">
-        <div class="tbl-row head" style="grid-template-columns:1.4fr 1fr 80px 100px 1fr 80px">
+        <div class="tbl-row head gl-grid">
           <div class="c">Guest</div><div class="c">Submitted by</div><div class="c">Pass</div>
           <div class="c">Status</div><div class="c">Notes</div><div class="c"></div>
         </div>
@@ -3876,12 +3892,12 @@ function renderGuestList() {
           const isApproved = g.status === 'approved';
           const isDenied = g.status === 'denied';
           return `
-            <div class="tbl-row gl-row ${isPending?'pending':''}" style="grid-template-columns:1.4fr 1fr 80px 110px 1fr 130px">
-              <div class="c name"><b style="color:var(--warm)">${esc(g.name)}${g.plus ? ' + ' + g.plus : ''}</b><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute)">${esc(g.email || '')}</span></div>
-              <div class="c" style="color:var(--warm-mute);font-size:12px">${esc(g.submittedBy || '—')}</div>
+            <div class="tbl-row gl-row gl-grid ${isPending?'pending':''}">
+              <div class="c name gl-c-truncate"><b style="color:var(--warm)">${esc(g.name)}${g.plus ? ' + ' + g.plus : ''}</b><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute)">${esc(g.email || '')}</span></div>
+              <div class="c gl-c-truncate" style="color:var(--warm-mute);font-size:12px">${esc(g.submittedBy || '—')}</div>
               <div class="c"><span class="passchip ${passClass}">${esc(g.passType)}</span></div>
-              <div class="c"><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;color:${isApproved?'var(--good)':isPending?'var(--hi)':'var(--red)'}">${isApproved?'✓ Approved':isPending?'⌛ Pending':'✗ Denied'}</span></div>
-              <div class="c muted mono" style="font-size:11px">${esc(g.notes || '')}</div>
+              <div class="c"><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;white-space:nowrap;color:${isApproved?'var(--good)':isPending?'var(--hi)':'var(--red)'}">${isApproved?'✓ Approved':isPending?'⌛ Pending':'✗ Denied'}</span></div>
+              <div class="c muted mono gl-c-notes" style="font-size:11px">${esc(g.notes || '')}</div>
               <div class="c gl-actions">
                 ${isPending || isDenied ? `<button type="button" class="gl-act-btn approve" title="Approve" onclick="approveGuest('${g.id}')">✓</button>` : ''}
                 ${isPending || isApproved ? `<button type="button" class="gl-act-btn deny" title="Deny" onclick="denyGuest('${g.id}')">✗</button>` : ''}
