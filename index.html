@@ -1445,10 +1445,19 @@ body.print-tourbook-mode #tourBookArea{display:block!important;position:fixed;in
 .tb-foot{margin-top:18px;padding-top:10px;border-top:2px solid #000;display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.18em;color:#666;text-transform:uppercase}
 
 @media print{
+  /* Tour Book / Day Sheet print polish — Letter page, tight margins, no
+     viewport-height overhead, color-accurate fills, and aggressive
+     page-break-inside controls so sections never get sliced across pages. */
+  @page{size:Letter;margin:0.5in}
+  html,body{background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
   .tb-controls{display:none!important}
-  body.print-tourbook-mode #tourBookArea{position:static;overflow:visible}
-  .tb-page{padding:0;max-width:none;min-height:0}
-  .tb-page,.tb-section,.tb-rooms{page-break-inside:avoid}
+  body.print-tourbook-mode #tourBookArea{position:static;overflow:visible;background:#fff;color:#000}
+  body.print-tourbook-mode .tb-page{padding:0;max-width:none;min-height:0;page-break-after:always;break-after:page}
+  body.print-tourbook-mode .tb-page:last-child{page-break-after:auto;break-after:auto}
+  .tb-page,.tb-section,.tb-rooms,.tb-pair,.tb-sched-row,.tb-r{page-break-inside:avoid;break-inside:avoid}
+  .tb-section h4{page-break-after:avoid;break-after:avoid}
+  .tb-cover{padding-top:60px;min-height:0;height:auto}
+  .tb-foot{margin-top:24px}
 }
 
 
@@ -5318,17 +5327,13 @@ function bindPhoneNav() {
 /* =====================================================================
    PRINT
    ===================================================================== */
+// "Print Day" routes through the Day Sheet PDF flow — same clean white-paper
+// layout as the Tour Book per-day page, with proper print rules. Avoids
+// dragging the dashboard's KPIs / flags / route panel into the printout.
 function printDay() {
   const ad = getActiveDate();
   if (!ad) { toast('No active date', 'error'); return; }
-  // mark dashboard panel as print-active
-  $$('.panel').forEach(p => p.classList.remove('print-active'));
-  $('#p-dashboard').classList.add('print-active');
-  renderDashboard();
-  setTimeout(() => {
-    window.print();
-    setTimeout(() => $('#p-dashboard').classList.remove('print-active'), 500);
-  }, 100);
+  downloadDaySheetPDF();
 }
 
 /* =====================================================================
@@ -7527,8 +7532,12 @@ function renderExportMenu() {
   if (!exportMenuOpen) { menu.classList.remove('open'); menu.innerHTML = ''; return; }
   menu.classList.add('open');
   menu.innerHTML = `
-    <div class="em-section">Whole tour</div>
-    <button class="em-item primary" type="button" onclick="downloadTourBookPDF();closeExportMenu()">
+    <div class="em-section">PDF</div>
+    <button class="em-item primary" type="button" onclick="downloadDaySheetPDF();closeExportMenu()">
+      <span class="em-icon">PDF</span>
+      <span class="em-text"><span class="em-name">Day Sheet — current</span><span class="em-desc">Single page for the active city</span></span>
+    </button>
+    <button class="em-item" type="button" onclick="downloadTourBookPDF();closeExportMenu()">
       <span class="em-icon">PDF</span>
       <span class="em-text"><span class="em-name">Tour Book — full</span><span class="em-desc">Printable road bible · 1 page per date</span></span>
     </button>
@@ -7536,6 +7545,7 @@ function renderExportMenu() {
       <span class="em-icon">PDF</span>
       <span class="em-text"><span class="em-name">Tour Book — from here</span><span class="em-desc">Routing from active date onwards</span></span>
     </button>
+    <div class="em-section">Whole tour</div>
     <button class="em-item" type="button" onclick="exportTour();closeExportMenu()">
       <span class="em-icon">JSON</span>
       <span class="em-text"><span class="em-name">Full Backup</span><span class="em-desc">Re-importable via wizard</span></span>
@@ -7655,6 +7665,16 @@ function downloadTourBookFromHere() {
   document.body.classList.add('print-tourbook-mode');
 }
 
+// Single-page Day Sheet — just the currently active date, no cover. Layout
+// reuses the same per-day page so formatting matches the Tour Book output.
+function downloadDaySheetPDF() {
+  if (!state || !T().dates.length) { toast('Add tour dates first', 'error'); return; }
+  const ad = getActiveDate();
+  if (!ad) { toast('Select a date in the day strip first', 'error'); return; }
+  renderTourBook({ dates: [ad], daySheet: true });
+  document.body.classList.add('print-tourbook-mode');
+}
+
 function closeTourBook() {
   document.body.classList.remove('print-tourbook-mode');
   document.getElementById('tourBookArea').innerHTML = '';
@@ -7663,10 +7683,11 @@ function closeTourBook() {
 function renderTourBook(opts) {
   opts = opts || {};
   const dates = opts.dates || T().dates;
+  const isDaySheet = !!opts.daySheet;
   const fromHereLabel = opts.fromHere ? `REMAINING ROUTE — FROM ${esc((dates[0]?.city || '').toUpperCase())} ONWARDS` : null;
   const startDate = dates[0]?.date;
   const endDate = dates[dates.length-1]?.date;
-  const cover = `
+  const cover = isDaySheet ? '' : `
     <div class="tb-page tb-cover">
       <div>
         <div class="tb-cover-tour">${esc((T().meta.tourName || 'Untitled Tour').toUpperCase())}</div>
@@ -7785,26 +7806,27 @@ function renderTourBook(opts) {
           </div>
         ` : ''}
 
-        ${d.status === 'show' ? `
+        ${d.notes ? `
           <div class="tb-section">
-            <h4>Settlement</h4>
-            <div class="tb-pair"><span class="tb-p-l">Guarantee</span><span class="tb-p-v">${T().meta.currency} ${(parseFloat(settle.guarantee)||0).toLocaleString()}</span></div>
-            <div class="tb-pair"><span class="tb-p-l">Status</span><span class="tb-p-v">${settle.settled ? 'SETTLED · ' + T().meta.currency + ' ' + (parseFloat(settle.finalAmount)||0).toLocaleString() : 'Pending'}</span></div>
-            ${settle.deductions ? `<div class="tb-pair"><span class="tb-p-l">Notes</span><span class="tb-p-v">${esc(settle.deductions)}</span></div>` : ''}
+            <h4>Notes</h4>
+            <div style="font-size:12px;line-height:1.6;white-space:pre-wrap">${esc(d.notes)}</div>
           </div>
         ` : ''}
 
         <div class="tb-foot">
-          <span>${esc((T().meta.tourName || '').toUpperCase())}</span>
-          <span>PAGE ${idx + 2} / ${dates.length + 1}</span>
+          <span>${esc((T().meta.tourName || '').toUpperCase())}${isDaySheet ? ' · DAY SHEET' : ''}</span>
+          <span>PAGE ${idx + (isDaySheet ? 1 : 2)} / ${dates.length + (isDaySheet ? 0 : 1)}</span>
         </div>
       </div>
     `;
   }).join('');
 
+  const headerLabel = isDaySheet
+    ? `Day Sheet · ${esc(dates[0]?.city || 'Untitled')} · ${esc(fmtDate(dates[0]?.date))}`
+    : `Tour Book Preview · ${esc(T().meta.tourName || 'Untitled Tour')}`;
   document.getElementById('tourBookArea').innerHTML = `
     <div class="tb-controls">
-      <h3>Tour Book Preview · ${esc(T().meta.tourName || 'Untitled Tour')}</h3>
+      <h3>${headerLabel}</h3>
       <button type="button" class="cancel" onclick="closeTourBook()">Cancel</button>
       <button type="button" class="print" onclick="window.print()">↪ Print / Save as PDF</button>
     </div>
@@ -9686,7 +9708,7 @@ Object.assign(window, {
   confirmTyped,
   archiveTask, unarchiveTask, archiveAllCompleted, toggleTasksArchive,
   tourStartDate, tourEndDate, addDaysISO,
-  toggleExportMenu, closeExportMenu, downloadTourBookPDF, downloadTourBookFromHere, closeTourBook,
+  toggleExportMenu, closeExportMenu, downloadTourBookPDF, downloadTourBookFromHere, downloadDaySheetPDF, closeTourBook,
   scoutNearVenue,
   openTravelAssistant, closeTravelAssistant, setTaTab, searchHotels, resetHotelFilters, bookHotelToActiveDate, searchFlights, resetFlightFilters, addFlightToTravel,
   toggleTourSwitcher, closeTourSwitcher, switchToTour, switchToTourFromPhone, newTourFlow, newTourManualFlow, newTourImportFlow, renameCurrentTour, deleteCurrentTour,
