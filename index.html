@@ -83,6 +83,19 @@ input,select,textarea{font:inherit;color:inherit}
    landing hero) ~80px and centered. */
 .brand-logo{display:block;height:26px;width:auto;object-fit:contain;
   filter:drop-shadow(0 0 8px rgba(232,148,58,.25));vertical-align:middle}
+/* Mouse-tracked shine wrapper around every Bandmate wordmark image. The
+   inner .bm-shine span paints a soft radial highlight that follows the
+   cursor (positioning driven by --rx / --ry / --ralpha CSS variables set
+   by JS). When the cursor is far away the alpha drops to 0 so the
+   highlight disappears cleanly. */
+.bm-shine-wrap{position:relative;display:inline-block;line-height:0;isolation:isolate;
+  --rx:50%;--ry:50%;--ralpha:0}
+.bm-shine{position:absolute;inset:-30%;pointer-events:none;z-index:1;
+  background:radial-gradient(ellipse 60% 70% at var(--rx) var(--ry),
+    rgba(255,245,220,calc(var(--ralpha) * .55)) 0%,
+    rgba(255,245,220,calc(var(--ralpha) * .25)) 18%,
+    rgba(255,245,220,0) 55%);
+  mix-blend-mode:overlay}
 .brand-logo-lg{height:40px;margin:0 auto}
 .brand-logo-xl{height:64px;margin:0 auto;filter:drop-shadow(0 0 18px rgba(232,148,58,.35))}
 .landing-logo{height:54px;margin:0 auto 4px;max-width:240px}
@@ -2097,7 +2110,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
   <div class="landing-bg"></div>
   <div class="landing-content">
     <div class="landing-brand">
-      <img src="logo.png" class="brand-logo brand-logo-xl landing-logo" alt="Bandmate" />
+      <span class="bm-shine-wrap"><img src="logo.png" class="brand-logo brand-logo-xl landing-logo" alt="Bandmate" /><span class="bm-shine"></span></span>
       <span class="lb-version">v0.3</span>
     </div>
 
@@ -2127,7 +2140,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 <div class="login-overlay" id="loginScreen" hidden>
   <div class="login-card">
     <div class="login-brand">
-      <img src="logo.png" class="brand-logo brand-logo-lg" alt="Bandmate" />
+      <span class="bm-shine-wrap"><img src="logo.png" class="brand-logo brand-logo-lg" alt="Bandmate" /><span class="bm-shine"></span></span>
     </div>
 
     <div id="loginAccountsBlock"></div>
@@ -2165,7 +2178,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 <div class="onboard-overlay" id="onboarding">
   <div class="onboard">
     <div class="ob-hero">
-      <div class="brand-big"><img src="logo.png" class="brand-logo brand-logo-xl" alt="Bandmate" /></div>
+      <div class="brand-big"><span class="bm-shine-wrap"><img src="logo.png" class="brand-logo brand-logo-xl" alt="Bandmate" /><span class="bm-shine"></span></span></div>
       <p>Tour management for the road. Build your tour day by day — schedules, hotels, guest lists, set lists, contacts, settlements. Synced to your crew's phones.</p>
     </div>
 
@@ -2201,7 +2214,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
     <div class="laminate-wrap">
       <div class="laminate">
         <div class="brand">
-          <img src="logo.png" class="brand-logo" alt="Bandmate" />
+          <span class="bm-shine-wrap"><img src="logo.png" class="brand-logo" alt="Bandmate" /><span class="bm-shine"></span></span>
           <span class="tag">v0.3 · OPS</span>
         </div>
       </div>
@@ -10097,18 +10110,18 @@ function scanTour(tour) {
   return scan;
 }
 
-// Show Day ribbon: track the mouse globally and aim the glare in the mouse's
-// direction. When the cursor is inside the badge, the highlight follows it
-// directly. When the cursor leaves, the glare slides to the badge edge that
-// faces the cursor and dims with distance so it always looks like real light.
+// Mouse-tracked shine effect. Originally built for the Show Day ribbon; now
+// generalized so every Bandmate wordmark and the ribbon all share the same
+// "real light reflecting off metal" behavior. Targets:
+//   - .day-sheet .ribbon-show  (Show Day badge)
+//   - .bm-shine-wrap           (every Bandmate wordmark image wrapper)
+// The avatar (rabbit) on the crew mobile view is intentionally NOT targeted.
 let _rbTrackerBound = false;
-function _rbProjectGlare(e) {
-  const el = document.querySelector('.day-sheet .ribbon-show');
-  if (!el) return;
+function _projectGlareOnEl(el, mx, my) {
   const r = el.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return;
   const cx = r.left + r.width / 2;
   const cy = r.top + r.height / 2;
-  const mx = e.clientX, my = e.clientY;
   const dx = mx - cx, dy = my - cy;
   const dist = Math.sqrt(dx * dx + dy * dy);
   const inside = mx >= r.left && mx <= r.right && my >= r.top && my <= r.bottom;
@@ -10117,8 +10130,6 @@ function _rbProjectGlare(e) {
     xPct = ((mx - r.left) / r.width) * 100;
     yPct = ((my - r.top) / r.height) * 100;
   } else {
-    // Project the cursor direction onto the badge perimeter so the glare
-    // sits on the edge facing the mouse — never disappears off the surface.
     const halfW = r.width / 2, halfH = r.height / 2;
     const ax = Math.abs(dx), ay = Math.abs(dy);
     const tx = ax > 0.001 ? halfW / ax : Infinity;
@@ -10128,15 +10139,18 @@ function _rbProjectGlare(e) {
     xPct = ((ex + halfW) / r.width) * 100;
     yPct = ((ey + halfH) / r.height) * 100;
   }
-  // Distance falloff: full intensity inside the badge, dimming smoothly out
-  // to nothing around 600px away. Floor at 0 for clean exit.
   const maxDist = 600;
-  let alpha;
-  if (inside) alpha = 1;
-  else alpha = Math.max(0, 1 - (dist / maxDist));
+  const alpha = inside ? 1 : Math.max(0, 1 - (dist / maxDist));
   el.style.setProperty('--rx', xPct + '%');
   el.style.setProperty('--ry', yPct + '%');
   el.style.setProperty('--ralpha', alpha.toFixed(3));
+}
+function _rbProjectGlare(e) {
+  const ribbon = document.querySelector('.day-sheet .ribbon-show');
+  if (ribbon) _projectGlareOnEl(ribbon, e.clientX, e.clientY);
+  document.querySelectorAll('.bm-shine-wrap').forEach(el => {
+    _projectGlareOnEl(el, e.clientX, e.clientY);
+  });
 }
 function rbReflect(e, el) {
   // Same behavior as the global listener — kept for the inline onmousemove.
