@@ -5865,7 +5865,31 @@ async function extractPDFText(file) {
     for (let i = 1; i <= pageLimit; i++) {
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
-      out += content.items.map(it => it.str).join(' ') + '\n';
+      // Reconstruct line breaks. PDF.js gives each text fragment with a
+      // transform matrix where transform[5] is its Y position; fragments on
+      // the same line share a Y. We insert "\n" when Y drops (next line) and
+      // a single space between fragments on the same line. Without this,
+      // the deal-memo parser can't find venue address blocks because
+      // everything collapses to one long line per page.
+      let pageText = '';
+      let lastY = null;
+      let lastEnd = 0; // x-coordinate at the end of the prior fragment
+      content.items.forEach((it) => {
+        const str = it.str || '';
+        const y = it.transform ? it.transform[5] : null;
+        const x = it.transform ? it.transform[4] : 0;
+        if (lastY !== null && y !== null && Math.abs(y - lastY) > 2) {
+          pageText += '\n';
+        } else if (pageText && !pageText.endsWith(' ') && !pageText.endsWith('\n') && str && str[0] !== ' ') {
+          pageText += ' ';
+        }
+        pageText += str;
+        // Some PDF.js versions also expose hasEOL on each item — honor it.
+        if (it.hasEOL) pageText += '\n';
+        lastY = y;
+        lastEnd = x + (it.width || 0);
+      });
+      out += pageText + '\n\n';
     }
     return out;
   } catch (e) {
@@ -5924,52 +5948,92 @@ function _parseDealMemoBlock(block) {
     if (idx < 0) return '';
     return `${year}-${String(idx + 1).padStart(2, '0')}-${day.padStart(2, '0')}`;
   };
-  // Find the chunk after the label up to the next major section
-  const dateBlock = block.match(/Dates? of Engagement[:\s]*([\s\S]+?)(?=\n\s*(?:Engagement Venue|Age Restriction|Tickets|Compensation|Schedule|Merchandise|Other Act|Walkout|Deposits|Billing|Notes)\b)/i);
-  const dateRe = /(?:[A-Z][a-z]+,?\s*)?([A-Z][a-z]+)\s+(\d{1,2}),?\s+(\d{4})/g;
+  // Find the chunk after the label up to the next major section. We accept
+  // any whitespace (including just a single space, in case PDF text loses
+  // newlines) for the lookahead boundary so flat text still parses.
+  const dateBlock = block.match(/Dates? of Engagement[:\s]+([\s\S]+?)(?=\s+(?:Engagement Venue|Age Restriction|Tickets|Compensation|Schedule|Merchandise|Other Act|Walkout|Deposits|Billing|Notes|Memo\s*#|Deal\s+Memo)\b)/i);
+  // Match "Month D, YYYY" — month name (full or abbreviated), 1-2 digit day,
+  // 4 digit year. Day-of-week prefix is optional. Works in both well-spaced
+  // and run-on text.
+  const monthAlt = '(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)';
+  const dateRe = new RegExp(`(${monthAlt})\\s+(\\d{1,2})(?:st|nd|rd|th)?[,\\s]+(\\d{4})`, 'gi');
   const dates = [];
-  if (dateBlock) {
+  const haystack = dateBlock ? dateBlock[1] : '';
+  if (haystack) {
     let mm;
-    while ((mm = dateRe.exec(dateBlock[1])) !== null) {
+    while ((mm = dateRe.exec(haystack)) !== null) {
       const iso = toIso(mm[1], mm[2], mm[3]);
       if (iso && !dates.includes(iso)) dates.push(iso);
     }
   }
-  // Fallback: stand-alone "Month D, YYYY (Confirmed)" line anywhere in the block
+  // Fallback: scan the entire block for any date adjacent to "(Conﬁrmed)" /
+  // "(Confirmed)" — handles the ﬁ-ligature (U+FB01) found in many agency PDFs.
   if (!dates.length) {
-    const fb = /(?:[A-Z][a-z]+,?\s*)?([A-Z][a-z]+)\s+(\d{1,2}),?\s+(\d{4})\s*\(?Conf(?:irmed|Î®rmed)?/gi;
+    const fb = new RegExp(`(${monthAlt})\\s+(\\d{1,2})(?:st|nd|rd|th)?[,\\s]+(\\d{4})\\s*\\(?\\s*Con[fﬁ\\u{FB01}]+rmed`, 'giu');
     let mm;
     while ((mm = fb.exec(block)) !== null) {
       const iso = toIso(mm[1], mm[2], mm[3]);
       if (iso && !dates.includes(iso)) dates.push(iso);
     }
   }
-  out.dates = dates;
-  out.date = dates[0] || '';
-  // ── Engagement Venue: → next 2-4 non-empty lines = name / street / "City, ST ZIP" / country ─
-  // Capture the block after the label up to the next labeled section
-  // (Age Restriction, Tickets, Compensation, Schedule, Merchandise, etc.).
-  const venueBlockMatch = block.match(/Engagement Venue[:\s]*\n+([\s\S]+?)(?=\n\s*(?:Age Restriction|Tickets|Compensation|Schedule|Merchandise|Other Act|Walkout|Deposits|Billing|Notes)\b|\n\n[A-Z])/i);
-  if (venueBlockMatch) {
-    const lines = venueBlockMatch[1].split('\n').map(l => l.trim()).filter(Boolean).slice(0, 5);
-    if (lines.length) out.venue = lines[0];
-    // Find the "City, ST [ZIP]" line in the captured block
-    for (let i = 1; i < lines.length; i++) {
-      // US: "Santa Cruz, CA 95060"
-      const us = lines[i].match(/^(.+?),\s*([A-Z]{2})\s+\d{5}/);
-      if (us) { out.city = us[1].trim(); out.state = us[2]; break; }
-      // Canada: "Toronto, ON M4M 1H2"
-      const ca = lines[i].match(/^(.+?),\s*(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT)\s+[A-Z]\d[A-Z]/);
-      if (ca) { out.city = ca[1].trim(); out.state = ca[2]; break; }
-      // Loose fallback: "City, XX" (any 2-letter code)
-      const loose = lines[i].match(/^(.+?),\s*([A-Z]{2})\b/);
-      if (loose) { out.city = loose[1].trim(); out.state = loose[2]; break; }
+  // Last-ditch fallback: ANY "Month D, YYYY" pattern in the first half of
+  // the block (deal memos always state the date near the top, before the
+  // venue info). Bounded to prevent matching deposit due dates etc.
+  if (!dates.length) {
+    const half = block.slice(0, Math.min(block.length, 800));
+    let mm;
+    dateRe.lastIndex = 0;
+    while ((mm = dateRe.exec(half)) !== null) {
+      const iso = toIso(mm[1], mm[2], mm[3]);
+      if (iso && !dates.includes(iso)) { dates.push(iso); break; }
     }
   }
-  // ── Capacity ── the GA tier line is "1000\n-1000" (positive total / -kills).
-  // Look for a 3-5 digit number followed shortly by its negative twin.
-  let cap = block.match(/(?:Quantity[^\n]*\n+\s*)(\d{3,5})/);
-  if (!cap) cap = block.match(/\b(\d{3,5})\s*\n\s*-\d{3,5}\b/);
+  out.dates = dates;
+  out.date = dates[0] || '';
+  // ── Engagement Venue: → name + address block ─────────────────────────
+  // PDF.js text extraction is inconsistent about preserving newlines, so we
+  // use both line-based AND whitespace-tolerant patterns. The canonical
+  // "City, ST 12345" / "City, ON M4M 1H2" pattern is the anchor — once we
+  // find it inside the venue block, the venue name is the text immediately
+  // preceding it (typically the first line / first sentence after the label).
+  const venueBlockMatch = block.match(/Engagement Venue[:\s]+([\s\S]+?)(?=\s+(?:Age Restriction|Tickets|Compensation|Schedule|Merchandise|Other Act|Walkout|Deposits|Billing|Notes|Memo\s*#|Deal\s+Memo)\b)/i);
+  if (venueBlockMatch) {
+    const venueBlock = venueBlockMatch[1].trim();
+    // Try to find the address line first — most reliable anchor.
+    let addrMatch = venueBlock.match(/([A-Za-z][A-Za-z .'\-,]+?),\s*([A-Z]{2})\s+\d{5}/);  // US
+    if (!addrMatch) addrMatch = venueBlock.match(/([A-Za-z][A-Za-z .'\-,]+?),\s*(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT)\s+[A-Z]\d[A-Z]/); // Canada
+    if (!addrMatch) addrMatch = venueBlock.match(/([A-Za-z][A-Za-z .'\-,]+?),\s*([A-Z]{2})\b(?!\w)/); // Loose
+    if (addrMatch) {
+      out.city = addrMatch[1].trim();
+      out.state = addrMatch[2];
+      // Venue name = everything before the street address.
+      // Strategy: split into lines, take first non-empty; OR take everything
+      // before the first digit (street numbers always start with digits).
+      const beforeAddr = venueBlock.slice(0, addrMatch.index).trim();
+      const lines = beforeAddr.split(/\n+/).map(l => l.trim()).filter(Boolean);
+      if (lines.length) {
+        // First line is typically the venue name; if there's only one line
+        // (newlines collapsed), take everything up to the first digit which
+        // marks the start of the street number.
+        if (lines.length === 1) {
+          const dm = lines[0].match(/^([^\d]+?)(?=\s+\d)/);
+          out.venue = (dm ? dm[1] : lines[0]).trim();
+        } else {
+          out.venue = lines[0];
+        }
+      }
+    } else {
+      // No address pattern found — fall back to first non-empty line as venue.
+      const lines = venueBlock.split(/\n+/).map(l => l.trim()).filter(Boolean);
+      if (lines.length) out.venue = lines[0];
+    }
+  }
+  // ── Capacity ── GA tier is "[total] -[kills]" (e.g. "1000 -1000"). The
+  // negative mirror is the cleanest anchor and works regardless of newline
+  // preservation; we accept any whitespace between the two numbers.
+  let cap = block.match(/\b(\d{3,5})\s+-\1\b/);          // exact mirror "1000  -1000"
+  if (!cap) cap = block.match(/\b(\d{3,5})\s+-(\d{3,5})\b/); // close mirror
+  if (!cap) cap = block.match(/Quantity[^]*?(\d{3,5})/i); // post-Quantity number
   if (cap) out.capacity = cap[1];
   // ── Guarantee ── "$12,000.00 USD Guarantee" or "$12,000 Flat Guarantee".
   const gt = block.match(/\$\s*([0-9,]+(?:\.\d+)?)\s*(?:USD)?\s*(?:Flat\s+)?Guarantee/i);
