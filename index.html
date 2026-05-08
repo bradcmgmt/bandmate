@@ -653,6 +653,7 @@ input,select,textarea{font:inherit;color:inherit}
 .form-grid.one{grid-template-columns:1fr}
 .form-grid > .full{grid-column:1/-1}
 .field{display:flex;flex-direction:column;gap:5px}
+.field[hidden]{display:none !important}
 .field label{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--hi)}
 .field input,.field select,.field textarea{
   background:rgba(0,0,0,.3);border:1px solid var(--line-2);color:var(--warm);
@@ -989,6 +990,27 @@ input,select,textarea{font:inherit;color:inherit}
 .rescan-nudge button{margin-left:auto;background:rgba(109,207,139,.15);border:1px solid rgba(109,207,139,.5);
   color:var(--good);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;
   letter-spacing:.14em;text-transform:uppercase;font-family:inherit}
+
+/* Import wizard · review step — top apply bar + beefed-up bottom CTA so the
+   "Apply to tour" action is always visible no matter where the TM is on the page. */
+.iz-apply-bar{display:flex;align-items:center;gap:14px;padding:14px 18px;
+  margin:-4px 0 16px;border-radius:12px;
+  background:linear-gradient(135deg,rgba(232,148,58,.16),rgba(232,148,58,.05));
+  border:1px solid rgba(232,148,58,.4);
+  box-shadow:0 0 24px -8px rgba(232,148,58,.35),inset 0 1px 0 rgba(255,255,255,.04)}
+.iz-apply-bar .iz-apply-text{flex:1;min-width:0}
+.iz-apply-bar .iz-apply-h{font-size:15px;font-weight:700;color:var(--warm);margin-bottom:3px}
+.iz-apply-bar .iz-apply-s{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.06em;color:var(--warm-mute)}
+.iz-apply-btn-top{flex:0 0 auto;font-size:13px;padding:11px 22px;font-weight:700;letter-spacing:.06em}
+/* The bottom CTA gets the same primary look but bigger + glowing so it pops
+   off the page after the user scrolls through the gap list. */
+.iz-foot-cta{padding-top:18px;border-top:1px solid var(--line);margin-top:18px;
+  display:flex;justify-content:space-between;align-items:center;gap:12px}
+.iz-apply-btn-bottom{font-size:15px;padding:14px 28px;font-weight:800;letter-spacing:.04em;
+  box-shadow:0 0 24px -6px rgba(232,148,58,.5),0 8px 18px -8px rgba(0,0,0,.6),
+    inset 0 1px 0 rgba(255,255,255,.08);
+  transform:translateZ(0);transition:transform .12s ease,box-shadow .15s ease}
+.iz-apply-btn-bottom:hover{transform:translateY(-1px);box-shadow:0 0 32px -4px rgba(232,148,58,.7),0 10px 22px -8px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.12)}
 
 /* Import Data — drop-zone modal that merges files into the current tour. */
 .idz-wrap{display:flex;flex-direction:column;gap:14px}
@@ -6903,9 +6925,9 @@ function renderImportReview() {
         `}
       </div>
 
-      <div class="iz-foot">
+      <div class="iz-foot iz-foot-cta">
         <button type="button" class="btn" onclick="izBack()">← Back</button>
-        <button type="button" class="btn primary" onclick="izApply()">Apply to tour →</button>
+        <button type="button" class="btn primary iz-apply-btn-bottom" onclick="izApply()">Apply to tour →</button>
       </div>
     `,
   });
