@@ -1530,6 +1530,91 @@ body.print-tourbook-mode #tourBookArea{display:block!important;position:fixed;in
 }
 .travel-assist-btn:hover{background:linear-gradient(135deg,rgba(138,169,216,.28),rgba(138,169,216,.08));border-color:#b1c8ee;box-shadow:inset 0 1px 0 rgba(138,169,216,.25),0 0 18px rgba(138,169,216,.3)}
 .travel-assist-btn .ta-icon{color:#b1c8ee;font-size:14px;text-shadow:0 0 8px rgba(138,169,216,.5)}
+.travel-assist-btn .ta-chev{color:#b1c8ee;font-size:9px;margin-left:2px;opacity:.7}
+
+/* Tools dropdown — replaces the old standalone Travel Assistant button */
+.tools-dropdown{position:relative}
+.tools-dropdown.open .ta-chev{transform:rotate(180deg)}
+.tools-menu{position:absolute;top:calc(100% + 6px);right:0;min-width:280px;
+  background:linear-gradient(180deg,#1c130b,#140d07);border:1px solid rgba(138,169,216,.4);
+  border-radius:10px;padding:6px;z-index:35;
+  box-shadow:0 16px 40px -12px rgba(0,0,0,.7),0 0 0 1px rgba(138,169,216,.06)}
+.tools-item{width:100%;display:flex;align-items:flex-start;gap:12px;padding:10px 12px;
+  border-radius:7px;border:1px solid transparent;background:transparent;cursor:pointer;text-align:left;color:var(--warm)}
+.tools-item:hover{background:rgba(138,169,216,.06);border-color:rgba(138,169,216,.25)}
+.tools-item .ti-icon{flex:0 0 28px;width:28px;height:28px;border-radius:6px;
+  background:rgba(138,169,216,.1);border:1px solid rgba(138,169,216,.35);
+  color:#b1c8ee;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;margin-top:1px}
+.tools-item .ti-name{font-size:13px;font-weight:600;color:var(--warm);line-height:1.25}
+.tools-item .ti-desc{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);
+  letter-spacing:.04em;margin-top:2px}
+
+/* Push notifications dashboard */
+.pn-wrap{display:flex;flex-direction:column;gap:0}
+.pn-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:0;border-top:1px solid var(--line);margin-top:-2px}
+.pn-compose{padding:18px 18px 18px 4px;border-right:1px solid var(--line);min-width:0}
+.pn-history{padding:18px 4px 18px 18px;background:rgba(0,0,0,.18);min-width:0}
+@media (max-width:900px){.pn-grid{grid-template-columns:1fr}.pn-compose{border-right:0;border-bottom:1px solid var(--line);padding-right:4px}.pn-history{padding-left:4px}}
+.pn-suggest{margin-bottom:14px;padding:10px 12px;background:linear-gradient(135deg,rgba(232,148,58,.1),rgba(232,148,58,.02));
+  border:1px solid rgba(232,148,58,.4);border-radius:8px;display:flex;align-items:center;gap:12px}
+.pn-suggest-glyph{flex:0 0 28px;height:28px;border:1px solid var(--hi);border-radius:6px;
+  display:flex;align-items:center;justify-content:center;color:var(--hi);
+  font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px}
+.pn-suggest-body{flex:1;min-width:0}
+.pn-suggest-h{font-size:12.5px;font-weight:600;color:var(--warm);line-height:1.3}
+.pn-suggest-s{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--warm-mute);letter-spacing:.04em;margin-top:2px}
+.pn-suggest-btn{background:var(--hi);color:#0e0805;border:0;padding:6px 14px;border-radius:5px;cursor:pointer;
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:700}
+.pn-section-lbl{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.18em;color:var(--warm-mute);
+  text-transform:uppercase;font-weight:700;margin:14px 0 6px}
+.pn-section-lbl:first-child{margin-top:0}
+.pn-aud-count{margin-left:6px;color:var(--hi);font-weight:700;letter-spacing:.06em;text-transform:none}
+.pn-templates{display:flex;flex-wrap:wrap;gap:5px}
+.pn-tpl{padding:4px 10px;border:1px solid var(--line-2);border-radius:5px;background:transparent;
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm);letter-spacing:.06em;
+  cursor:pointer;font-weight:600}
+.pn-tpl:hover{color:var(--hi);border-color:var(--hi);background:rgba(232,148,58,.04)}
+.pn-tpl-add{color:var(--warm-mute);border-style:dashed}
+.pn-tpl-add:hover{color:var(--good);border-color:rgba(109,207,139,.4)}
+.pn-textarea{width:100%;background:rgba(0,0,0,.3);border:1px solid var(--line-2);border-radius:8px;
+  padding:11px 13px;color:var(--warm);font-family:'Inter',sans-serif;font-size:13px;line-height:1.5;
+  min-height:80px;resize:vertical}
+.pn-textarea:focus{outline:none;border-color:var(--hi);box-shadow:0 0 0 3px rgba(232,148,58,.15)}
+.pn-audience{display:flex;flex-wrap:wrap;gap:5px}
+.pn-grp{padding:4px 11px;border:1px solid var(--line-2);background:transparent;color:var(--warm-mute);
+  border-radius:999px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.16em;
+  font-weight:700;text-transform:uppercase;cursor:pointer}
+.pn-grp:hover{color:var(--warm);border-color:var(--line-glow)}
+.pn-grp.on{border-color:var(--hi);background:rgba(232,148,58,.16);color:var(--warm)}
+.pn-grp-indiv{border-style:dashed;color:var(--warm-mute);font-weight:600}
+.pn-grp-indiv:hover{color:var(--hi);border-color:var(--hi)}
+.pn-row-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.pn-select{width:100%;background:rgba(0,0,0,.3);border:1px solid var(--line-2);color:var(--warm);
+  padding:7px 10px;font-family:'Inter',sans-serif;font-size:12px;border-radius:6px}
+.pn-select:focus{outline:none;border-color:var(--hi)}
+.pn-actions{display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--line);padding-top:14px;margin-top:14px}
+.pn-send-btn{box-shadow:0 0 16px -4px rgba(232,148,58,.5)}
+
+.pn-history-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.pn-history-lbl{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.18em;color:var(--hi);
+  text-transform:uppercase;font-weight:700}
+.pn-history-spacer{flex:1;height:1px;background:var(--line)}
+.pn-history-meta{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--warm-mute);letter-spacing:.14em;text-transform:uppercase}
+.pn-history-list{display:flex;flex-direction:column;gap:8px;max-height:520px;overflow-y:auto;padding-right:2px}
+.pn-history-empty{padding:24px 14px;text-align:center;font-size:12.5px;color:var(--warm-mute);font-style:italic;line-height:1.6;
+  border:1px dashed var(--line-2);border-radius:8px}
+.pn-h-row{border:1px solid var(--line-2);border-radius:7px;padding:10px 12px;background:rgba(0,0,0,.2)}
+.pn-h-row.pn-h-important{border-color:rgba(232,148,58,.45);background:rgba(232,148,58,.04)}
+.pn-h-row.pn-h-urgent{border-color:rgba(232,69,69,.45);background:rgba(232,69,69,.05)}
+.pn-h-meta{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px}
+.pn-h-prio{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--warm-mute);font-weight:700}
+.pn-h-row.pn-h-important .pn-h-prio{color:var(--hi)}
+.pn-h-row.pn-h-urgent .pn-h-prio{color:#e88080}
+.pn-h-time{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.06em}
+.pn-h-body{font-size:12.5px;color:var(--warm);line-height:1.4;margin-bottom:5px}
+.pn-h-sender{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--warm-mute);letter-spacing:.06em;text-align:right}
 
 #travelAssistantArea{display:none}
 body.travel-assistant-mode{overflow:hidden}
@@ -1966,9 +2051,12 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
           <span class="tag">v0.3 · OPS</span>
         </div>
       </div>
-      <button type="button" class="travel-assist-btn" onclick="openTravelAssistant()">
-        <span class="ta-icon">✈</span><span>Travel Assistant</span>
-      </button>
+      <div class="tools-dropdown" id="toolsDropdown">
+        <button type="button" class="travel-assist-btn" onclick="toggleToolsMenu()">
+          <span class="ta-icon">◇</span><span>Tools</span><span class="ta-chev">▾</span>
+        </button>
+        <div class="tools-menu" id="toolsMenu" hidden></div>
+      </div>
     </div>
     <div class="tour-banner">
       <div class="name" id="tourName">—</div>
@@ -10113,6 +10201,351 @@ function _idzMergeNow() {
   toast(msgBits.length ? `Merged: ${msgBits.join(' · ')}` : 'Nothing new to merge', msgBits.length ? 'good' : '');
 }
 
+/* =====================================================================
+   TOOLS DROPDOWN — replaces the standalone Travel Assistant button. Houses
+   road-tested utilities the TM reaches for during the day. The dropdown is
+   the home for any future tool we add (currency, weather, runner dispatch,
+   etc.) so the top bar doesn't grow forever.
+   ===================================================================== */
+let _toolsMenuOpen = false;
+function toggleToolsMenu() {
+  _toolsMenuOpen = !_toolsMenuOpen;
+  const menu = document.getElementById('toolsMenu');
+  const wrap = document.getElementById('toolsDropdown');
+  if (!menu) return;
+  if (_toolsMenuOpen) {
+    menu.innerHTML = `
+      <button type="button" class="tools-item" onclick="closeToolsMenu();openTravelAssistant()">
+        <span class="ti-icon">→</span>
+        <span class="ti-text"><span class="ti-name">Travel Assistant</span><span class="ti-desc">Hotel + flight search</span></span>
+      </button>
+      <button type="button" class="tools-item" onclick="closeToolsMenu();openPushNotifications()">
+        <span class="ti-icon">◆</span>
+        <span class="ti-text"><span class="ti-name">Push notifications</span><span class="ti-desc">Send updates to band &amp; crew</span></span>
+      </button>
+      <button type="button" class="tools-item" onclick="closeToolsMenu();openDaySheetPDF()">
+        <span class="ti-icon">⌗</span>
+        <span class="ti-text"><span class="ti-name">Day sheet · PDF</span><span class="ti-desc">Single-page export of active date</span></span>
+      </button>
+    `;
+    menu.hidden = false;
+    wrap?.classList.add('open');
+  } else {
+    menu.hidden = true;
+    wrap?.classList.remove('open');
+  }
+}
+function closeToolsMenu() {
+  _toolsMenuOpen = false;
+  const menu = document.getElementById('toolsMenu');
+  if (menu) menu.hidden = true;
+  document.getElementById('toolsDropdown')?.classList.remove('open');
+}
+
+/* =====================================================================
+   PUSH NOTIFICATIONS — the TM sends customized messages to band + crew.
+   Stored on the tour as T().notifications (history) and T().notificationTemplates
+   (saved one-shot templates the TM reuses across dates).
+   ===================================================================== */
+function openPushNotifications() {
+  if (!T() || T().id === '_empty') { toast('Open a tour first', 'error'); return; }
+  if (!T().notifications) T().notifications = [];
+  if (!T().notificationTemplates) T().notificationTemplates = [];
+  _pnDraft = { body: '', groups: [], individuals: [], priority: 'standard', when: 'now' };
+  _renderPushNotificationsModal();
+}
+
+let _pnDraft = { body: '', groups: [], individuals: [], priority: 'standard', when: 'now' };
+
+const PN_PRIORITY_OPTIONS = [
+  { id: 'standard',  glyph: '●', label: 'Standard',  desc: 'Shows in feed, no buzz' },
+  { id: 'important', glyph: '◐', label: 'Important', desc: 'Push + sound' },
+  { id: 'urgent',    glyph: '◉', label: 'Urgent',    desc: 'Push + sound, attention' },
+  { id: 'silent',    glyph: '○', label: 'Silent',    desc: 'History only, no push' },
+];
+
+const PN_DEFAULT_TEMPLATES = [
+  { id: 't_bus',     name: 'BUS CALL',     body: 'Bus call at {{time}} — bags down 15 min prior. Sleeper to {{nextCity}}.' },
+  { id: 't_lobby',   name: 'LOBBY CALL',   body: 'Lobby call in 15 min — see you downstairs.' },
+  { id: 't_setpush', name: 'SET PUSHED',   body: 'Set time pushed back — new set {{setTime}}.' },
+  { id: 't_hotel',   name: 'HOTEL INFO',   body: 'Tonight: {{hotel}} · check-in after 16:00.' },
+  { id: 't_caterup', name: 'CATERING',     body: 'Catering open in dressing room until showtime.' },
+  { id: 't_address', name: 'ADDRESS DROP', body: 'Today: {{venue}} · {{city}}{{state}}.' },
+  { id: 't_weather', name: 'WEATHER HOLD', body: 'Weather hold — 30 min, stay close to the venue.' },
+];
+
+function _pnTemplateBody(tpl) {
+  const ad = getActiveDate() || {};
+  const next = T().dates[T().dates.findIndex(d => d.id === ad.id) + 1] || {};
+  const tour = T();
+  const replacements = {
+    '{{time}}':     ad.doors || ad.setTime || 'TBD',
+    '{{setTime}}':  ad.setTime || 'TBD',
+    '{{venue}}':    ad.venue || ad.city || 'TBD',
+    '{{city}}':     ad.city || 'TBD',
+    '{{state}}':    ad.state ? ', ' + ad.state : '',
+    '{{nextCity}}': next.city || 'next stop',
+    '{{hotel}}':    ad.hotel?.name || 'hotel TBD',
+    '{{tour}}':     tour.meta?.tourName || tour.name || 'tour',
+  };
+  let out = tpl.body || '';
+  Object.keys(replacements).forEach(k => { out = out.split(k).join(replacements[k]); });
+  return out;
+}
+
+function _renderPushNotificationsModal() {
+  const ad = getActiveDate();
+  const allTemplates = [...PN_DEFAULT_TEMPLATES, ...(T().notificationTemplates || [])];
+  const audience = _pnDraft.groups.length + _pnDraft.individuals.length === 0 ? 0
+    : _pnEstimateAudience(_pnDraft.groups, _pnDraft.individuals);
+  const groups = ['All', ...getGroups()];
+  const recent = [...(T().notifications || [])].sort((a, b) => (b.sentAt || 0) - (a.sentAt || 0)).slice(0, 20);
+  // Smart suggest — if there's an upcoming schedule item in the next 35 min,
+  // surface a one-click reminder send.
+  const suggest = _pnSmartSuggest(ad);
+
+  openModal({
+    title: 'Push notifications',
+    size: 'xl',
+    hideFooter: true,
+    body: `
+      <div class="pn-wrap">
+        <div class="pn-grid">
+          <div class="pn-compose">
+            ${suggest ? `
+              <div class="pn-suggest">
+                <span class="pn-suggest-glyph">◆</span>
+                <div class="pn-suggest-body">
+                  <div class="pn-suggest-h">${esc(suggest.headline)}</div>
+                  <div class="pn-suggest-s">${esc(suggest.sub)}</div>
+                </div>
+                <button type="button" class="pn-suggest-btn" onclick="_pnApplySuggest()">SEND</button>
+              </div>
+            ` : ''}
+
+            <div class="pn-section-lbl">QUICK TEMPLATES</div>
+            <div class="pn-templates">
+              ${allTemplates.map(t => `
+                <button type="button" class="pn-tpl" onclick="_pnUseTemplate('${t.id}')">${esc(t.name)}</button>
+              `).join('')}
+              <button type="button" class="pn-tpl pn-tpl-add" onclick="_pnSaveCustomTemplate()">+ SAVE CURRENT</button>
+            </div>
+
+            <div class="pn-section-lbl">MESSAGE</div>
+            <textarea class="pn-textarea" id="pn_body" rows="4" placeholder="What do you want to send?">${esc(_pnDraft.body)}</textarea>
+
+            <div class="pn-section-lbl">AUDIENCE${audience ? ` <span class="pn-aud-count">~${audience} people</span>` : ''}</div>
+            <div class="pn-audience">
+              ${groups.map(g => `
+                <button type="button" class="pn-grp ${_pnDraft.groups.includes(g) ? 'on' : ''}" onclick="_pnToggleGroup('${esc(g).replace(/'/g, "\\'")}')">${esc(g.toUpperCase())}</button>
+              `).join('')}
+              <button type="button" class="pn-grp pn-grp-indiv" onclick="_pnOpenIndividualPicker()">+ INDIVIDUALS${_pnDraft.individuals.length ? ` (${_pnDraft.individuals.length})` : ''}</button>
+            </div>
+
+            <div class="pn-row-fields">
+              <div>
+                <div class="pn-section-lbl">PRIORITY</div>
+                <select class="pn-select" id="pn_priority" onchange="_pnDraft.priority=this.value">
+                  ${PN_PRIORITY_OPTIONS.map(p => `<option value="${p.id}" ${_pnDraft.priority===p.id?'selected':''}>${p.glyph}  ${p.label} · ${p.desc}</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <div class="pn-section-lbl">WHEN</div>
+                <select class="pn-select" id="pn_when" onchange="_pnDraft.when=this.value">
+                  <option value="now">Send now</option>
+                  ${(ad?.schedule || []).map(s => `<option value="before:${s.id}:30">30 min before ${esc(s.what || s.time)}</option>`).join('')}
+                  <option value="recurring:show">Recurring · every show day</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="pn-actions">
+              <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+              <button type="button" class="btn primary pn-send-btn" onclick="_pnSend()">Send${audience?` to ~${audience} people`:''} →</button>
+            </div>
+          </div>
+
+          <div class="pn-history">
+            <div class="pn-history-head">
+              <span class="pn-history-lbl">RECENT · ${recent.length}</span>
+              <span class="pn-history-spacer"></span>
+              <span class="pn-history-meta">${recent.length ? 'NEWEST FIRST' : 'NONE YET'}</span>
+            </div>
+            ${recent.length ? `
+              <div class="pn-history-list">
+                ${recent.map(n => _pnHistoryRow(n)).join('')}
+              </div>
+            ` : `
+              <div class="pn-history-empty">No notifications sent yet on this tour.<br>Use the composer to fire your first one.</div>
+            `}
+          </div>
+        </div>
+      </div>
+    `,
+  });
+  // Wire up textarea so typing updates draft in real time.
+  setTimeout(() => {
+    const ta = document.getElementById('pn_body');
+    if (ta) {
+      ta.addEventListener('input', () => { _pnDraft.body = ta.value; });
+      ta.focus();
+    }
+  }, 30);
+}
+
+function _pnHistoryRow(n) {
+  const opt = PN_PRIORITY_OPTIONS.find(p => p.id === n.priority) || PN_PRIORITY_OPTIONS[0];
+  const when = n.sentAt ? new Date(n.sentAt) : null;
+  const time = when ? when.toLocaleString([], { hour: '2-digit', minute: '2-digit', month: 'numeric', day: 'numeric' }) : '';
+  const audLbl = n.audience?.label || 'ALL';
+  const klass = n.priority === 'urgent' ? 'pn-h-urgent' : n.priority === 'important' ? 'pn-h-important' : '';
+  return `
+    <div class="pn-h-row ${klass}">
+      <div class="pn-h-meta">
+        <span class="pn-h-prio">${opt.glyph} ${opt.label.toUpperCase()} · ${esc(audLbl)}</span>
+        <span class="pn-h-time">${esc(time)}</span>
+      </div>
+      <div class="pn-h-body">${esc(n.body)}</div>
+      ${n.sentBy ? `<div class="pn-h-sender">${esc(n.sentBy)}</div>` : ''}
+    </div>
+  `;
+}
+
+function _pnEstimateAudience(groupNames, individualIds) {
+  const crew = T().crew || [];
+  const ids = new Set(individualIds);
+  if (groupNames.includes('All')) {
+    crew.forEach(c => ids.add(c.id));
+  } else {
+    crew.forEach(c => {
+      if ((c.groups || []).some(g => groupNames.includes(g))) ids.add(c.id);
+    });
+  }
+  return ids.size;
+}
+
+function _pnToggleGroup(group) {
+  const i = _pnDraft.groups.indexOf(group);
+  if (i >= 0) _pnDraft.groups.splice(i, 1);
+  else _pnDraft.groups.push(group);
+  _renderPushNotificationsModal();
+}
+
+function _pnUseTemplate(tplId) {
+  const allTemplates = [...PN_DEFAULT_TEMPLATES, ...(T().notificationTemplates || [])];
+  const tpl = allTemplates.find(t => t.id === tplId);
+  if (!tpl) return;
+  _pnDraft.body = _pnTemplateBody(tpl);
+  _renderPushNotificationsModal();
+}
+
+function _pnSaveCustomTemplate() {
+  const body = document.getElementById('pn_body')?.value?.trim();
+  if (!body) { toast('Type a message first, then save it as a template', 'error'); return; }
+  const name = prompt('Template name:', 'CUSTOM ' + (T().notificationTemplates?.length || 0 + 1));
+  if (!name) return;
+  if (!T().notificationTemplates) T().notificationTemplates = [];
+  T().notificationTemplates.push({ id: uid('pntpl'), name: name.trim().toUpperCase(), body });
+  saveState();
+  toast(`Template "${name}" saved`, 'good');
+  _renderPushNotificationsModal();
+}
+
+function _pnOpenIndividualPicker() {
+  const crew = T().crew || [];
+  if (!crew.length) { toast('No crew to pick from yet — add roster first', 'error'); return; }
+  const list = crew.map(c => {
+    const checked = _pnDraft.individuals.includes(c.id) ? '✓ ' : '  ';
+    return `${checked}${c.name} — ${c.role || c.type || 'Crew'}`;
+  }).join('\n');
+  const input = prompt(`Type names (comma-separated) to toggle:\n\n${list}`, '');
+  if (input == null) return;
+  const queries = input.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  queries.forEach(q => {
+    const match = crew.find(c => c.name.toLowerCase().includes(q));
+    if (match) {
+      const idx = _pnDraft.individuals.indexOf(match.id);
+      if (idx >= 0) _pnDraft.individuals.splice(idx, 1);
+      else _pnDraft.individuals.push(match.id);
+    }
+  });
+  _renderPushNotificationsModal();
+}
+
+function _pnSmartSuggest(ad) {
+  if (!ad || !ad.schedule) return null;
+  // Find the next non-passed schedule item in the day; if it's within 45 min,
+  // suggest a reminder. We use the device clock as a proxy for "now".
+  const now = new Date();
+  const hh = now.getHours(), mm = now.getMinutes();
+  const nowMin = hh * 60 + mm;
+  for (const s of ad.schedule) {
+    if (!s.time || s.allDay) continue;
+    const [h, m] = s.time.split(':').map(Number);
+    if (isNaN(h) || isNaN(m)) continue;
+    const sMin = h * 60 + m;
+    const delta = sMin - nowMin;
+    if (delta > 0 && delta <= 45) {
+      return {
+        headline: `${delta} min until ${s.what || s.time}`,
+        sub: `Send a reminder?`,
+        body: `${s.what || 'Heads up'} in ${delta} min — see you there.`,
+      };
+    }
+  }
+  return null;
+}
+
+function _pnApplySuggest() {
+  const ad = getActiveDate();
+  const sug = _pnSmartSuggest(ad);
+  if (!sug) return;
+  _pnDraft.body = sug.body;
+  if (!_pnDraft.groups.length) _pnDraft.groups = ['All'];
+  _pnDraft.priority = 'important';
+  _pnDraft.when = 'now';
+  _renderPushNotificationsModal();
+}
+
+function _pnSend() {
+  const body = (document.getElementById('pn_body')?.value || '').trim();
+  if (!body) { toast('Type a message first', 'error'); return; }
+  if (_pnDraft.groups.length === 0 && _pnDraft.individuals.length === 0) {
+    toast('Pick an audience first', 'error');
+    return;
+  }
+  const audience = {
+    groups: [..._pnDraft.groups],
+    individuals: [..._pnDraft.individuals],
+    label: _pnDraft.groups.length
+      ? _pnDraft.groups.map(g => g.toUpperCase()).join(' · ')
+      : `${_pnDraft.individuals.length} INDIVIDUAL${_pnDraft.individuals.length===1?'':'S'}`,
+  };
+  const u = U();
+  const note = {
+    id: uid('pn'),
+    sentAt: Date.now(),
+    sentBy: u ? (u.name || 'Tour Manager') : 'Tour Manager',
+    sentById: u?.id || 'tm',
+    body,
+    audience,
+    priority: _pnDraft.priority,
+    when: _pnDraft.when,
+  };
+  if (!T().notifications) T().notifications = [];
+  T().notifications.push(note);
+  saveState();
+  _pnDraft = { body: '', groups: [], individuals: [], priority: 'standard', when: 'now' };
+  toast(`Sent to ~${_pnEstimateAudience(audience.groups, audience.individuals)} people`, 'good');
+  _renderPushNotificationsModal();
+}
+
+// Stub so the Tools dropdown's "Day sheet · PDF" item works without a separate function.
+function openDaySheetPDF() {
+  if (typeof downloadDaySheetPDF === 'function') return downloadDaySheetPDF();
+  toast('Day sheet export not available yet', 'error');
+}
+
 // Trigger the tour scan with a brief scanning animation on the source button
 // — gives the TM a small but tangible feedback beat that something happened
 // before the scan results modal opens (or re-opens). Animation runs ~700ms.
@@ -10398,6 +10831,9 @@ function init() {
       if (_travelTemplateMenuOpen && !e.target.closest('#travelTemplateWrap')) {
         closeTravelTemplateMenu();
       }
+      if (_toolsMenuOpen && !e.target.closest('#toolsDropdown')) {
+        closeToolsMenu();
+      }
     });
   } catch (e) { console.error('outsideClick bind:', e); }
   try {
@@ -10439,6 +10875,10 @@ Object.assign(window, {
   scanTour, openTourScan, rescanTourAnimated, calcLiveDateGaps,
   openImportData, _idzAddFiles, _idzRemove, _idzClear, _idzAnalyze, _idzMergeNow,
   _dateModalApplyStatus,
+  toggleToolsMenu, closeToolsMenu,
+  openPushNotifications, _pnToggleGroup, _pnUseTemplate, _pnSaveCustomTemplate,
+  _pnOpenIndividualPicker, _pnSend, _pnApplySuggest,
+  openDaySheetPDF,
   rbReflect, rbReflectReset,
   toggleSchedTemplateMenu, closeSchedTemplateMenu,
   saveScheduleAsTemplate, applyScheduleTemplate, renameScheduleTemplate, deleteScheduleTemplate,
