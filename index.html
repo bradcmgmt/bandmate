@@ -78,6 +78,18 @@ input,select,textarea{font:inherit;color:inherit}
   border-bottom:1px solid var(--hi);border-right:1px solid var(--hi);pointer-events:none}
 .brand{display:flex;align-items:baseline;gap:10px;font-weight:900;letter-spacing:.02em}
 .brand .b{font-size:18px;background:linear-gradient(180deg,#fff2dc,#e8943a);-webkit-background-clip:text;background-clip:text;color:transparent}
+/* Bandmate wordmark image — replaces the text-set logo. Sized contextually:
+   default (top bar) is 22px tall; large (login card) ~40px; xl (onboarding /
+   landing hero) ~80px and centered. */
+.brand-logo{display:block;height:22px;width:auto;object-fit:contain;
+  filter:drop-shadow(0 0 8px rgba(232,148,58,.25))}
+.brand-logo-lg{height:40px;margin:0 auto}
+.brand-logo-xl{height:80px;margin:0 auto;filter:drop-shadow(0 0 18px rgba(232,148,58,.35))}
+.landing-logo{height:96px;margin:0 auto 4px}
+@media (max-width:560px){
+  .landing-logo{height:64px}
+  .brand-logo-xl{height:52px}
+}
 .brand .dot{width:7px;height:7px;background:var(--hi);border-radius:50%;display:inline-block;transform:translateY(-2px);box-shadow:0 0 8px var(--hi)}
 .brand .tag{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.18em}
 .tour-banner{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;text-align:center;position:relative;padding:6px 28px}
@@ -1389,10 +1401,15 @@ body.print-stage-mode #stagePrintArea{
 
 /* ============ PHONE DATE PICKER ============ */
 .phone-date-trigger{
-  display:flex;align-items:center;gap:6px;padding:0;background:transparent;border:0;cursor:pointer;
+  display:flex;align-items:center;gap:10px;padding:0;background:transparent;border:0;cursor:pointer;
   text-align:left;flex:1;min-width:0;
 }
 .phone-date-trigger:hover .phone-trigger-chev{color:var(--hi)}
+/* Avatar logo (rabbit mark) sits to the left of the city + day stamp on
+   the crew/mobile preview header. Square crop, soft copper drop-shadow. */
+.phone-avatar{flex:0 0 auto;width:34px;height:34px;border-radius:8px;object-fit:cover;
+  background:rgba(232,148,58,.06);border:1px solid rgba(232,148,58,.2);
+  filter:drop-shadow(0 0 6px rgba(232,148,58,.18))}
 .phone-trigger-chev{color:var(--warm-mute);font-size:12px;flex:none;transition:transform .15s,color .15s}
 .phone-app-bar.menu-open .phone-trigger-chev{transform:rotate(180deg);color:var(--hi)}
 
@@ -2079,8 +2096,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
   <div class="landing-bg"></div>
   <div class="landing-content">
     <div class="landing-brand">
-      <span class="lb-mark"></span>
-      <span class="lb-name">BANDMATE</span>
+      <img src="logo.png" class="brand-logo brand-logo-xl landing-logo" alt="Bandmate" />
       <span class="lb-version">v0.3</span>
     </div>
 
@@ -2110,7 +2126,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 <div class="login-overlay" id="loginScreen" hidden>
   <div class="login-card">
     <div class="login-brand">
-      <span class="b">BANDMATE</span><span class="dot"></span>
+      <img src="logo.png" class="brand-logo brand-logo-lg" alt="Bandmate" />
     </div>
 
     <div id="loginAccountsBlock"></div>
@@ -2148,7 +2164,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 <div class="onboard-overlay" id="onboarding">
   <div class="onboard">
     <div class="ob-hero">
-      <div class="brand-big">BANDMATE<span class="dot"></span></div>
+      <div class="brand-big"><img src="logo.png" class="brand-logo brand-logo-xl" alt="Bandmate" /></div>
       <p>Tour management for the road. Build your tour day by day — schedules, hotels, guest lists, set lists, contacts, settlements. Synced to your crew's phones.</p>
     </div>
 
@@ -2184,7 +2200,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
     <div class="laminate-wrap">
       <div class="laminate">
         <div class="brand">
-          <span class="b">BANDMATE</span><span class="dot"></span>
+          <img src="logo.png" class="brand-logo" alt="Bandmate" />
           <span class="tag">v0.3 · OPS</span>
         </div>
       </div>
@@ -2303,6 +2319,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
           </div>
           <div class="phone-app-bar">
             <button type="button" class="phone-date-trigger" onclick="togglePhoneDateMenu()">
+              <img src="avatar.png" class="phone-avatar" alt="" />
               <div class="city" id="phCity">—<small id="phSub">—</small></div>
               <span class="phone-trigger-chev">▾</span>
             </button>
