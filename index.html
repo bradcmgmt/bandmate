@@ -2854,6 +2854,32 @@ async function _modalSubmit() {
 /* =====================================================================
    DATE CRUD
    ===================================================================== */
+// Show/hide venue + show-day fields based on the selected status. Wired to
+// the status <select>'s onchange so the form reshapes interactively when
+// the TM picks "Day off" / "Travel day" / "Press day" instead of "Show day".
+function _dateModalApplyStatus() {
+  const sel = document.getElementById('d_status');
+  if (!sel) return;
+  const status = sel.value;
+  const grid = document.getElementById('d_grid');
+  if (!grid) return;
+  const isShow = status === 'show';
+  const isPress = status === 'press';
+  // Show-day fields (capacity, promoter, doors, set time, load-in, soundcheck)
+  // visible only when status is 'show'. Venue field stays for show + press.
+  grid.querySelectorAll('[data-show-day]').forEach(el => {
+    const isVenueRow = el.querySelector('#d_venue');
+    if (isVenueRow) {
+      el.hidden = !(isShow || isPress);
+    } else {
+      el.hidden = !isShow;
+    }
+  });
+  // Press day relabels the venue field to "Press location" so it reads naturally.
+  const venueLbl = document.getElementById('d_venue_lbl');
+  if (venueLbl) venueLbl.textContent = isPress ? 'Press location' : 'Venue';
+}
+
 function openDateModal(id) {
   const editing = id ? T().dates.find(d => d.id === id) : null;
   const d = editing || { date: '', city: '', state: '', country: '', venue: '', capacity: '', status: 'show', doors: '', setTime: '', loadIn: '', soundcheck: '', promoter: '', notes: '' };
@@ -2863,10 +2889,10 @@ function openDateModal(id) {
     showDelete: !!editing,
     onDelete: editing ? () => deleteDate(editing.id) : null,
     body: `
-      <div class="form-grid">
+      <div class="form-grid" id="d_grid">
         <div class="field"><label>Date *</label><input type="date" id="d_date" value="${esc(d.date)}"></div>
         <div class="field"><label>Status</label>
-          <select id="d_status">
+          <select id="d_status" onchange="_dateModalApplyStatus()">
             <option value="show" ${d.status==='show'?'selected':''}>Show day</option>
             <option value="travel" ${d.status==='travel'?'selected':''}>Travel day</option>
             <option value="off" ${d.status==='off'?'selected':''}>Day off</option>
@@ -2875,23 +2901,37 @@ function openDateModal(id) {
         </div>
         <div class="field"><label>City *</label><input id="d_city" value="${esc(d.city)}"></div>
         <div class="field"><label>State / Region</label><input id="d_state" value="${esc(d.state)}" placeholder="e.g. NY, ON"></div>
-        <div class="field full"><label>Venue</label><input id="d_venue" value="${esc(d.venue)}"></div>
-        <div class="field"><label>Capacity</label><input type="number" id="d_cap" value="${esc(d.capacity)}"></div>
-        <div class="field"><label>Promoter</label><input id="d_prom" value="${esc(d.promoter)}"></div>
-        <div class="field"><label>Doors</label><input id="d_doors" value="${esc(d.doors)}" placeholder="HH:MM"></div>
-        <div class="field"><label>Set time</label><input id="d_set" value="${esc(d.setTime)}" placeholder="HH:MM"></div>
-        <div class="field"><label>Load-in</label><input id="d_load" value="${esc(d.loadIn)}" placeholder="HH:MM"></div>
-        <div class="field"><label>Soundcheck</label><input id="d_sc" value="${esc(d.soundcheck)}" placeholder="HH:MM"></div>
+        <div class="field full" data-show-day data-press-day><label id="d_venue_lbl">Venue</label><input id="d_venue" value="${esc(d.venue)}"></div>
+        <div class="field" data-show-day><label>Capacity</label><input type="number" id="d_cap" value="${esc(d.capacity)}"></div>
+        <div class="field" data-show-day><label>Promoter</label><input id="d_prom" value="${esc(d.promoter)}"></div>
+        <div class="field" data-show-day><label>Doors</label><input id="d_doors" value="${esc(d.doors)}" placeholder="HH:MM"></div>
+        <div class="field" data-show-day><label>Set time</label><input id="d_set" value="${esc(d.setTime)}" placeholder="HH:MM"></div>
+        <div class="field" data-show-day><label>Load-in</label><input id="d_load" value="${esc(d.loadIn)}" placeholder="HH:MM"></div>
+        <div class="field" data-show-day><label>Soundcheck</label><input id="d_sc" value="${esc(d.soundcheck)}" placeholder="HH:MM"></div>
         <div class="field full"><label>Notes</label><textarea id="d_notes">${esc(d.notes)}</textarea></div>
       </div>
     `,
     submitLabel: editing ? 'Save changes' : 'Add date',
     onSubmit: () => {
+      const status = $('#d_status').value;
+      const isShow = status === 'show';
+      const isPress = status === 'press';
+      const showsVenue = isShow || isPress;
+      // For non-show / non-press statuses, leave hidden fields alone (they
+      // collect '' from the unrendered inputs anyway, but keep the existing
+      // value when editing in case the TM toggles status back later).
+      const get = (sel) => { const el = $(sel); return el ? el.value.trim() : ''; };
       const data = {
         date: $('#d_date').value, city: $('#d_city').value.trim(), state: $('#d_state').value.trim(),
-        venue: $('#d_venue').value.trim(), capacity: $('#d_cap').value.trim(), status: $('#d_status').value,
-        promoter: $('#d_prom').value.trim(), doors: $('#d_doors').value.trim(), setTime: $('#d_set').value.trim(),
-        loadIn: $('#d_load').value.trim(), soundcheck: $('#d_sc').value.trim(), notes: $('#d_notes').value.trim(),
+        venue: showsVenue ? get('#d_venue') : (editing ? editing.venue : ''),
+        capacity: isShow ? get('#d_cap') : (editing ? editing.capacity : ''),
+        status,
+        promoter: isShow ? get('#d_prom') : (editing ? editing.promoter : ''),
+        doors: isShow ? get('#d_doors') : (editing ? editing.doors : ''),
+        setTime: isShow ? get('#d_set') : (editing ? editing.setTime : ''),
+        loadIn: isShow ? get('#d_load') : (editing ? editing.loadIn : ''),
+        soundcheck: isShow ? get('#d_sc') : (editing ? editing.soundcheck : ''),
+        notes: $('#d_notes').value.trim(),
       };
       if (!data.date || !data.city) { toast('Date and city required', 'error'); return false; }
       if (editing) {
@@ -2910,6 +2950,9 @@ function openDateModal(id) {
       saveState();
     }
   });
+  // Apply field visibility based on the (possibly-existing) status as soon
+  // as the modal mounts.
+  setTimeout(() => { try { _dateModalApplyStatus(); } catch(e) {} }, 30);
 }
 
 function deleteDate(id) {
@@ -10366,6 +10409,7 @@ Object.assign(window, {
   openFeedbackModal, submitFeedback,
   scanTour, openTourScan, rescanTourAnimated, calcLiveDateGaps,
   openImportData, _idzAddFiles, _idzRemove, _idzClear, _idzAnalyze, _idzMergeNow,
+  _dateModalApplyStatus,
   rbReflect, rbReflectReset,
   toggleSchedTemplateMenu, closeSchedTemplateMenu,
   saveScheduleAsTemplate, applyScheduleTemplate, renameScheduleTemplate, deleteScheduleTemplate,
