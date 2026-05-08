@@ -3581,7 +3581,7 @@ function renderDashboard() {
     reviewBanner = `
       <div class="rescan-nudge">
         <span>✓ All dates fully populated — re-scan to confirm tour status.</span>
-        <button type="button" class="scan-btn" onclick="rescanTourAnimated(this)">↻ Re-scan tour</button>
+        <button type="button" onclick="openTourScan()">↻ Re-scan tour</button>
       </div>
     `;
   } else {
@@ -3589,7 +3589,7 @@ function renderDashboard() {
     reviewBanner = `
       <div class="rescan-nudge">
         <span>✓ This date is complete. <b>${datesWithGaps.length}</b> other date${datesWithGaps.length===1?'':'s'} still need${datesWithGaps.length===1?'s':''} attention.</span>
-        <button type="button" class="scan-btn" onclick="rescanTourAnimated(this)">↻ Re-scan tour</button>
+        <button type="button" onclick="openTourScan()">↻ Re-scan tour</button>
       </div>
     `;
   }
@@ -3600,7 +3600,7 @@ function renderDashboard() {
       <h2>${esc(ad.city)}</h2>
       <span class="crumb">/ DASHBOARD / ${fmtDate(ad.date).toUpperCase()}</span>
       <span class="stamp">${status}</span>
-      <button type="button" class="tb-btn primary scan-btn" onclick="rescanTourAnimated(this)" style="margin-left:auto">⌕ Scan tour</button>
+      <button type="button" class="tb-btn primary" onclick="openTourScan()" style="margin-left:auto">⌕ Scan tour</button>
     </div>
 
     <div class="dash-hero">
