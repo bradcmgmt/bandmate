@@ -305,10 +305,20 @@ input,select,textarea{font:inherit;color:inherit}
 .day-sheet .row .t{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;color:var(--hi)}
 .day-sheet .row .what{font-size:13px;font-weight:600;color:var(--warm)}
 .day-sheet .row .who{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.14em;text-transform:uppercase}
-.day-sheet .meta{margin-top:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding-top:14px;border-top:1px solid rgba(232,148,58,.12)}
+.day-sheet .meta{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 14px;padding-top:14px;border-top:1px solid rgba(232,148,58,.12)}
 .day-sheet .meta .m{display:flex;flex-direction:column;gap:3px}
 .day-sheet .meta .m .l{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm-mute)}
 .day-sheet .meta .m .v{font-size:13px;font-weight:700;color:var(--warm)}
+.day-sheet .meta .hop-sub{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.04em;
+  color:var(--warm-mute);font-weight:500;margin-top:2px;line-height:1.4}
+.day-sheet .meta .hop-sub .hop-key{color:var(--warm-mute);margin-right:3px;text-transform:uppercase;letter-spacing:.16em;font-size:9.5px}
+.day-sheet .meta .hop-sub .hop-val{color:var(--warm);font-weight:700}
+.day-sheet .meta .hop-sub .hop-dot{display:inline-block;width:6px;height:6px;border-radius:50%;
+  margin-right:5px;vertical-align:middle;transform:translateY(-1px)}
+.day-sheet .meta .hop-sub .hop-dot.good{background:#6dcf8b;box-shadow:0 0 5px rgba(109,207,139,.5)}
+.day-sheet .meta .hop-sub .hop-dot.warn{background:#f5a64e;box-shadow:0 0 5px rgba(245,166,78,.5)}
+.day-sheet .meta .hop-preview .hop-sub{margin-top:3px}
+.day-sheet .meta .hop-preview .v{font-size:14px}
 
 .snapshot{display:grid;grid-template-rows:auto 1fr;gap:14px}
 .alerts,.route{background:linear-gradient(180deg,rgba(24,17,11,.9),rgba(17,12,8,.9));
@@ -2317,6 +2327,134 @@ function todayISO() {
   const d = new Date();
   return d.toISOString().slice(0, 10);
 }
+// Lookup of common touring-circuit cities to lat/lng so we can give the TM
+// a quick city-to-city mileage estimate without hitting any external API.
+// Coverage is broad strokes: major US/Canadian markets, top European
+// touring cities, plus the festival-circuit hubs. Unknown cities just
+// surface a clear "estimate unavailable" hint.
+const CITY_COORDS = {
+  // United States
+  'new york,ny':[40.7128,-74.0060],'brooklyn,ny':[40.6782,-73.9442],'queens,ny':[40.7282,-73.7949],'buffalo,ny':[42.8864,-78.8784],'rochester,ny':[43.1566,-77.6088],'albany,ny':[42.6526,-73.7562],'syracuse,ny':[43.0481,-76.1474],
+  'boston,ma':[42.3601,-71.0589],'cambridge,ma':[42.3736,-71.1097],'worcester,ma':[42.2626,-71.8023],
+  'philadelphia,pa':[39.9526,-75.1652],'pittsburgh,pa':[40.4406,-79.9959],'harrisburg,pa':[40.2732,-76.8867],
+  'washington,dc':[38.9072,-77.0369],'baltimore,md':[39.2904,-76.6122],
+  'richmond,va':[37.5407,-77.4360],'norfolk,va':[36.8508,-76.2859],'charlottesville,va':[38.0293,-78.4767],
+  'raleigh,nc':[35.7796,-78.6382],'charlotte,nc':[35.2271,-80.8431],'durham,nc':[35.9940,-78.8986],'asheville,nc':[35.5951,-82.5515],'wilmington,nc':[34.2257,-77.9447],
+  'columbia,sc':[34.0007,-81.0348],'charleston,sc':[32.7765,-79.9311],
+  'atlanta,ga':[33.7490,-84.3880],'savannah,ga':[32.0809,-81.0912],'athens,ga':[33.9519,-83.3576],
+  'jacksonville,fl':[30.3322,-81.6557],'orlando,fl':[28.5383,-81.3792],'tampa,fl':[27.9506,-82.4572],'miami,fl':[25.7617,-80.1918],'st petersburg,fl':[27.7676,-82.6403],
+  'birmingham,al':[33.5186,-86.8104],'huntsville,al':[34.7304,-86.5861],'mobile,al':[30.6954,-88.0399],
+  'nashville,tn':[36.1627,-86.7816],'memphis,tn':[35.1495,-90.0490],'knoxville,tn':[35.9606,-83.9207],'chattanooga,tn':[35.0456,-85.3097],
+  'louisville,ky':[38.2527,-85.7585],'lexington,ky':[38.0406,-84.5037],
+  'indianapolis,in':[39.7684,-86.1581],'fort wayne,in':[41.0793,-85.1394],'bloomington,in':[39.1653,-86.5264],
+  'cincinnati,oh':[39.1031,-84.5120],'columbus,oh':[39.9612,-82.9988],'cleveland,oh':[41.4993,-81.6944],'toledo,oh':[41.6528,-83.5379],
+  'detroit,mi':[42.3314,-83.0458],'grand rapids,mi':[42.9634,-85.6681],'lansing,mi':[42.7325,-84.5555],'ann arbor,mi':[42.2808,-83.7430],
+  'chicago,il':[41.8781,-87.6298],'rockford,il':[42.2711,-89.0940],'springfield,il':[39.7817,-89.6501],
+  'milwaukee,wi':[43.0389,-87.9065],'madison,wi':[43.0731,-89.4012],'green bay,wi':[44.5133,-88.0133],
+  'minneapolis,mn':[44.9778,-93.2650],'st paul,mn':[44.9537,-93.0900],
+  'des moines,ia':[41.5868,-93.6250],'iowa city,ia':[41.6611,-91.5302],
+  'kansas city,mo':[39.0997,-94.5786],'st louis,mo':[38.6270,-90.1994],'springfield,mo':[37.2090,-93.2923],
+  'oklahoma city,ok':[35.4676,-97.5164],'tulsa,ok':[36.1540,-95.9928],
+  'dallas,tx':[32.7767,-96.7970],'houston,tx':[29.7604,-95.3698],'austin,tx':[30.2672,-97.7431],'san antonio,tx':[29.4241,-98.4936],'fort worth,tx':[32.7555,-97.3308],'el paso,tx':[31.7619,-106.4850],'lubbock,tx':[33.5779,-101.8552],
+  'new orleans,la':[29.9511,-90.0715],'baton rouge,la':[30.4515,-91.1871],
+  'little rock,ar':[34.7465,-92.2896],'fayetteville,ar':[36.0822,-94.1719],
+  'jackson,ms':[32.2988,-90.1848],
+  'denver,co':[39.7392,-104.9903],'colorado springs,co':[38.8339,-104.8214],'boulder,co':[40.0150,-105.2705],'fort collins,co':[40.5853,-105.0844],
+  'salt lake city,ut':[40.7608,-111.8910],'park city,ut':[40.6461,-111.4980],
+  'phoenix,az':[33.4484,-112.0740],'tucson,az':[32.2226,-110.9747],'tempe,az':[33.4255,-111.9400],'flagstaff,az':[35.1983,-111.6513],
+  'albuquerque,nm':[35.0844,-106.6504],'santa fe,nm':[35.6870,-105.9378],
+  'las vegas,nv':[36.1699,-115.1398],'reno,nv':[39.5296,-119.8138],
+  'los angeles,ca':[34.0522,-118.2437],'san francisco,ca':[37.7749,-122.4194],'san diego,ca':[32.7157,-117.1611],'san jose,ca':[37.3382,-121.8863],'oakland,ca':[37.8044,-122.2712],'sacramento,ca':[38.5816,-121.4944],'fresno,ca':[36.7378,-119.7871],'long beach,ca':[33.7701,-118.1937],'anaheim,ca':[33.8366,-117.9143],'santa cruz,ca':[36.9741,-122.0308],'pomona,ca':[34.0551,-117.7500],
+  'portland,or':[45.5152,-122.6784],'eugene,or':[44.0521,-123.0868],'bend,or':[44.0582,-121.3153],
+  'seattle,wa':[47.6062,-122.3321],'tacoma,wa':[47.2529,-122.4443],'spokane,wa':[47.6588,-117.4260],
+  'boise,id':[43.6150,-116.2023],
+  'billings,mt':[45.7833,-108.5007],'missoula,mt':[46.8721,-113.9940],'bozeman,mt':[45.6770,-111.0429],
+  'omaha,ne':[41.2565,-95.9345],'lincoln,ne':[40.8136,-96.7026],
+  'sioux falls,sd':[43.5446,-96.7311],'fargo,nd':[46.8772,-96.7898],
+  'anchorage,ak':[61.2181,-149.9003],'honolulu,hi':[21.3069,-157.8583],
+  'asbury park,nj':[40.2204,-74.0121],'newark,nj':[40.7357,-74.1724],'atlantic city,nj':[39.3643,-74.4229],'hoboken,nj':[40.7440,-74.0324],
+  'wilmington,de':[39.7391,-75.5398],'manchester,nh':[42.9956,-71.4548],'portland,me':[43.6591,-70.2568],'burlington,vt':[44.4759,-73.2121],'providence,ri':[41.8240,-71.4128],'hartford,ct':[41.7658,-72.6734],'new haven,ct':[41.3083,-72.9279],
+  'morgantown,wv':[39.6295,-79.9559],'charleston,wv':[38.3498,-81.6326],
+  // Canada
+  'toronto,on':[43.6532,-79.3832],'montreal,qc':[45.5017,-73.5673],'ottawa,on':[45.4215,-75.6972],'vancouver,bc':[49.2827,-123.1207],'calgary,ab':[51.0447,-114.0719],'edmonton,ab':[53.5461,-113.4938],'winnipeg,mb':[49.8951,-97.1384],'quebec city,qc':[46.8139,-71.2080],'halifax,ns':[44.6488,-63.5752],'hamilton,on':[43.2557,-79.8711],'london,on':[42.9849,-81.2453],'victoria,bc':[48.4284,-123.3656],'saskatoon,sk':[52.1332,-106.6700],
+  // UK / Europe
+  'london,uk':[51.5074,-0.1278],'london,gb':[51.5074,-0.1278],'manchester,uk':[53.4808,-2.2426],'birmingham,uk':[52.4862,-1.8904],'glasgow,uk':[55.8642,-4.2518],'edinburgh,uk':[55.9533,-3.1883],'liverpool,uk':[53.4084,-2.9916],'bristol,uk':[51.4545,-2.5879],'dublin,ie':[53.3498,-6.2603],
+  'amsterdam,nl':[52.3676,4.9041],'rotterdam,nl':[51.9244,4.4777],
+  'paris,fr':[48.8566,2.3522],'lyon,fr':[45.7640,4.8357],'marseille,fr':[43.2965,5.3698],
+  'berlin,de':[52.5200,13.4050],'hamburg,de':[53.5511,9.9937],'munich,de':[48.1351,11.5820],'cologne,de':[50.9375,6.9603],'frankfurt,de':[50.1109,8.6821],
+  'madrid,es':[40.4168,-3.7038],'barcelona,es':[41.3851,2.1734],
+  'rome,it':[41.9028,12.4964],'milan,it':[45.4642,9.1900],
+  'vienna,at':[48.2082,16.3738],'zurich,ch':[47.3769,8.5417],'brussels,be':[50.8503,4.3517],'copenhagen,dk':[55.6761,12.5683],'stockholm,se':[59.3293,18.0686],'oslo,no':[59.9139,10.7522],'helsinki,fi':[60.1699,24.9384],'warsaw,pl':[52.2297,21.0122],'prague,cz':[50.0755,14.4378],
+  // Australia / NZ / Asia / Latin America (sparse coverage)
+  'sydney,nsw':[-33.8688,151.2093],'melbourne,vic':[-37.8136,144.9631],'brisbane,qld':[-27.4698,153.0251],'perth,wa':[-31.9505,115.8605],'auckland,nz':[-36.8485,174.7633],
+  'tokyo,jp':[35.6762,139.6503],'osaka,jp':[34.6937,135.5023],
+  'mexico city,mx':[19.4326,-99.1332],'monterrey,mx':[25.6866,-100.3161],
+  'sao paulo,br':[-23.5505,-46.6333],'rio de janeiro,br':[-22.9068,-43.1729],
+};
+
+// Haversine distance between two [lat,lng] pairs, returned in miles.
+function _haversineMiles(a, b) {
+  const R = 3958.8; // Earth radius in miles
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(b[0] - a[0]);
+  const dLon = toRad(b[1] - a[1]);
+  const lat1 = toRad(a[0]), lat2 = toRad(b[0]);
+  const x = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+
+// Resolve a tour-date row's city into [lat,lng] using the lookup, with a few
+// gentle normalizations (lowercase, strip suffix in venue names, try city
+// without state). Returns null if we can't locate it.
+function _coordsFor(city, state) {
+  if (!city) return null;
+  const c = String(city).toLowerCase().trim().replace(/\s+/g,' ');
+  const s = String(state || '').toLowerCase().trim();
+  if (s) {
+    const k = `${c},${s}`;
+    if (CITY_COORDS[k]) return CITY_COORDS[k];
+  }
+  // Try every entry where the city portion matches — disambiguates weakly
+  // when the state is missing (unusual for tours but possible).
+  const matches = Object.keys(CITY_COORDS).filter(k => k.split(',')[0] === c);
+  if (matches.length === 1) return CITY_COORDS[matches[0]];
+  return null;
+}
+
+// Format minutes as "Xh Ym" or "Ym" for short hops. Returns "—" for null.
+function _fmtDuration(mins) {
+  if (mins == null || isNaN(mins)) return '—';
+  const m = Math.round(mins);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return r ? `${h}h ${r}m` : `${h}h`;
+}
+
+// Public helper used by the dashboard. Returns:
+//   { miles, driveClear, driveTraffic, prompt }
+// `miles` is straight-line air miles. `driveClear` and `driveTraffic` are
+// minutes — derived by bumping the air miles to a typical road-route ratio
+// (~1.18×) and dividing by 62 mph for clear, then adding ~22% for traffic.
+// All numbers are estimates and labeled as such in the UI.
+function nextHopMileage(currentDate, nextDate) {
+  if (!nextDate) return { miles: null, prompt: 'End of tour' };
+  if (!nextDate.city) return { miles: null, prompt: 'Add a city for the next date to estimate the drive' };
+  if (!currentDate || !currentDate.city) return { miles: null, prompt: 'Add a city for this date to estimate the drive' };
+  const a = _coordsFor(currentDate.city, currentDate.state);
+  const b = _coordsFor(nextDate.city, nextDate.state);
+  if (!a || !b) return { miles: null, prompt: `Estimate unavailable — ${(!a ? esc(currentDate.city) : esc(nextDate.city))} not in our city map` };
+  const airMiles = _haversineMiles(a, b);
+  const miles = Math.round(airMiles);
+  // Air miles → road miles (typical detour factor on US highway grid is ~18%).
+  const roadMiles = airMiles * 1.18;
+  // Highway average speed for a tour bus / van is roughly 62 mph including
+  // fuel + crew stops on long hauls; short hops creep lower in traffic.
+  const driveClear = (roadMiles / 62) * 60;       // minutes
+  const driveTraffic = driveClear * 1.22;         // ~22% friction
+  return { miles, driveClear, driveTraffic, prompt: null };
+}
+
 // Add N days to an ISO date string (YYYY-MM-DD). Returns '' if input is invalid.
 function addDaysISO(iso, n) {
   if (!iso || typeof iso !== 'string') return '';
@@ -2785,6 +2923,109 @@ function deleteScheduleTemplate(tplId) {
   saveState();
   toast('Template deleted');
   renderSchedule();
+}
+
+/* =====================================================================
+   TRAVEL TEMPLATES — same pattern as schedule templates, scoped to travel
+   items. Useful for full travel days (bus call, OT bus → next city, all-day
+   travel rotations) that recur across many tour dates.
+   ===================================================================== */
+let _travelTemplateMenuOpen = false;
+function toggleTravelTemplateMenu() {
+  _travelTemplateMenuOpen = !_travelTemplateMenuOpen;
+  const menu = document.getElementById('travelTemplateMenu');
+  if (menu) menu.hidden = !_travelTemplateMenuOpen;
+}
+function closeTravelTemplateMenu() {
+  _travelTemplateMenuOpen = false;
+  const menu = document.getElementById('travelTemplateMenu');
+  if (menu) menu.hidden = true;
+}
+
+function saveTravelAsTemplate() {
+  const ad = getActiveDate();
+  if (!ad) return;
+  if (!ad.travel || !ad.travel.length) {
+    toast('No travel items on this day to save', 'error');
+    closeTravelTemplateMenu();
+    return;
+  }
+  const defaultName = ad.status === 'travel' ? 'Travel day · standard' : `${ad.city || 'Untitled'} travel`;
+  const name = prompt('Template name:', defaultName);
+  if (!name || !name.trim()) { closeTravelTemplateMenu(); return; }
+  if (!T().travelTemplates) T().travelTemplates = [];
+  // Strip ids; preserve type, description, time, allDay, conf, person, notes,
+  // groups, individuals so all visibility/audience info travels with the template.
+  const items = ad.travel.map(t => {
+    const { id, ...rest } = t;
+    return rest;
+  });
+  T().travelTemplates.push({
+    id: uid('ttpl'),
+    name: name.trim(),
+    items,
+    createdAt: Date.now(),
+  });
+  saveState();
+  closeTravelTemplateMenu();
+  toast(`Saved travel template "${name.trim()}"`, 'good');
+  renderTravel();
+}
+
+function applyTravelTemplate(tplId) {
+  const ad = getActiveDate();
+  if (!ad) return;
+  const tpl = (T().travelTemplates || []).find(t => t.id === tplId);
+  if (!tpl) return;
+  const existing = (ad.travel || []).length;
+  let mode = 'append';
+  if (existing) {
+    const choice = prompt(
+      `This day already has ${existing} travel item${existing===1?'':'s'}.\n\n` +
+      `Type "REPLACE" to clear and load the template,\n` +
+      `or press OK to append the template's ${tpl.items.length} item${tpl.items.length===1?'':'s'}.`,
+      'append'
+    );
+    if (choice === null) { closeTravelTemplateMenu(); return; }
+    if (choice.trim().toUpperCase() === 'REPLACE') mode = 'replace';
+  }
+  if (mode === 'replace') ad.travel = [];
+  if (!ad.travel) ad.travel = [];
+  tpl.items.forEach(it => {
+    ad.travel.push({ id: uid('tv'), ...it });
+  });
+  // All-day travel pinned to top, then sort by time
+  ad.travel.sort((a, b) => {
+    if (a.allDay && !b.allDay) return -1;
+    if (b.allDay && !a.allDay) return 1;
+    return (a.time || 'zz').localeCompare(b.time || 'zz');
+  });
+  saveState();
+  closeTravelTemplateMenu();
+  toast(`Applied "${tpl.name}" · ${tpl.items.length} move${tpl.items.length===1?'':'s'} ${mode==='replace'?'replaced':'added'}`, 'good');
+  renderTravel();
+}
+
+function renameTravelTemplate(tplId) {
+  const tpl = (T().travelTemplates || []).find(t => t.id === tplId);
+  if (!tpl) return;
+  const next = prompt('Rename template:', tpl.name);
+  if (next == null) return;
+  const trimmed = next.trim();
+  if (!trimmed) return;
+  tpl.name = trimmed;
+  saveState();
+  renderTravel();
+}
+
+function deleteTravelTemplate(tplId) {
+  const tpl = (T().travelTemplates || []).find(t => t.id === tplId);
+  if (!tpl) return;
+  if (!confirm(`Delete travel template "${tpl.name}"? This can't be undone.`)) return;
+  T().travelTemplates = (T().travelTemplates || []).filter(t => t.id !== tplId);
+  saveState();
+  toast('Travel template deleted');
+  renderTravel();
 }
 
 function openScheduleModal(itemId) {
@@ -3752,7 +3993,64 @@ function renderDashboard() {
   const hotelMeta = hotel ? `${esc(hotel.name)}${hotel.checkOut ? ' · check-out ' + esc(hotel.checkOut) : ''}` : 'Not added yet';
   const promoter = ad.promoter || 'Not set';
   const nextDate = T().dates[T().dates.findIndex(d => d.id === ad.id) + 1];
-  const nextHop = nextDate ? `${fmtMD(nextDate.date)} → ${esc(nextDate.city)}` : 'End of tour';
+  // City-to-city mileage estimate (Haversine on a built-in city lookup —
+  // straight-line air miles, not driving distance, so we always label it as
+  // an estimate). If there's no next date or the next city is missing we
+  // surface a prompt instead of a silent blank.
+  const hop = nextHopMileage(ad, nextDate);
+
+  // Build the "Tomorrow / Next stop" preview tile — a small window into the
+  // following date's basics (city, venue, capacity, doors / set time) so the
+  // TM has next-day context without leaving the dashboard.
+  let nextPreviewMeta;
+  if (!nextDate) {
+    nextPreviewMeta = `<div class="m hop-preview"><div class="l">Tomorrow</div><div class="v" style="color:var(--warm-mute);font-style:italic;font-size:12.5px">End of tour</div></div>`;
+  } else if (!nextDate.city) {
+    nextPreviewMeta = `<div class="m hop-preview field-warn" style="cursor:pointer" onclick="openDateModal('${nextDate.id}')">
+      <div class="l">Tomorrow · ${fmtMD(nextDate.date)}</div>
+      <div class="v" style="font-size:12px;color:#fdba74">City not set — click to add →</div>
+    </div>`;
+  } else {
+    const subBits = [];
+    if (nextDate.venue) subBits.push(esc(nextDate.venue));
+    if (nextDate.capacity) subBits.push(`Cap ${esc(String(nextDate.capacity))}`);
+    const timeBits = [];
+    if (nextDate.doors) timeBits.push(`Doors ${esc(nextDate.doors)}`);
+    if (nextDate.setTime) timeBits.push(`Set ${esc(nextDate.setTime)}`);
+    const nextStatus = (nextDate.status || 'show').toLowerCase();
+    const statusLabel = nextStatus === 'off' ? 'Day off' : nextStatus === 'travel' ? 'Travel day' : nextStatus === 'press' ? 'Press' : null;
+    nextPreviewMeta = `<div class="m hop-preview">
+      <div class="l">Tomorrow · ${fmtMD(nextDate.date)} · ${dow(nextDate.date)}</div>
+      <div class="v" style="line-height:1.25">${esc(nextDate.city)}${nextDate.state ? ', ' + esc(nextDate.state) : ''}</div>
+      ${subBits.length ? `<div class="hop-sub">${subBits.join(' · ')}</div>` : ''}
+      ${timeBits.length ? `<div class="hop-sub">${timeBits.join(' · ')}</div>` : (statusLabel ? `<div class="hop-sub" style="color:var(--warm-mute);font-style:italic">${statusLabel}</div>` : '')}
+    </div>`;
+  }
+
+  // Mileage / drive-time tile — shows miles plus two drive-time estimates
+  // (clear and with traffic). Always labeled as an estimate.
+  let mileageMeta;
+  if (hop.miles != null) {
+    mileageMeta = `<div class="m hop-tile">
+      <div class="l">Drive to next <span class="muted mono" style="font-size:9px;color:var(--warm-mute);font-style:italic;letter-spacing:.06em">est · city to city</span></div>
+      <div class="v"><span style="font-family:'JetBrains Mono',monospace;font-weight:700">${hop.miles.toLocaleString()}</span> <span style="color:var(--warm-mute);font-size:11px">mi</span></div>
+      <div class="hop-sub" style="display:flex;gap:14px;flex-wrap:wrap;margin-top:4px">
+        <span><span class="hop-dot good"></span><span class="hop-key">Clear</span> <span class="hop-val">${_fmtDuration(hop.driveClear)}</span></span>
+        <span><span class="hop-dot warn"></span><span class="hop-key">Traffic</span> <span class="hop-val">${_fmtDuration(hop.driveTraffic)}</span></span>
+      </div>
+    </div>`;
+  } else if (hop.prompt && hop.prompt !== 'End of tour') {
+    const targetId = nextDate ? nextDate.id : null;
+    mileageMeta = `<div class="m hop-tile field-warn" ${targetId ? `style="cursor:pointer" onclick="openDateModal('${targetId}')"` : ''}>
+      <div class="l">Drive to next</div>
+      <div class="v" style="font-size:12px;color:#fdba74">${esc(hop.prompt)}${targetId ? ' →' : ''}</div>
+    </div>`;
+  } else {
+    mileageMeta = `<div class="m hop-tile">
+      <div class="l">Drive to next</div>
+      <div class="v" style="color:var(--warm-mute);font-style:italic;font-size:12.5px">End of tour</div>
+    </div>`;
+  }
 
   // Live gap analysis for the active date (drives all the ⚠ markers below)
   const liveGaps = calcLiveDateGaps(ad);
@@ -3826,7 +4124,8 @@ function renderDashboard() {
         <div class="meta">
           ${(ad.status === 'show' || ad.status === 'press') ? `<div class="m"><div class="l">Promoter</div><div class="v">${esc(promoter)}</div></div>` : ''}
           <div class="m${isOrGap('hotel or travel') ? ' field-warn-or' : (isMissing('hotel')||isMissing('hotel rooms') ? ' field-warn' : '')}"><div class="l">Hotel${isOrGap('hotel or travel') ? ' <span class="muted mono" style="font-size:10px;color:#8aa9d8">(or travel)</span>' : ''}</div><div class="v">${esc(hotelMeta)}</div></div>
-          <div class="m"><div class="l">Next stop</div><div class="v">${esc(nextHop)}</div></div>
+          ${nextPreviewMeta}
+          ${mileageMeta}
         </div>
       </div>
 
@@ -3964,11 +4263,34 @@ function renderTravel() {
   if (!ad) { root.innerHTML = noDate(); return; }
 
   const items = ad.travel || [];
+  const tplsT = (T().travelTemplates || []);
   root.innerHTML = `
     <div class="section-title">
       <h2>Travel · ${esc(ad.city || (ad.status==='off' ? 'Day off' : 'Travel'))}</h2>
       <span class="crumb">/ ${fmtDate(ad.date).toUpperCase()}</span>
       <span class="stamp">${items.length} MOVES</span>
+      <div class="sched-template-wrap" id="travelTemplateWrap" style="position:relative;margin-left:auto">
+        <button type="button" class="add-btn" onclick="toggleTravelTemplateMenu()">⌜ Templates ${tplsT.length ? `· ${tplsT.length}` : ''} ▾</button>
+        <div class="sched-template-menu" id="travelTemplateMenu" hidden>
+          <button type="button" class="stm-item" onclick="saveTravelAsTemplate()">
+            <span class="stm-ic">+</span>
+            <span><div class="stm-h">Save current as template</div><div class="stm-s">${items.length} item${items.length===1?'':'s'} on this day</div></span>
+          </button>
+          ${tplsT.length ? `
+            <div class="stm-divider">Saved templates</div>
+            ${tplsT.map(t => `
+              <div class="stm-row">
+                <button type="button" class="stm-item stm-apply" onclick="applyTravelTemplate('${t.id}')">
+                  <span class="stm-ic">↓</span>
+                  <span><div class="stm-h">${esc(t.name)}</div><div class="stm-s">${t.items.length} item${t.items.length===1?'':'s'}${t.note ? ' · '+esc(t.note) : ''}</div></span>
+                </button>
+                <button type="button" class="stm-mini" title="Rename" onclick="event.stopPropagation();renameTravelTemplate('${t.id}')">✎</button>
+                <button type="button" class="stm-mini stm-del" title="Delete" onclick="event.stopPropagation();deleteTravelTemplate('${t.id}')">×</button>
+              </div>
+            `).join('')}
+          ` : `<div class="stm-empty">No saved templates yet — save your first travel day above</div>`}
+        </div>
+      </div>
       <button type="button" class="add-btn" onclick="openTravelModal()">+ Add travel</button>
     </div>
     ${items.length === 0 ? `
@@ -4719,8 +5041,13 @@ function renderViewerSelect() {
   if (!T().crew.find(c => c.id === viewerKey)) viewerKey = 'tm';
   sel.value = viewerKey;
   sel.onchange = e => { viewerKey = e.target.value; saveUIPrefs(); renderPhone(); };
+  // Reflect whatever's selected in the dropdown above — show the actual name
+  // of the crew member (or "Tour Manager") rather than a generic role label.
   const v = getCrewById(viewerKey);
-  $('#roleTag').textContent = v ? `VIEWING AS ${(v.role || v.type || 'CREW').toUpperCase()}` : '—';
+  const label = v
+    ? `${v.name}${v.role ? ' — ' + v.role : ''}`
+    : 'Tour Manager';
+  $('#roleTag').textContent = `VIEWING AS ${label.toUpperCase()}`;
 }
 
 function renderPhone() {
@@ -9301,6 +9628,9 @@ function init() {
       if (_schedTemplateMenuOpen && !e.target.closest('#schedTemplateWrap')) {
         closeSchedTemplateMenu();
       }
+      if (_travelTemplateMenuOpen && !e.target.closest('#travelTemplateWrap')) {
+        closeTravelTemplateMenu();
+      }
     });
   } catch (e) { console.error('outsideClick bind:', e); }
   try {
@@ -9343,6 +9673,8 @@ Object.assign(window, {
   rbReflect, rbReflectReset,
   toggleSchedTemplateMenu, closeSchedTemplateMenu,
   saveScheduleAsTemplate, applyScheduleTemplate, renameScheduleTemplate, deleteScheduleTemplate,
+  toggleTravelTemplateMenu, closeTravelTemplateMenu,
+  saveTravelAsTemplate, applyTravelTemplate, renameTravelTemplate, deleteTravelTemplate,
   openContactUpload, handleContactUpload, toggleAllDay,
   checkCrewEmailMatch, findUserByEmail, findCrewMatchesByEmail,
   confirmTyped,
