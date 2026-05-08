@@ -9615,7 +9615,9 @@ function calcLiveDateGaps(d) {
   if (!d.setTime) missing.push('set time');
   // promoter is optional — never flagged as missing
   if (!d.hotel) missing.push('hotel');
-  else if (!d.hotel.rooms || !d.hotel.rooms.length) missing.push('hotel rooms');
+  // Room assignments are optional — once a hotel property is logged for the
+  // night, the Hotels tab is considered complete. TMs add room blocks as a
+  // convenience, not a requirement, so it shouldn't drive a gap warning.
   if (!d.schedule || !d.schedule.length) missing.push('schedule');
   return missing;
 }
