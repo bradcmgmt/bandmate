@@ -2120,6 +2120,16 @@ function loadState() {
           if (isOffPlaceholder.includes(venueU)) d.venue = '';
           didOffMigrate = true;
         }
+        // Normalize stale imported statuses: anything that isn't one of the
+        // four canonical values gets coerced to 'show' if there's a venue or
+        // city. Fixes already-imported tours where Excel STATUS columns held
+        // values like CONFIRMED / ON SALE / HOLD that previously rendered as
+        // "PRESS" with no Show Day badge.
+        const s = String(d.status || '').toLowerCase().trim();
+        if (!['show','off','travel','press'].includes(s)) {
+          d.status = (d.venue || d.city) ? 'show' : 'show';
+          didOffMigrate = true;
+        }
       });
     });
     if (didOffMigrate) {
@@ -3579,9 +3589,16 @@ function renderDashboard() {
     `;
     return;
   }
-  const status = ad.status === 'show' ? 'SHOW NIGHT'
-    : ad.status === 'travel' ? 'TRAVEL DAY'
-    : ad.status === 'off' ? 'DAY OFF' : 'PRESS';
+  // Effective status — falls back to 'show' for any imported row that has a
+  // venue or city but an unrecognized status string (CONFIRMED, ON SALE, HOLD,
+  // etc. from external Excel sheets). Without this, real shows kept rendering
+  // as "PRESS" because 'press' was the catch-all branch.
+  const effectiveStatus = ['show','off','travel','press'].includes(ad.status)
+    ? ad.status
+    : ((ad.venue || ad.city) ? 'show' : 'show');
+  const status = effectiveStatus === 'show' ? 'SHOW NIGHT'
+    : effectiveStatus === 'travel' ? 'TRAVEL DAY'
+    : effectiveStatus === 'off' ? 'DAY OFF' : 'PRESS';
 
   // KPI computations
   const totalDates = T().dates.length;
@@ -3663,8 +3680,8 @@ function renderDashboard() {
 
     <div class="dash-hero">
       <div class="day-sheet">
-        ${ad.status === 'show' ? `<div class="ribbon ribbon-show" onmousemove="rbReflect(event,this)" onmouseleave="rbReflectReset(this)"><span class="rb-text">Show Day</span><span class="rb-shine"></span></div>` : ''}
-        <h3>${esc((ad.city || ad.status === 'off' ? 'DAY OFF' : 'TRAVEL').toUpperCase())} · DAY ${(T().dates.findIndex(d=>d.id===ad.id)+1).toString().padStart(2,'0')} / ${T().dates.length.toString().padStart(2,'0')}</h3>
+        ${effectiveStatus === 'show' ? `<div class="ribbon ribbon-show" onmousemove="rbReflect(event,this)" onmouseleave="rbReflectReset(this)"><span class="rb-text">Show Day</span><span class="rb-shine"></span></div>` : ''}
+        <h3>${esc((ad.status === 'off' ? 'DAY OFF' : ad.status === 'travel' ? 'TRAVEL' : ad.status === 'press' ? 'PRESS' : (ad.city || 'SHOW')).toUpperCase())} · DAY ${(T().dates.findIndex(d=>d.id===ad.id)+1).toString().padStart(2,'0')} / ${T().dates.length.toString().padStart(2,'0')}</h3>
         <div class="city">${ad.status === 'off' ? 'Day off' : ad.status === 'travel' ? 'Travel day' : esc(ad.venue || ad.city)}</div>
         ${ad.status === 'show' || ad.status === 'press' ? `
           <div class="venue">${ad.venue ? esc(ad.city) + (ad.state ? ', ' + esc(ad.state) : '') : ''}${ad.capacity ? ' · Capacity ' + esc(ad.capacity) : (isMissing('capacity') ? ' · <span style="color:#fdba74">Capacity ⚠</span>' : '')}</div>
@@ -5544,6 +5561,18 @@ function mapCSVRow(row, kind) {
     // Auto-detect travel days similarly
     if (cityU === 'TRAVEL' || venueU === 'TRAVEL' || statusU === 'TRAVEL' || statusU === 'TRAVEL DAY') {
       status = 'travel';
+    }
+    // Detect press days from STATUS column
+    if (statusU === 'PRESS' || statusU === 'PRESS DAY' || statusU === 'MEDIA') {
+      status = 'press';
+    }
+    // Anything else (CONFIRMED, ON SALE, HOLD, SOLD OUT, ANNOUNCED, etc.) falls
+    // back to 'show' as long as there's a venue or city. Without normalization,
+    // unknown status values caused the dashboard to render "PRESS" as a fallback
+    // and the day-sheet to mis-classify show days as off days.
+    if (!['show','off','travel','press'].includes(status)) {
+      if (venue || city) status = 'show';
+      else status = 'show'; // empty row will get filtered out anyway
     }
     return {
       date: normalizeDate(get('date', 'showdate', 'dateofshow', 'showday')),
