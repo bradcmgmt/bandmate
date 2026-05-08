@@ -76,22 +76,22 @@ input,select,textarea{font:inherit;color:inherit}
   border-top:1px solid var(--hi);border-left:1px solid var(--hi);pointer-events:none}
 .laminate::after{content:"";position:absolute;right:-1px;bottom:-1px;width:14px;height:14px;
   border-bottom:1px solid var(--hi);border-right:1px solid var(--hi);pointer-events:none}
-.brand{display:flex;align-items:baseline;gap:10px;font-weight:900;letter-spacing:.02em}
+.brand{display:flex;align-items:center;gap:10px;font-weight:900;letter-spacing:.02em;line-height:1}
 .brand .b{font-size:18px;background:linear-gradient(180deg,#fff2dc,#e8943a);-webkit-background-clip:text;background-clip:text;color:transparent}
 /* Bandmate wordmark image — replaces the text-set logo. Sized contextually:
-   default (top bar) is 22px tall; large (login card) ~40px; xl (onboarding /
+   default (top bar) is 26px tall; large (login card) ~40px; xl (onboarding /
    landing hero) ~80px and centered. */
-.brand-logo{display:block;height:22px;width:auto;object-fit:contain;
-  filter:drop-shadow(0 0 8px rgba(232,148,58,.25))}
+.brand-logo{display:block;height:26px;width:auto;object-fit:contain;
+  filter:drop-shadow(0 0 8px rgba(232,148,58,.25));vertical-align:middle}
 .brand-logo-lg{height:40px;margin:0 auto}
-.brand-logo-xl{height:80px;margin:0 auto;filter:drop-shadow(0 0 18px rgba(232,148,58,.35))}
-.landing-logo{height:96px;margin:0 auto 4px}
+.brand-logo-xl{height:64px;margin:0 auto;filter:drop-shadow(0 0 18px rgba(232,148,58,.35))}
+.landing-logo{height:54px;margin:0 auto 4px;max-width:240px}
 @media (max-width:560px){
-  .landing-logo{height:64px}
-  .brand-logo-xl{height:52px}
+  .landing-logo{height:42px;max-width:180px}
+  .brand-logo-xl{height:48px}
 }
 .brand .dot{width:7px;height:7px;background:var(--hi);border-radius:50%;display:inline-block;transform:translateY(-2px);box-shadow:0 0 8px var(--hi)}
-.brand .tag{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.18em}
+.brand .tag{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.18em;line-height:1;align-self:center;text-transform:uppercase;font-weight:700}
 .tour-banner{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;text-align:center;position:relative;padding:6px 28px}
 .tour-banner::before,.tour-banner::after{content:"";position:absolute;top:50%;width:42px;height:1px;background:linear-gradient(90deg,transparent,var(--hi),transparent)}
 .tour-banner::before{left:-12px;transform:translateY(-50%)}
@@ -1406,10 +1406,11 @@ body.print-stage-mode #stagePrintArea{
 }
 .phone-date-trigger:hover .phone-trigger-chev{color:var(--hi)}
 /* Avatar logo (rabbit mark) sits to the left of the city + day stamp on
-   the crew/mobile preview header. Square crop, soft copper drop-shadow. */
-.phone-avatar{flex:0 0 auto;width:34px;height:34px;border-radius:8px;object-fit:cover;
-  background:rgba(232,148,58,.06);border:1px solid rgba(232,148,58,.2);
-  filter:drop-shadow(0 0 6px rgba(232,148,58,.18))}
+   the crew/mobile preview header. The rabbit's tall ears mean we use
+   `contain` (not `cover`) so the whole figure shows; aspect-ratio is
+   slightly portrait so it has room without dwarfing the city text. */
+.phone-avatar{flex:0 0 auto;width:32px;height:38px;object-fit:contain;
+  filter:drop-shadow(0 0 6px rgba(232,148,58,.25))}
 .phone-trigger-chev{color:var(--warm-mute);font-size:12px;flex:none;transition:transform .15s,color .15s}
 .phone-app-bar.menu-open .phone-trigger-chev{transform:rotate(180deg);color:var(--hi)}
 
@@ -5477,7 +5478,7 @@ function renderPhone() {
   $('#ph-today').innerHTML = `
     <div class="p-card hi">
       <div class="lbl">${status}${ad.venue ? ' · ' + esc(ad.venue.toUpperCase()) : ''}</div>
-      <div class="h">${isTM ? 'Tour Manager view — full day' : (viewer ? 'Hey ' + esc(viewer.name.split(' ')[0]) + ' — your day' : 'Crew view — your day')}</div>
+      <div class="h">${isTM ? 'Full day view' : (viewer ? 'Hey ' + esc(viewer.name.split(' ')[0]) : 'Your day')}</div>
       <div class="sub">${ad.status === 'show' ? `${ad.doors ? 'Doors ' + esc(ad.doors) : ''}${ad.setTime ? ' · Set ' + esc(ad.setTime) : ''}${myItems.length ? ' · ' + myItems.length + ' items' : ''}` : ad.status === 'travel' ? `Travel day${myItems.length ? ' · ' + myItems.length + ' items' : ''}` : ad.status === 'off' ? 'Day off' : 'Press day'}</div>
       <div style="margin-top:8px">
         ${myItems.length ? myItems.slice(0, 8).map(s => `
