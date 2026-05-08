@@ -300,11 +300,15 @@ input,select,textarea{font:inherit;color:inherit}
 .day-sheet .city{font-weight:900;font-size:34px;letter-spacing:.005em;line-height:1;margin:0 0 6px;
   background:linear-gradient(180deg,#fff5e0,#e8943a);-webkit-background-clip:text;background-clip:text;color:transparent}
 .day-sheet .venue{font-size:13px;color:var(--warm-mute);margin-bottom:20px;font-weight:500;letter-spacing:.02em}
-.day-sheet .gridrun{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px}
-.day-sheet .row{display:grid;grid-template-columns:64px 1fr auto;align-items:baseline;gap:8px;padding:7px 0;border-bottom:1px solid rgba(232,148,58,.08)}
-.day-sheet .row .t{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;color:var(--hi)}
-.day-sheet .row .what{font-size:13px;font-weight:600;color:var(--warm)}
-.day-sheet .row .who{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.14em;text-transform:uppercase}
+/* Schedule grid inside the day-sheet. Auto-fit lets the layout collapse from
+   2 columns to 1 once each cell would be narrower than ~280px — prevents the
+   item labels and group tags from getting crushed/truncated when the dashboard
+   column narrows. */
+.day-sheet .gridrun{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:6px 18px}
+.day-sheet .row{display:grid;grid-template-columns:54px minmax(0,1fr) auto;align-items:baseline;gap:8px;padding:7px 0;border-bottom:1px solid rgba(232,148,58,.08);min-width:0}
+.day-sheet .row .t{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;color:var(--hi);white-space:nowrap}
+.day-sheet .row .what{font-size:13px;font-weight:600;color:var(--warm);min-width:0;line-height:1.3;overflow-wrap:anywhere}
+.day-sheet .row .who{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;flex:none;max-width:80px;overflow:hidden;text-overflow:ellipsis}
 .day-sheet .meta{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 14px;padding-top:14px;border-top:1px solid rgba(232,148,58,.12)}
 .day-sheet .meta .m{display:flex;flex-direction:column;gap:3px}
 .day-sheet .meta .m .l{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm-mute)}
@@ -320,7 +324,7 @@ input,select,textarea{font:inherit;color:inherit}
 .day-sheet .meta .hop-preview .hop-sub{margin-top:3px}
 .day-sheet .meta .hop-preview .v{font-size:14px}
 
-.snapshot{display:grid;grid-template-rows:auto 1fr;gap:14px}
+.snapshot{display:flex;flex-direction:column;gap:14px;align-self:start}
 .alerts,.route{background:linear-gradient(180deg,rgba(24,17,11,.9),rgba(17,12,8,.9));
   border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:inset 0 1px 0 rgba(232,148,58,.05)}
 .alerts h4,.route h4{margin:0 0 12px;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--hi);font-family:'JetBrains Mono',monospace}
@@ -1791,7 +1795,9 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 
 
 /* ============ ROUTE PANEL (DASHBOARD) ============ */
-.route-rows{display:flex;flex-direction:column;gap:1px;max-height:300px;overflow-y:auto;margin:14px -4px 0}
+/* Expands to fit all dates — no internal scroll. The page scrolls instead,
+   which feels right for a route list and avoids nested-scroll awkwardness. */
+.route-rows{display:flex;flex-direction:column;gap:1px;margin:14px -4px 0}
 .route-row{
   display:grid;grid-template-columns:58px 1fr auto;gap:10px;align-items:baseline;
   padding:8px 10px;border-radius:6px;cursor:pointer;
