@@ -83,19 +83,24 @@ input,select,textarea{font:inherit;color:inherit}
    landing hero) ~80px and centered. */
 .brand-logo{display:block;height:26px;width:auto;object-fit:contain;
   filter:drop-shadow(0 0 8px rgba(232,148,58,.25));vertical-align:middle}
-/* Mouse-tracked shine wrapper around every Bandmate wordmark image. The
-   inner .bm-shine span paints a soft radial highlight that follows the
-   cursor (positioning driven by --rx / --ry / --ralpha CSS variables set
-   by JS). When the cursor is far away the alpha drops to 0 so the
-   highlight disappears cleanly. */
-.bm-shine-wrap{position:relative;display:inline-block;line-height:0;isolation:isolate;
+/* Mouse-tracked shine wrapper around every Bandmate wordmark PNG. The
+   inner .bm-shine span is MASKED to the logo's silhouette so the highlight
+   only paints over the actual letters (transparent areas around the
+   wordmark stay dark). Position driven by --rx / --ry / --ralpha CSS
+   variables set by JS; falls off to 0 when the cursor is far away. */
+.bm-shine-wrap{position:relative;display:inline-block;line-height:0;
   --rx:50%;--ry:50%;--ralpha:0}
-.bm-shine{position:absolute;inset:-30%;pointer-events:none;z-index:1;
-  background:radial-gradient(ellipse 60% 70% at var(--rx) var(--ry),
-    rgba(255,245,220,calc(var(--ralpha) * .55)) 0%,
-    rgba(255,245,220,calc(var(--ralpha) * .25)) 18%,
-    rgba(255,245,220,0) 55%);
-  mix-blend-mode:overlay}
+.bm-shine{position:absolute;inset:0;pointer-events:none;z-index:2;
+  background:radial-gradient(ellipse 50% 90% at var(--rx) var(--ry),
+    rgba(255,250,225,calc(var(--ralpha) * .85)) 0%,
+    rgba(255,250,225,calc(var(--ralpha) * .35)) 22%,
+    rgba(255,250,225,0) 55%);
+  /* Mask using the logo image itself so the shine sits only on the letters. */
+  -webkit-mask-image:url('logo.png');mask-image:url('logo.png');
+  -webkit-mask-size:100% 100%;mask-size:100% 100%;
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-position:center;mask-position:center;
+  mix-blend-mode:lighten}
 .brand-logo-lg{height:40px;margin:0 auto}
 .brand-logo-xl{height:64px;margin:0 auto;filter:drop-shadow(0 0 18px rgba(232,148,58,.35))}
 .landing-logo{height:54px;margin:0 auto 4px;max-width:240px}
