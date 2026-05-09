@@ -64,6 +64,31 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
 body.bg-logo-hidden #bgLogoCanvas{opacity:0}
 @media (prefers-reduced-motion:reduce){#bgLogoCanvas{opacity:0!important}}
 
+/* ============ HOMEPAGE BACKGROUND VIDEO ============
+   `bg-video-on` body class controls visibility — added by
+   showLandingScreen + showLoginScreen, removed everywhere else.
+   object-fit:cover keeps the video filling the viewport at any
+   aspect ratio so resizing the window never produces letterbox
+   bars. z-index sits above body bg + scanlines but below every
+   overlay, which is why we ALSO soften the overlays' backgrounds
+   to a translucent dark scrim when the video is on. */
+.bg-video{position:fixed;inset:0;width:100vw;height:100vh;
+  object-fit:cover;z-index:0;pointer-events:none;
+  opacity:0;transition:opacity 600ms ease-out}
+body.bg-video-on .bg-video{opacity:1}
+@media (prefers-reduced-motion:reduce){.bg-video{display:none}}
+
+/* When the video is on, swap the landing + login overlays' solid
+   backgrounds for translucent dark scrims so the video bleeds
+   through. The scrim is dark enough that all overlay text stays
+   fully legible — copper headlines, mono eyebrows, sub copy. */
+body.bg-video-on .landing-overlay{
+  background:rgba(10,7,5,.58)}
+body.bg-video-on .landing-overlay .landing-bg{
+  opacity:.55}
+body.bg-video-on .login-overlay{
+  background:radial-gradient(800px 500px at 50% 30%,rgba(232,148,58,.08),transparent 60%),rgba(10,7,5,.66)}
+
 a{color:inherit;text-decoration:none}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 input,select,textarea{font:inherit;color:inherit}
@@ -2542,6 +2567,21 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
      show/hideLoginScreen to suppress it on those surfaces.
      Engine adapted from the Privatus build. -->
 <canvas id="bgLogoCanvas" aria-hidden="true"></canvas>
+
+<!-- ============ HOMEPAGE BACKGROUND VIDEO ============
+     Looping muted video that plays behind the landing + login overlays.
+     Lives at body level (not inside any overlay) so it persists when
+     the user transitions from "landing" to "Sign in" / "Sign up" — the
+     video keeps playing without restart. Visibility is controlled by
+     the `body.bg-video-on` class; CSS softens the landing/login
+     backgrounds to a translucent dark scrim when the video is showing
+     so text stays legible over the moving footage.
+     File path: bg-loop.mp4 (sits next to index.html). If the file is
+     missing, the <video> element silently does nothing — the page
+     gracefully falls back to its solid backgrounds. -->
+<video id="bgVideo" class="bg-video" autoplay loop muted playsinline preload="auto" aria-hidden="true">
+  <source src="bg-loop.mp4" type="video/mp4">
+</video>
 
 <!-- ============ LANDING PAGE ============ -->
 <!-- Public-facing first impression. Anyone arriving from search or a fresh
@@ -10103,6 +10143,8 @@ function showLandingScreen() {
   // page — that surface already leads with a hero rabbit, so a second
   // drifting rabbit behind the buttons would compete.
   document.body.classList.add('bg-logo-hidden');
+  // Show the looping homepage background video.
+  document.body.classList.add('bg-video-on');
 }
 function hideLandingScreen() {
   document.getElementById('landingScreen').hidden = true;
@@ -10914,8 +10956,10 @@ function showWelcomeScreen() {
   // The welcome surface is post-auth-y but technically the user doesn't
   // have a Bandmate account yet — the watermark stays HIDDEN here so
   // the celebratory moment isn't visually noisy. Lifts as soon as
-  // they finish signup and hit the dashboard.
+  // they finish signup and hit the dashboard. Also kill the homepage
+  // video here so the celebratory moment has a clean dark backdrop.
   document.body.classList.add('bg-logo-hidden');
+  document.body.classList.remove('bg-video-on');
 
   // Single subscription tier now — show the brand name only.
   document.getElementById('welcomePlanName').textContent = 'Bandmate';
@@ -11028,6 +11072,9 @@ function showLoginScreen() {
   // is "no watermark until you're logged in" — landing, login, signup
   // all hide it; onboarding, dashboard, admin all show it.
   document.body.classList.add('bg-logo-hidden');
+  // Keep the homepage background video playing on the login surface
+  // too so the transition from landing → sign-in feels continuous.
+  document.body.classList.add('bg-video-on');
   renderLoginAccounts();
   // First-time visitor (no claimed accounts) → default to signup form
   // Returning visitor (has accounts) → default to sign-in form
@@ -11286,8 +11333,10 @@ function postLoginRouting() {
   // We've successfully resolved a user — fade the ambient particle
   // watermark in for every subsequent surface (onboarding, app, admin).
   // Landing + login + sign-up screens are the only places the watermark
-  // is suppressed.
+  // is suppressed. Also stop the homepage background video — they're
+  // past the public-facing surface now.
   document.body.classList.remove('bg-logo-hidden');
+  document.body.classList.remove('bg-video-on');
 
   // Find tours visible to this user
   const owned = u.role === 'tm'
@@ -12769,7 +12818,10 @@ function init() {
     // from any public surface — you reach it by typing the URL.
     if (_isAdminPath()) {
       // Admin console wants the watermark visible — it's a working surface.
+      // No homepage video either — admin is private, not a marketing
+      // surface.
       document.body.classList.remove('bg-logo-hidden');
+      document.body.classList.remove('bg-video-on');
       showAdminScreen();
       return;
     }
@@ -12791,11 +12843,13 @@ function init() {
       document.getElementById('onboarding').classList.remove('hidden');
       document.getElementById('app').hidden = true;
       document.body.classList.remove('bg-logo-hidden');
+      document.body.classList.remove('bg-video-on');
     } else {
       renderAll();
       try { applyTabFromState(); } catch (e) { console.error('applyTabFromState:', e); }
       try { syncPhoneScreenFromTab(); } catch (e) { console.error('syncPhoneScreenFromTab:', e); }
       document.body.classList.remove('bg-logo-hidden');
+      document.body.classList.remove('bg-video-on');
     }
   } catch (e) {
     console.error('init render:', e);
