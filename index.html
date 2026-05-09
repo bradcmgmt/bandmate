@@ -2033,17 +2033,19 @@ body.travel-assistant-mode #travelAssistantArea{
   transition:opacity .15s ease,transform .15s ease,visibility 0s linear 0s}
 
 /* "Just here as band or crew?" callout below the pricing grid — drops them
-   into the crew sign-up flow without needing to scroll back to landing. */
+   into the crew sign-up flow without needing to scroll back to landing.
+   Muted forest green palette so it reads as "free / friendly" without being
+   neon or distracting from the paid tier above. */
 .pricing-band-cta{display:flex;align-items:center;gap:14px;max-width:780px;margin:0 auto 28px;
-  padding:14px 18px;background:linear-gradient(135deg,rgba(138,169,216,.1),rgba(138,169,216,.03));
-  border:1px solid rgba(138,169,216,.4);border-radius:12px;text-align:left}
+  padding:14px 18px;background:linear-gradient(135deg,rgba(109,207,139,.07),rgba(109,207,139,.02));
+  border:1px solid rgba(109,207,139,.3);border-radius:12px;text-align:left}
 .pbcta-text{flex:1;min-width:0}
 .pbcta-h{font-size:14px;font-weight:700;color:var(--warm)}
 .pbcta-s{font-size:12.5px;color:var(--warm-mute);margin-top:2px;line-height:1.5}
-.pbcta-btn{flex:0 0 auto;background:rgba(138,169,216,.16);border:1px solid #b1c8ee;color:#b1c8ee;
-  padding:9px 18px;border-radius:8px;cursor:pointer;font-family:'Inter',sans-serif;font-weight:700;
-  font-size:13px;letter-spacing:.02em}
-.pbcta-btn:hover{background:rgba(138,169,216,.28)}
+.pbcta-btn{flex:0 0 auto;background:rgba(109,207,139,.1);border:1px solid rgba(109,207,139,.55);
+  color:#9ee0b5;padding:9px 18px;border-radius:8px;cursor:pointer;font-family:'Inter',sans-serif;
+  font-weight:700;font-size:13px;letter-spacing:.02em}
+.pbcta-btn:hover{background:rgba(109,207,139,.2);color:#bce8c8;border-color:#9ee0b5}
 
 .pricing-free{display:flex;align-items:center;gap:14px;max-width:560px;margin:0 auto 40px;
   padding:14px 18px;background:rgba(109,207,139,.06);border:1px solid rgba(109,207,139,.35);border-radius:10px;text-align:left}
@@ -7556,6 +7558,7 @@ function izApply() {
   } else {
     toast(`Tour fully built from ${s.files.length} document${s.files.length===1?'':'s'}`, 'good');
   }
+  _checkPricingUpgrade();
 }
 
 
@@ -9622,6 +9625,7 @@ function newTourManualFlow() {
       saveState();
       renderAll();
       toast(`Tour "${name}" created`, 'good');
+      _checkPricingUpgrade();
     }
   });
 }
@@ -9734,6 +9738,52 @@ function _pricingInquire() {
   const subject = encodeURIComponent('Bandmate · Business plan inquiry');
   const body = encodeURIComponent('Hey Bandmate team,\n\nI run an organization with multiple TMs and would like to learn more about your Business plan.\n\nBriefly about us:\n- Number of TMs: \n- Tours we manage:\n- Special needs (SSO, billing, etc.):\n\nThanks,\n');
   window.location.href = `mailto:${BUSINESS_INQUIRY_EMAIL}?subject=${subject}&body=${body}`;
+}
+
+// Watches the current TM's owned-tour count and surfaces a friendly modal
+// the first time they cross the 4-tour threshold — at which point their
+// $49.99/mo plan auto-upgrades to $69.99/mo (the maximum). Tracked via a
+// flag on the user record so we don't pester them on every subsequent
+// tour creation.
+function _checkPricingUpgrade() {
+  if (!state || !state.currentUserId) return;
+  const u = state.users[state.currentUserId];
+  if (!u || u.role !== 'tm') return; // only TMs are billed
+  const ownedCount = Object.values(state.tours || {})
+    .filter(t => t.ownerId === u.id).length;
+  if (ownedCount < 4) return;
+  if (u.upgradePromptedAt) return; // already shown once — never bug them again
+  u.upgradePromptedAt = Date.now();
+  saveState();
+  setTimeout(() => _showPricingUpgradeModal(ownedCount), 200);
+}
+
+function _showPricingUpgradeModal(tourCount) {
+  openModal({
+    title: 'Heads up — pricing change',
+    size: '',
+    hideFooter: true,
+    body: `
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="font-size:14px;line-height:1.6;color:var(--warm)">
+          You just created your <b>${tourCount}${tourCount===4?'th':tourCount===5?'th':'th'}</b> tour — congrats on running a busy book.
+        </div>
+        <div style="padding:14px 16px;background:rgba(232,148,58,.06);border:1px solid rgba(232,148,58,.4);border-radius:9px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.16em;color:var(--hi);text-transform:uppercase;font-weight:700;margin-bottom:6px">YOUR PLAN AUTO-UPGRADES</div>
+          <div style="font-size:13.5px;line-height:1.6;color:var(--warm)">
+            Plans of <b style="color:var(--hi)">4 or more tours</b> shift from <b>$49.99/mo</b> to <b style="color:var(--hi)">$69.99/mo</b>. That's the maximum — your plan never costs more than that, no matter how many tours you run.
+          </div>
+        </div>
+        <div style="font-size:13px;line-height:1.6;color:var(--warm-mute)">
+          The change takes effect on your next billing cycle. Stripe prorates the difference automatically — you'll see a small adjustment on your next invoice. Nothing breaks; everything keeps working.
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--line);padding-top:14px;margin-top:6px">
+          <button type="button" class="btn" onclick="closeModal();showPricingScreen()">View pricing details</button>
+          <button type="button" class="btn primary" onclick="closeModal()">Got it</button>
+        </div>
+      </div>
+    `,
+  });
 }
 
 function landingChoose(role) {
@@ -11500,6 +11550,7 @@ Object.assign(window, {
   showLandingScreen, hideLandingScreen, landingChoose,
   showPricingScreen, hidePricingScreen, _pricingSubscribe, _pricingInquire,
   _showCrewNoToursModal, _copyCrewEmail,
+  _checkPricingUpgrade, _showPricingUpgradeModal,
   downloadTourGridCSV, downloadHotelsCSV, downloadContactsCSV, downloadSettlementsCSV, downloadTasksCSV,
   deleteDate, getActiveDate
 });
