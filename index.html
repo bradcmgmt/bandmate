@@ -1956,6 +1956,68 @@ body.travel-assistant-mode #travelAssistantArea{
   .landing-btn{min-width:0}
 }
 
+/* ============ PRICING PAGE ============ */
+.pricing-overlay{position:fixed;inset:0;z-index:200;background:#0a0705;
+  padding:40px 24px;display:flex;align-items:flex-start;justify-content:center;
+  font-family:'Inter',sans-serif;color:var(--warm);overflow-y:auto}
+.pricing-overlay[hidden]{display:none}
+.pricing-content{position:relative;z-index:1;max-width:1080px;width:100%;text-align:center;padding:24px 0 60px}
+.pricing-back{position:absolute;top:0;left:0;background:transparent;border:1px solid var(--line-2);
+  color:var(--warm-mute);padding:6px 14px;border-radius:6px;cursor:pointer;
+  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:700}
+.pricing-back:hover{color:var(--hi);border-color:var(--hi)}
+.pricing-eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.32em;
+  color:var(--hi);font-weight:700;margin-top:18px;margin-bottom:14px}
+.pricing-headline{margin:0 0 14px;font-family:'Bebas Neue','Inter',sans-serif;font-weight:400;
+  font-size:clamp(40px,5.5vw,68px);line-height:1;letter-spacing:.01em;text-transform:uppercase;color:#fff5e0}
+.pricing-sub{margin:0 auto 40px;max-width:560px;font-size:14.5px;line-height:1.6;color:var(--warm-mute)}
+.pricing-sub b{color:var(--warm)}
+.pricing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:36px;text-align:left}
+@media (max-width:840px){.pricing-grid{grid-template-columns:1fr;max-width:440px;margin-left:auto;margin-right:auto}}
+.pricing-card{position:relative;background:linear-gradient(180deg,#15100a,#0e0805);
+  border:1px solid var(--line-2);border-radius:14px;padding:24px 22px 22px;
+  display:flex;flex-direction:column}
+.pricing-card.pc-featured{border-color:var(--hi);box-shadow:0 0 30px -8px rgba(232,148,58,.45),inset 0 1px 0 rgba(255,255,255,.04)}
+.pricing-card.pc-business{border-style:dashed;border-color:rgba(138,169,216,.4);background:linear-gradient(180deg,#10131a,#0a0e14)}
+.pc-badge{position:absolute;top:-11px;left:50%;transform:translateX(-50%);
+  background:var(--hi);color:#0e0805;padding:3px 11px;border-radius:5px;
+  font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:800;letter-spacing:.18em}
+.pc-tier{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.32em;
+  color:var(--hi);font-weight:700;margin-bottom:12px}
+.pricing-card.pc-business .pc-tier{color:#b1c8ee}
+.pc-price{display:flex;align-items:baseline;gap:6px;margin-bottom:8px}
+.pc-amount{font-family:'Bebas Neue','Inter',sans-serif;font-size:54px;line-height:1;color:var(--warm);font-weight:400;letter-spacing:.01em}
+.pc-amount-cust{font-family:'Bebas Neue','Inter',sans-serif;font-size:54px;line-height:1;color:#b1c8ee;font-weight:400;letter-spacing:.01em}
+.pc-cycle{font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--warm-mute);font-weight:600;letter-spacing:.04em}
+.pc-pitch{font-size:13.5px;color:var(--warm-mute);line-height:1.5;margin-bottom:18px;min-height:44px}
+.pc-features{list-style:none;padding:0;margin:0 0 22px;display:flex;flex-direction:column;gap:6px}
+.pc-features li{font-size:13px;color:var(--warm);line-height:1.5;padding-left:18px;position:relative}
+.pc-features li::before{content:"✓";position:absolute;left:0;color:var(--hi);font-weight:800;font-size:12px}
+.pricing-card.pc-business .pc-features li::before{color:#b1c8ee}
+.pc-cta{padding:11px 18px;border-radius:8px;border:1px solid var(--hi);background:transparent;
+  color:var(--hi);cursor:pointer;font-family:'Inter',sans-serif;font-weight:700;font-size:14px;letter-spacing:.02em;
+  transition:all .15s ease;margin-top:auto}
+.pc-cta:hover{background:rgba(232,148,58,.1)}
+.pc-cta.primary{background:linear-gradient(135deg,#e8943a,#c9772a);color:#0e0805;
+  box-shadow:0 0 22px -4px rgba(232,148,58,.5),inset 0 1px 0 rgba(255,255,255,.08)}
+.pc-cta.primary:hover{box-shadow:0 0 30px -2px rgba(232,148,58,.65)}
+.pricing-card.pc-business .pc-cta{border-color:#b1c8ee;color:#b1c8ee}
+.pricing-card.pc-business .pc-cta:hover{background:rgba(138,169,216,.1)}
+.pc-foot{margin-top:10px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);
+  letter-spacing:.06em;text-align:center}
+
+.pricing-free{display:flex;align-items:center;gap:14px;max-width:560px;margin:0 auto 40px;
+  padding:14px 18px;background:rgba(109,207,139,.06);border:1px solid rgba(109,207,139,.35);border-radius:10px;text-align:left}
+.pf-glyph{flex:0 0 auto;width:28px;height:28px;border-radius:50%;background:rgba(109,207,139,.18);
+  border:1px solid rgba(109,207,139,.5);color:var(--good);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.pf-h{font-size:14px;font-weight:700;color:var(--good)}
+.pf-s{font-size:12.5px;color:var(--warm-mute);margin-top:2px;line-height:1.5}
+
+.pricing-faq{max-width:680px;margin:0 auto;text-align:left;display:flex;flex-direction:column;gap:14px}
+.pfaq-item{padding:14px 18px;background:rgba(232,148,58,.03);border:1px solid var(--line-2);border-radius:9px}
+.pfaq-q{font-size:13.5px;font-weight:700;color:var(--warm);margin-bottom:4px}
+.pfaq-a{font-size:13px;color:var(--warm-mute);line-height:1.5}
+
 .login-overlay{
   position:fixed;inset:0;z-index:300;
   background:radial-gradient(800px 500px at 50% 30%,rgba(232,148,58,.10),transparent 60%),var(--ink);
@@ -2152,6 +2214,10 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
         <span class="lcta-eyebrow">FOR BAND &amp; CREW</span>
         <span class="lcta-label">Sign in →</span>
       </button>
+      <button type="button" class="landing-btn landing-btn-signup" onclick="showPricingScreen()">
+        <span class="lcta-eyebrow">NEW TO BANDMATE</span>
+        <span class="lcta-label">Sign up →</span>
+      </button>
     </div>
 
     <p class="landing-pitch">
@@ -2163,6 +2229,98 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
       <img src="logo.png" class="brand-logo landing-wordmark-img" alt="Bandmate" />
       <span class="lb-version">v0.3</span>
     </div>
+  </div>
+</div>
+
+<!-- ============ PRICING PAGE ============ -->
+<!-- Tour managers pay; band & crew are always free. Three tiers: Solo
+     ($49.99/mo for 1-3 tours), Pro ($69.99/mo for 4+ tours, max), and
+     Business (custom). Each "Subscribe" button is a Stripe Payment Link —
+     replace the data-stripe URLs below with the real ones from your
+     Stripe Dashboard once they're created. -->
+<div class="pricing-overlay" id="pricingScreen" hidden>
+  <div class="landing-bg"></div>
+  <div class="pricing-content">
+
+    <button type="button" class="pricing-back" onclick="hidePricingScreen();showLandingScreen()">← Back</button>
+
+    <div class="pricing-eyebrow">JOIN BANDMATE</div>
+    <h1 class="pricing-headline">Pick your tour manager plan.</h1>
+    <p class="pricing-sub">Band &amp; crew accounts are <b>always free</b> — they only need an invite from their TM.</p>
+
+    <div class="pricing-grid">
+
+      <div class="pricing-card">
+        <div class="pc-tier">SOLO</div>
+        <div class="pc-price"><span class="pc-amount">$49.99</span><span class="pc-cycle">/mo</span></div>
+        <div class="pc-pitch">For TMs running up to 3 active tours.</div>
+        <ul class="pc-features">
+          <li>Up to 3 tours</li>
+          <li>Unlimited band &amp; crew invites</li>
+          <li>Full dashboard, push notifications, day sheets</li>
+          <li>Travel Assistant + import wizard</li>
+          <li>All tour data stays yours</li>
+        </ul>
+        <button type="button" class="pc-cta" onclick="_pricingSubscribe('solo')">Subscribe →</button>
+        <div class="pc-foot">Cancel anytime · 7-day full refund</div>
+      </div>
+
+      <div class="pricing-card pc-featured">
+        <div class="pc-badge">MOST CHOSEN</div>
+        <div class="pc-tier">PRO</div>
+        <div class="pc-price"><span class="pc-amount">$69.99</span><span class="pc-cycle">/mo</span></div>
+        <div class="pc-pitch">For TMs running 4 or more tours simultaneously.</div>
+        <ul class="pc-features">
+          <li>Unlimited tours</li>
+          <li>Everything in Solo</li>
+          <li>Bulk import across tours</li>
+          <li>Cross-tour crew sync</li>
+          <li>Priority support</li>
+        </ul>
+        <button type="button" class="pc-cta primary" onclick="_pricingSubscribe('pro')">Subscribe →</button>
+        <div class="pc-foot">Cancel anytime · 7-day full refund</div>
+      </div>
+
+      <div class="pricing-card pc-business">
+        <div class="pc-tier">BUSINESS</div>
+        <div class="pc-price"><span class="pc-amount-cust">Custom</span></div>
+        <div class="pc-pitch">For agencies, management companies, festival ops.</div>
+        <ul class="pc-features">
+          <li>Multiple TM seats</li>
+          <li>Centralized billing</li>
+          <li>SSO + admin controls</li>
+          <li>Dedicated onboarding</li>
+          <li>White-glove support</li>
+        </ul>
+        <button type="button" class="pc-cta" onclick="_pricingInquire()">Inquire →</button>
+        <div class="pc-foot">Talk to us about a fit for your team.</div>
+      </div>
+
+    </div>
+
+    <div class="pricing-free">
+      <div class="pf-glyph">●</div>
+      <div>
+        <div class="pf-h">Band &amp; crew · always free</div>
+        <div class="pf-s">No card, no charge — they sign in with the email their TM invited them at.</div>
+      </div>
+    </div>
+
+    <div class="pricing-faq">
+      <div class="pfaq-item">
+        <div class="pfaq-q">What if I add a 4th tour while on Solo?</div>
+        <div class="pfaq-a">We'll prompt you to upgrade to Pro the moment you create it. The upgrade is one click and Stripe prorates the difference automatically.</div>
+      </div>
+      <div class="pfaq-item">
+        <div class="pfaq-q">Can I cancel?</div>
+        <div class="pfaq-a">Anytime, from your account menu. Your data stays exported-ready until 30 days after cancellation.</div>
+      </div>
+      <div class="pfaq-item">
+        <div class="pfaq-q">Is there a free trial?</div>
+        <div class="pfaq-a">Full refund within 7 days, no questions. So yes — try the whole thing risk-free.</div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -9497,13 +9655,59 @@ function showLandingScreen() {
   document.getElementById('app').hidden = true;
   document.getElementById('onboarding').classList.add('hidden');
   document.getElementById('loginScreen').hidden = true;
+  const pricing = document.getElementById('pricingScreen');
+  if (pricing) pricing.hidden = true;
   document.getElementById('landingScreen').hidden = false;
 }
 function hideLandingScreen() {
   document.getElementById('landingScreen').hidden = true;
 }
+// ─────────────────────────────────────────────────────────────────────
+// Pricing page — three tiers: Solo ($49.99/mo), Pro ($69.99/mo, max),
+// Business (custom). Each "Subscribe" button hands off to a Stripe
+// Payment Link. Replace the URLs below with the real ones from your
+// Stripe Dashboard once you've created the products + prices there.
+// Stripe handles all card capture, recurring billing, receipts, and
+// the customer self-service portal — no backend on our side needed
+// for the MVP.
+// ─────────────────────────────────────────────────────────────────────
+const STRIPE_LINKS = {
+  // TODO: paste real Stripe Payment Link URLs here once they exist.
+  // Format example: 'https://buy.stripe.com/test_aBcDeFgHiJkLmNoP01'
+  solo: 'https://buy.stripe.com/REPLACE_WITH_SOLO_LINK',
+  pro:  'https://buy.stripe.com/REPLACE_WITH_PRO_LINK',
+};
+const BUSINESS_INQUIRY_EMAIL = 'sales@bandmate.app';
+
+function showPricingScreen() {
+  document.getElementById('app').hidden = true;
+  document.getElementById('onboarding').classList.add('hidden');
+  document.getElementById('landingScreen').hidden = true;
+  document.getElementById('loginScreen').hidden = true;
+  document.getElementById('pricingScreen').hidden = false;
+  window.scrollTo(0, 0);
+}
+function hidePricingScreen() {
+  document.getElementById('pricingScreen').hidden = true;
+}
+function _pricingSubscribe(tier) {
+  const url = STRIPE_LINKS[tier];
+  if (!url || url.includes('REPLACE_WITH')) {
+    toast('Stripe payment link not configured yet — coming soon', 'error');
+    return;
+  }
+  // Open in new tab so the user can come back to Bandmate after paying.
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+function _pricingInquire() {
+  const subject = encodeURIComponent('Bandmate · Business plan inquiry');
+  const body = encodeURIComponent('Hey Bandmate team,\n\nI run an organization with multiple TMs and would like to learn more about your Business plan.\n\nBriefly about us:\n- Number of TMs: \n- Tours we manage:\n- Special needs (SSO, billing, etc.):\n\nThanks,\n');
+  window.location.href = `mailto:${BUSINESS_INQUIRY_EMAIL}?subject=${subject}&body=${body}`;
+}
+
 function landingChoose(role) {
   hideLandingScreen();
+  hidePricingScreen();
   showLoginScreen();
   // Default the signup form to the role they picked, even if they're a
   // returning user landing on the sign-in form (the role select is only
@@ -9518,6 +9722,8 @@ function showLoginScreen() {
   document.getElementById('app').hidden = true;
   document.getElementById('onboarding').classList.add('hidden');
   document.getElementById('landingScreen').hidden = true;
+  const pricing = document.getElementById('pricingScreen');
+  if (pricing) pricing.hidden = true;
   const screen = document.getElementById('loginScreen');
   screen.hidden = false;
   renderLoginAccounts();
@@ -11219,6 +11425,7 @@ Object.assign(window, {
   toggleTourSwitcher, closeTourSwitcher, switchToTour, switchToTourFromPhone, newTourFlow, newTourManualFlow, newTourImportFlow, renameCurrentTour, deleteCurrentTour,
   showLoginScreen, hideLoginScreen, loginWithEmail, loginAsExisting, signUp, logout, showLoginForm, showSignupForm, toggleAccountMenu, closeAccountMenu,
   showLandingScreen, hideLandingScreen, landingChoose,
+  showPricingScreen, hidePricingScreen, _pricingSubscribe, _pricingInquire,
   downloadTourGridCSV, downloadHotelsCSV, downloadContactsCSV, downloadSettlementsCSV, downloadTasksCSV,
   deleteDate, getActiveDate
 });
