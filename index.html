@@ -11140,7 +11140,17 @@ function calcLiveDateGaps(d) {
   if (!d.doors) missing.push('doors');
   if (!d.setTime) missing.push('set time');
   // promoter is optional — never flagged as missing
-  if (!d.hotel) missing.push('hotel');
+  // Hotel + Travel are an EITHER-OR pair on show days too (matching the off-day
+  // rule). Some shows the band stays in the venue's city overnight (hotel), others
+  // they roll out on a sleeper bus or red-eye flight (travel). Either is a complete
+  // answer to "where are they sleeping that night." So we only flag a gap when
+  // BOTH are empty, and we surface it as the soft 'hotel or travel' either-or
+  // (blue !) on both the Hotels and Travel tabs — never as a hard ⚠ on the day
+  // pill. If something else hard is missing (schedule, venue, doors, etc.) the
+  // day pill will still get the red ⚠ from those, just not from hotel/travel.
+  const hasHotel = !!d.hotel;
+  const hasTravel = !!(d.travel && d.travel.length);
+  if (!hasHotel && !hasTravel) missing.push('hotel or travel');
   // Room assignments are optional — once a hotel property is logged for the
   // night, the Hotels tab is considered complete. TMs add room blocks as a
   // convenience, not a requirement, so it shouldn't drive a gap warning.
