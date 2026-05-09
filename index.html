@@ -2071,22 +2071,21 @@ body.travel-assistant-mode #travelAssistantArea{
   font-family:'Inter',sans-serif;color:var(--warm);overflow-y:auto}
 .pricing-overlay[hidden]{display:none}
 .pricing-content{position:relative;z-index:1;max-width:1080px;width:100%;text-align:center;padding:24px 0 60px}
-.pricing-back{position:absolute;top:0;left:0;background:transparent;border:1px solid var(--line-2);
-  color:var(--warm-mute);padding:6px 14px;border-radius:6px;cursor:pointer;
-  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:700}
-.pricing-back:hover{color:var(--hi);border-color:var(--hi)}
-
-/* Login overlay back button — mirrors .pricing-back so the visual
-   language stays consistent across both pre-auth surfaces. Sits in
-   the top-left of the overlay so it's easy to miss-click on but
-   still discoverable. */
-.login-back{position:absolute;top:18px;left:18px;background:rgba(0,0,0,.32);
-  border:1px solid var(--line-2);color:var(--warm-mute);
+/* Pre-auth back buttons — pricing page (Sign up flow) and login overlay
+   (Sign in flow) both use this exact same position + styling so the
+   "← Back" button is in the identical viewport corner regardless of
+   which pre-auth surface the user is on. Position is absolute relative
+   to the overlay (which is itself fixed:inset:0), so it sits at the
+   top-left of the screen and never moves with the centered content. */
+.pricing-back,.login-back{
+  position:absolute;top:24px;left:24px;z-index:2;
+  background:rgba(0,0,0,.32);border:1px solid var(--line-2);color:var(--warm-mute);
   padding:7px 14px;border-radius:7px;cursor:pointer;
   font-family:'JetBrains Mono',monospace;font-size:11px;
   letter-spacing:.18em;text-transform:uppercase;font-weight:700;
-  transition:color .15s,border-color .15s,background .15s;z-index:2}
-.login-back:hover{color:var(--hi);border-color:var(--hi);background:rgba(232,148,58,.06)}
+  transition:color .15s,border-color .15s,background .15s}
+.pricing-back:hover,.login-back:hover{
+  color:var(--hi);border-color:var(--hi);background:rgba(232,148,58,.06)}
 .pricing-eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.32em;
   color:var(--hi);font-weight:700;margin-top:18px;margin-bottom:14px}
 .pricing-headline{margin:0 0 14px;font-family:'Bebas Neue','Inter',sans-serif;font-weight:400;
@@ -2703,9 +2702,8 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
      Stripe Dashboard once they're created. -->
 <div class="pricing-overlay" id="pricingScreen" hidden>
   <div class="landing-bg"></div>
+  <button type="button" class="pricing-back" onclick="hidePricingScreen();showLandingScreen()">← Back</button>
   <div class="pricing-content">
-
-    <button type="button" class="pricing-back" onclick="hidePricingScreen();showLandingScreen()">← Back</button>
 
     <div class="pricing-eyebrow">JOIN BANDMATE</div>
     <h1 class="pricing-headline">Pick your tour manager plan.</h1>
