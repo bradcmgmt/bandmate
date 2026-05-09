@@ -2295,6 +2295,37 @@ body.travel-assistant-mode #travelAssistantArea{
   padding:14px 18px;background:rgba(0,0,0,.32);border:1px solid var(--line);border-radius:10px;
   font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;color:var(--warm-mute);text-transform:uppercase;line-height:1.5}
 .afoot-version{color:var(--hi);font-weight:700}
+
+/* Admin-overlay-scoped button styles. The global `.btn` class is only
+   defined in `.console-head` and `.modal-foot`, so buttons inside the
+   admin console rendered as unstyled text. These rules give every
+   `.btn` and `.btn.primary` inside the admin overlay a proper shape. */
+.admin-overlay .btn{
+  padding:8px 14px;border:1px solid var(--line-2);border-radius:8px;
+  background:rgba(0,0,0,.32);color:var(--warm);cursor:pointer;
+  font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;
+  letter-spacing:.04em;transition:border-color .15s,background .15s,color .15s;
+  white-space:nowrap;line-height:1.2}
+.admin-overlay .btn:hover{border-color:var(--hi);color:var(--hi);background:rgba(232,148,58,.06)}
+.admin-overlay .btn.primary{
+  background:linear-gradient(135deg,#e8943a,#c9772a);
+  color:#0e0805;border-color:transparent;font-weight:700;letter-spacing:.05em;
+  box-shadow:0 0 18px -4px rgba(232,148,58,.55),0 4px 12px rgba(0,0,0,.35)}
+.admin-overlay .btn.primary:hover{
+  color:#0e0805;background:linear-gradient(135deg,#f5a64e,#d97f2c);border-color:transparent;
+  box-shadow:0 0 26px -2px rgba(232,148,58,.7),0 6px 16px rgba(0,0,0,.4)}
+
+/* Inline revoke control inside each TM row — sits next to the status
+   pill so admins can revoke without expanding the row first. Only
+   shown for active / pending_revoke subscribers (via JS conditional). */
+.atr-revoke{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:4px 9px;border-radius:6px;
+  border:1px solid rgba(232,69,69,.35);background:rgba(220,90,80,.06);
+  color:#f0a39d;font-family:'JetBrains Mono',monospace;font-size:10px;
+  letter-spacing:.16em;text-transform:uppercase;font-weight:700;
+  cursor:pointer;margin-left:8px;transition:border-color .12s,background .12s,color .12s;line-height:1}
+.atr-revoke:hover{border-color:#dc5a50;background:rgba(220,90,80,.15);color:#ff8a82}
 .admin-foot code{background:rgba(232,148,58,.1);padding:2px 7px;border-radius:4px;color:var(--warm);
   font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.04em;text-transform:none}
 
@@ -10530,7 +10561,7 @@ function _renderAdminConsole() {
         <h3>Tour Managers <span class="muted mono">${tms.length}</span></h3>
         <div style="display:flex;align-items:center;gap:14px">
           <span class="admin-hint">Click any row for details</span>
-          <button type="button" class="btn primary" onclick="_adminGrantTMAccess()" style="padding:7px 13px;font-size:12px;font-weight:700;letter-spacing:.04em">+ Grant TM access</button>
+          <button type="button" class="btn primary" onclick="_adminGrantTMAccess()">+ Grant TM access</button>
         </div>
       </div>
       ${tms.length ? `
@@ -10542,13 +10573,14 @@ function _renderAdminConsole() {
               : tierKey === 'comp' ? '#b1c8ee'
               : tierKey === 'pending' ? '#fdba74'
               : 'var(--warm-mute)';
+            const canRevoke = tierKey === 'sub' || tierKey === 'comp' || tierKey === 'pending';
             return `
               <div class="atr expandable ${isOpen?'expanded':''}" onclick="_adminToggleExpand('tm','${esc(user.id)}',event)">
                 <span><b>${esc(user.name || '—')}</b></span>
                 <span class="muted mono">${esc(user.email || '—')}</span>
                 <span>${tCount}</span>
                 <span style="color:${tierColor}">${tier}</span>
-                <span><span class="status-pill ${user.claimed?'good':'warn'}">${user.claimed?'Active':'Pending'}</span><span class="atr-caret">${isOpen?'▾':'▸'}</span></span>
+                <span><span class="status-pill ${user.claimed?'good':'warn'}">${user.claimed?'Active':'Pending'}</span>${canRevoke ? `<button type="button" class="atr-revoke" onclick="event.stopPropagation();_adminRevokeAccess('${esc(user.id)}')" title="Revoke access">${tierKey === 'pending' ? 'Update' : 'Revoke'}</button>` : ''}<span class="atr-caret">${isOpen?'▾':'▸'}</span></span>
               </div>
               ${isOpen ? _adminTMDetail(user, tours) : ''}
             `;
