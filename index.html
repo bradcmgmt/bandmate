@@ -1891,8 +1891,8 @@ body.travel-assistant-mode #travelAssistantArea{
    mark turns around its vertical axis like a coin or playing card, with
    the drop-shadow pulsing brighter at the 90°/270° edge-on points so the
    spin reads as dimensional, not flat. Matches the Privatus mark behavior. */
-.landing-mark{margin-bottom:30px;display:flex;justify-content:center;perspective:600px}
-.landing-avatar{width:96px;height:auto;display:block;
+.landing-mark{margin-bottom:24px;display:flex;justify-content:center;perspective:600px}
+.landing-avatar{width:64px;height:auto;display:block;
   animation:landingSpin 10s linear infinite;
   transform-origin:50% 50%;backface-visibility:visible;will-change:transform,filter}
 @keyframes landingSpin{
@@ -1913,17 +1913,14 @@ body.travel-assistant-mode #travelAssistantArea{
   font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700}
 
 /* Display headline. Bebas Neue — condensed concert-poster sans, but lighter
-   and more refined than Anton. Keeps the music-industry feel without
-   feeling brutalist. The second line gets a soft -4deg skew for a
-   subtle italic swagger rather than full-on tour-poster lean. */
+   and more refined than Anton. Flat solid colors (no gradient texture) so
+   the text reads cleanly against the dark background. The second line
+   gets a soft -4deg skew for a subtle italic swagger. */
 .landing-headline{margin:0 0 48px;font-family:'Bebas Neue','Inter',sans-serif;
   font-weight:400;font-size:clamp(58px,9.5vw,132px);line-height:.96;letter-spacing:.02em;
-  text-transform:uppercase;
-  color:transparent;background:linear-gradient(180deg,#fff5e0 0%,#e8943a 70%,#9c5a18 100%);
-  -webkit-background-clip:text;background-clip:text}
+  text-transform:uppercase;color:#fff5e0}
 .landing-headline em{font-style:normal;display:inline-block;transform:skew(-4deg);
-  color:transparent;background:linear-gradient(180deg,#e8943a 0%,#c47323 85%);
-  -webkit-background-clip:text;background-clip:text;letter-spacing:.02em;margin-top:4px}
+  color:var(--hi);letter-spacing:.02em;margin-top:4px}
 
 .landing-cta{display:flex;gap:14px;justify-content:center;align-items:stretch;
   margin-bottom:36px;flex-wrap:wrap}
@@ -1952,8 +1949,8 @@ body.travel-assistant-mode #travelAssistantArea{
 
 @media (max-width:560px){
   .landing-headline{font-size:64px;margin-bottom:36px}
-  .landing-mark{margin-bottom:20px}
-  .landing-avatar{width:72px}
+  .landing-mark{margin-bottom:16px}
+  .landing-avatar{width:48px}
   .landing-wordmark .landing-wordmark-img{height:28px}
   .landing-cta{flex-direction:column;align-items:stretch}
   .landing-btn{min-width:0}
@@ -2158,7 +2155,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
     </div>
 
     <p class="landing-pitch">
-      Tour management, finally on the same page.<br>
+      Tour management, on the same page.<br>
       <span class="lp-fade">Built for the people behind the curtain.</span>
     </p>
 
