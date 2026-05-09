@@ -10226,8 +10226,10 @@ function _adminTMDetail(user, tours) {
   const totalDates = ownedTours.reduce((n, t) => n + (t.dates?.length || 0), 0);
   const totalNotifs = ownedTours.reduce((n, t) => n + (t.notifications?.length || 0), 0);
   const subscribed = user.subscriptionStatus === 'active';
-  const tier = subscribed ? '$49.99/mo · active' : 'Not subscribed yet';
+  const isComp = user.subscriptionPlan === 'comp';
+  const tier = subscribed ? (isComp ? 'Comp · $0/mo · manually granted' : '$49.99/mo · active') : 'Not subscribed yet';
   const subStartedAt = user.subscriptionStartedAt ? new Date(user.subscriptionStartedAt).toLocaleDateString() : null;
+  const compGrantedAt = user.compGrantedAt ? new Date(user.compGrantedAt).toLocaleDateString() : null;
   return `
     <div class="atr-detail" onclick="event.stopPropagation()">
       <div class="adt-section">
@@ -10236,8 +10238,12 @@ function _adminTMDetail(user, tours) {
         <div class="adt-row"><span class="muted">Email</span><b class="mono">${esc(user.email || '—')}</b></div>
         <div class="adt-row"><span class="muted">User ID</span><b class="mono">${esc(user.id || '—')}</b></div>
         <div class="adt-row"><span class="muted">Status</span><b>${user.claimed ? 'Active · signed in' : 'Pending invite'}</b></div>
-        <div class="adt-row"><span class="muted">Subscription</span><b style="color:${subscribed ? 'var(--good)' : 'var(--warm-mute)'}">${tier}</b></div>
+        <div class="adt-row"><span class="muted">Subscription</span><b style="color:${subscribed ? (isComp ? '#b1c8ee' : 'var(--good)') : 'var(--warm-mute)'}">${tier}</b></div>
         ${subStartedAt ? `<div class="adt-row"><span class="muted">Subscribed on</span><b class="mono">${subStartedAt}</b></div>` : ''}
+        ${isComp && user.compGrantedBy ? `<div class="adt-row"><span class="muted">Comped by</span><b class="mono">${esc(user.compGrantedBy)}</b></div>` : ''}
+        ${isComp && compGrantedAt ? `<div class="adt-row"><span class="muted">Comp granted</span><b class="mono">${compGrantedAt}</b></div>` : ''}
+        ${isComp && user.compNote ? `<div class="adt-row"><span class="muted">Reason</span><b>${esc(user.compNote)}</b></div>` : ''}
+        ${subscribed && isComp ? `<div style="margin-top:8px"><button type="button" class="btn" onclick="event.stopPropagation();_adminRevokeComp('${esc(user.id)}')" style="font-size:11px;padding:5px 10px;border-color:rgba(232,69,69,.4);color:#f0a39d">Revoke comp access</button></div>` : ''}
       </div>
       <div class="adt-section">
         <div class="adt-h">Activity · ${ownedTours.length} tour${ownedTours.length===1?'':'s'}</div>
@@ -10326,25 +10332,28 @@ function _renderAdminConsole() {
   const totalCrewSeats = tours.reduce((n, t) => n + (t.crew?.length || 0), 0);
   const totalNotifications = tours.reduce((n, t) => n + (t.notifications?.length || 0), 0);
 
-  // Single subscription tier now ($49.99/mo flat). The "tier" for each
-  // TM is just whether they have an active subscription on their user
-  // record, which is set by the post-payment welcome flow.
+  // Single subscription tier ($49.99/mo flat). A TM's "tier" can be:
+  //   - 'sub'  : paying subscriber (Stripe checkout completed)
+  //   - 'comp' : manually granted by an admin (friends & family, beta,
+  //              comp accounts) — distinguished so we never confuse a
+  //              freebie with a paying customer in the analytics
+  //   - 'none' : signed up but no subscription attached
   const tmDetails = tms.map(u => {
     const ownedTours = tours.filter(t => t.ownerId === u.id);
     const subscribed = u.subscriptionStatus === 'active';
-    const tier = subscribed ? 'Subscribed · $49.99' : 'Not subscribed';
-    const tierKey = subscribed ? 'sub' : 'none';
+    const isComp = u.subscriptionPlan === 'comp';
+    const tier = subscribed
+      ? (isComp ? 'Comp · $0' : 'Subscribed · $49.99')
+      : 'Not subscribed';
+    const tierKey = subscribed ? (isComp ? 'comp' : 'sub') : 'none';
     return { user: u, tours: ownedTours.length, tier, tierKey };
   });
 
-  // Subscription breakdown — count of active vs. unsubscribed TMs and a
-  // monthly recurring revenue estimate. MRR is illustrative ("on this
-  // device") because we don't yet have a backend to confirm Stripe-side
-  // subscription state; once a webhook + backend exist, swap this for
-  // the real MRR call.
-  const tierCounts = { sub: 0, none: 0 };
+  // Subscription breakdown — paying subscribers count for MRR, comps
+  // don't (they explicitly contribute $0 by definition).
+  const tierCounts = { sub: 0, comp: 0, none: 0 };
   tmDetails.forEach(t => tierCounts[t.tierKey]++);
-  const tierMax = Math.max(tierCounts.sub, tierCounts.none, 1);
+  const tierMax = Math.max(tierCounts.sub, tierCounts.comp, tierCounts.none, 1);
   const mrr = tierCounts.sub * 49.99;
 
   // Pending-invite leaderboard — surfaces TMs whose tours have the most
@@ -10379,6 +10388,10 @@ function _renderAdminConsole() {
             <button type="button" class="atp-item" onclick="_adminCloseToolsMenu();_adminBroadcastModal()">
               <span class="atp-h">Send broadcast notification</span>
               <span class="atp-s">Push a message to every tour's notification feed.</span>
+            </button>
+            <button type="button" class="atp-item" onclick="_adminCloseToolsMenu();_adminGrantTMAccess()">
+              <span class="atp-h">Grant TM access · comp</span>
+              <span class="atp-s">Hand someone a Tour Manager seat without going through Stripe (friends &amp; family, beta access, etc.).</span>
             </button>
             <button type="button" class="atp-item" onclick="_adminCloseToolsMenu();_adminClaimUnclaimed()">
               <span class="atp-h">Audit unclaimed accounts</span>
@@ -10421,7 +10434,9 @@ function _renderAdminConsole() {
           <div class="atr atr-head"><span>Name</span><span>Email</span><span>Tours</span><span>Subscription</span><span>Status</span></div>
           ${tmDetails.map(({user, tours: tCount, tier, tierKey}) => {
             const isOpen = _adminExpanded.type === 'tm' && _adminExpanded.id === user.id;
-            const tierColor = tierKey === 'sub' ? 'var(--good)' : 'var(--warm-mute)';
+            const tierColor = tierKey === 'sub' ? 'var(--good)'
+              : tierKey === 'comp' ? '#b1c8ee'
+              : 'var(--warm-mute)';
             return `
               <div class="atr expandable ${isOpen?'expanded':''}" onclick="_adminToggleExpand('tm','${esc(user.id)}',event)">
                 <span><b>${esc(user.name || '—')}</b></span>
@@ -10501,6 +10516,11 @@ function _renderAdminConsole() {
             <span class="aa-bar-num">${tierCounts.sub}</span>
           </div>
           <div class="aa-bar-row">
+            <span class="aa-bar-label" style="color:#b1c8ee">Comp · $0</span>
+            <div class="aa-bar-track"><div class="aa-bar-fill aa-fill-solo" style="width:${(tierCounts.comp/tierMax)*100}%"></div></div>
+            <span class="aa-bar-num">${tierCounts.comp}</span>
+          </div>
+          <div class="aa-bar-row">
             <span class="aa-bar-label" style="color:var(--warm-mute)">Not subscribed</span>
             <div class="aa-bar-track"><div class="aa-bar-fill aa-fill-none" style="width:${(tierCounts.none/tierMax)*100}%"></div></div>
             <span class="aa-bar-num">${tierCounts.none}</span>
@@ -10512,7 +10532,7 @@ function _renderAdminConsole() {
             <div class="aa-mrr-lbl">Estimated MRR · this device</div>
           </div>
           <div class="aa-mrr-side">
-            <div class="aa-mrr-side-num">${tierCounts.sub}</div>
+            <div class="aa-mrr-side-num">${tierCounts.sub}<span style="color:var(--warm-mute);font-size:14px"> · ${tierCounts.comp} comp</span></div>
             <div class="aa-mrr-side-lbl">paid TMs</div>
           </div>
         </div>
@@ -10629,6 +10649,135 @@ function _adminPurgeDevice() {
     onConfirm: () => {
       try { localStorage.clear(); } catch(e) {}
       location.reload();
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// MANUAL TM ACCESS GRANT (comp / friends & family)
+//
+// Lets the owner hand someone a Tour Manager seat without going through
+// Stripe — useful for friends & family, beta testers, contest winners,
+// industry partners, etc. The grant is tracked separately from real
+// Stripe subscriptions so we never confuse a freebie with a paying
+// customer in the analytics: comp accounts have subscriptionPlan: 'comp'
+// (paying ones have 'standard') and carry compGrantedBy / compGrantedAt
+// / compNote fields so the audit trail is intact.
+//
+// Three target states based on whether the email already exists:
+//   1. No user with that email → create an UNCLAIMED user record with
+//      role:'tm' and the comp subscription pre-attached. When they
+//      eventually sign up with that email, the existing claim-on-signup
+//      logic in signUp() preserves the comp subscription fields.
+//   2. Existing user, role:'crew', !claimed → upgrade role to 'tm' +
+//      attach comp. Their crew rosters across tours stay intact.
+//   3. Existing user already a TM → just attach the comp (or refuse if
+//      they're already a paying subscriber, to avoid clobbering Stripe
+//      data).
+// ─────────────────────────────────────────────────────────────────────
+function _adminGrantTMAccess() {
+  openModal({
+    title: 'Grant TM access · comp',
+    size: '',
+    hideFooter: true,
+    body: `
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="font-size:13px;color:var(--warm-mute);line-height:1.55">
+          Hands someone a <b style="color:var(--warm)">Tour Manager seat for free</b>. Skip Stripe entirely — useful for friends &amp; family, beta testers, comp accounts, etc. The grant is tracked separately from real subscribers so analytics stay honest.
+        </div>
+        <div class="field"><label>Email *</label><input type="email" id="ag_email" placeholder="alice@band.com" autocomplete="off"></div>
+        <div class="field"><label>Name (optional)</label><input id="ag_name" placeholder="Alice Cohen — used as their display name if they don't sign up later"></div>
+        <div class="field"><label>Reason (optional · audit trail)</label><input id="ag_note" placeholder="Friends &amp; family · beta tester · contest winner · etc."></div>
+        <div style="padding:11px 14px;background:rgba(177,200,238,.06);border:1px solid rgba(177,200,238,.3);border-radius:8px;font-size:12.5px;color:var(--warm-mute);line-height:1.55">
+          <b style="color:#b1c8ee">What happens next:</b> if there's already a Bandmate account on this device with that email, it gets the comp subscription attached immediately. If not, we create a placeholder account that activates the moment they sign up with the same email.
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--line);padding-top:14px">
+          <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+          <button type="button" class="btn primary" onclick="_adminGrantTMSubmit()">Grant access →</button>
+        </div>
+      </div>
+    `,
+  });
+  setTimeout(() => document.getElementById('ag_email')?.focus(), 80);
+}
+
+function _adminGrantTMSubmit() {
+  const email = (document.getElementById('ag_email')?.value || '').trim().toLowerCase();
+  const name = (document.getElementById('ag_name')?.value || '').trim();
+  const note = (document.getElementById('ag_note')?.value || '').trim();
+  if (!email || !email.includes('@')) {
+    toast('Valid email required', 'error');
+    return;
+  }
+  if (!state) state = newEmptyState();
+  if (!state.users) state.users = {};
+
+  const adminEmail = JSON.parse(localStorage.getItem(ADMIN_SESSION_KEY) || '{}').email || 'admin';
+  const existing = Object.values(state.users).find(u => (u.email || '').toLowerCase() === email);
+
+  let userId;
+  let outcomeMsg;
+  if (existing) {
+    // Refuse to overwrite a paying subscription with a comp downgrade —
+    // that'd silently revoke real Stripe billing data, bad audit trail.
+    if (existing.subscriptionStatus === 'active' && existing.subscriptionPlan === 'standard') {
+      toast('That account already has a paid subscription — comp not applied', 'error');
+      return;
+    }
+    // Promote crew → TM if needed (the user explicitly granted TM access)
+    if (existing.role !== 'tm') existing.role = 'tm';
+    if (name && !existing.name) existing.name = name;
+    existing.subscriptionStatus = 'active';
+    existing.subscriptionPlan = 'comp';
+    existing.subscriptionStartedAt = Date.now();
+    existing.compGrantedBy = adminEmail;
+    existing.compGrantedAt = Date.now();
+    if (note) existing.compNote = note;
+    userId = existing.id;
+    outcomeMsg = `Comp access granted to ${esc(existing.name || existing.email)}`;
+  } else {
+    // Brand-new placeholder user — unclaimed until they sign up.
+    userId = 'u_' + (email.replace(/[^a-z0-9]/g,'') || ('comp'+Date.now())).slice(0,30);
+    state.users[userId] = {
+      id: userId,
+      name: name || email.split('@')[0],
+      email,
+      role: 'tm',
+      avatar: (name || email).split(/[\s@.]+/).filter(Boolean).map(s=>s[0]).join('').slice(0,2).toUpperCase() || '??',
+      createdAt: Date.now(),
+      claimed: false,
+      subscriptionStatus: 'active',
+      subscriptionPlan: 'comp',
+      subscriptionStartedAt: Date.now(),
+      compGrantedBy: adminEmail,
+      compGrantedAt: Date.now(),
+      ...(note ? { compNote: note } : {}),
+    };
+    outcomeMsg = `Comp account created for ${esc(email)} — they activate on signup`;
+  }
+  saveState();
+  closeModal();
+  toast(outcomeMsg, 'good');
+  _renderAdminConsole();
+}
+
+function _adminRevokeComp(userId) {
+  if (!state || !state.users || !state.users[userId]) return;
+  const u = state.users[userId];
+  if (u.subscriptionPlan !== 'comp') return; // safety: only revoke comps
+  confirmTyped({
+    title: `Revoke comp access for ${esc(u.name || u.email)}?`,
+    message: `Their Tour Manager subscription will be marked as inactive. Their account, tours, and crew roster stay intact — they just lose the free seat. They can re-subscribe through Stripe to restore access. This cannot be undone (you'd have to grant a fresh comp to restore it).`,
+    magic: 'REVOKE',
+    confirmLabel: 'Revoke comp',
+    danger: true,
+    onConfirm: () => {
+      u.subscriptionStatus = 'revoked';
+      u.subscriptionPlan = null;
+      u.compRevokedAt = Date.now();
+      saveState();
+      toast(`Comp revoked for ${esc(u.name || u.email)}`, '');
+      _renderAdminConsole();
     }
   });
 }
@@ -12699,6 +12848,7 @@ Object.assign(window, {
   _adminExportAll, _adminBroadcastModal, _adminBroadcastSend,
   _adminClaimUnclaimed, _adminPurgeDevice,
   _adminToggleExpand, _adminToggleToolsMenu, _adminCloseToolsMenu,
+  _adminGrantTMAccess, _adminGrantTMSubmit, _adminRevokeComp,
   downloadTourGridCSV, downloadHotelsCSV, downloadContactsCSV, downloadSettlementsCSV, downloadTasksCSV,
   deleteDate, getActiveDate
 });
