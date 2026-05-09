@@ -1887,15 +1887,22 @@ body.travel-assistant-mode #travelAssistantArea{
   background-size:48px 48px;opacity:.5;mask-image:radial-gradient(ellipse 90% 70% at 50% 50%,#000,transparent 80%)}
 .landing-content{position:relative;z-index:1;max-width:980px;width:100%;text-align:center}
 
-/* Spinning rabbit avatar above the headline. Slow continuous rotation
-   feels like a record on a turntable — quiet, on-brand, never showy. */
-.landing-mark{margin-bottom:30px;display:flex;justify-content:center}
+/* Spinning Bandmate avatar above the headline. 3D Y-axis rotation — the
+   mark turns around its vertical axis like a coin or playing card, with
+   the drop-shadow pulsing brighter at the 90°/270° edge-on points so the
+   spin reads as dimensional, not flat. Matches the Privatus mark behavior. */
+.landing-mark{margin-bottom:30px;display:flex;justify-content:center;perspective:600px}
 .landing-avatar{width:96px;height:auto;display:block;
-  filter:drop-shadow(0 0 18px rgba(232,148,58,.45));
-  animation:landingSpin 12s linear infinite;
-  transform-origin:50% 50%}
-@keyframes landingSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion:reduce){.landing-avatar{animation:none}}
+  animation:landingSpin 10s linear infinite;
+  transform-origin:50% 50%;backface-visibility:visible;will-change:transform,filter}
+@keyframes landingSpin{
+  0%   {transform:rotateY(0deg);   filter:drop-shadow(0 0 12px rgba(232,148,58,.35))}
+  25%  {transform:rotateY(90deg);  filter:drop-shadow(0 0 22px rgba(232,148,58,.65))}
+  50%  {transform:rotateY(180deg); filter:drop-shadow(0 0 12px rgba(232,148,58,.35))}
+  75%  {transform:rotateY(270deg); filter:drop-shadow(0 0 22px rgba(232,148,58,.65))}
+  100% {transform:rotateY(360deg); filter:drop-shadow(0 0 12px rgba(232,148,58,.35))}
+}
+@media (prefers-reduced-motion:reduce){.landing-avatar{animation:none;filter:drop-shadow(0 0 12px rgba(232,148,58,.35))}}
 
 /* Wordmark logo now sits beneath the pitch (was at the top, before the
    avatar took over). Centered, sized down so it reads as a sign-off. */
