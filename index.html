@@ -2006,17 +2006,31 @@ body.travel-assistant-mode #travelAssistantArea{
 .pricing-card.pc-business .pc-cta:hover{background:rgba(138,169,216,.1)}
 .pc-foot{margin-top:10px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);
   letter-spacing:.06em;text-align:center}
-.pc-foot-detail{margin-bottom:12px}
-/* Fine print explaining the auto-upgrade ceiling. Lives at the bottom of
-   the Tour Manager card — small but legible, with an info glyph anchor. */
-.pc-fineprint{display:flex;gap:9px;align-items:flex-start;padding:10px 12px;
-  background:rgba(232,148,58,.05);border:1px solid rgba(232,148,58,.25);border-radius:7px;
-  font-size:11.5px;line-height:1.5;color:var(--warm-mute)}
-.pc-fineprint b{color:var(--warm)}
-.pc-fp-glyph{flex:0 0 18px;width:18px;height:18px;border-radius:50%;
-  background:rgba(232,148,58,.18);border:1px solid rgba(232,148,58,.45);color:var(--hi);
-  display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;
-  font-size:10px;font-weight:800;font-style:italic;margin-top:1px}
+/* Auto-upgrade explainer tooltip. The "i" glyph sits next to the $49.99
+   price; hover (or focus, for keyboard users) reveals a tooltip explaining
+   the $69.99 ceiling. Click anywhere else and it closes. */
+.pc-info{display:inline-flex;align-self:center;margin-left:8px;position:relative;cursor:help;outline:none}
+.pc-info-glyph{display:flex;align-items:center;justify-content:center;
+  width:18px;height:18px;border-radius:50%;
+  background:rgba(232,148,58,.14);border:1px solid rgba(232,148,58,.45);color:var(--hi);
+  font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:800;font-style:italic;
+  transition:all .15s ease}
+.pc-info:hover .pc-info-glyph,.pc-info:focus .pc-info-glyph{
+  background:rgba(232,148,58,.28);border-color:var(--hi);color:#fff5e0}
+.pc-info-tip{position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%) translateY(-4px);
+  width:280px;padding:10px 12px;border-radius:8px;
+  background:#1c130b;border:1px solid var(--hi);
+  box-shadow:0 12px 28px -8px rgba(0,0,0,.7),0 0 0 1px rgba(232,148,58,.15);
+  font-family:'Inter',sans-serif;font-size:12px;line-height:1.55;color:var(--warm);
+  font-weight:500;letter-spacing:0;text-transform:none;
+  opacity:0;pointer-events:none;visibility:hidden;
+  transition:opacity .15s ease,transform .15s ease,visibility 0s linear .15s;z-index:5}
+.pc-info-tip b{color:var(--hi);font-weight:700}
+.pc-info-tip::before{content:"";position:absolute;top:-6px;left:50%;transform:translateX(-50%) rotate(45deg);
+  width:10px;height:10px;background:#1c130b;border-left:1px solid var(--hi);border-top:1px solid var(--hi)}
+.pc-info:hover .pc-info-tip,.pc-info:focus .pc-info-tip{
+  opacity:1;visibility:visible;transform:translateX(-50%) translateY(0);
+  transition:opacity .15s ease,transform .15s ease,visibility 0s linear 0s}
 
 /* "Just here as band or crew?" callout below the pricing grid — drops them
    into the crew sign-up flow without needing to scroll back to landing. */
@@ -2276,9 +2290,16 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
     <div class="pricing-grid pricing-grid-2">
 
       <div class="pricing-card pc-featured">
-        <div class="pc-badge">MOST CHOSEN</div>
         <div class="pc-tier">TOUR MANAGER</div>
-        <div class="pc-price"><span class="pc-amount">$49.99</span><span class="pc-cycle">/mo</span></div>
+        <div class="pc-price">
+          <span class="pc-amount">$49.99</span><span class="pc-cycle">/mo</span>
+          <span class="pc-info" tabindex="0" aria-label="Pricing details">
+            <span class="pc-info-glyph">i</span>
+            <span class="pc-info-tip" role="tooltip">
+              <b>Pricing ceiling:</b> if you run <b>4 or more tours</b> simultaneously, your plan auto-upgrades to <b>$69.99/mo</b> — that's the maximum. It never costs more than that no matter how many tours you run.
+            </span>
+          </span>
+        </div>
         <div class="pc-pitch">One flat rate for everything you need to run tours.</div>
         <ul class="pc-features">
           <li>Up to 3 active tours</li>
@@ -2288,11 +2309,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
           <li>All tour data stays yours</li>
         </ul>
         <button type="button" class="pc-cta primary" onclick="_pricingSubscribe('solo')">Subscribe →</button>
-        <div class="pc-foot pc-foot-detail">Cancel anytime · 7-day full refund</div>
-        <div class="pc-fineprint">
-          <span class="pc-fp-glyph">i</span>
-          Running <b>4 or more tours simultaneously</b>? Your plan auto-upgrades to <b>$69.99/mo</b> — that's the maximum, it never costs more than that no matter how many tours you run.
-        </div>
+        <div class="pc-foot">Cancel anytime · 7-day full refund</div>
       </div>
 
       <div class="pricing-card pc-business">
