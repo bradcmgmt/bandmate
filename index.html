@@ -10427,7 +10427,10 @@ function _renderAdminConsole() {
     <div class="admin-section">
       <div class="admin-section-head">
         <h3>Tour Managers <span class="muted mono">${tms.length}</span></h3>
-        <span class="admin-hint">Click any row for details</span>
+        <div style="display:flex;align-items:center;gap:14px">
+          <span class="admin-hint">Click any row for details</span>
+          <button type="button" class="btn primary" onclick="_adminGrantTMAccess()" style="padding:7px 13px;font-size:12px;font-weight:700;letter-spacing:.04em">+ Grant TM access</button>
+        </div>
       </div>
       ${tms.length ? `
         <div class="admin-table">
