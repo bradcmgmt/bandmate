@@ -88,6 +88,10 @@ body.bg-video-on .landing-overlay .landing-bg{
   opacity:.55}
 body.bg-video-on .login-overlay{
   background:radial-gradient(800px 500px at 50% 30%,rgba(232,148,58,.08),transparent 60%),rgba(10,7,5,.66)}
+body.bg-video-on .pricing-overlay{
+  background:rgba(10,7,5,.66)}
+body.bg-video-on .pricing-overlay .landing-bg{
+  opacity:.4}
 
 a{color:inherit;text-decoration:none}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
@@ -2071,6 +2075,18 @@ body.travel-assistant-mode #travelAssistantArea{
   color:var(--warm-mute);padding:6px 14px;border-radius:6px;cursor:pointer;
   font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:700}
 .pricing-back:hover{color:var(--hi);border-color:var(--hi)}
+
+/* Login overlay back button — mirrors .pricing-back so the visual
+   language stays consistent across both pre-auth surfaces. Sits in
+   the top-left of the overlay so it's easy to miss-click on but
+   still discoverable. */
+.login-back{position:absolute;top:18px;left:18px;background:rgba(0,0,0,.32);
+  border:1px solid var(--line-2);color:var(--warm-mute);
+  padding:7px 14px;border-radius:7px;cursor:pointer;
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  letter-spacing:.18em;text-transform:uppercase;font-weight:700;
+  transition:color .15s,border-color .15s,background .15s;z-index:2}
+.login-back:hover{color:var(--hi);border-color:var(--hi);background:rgba(232,148,58,.06)}
 .pricing-eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.32em;
   color:var(--hi);font-weight:700;margin-top:18px;margin-bottom:14px}
 .pricing-headline{margin:0 0 14px;font-family:'Bebas Neue','Inter',sans-serif;font-weight:400;
@@ -2761,6 +2777,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 
 <!-- ============ LOGIN / SIGNUP OVERLAY ============ -->
 <div class="login-overlay" id="loginScreen" hidden>
+  <button type="button" class="login-back" onclick="hideLoginScreen();showLandingScreen()" aria-label="Back to landing">← Back</button>
   <div class="login-card">
     <div class="login-brand">
       <img src="logo.png" class="brand-logo brand-logo-lg" alt="Bandmate" />
@@ -10267,11 +10284,33 @@ function _adminTMDetail(user, tours) {
   ownedTours.forEach(t => (t.crew || []).forEach(c => c.userId && allCrewIds.add(c.userId)));
   const totalDates = ownedTours.reduce((n, t) => n + (t.dates?.length || 0), 0);
   const totalNotifs = ownedTours.reduce((n, t) => n + (t.notifications?.length || 0), 0);
-  const subscribed = user.subscriptionStatus === 'active';
+  const status = user.subscriptionStatus;
+  const isActive = status === 'active';
+  const isPending = status === 'pending_revoke';
+  const isRevoked = status === 'revoked';
+  const subscribed = isActive || isPending;
   const isComp = user.subscriptionPlan === 'comp';
-  const tier = subscribed ? (isComp ? 'Comp · $0/mo · manually granted' : '$49.99/mo · active') : 'Not subscribed yet';
   const subStartedAt = user.subscriptionStartedAt ? new Date(user.subscriptionStartedAt).toLocaleDateString() : null;
   const compGrantedAt = user.compGrantedAt ? new Date(user.compGrantedAt).toLocaleDateString() : null;
+  const accessExpires = user.accessExpiresAt ? new Date(user.accessExpiresAt).toLocaleDateString() : null;
+  const revokedAt = user.revokedAt ? new Date(user.revokedAt).toLocaleDateString() : null;
+
+  // Subscription label that shows in the Subscription row of the panel.
+  let subLabel, subColor;
+  if (isPending) {
+    subLabel = `${isComp ? 'Comp' : '$49.99/mo'} · ending ${accessExpires || 'soon'}`;
+    subColor = '#fdba74';
+  } else if (isActive) {
+    subLabel = isComp ? 'Comp · $0/mo · manually granted' : '$49.99/mo · active';
+    subColor = isComp ? '#b1c8ee' : 'var(--good)';
+  } else if (isRevoked) {
+    subLabel = 'Access revoked';
+    subColor = '#f0a39d';
+  } else {
+    subLabel = 'Not subscribed yet';
+    subColor = 'var(--warm-mute)';
+  }
+
   return `
     <div class="atr-detail" onclick="event.stopPropagation()">
       <div class="adt-section">
@@ -10280,12 +10319,19 @@ function _adminTMDetail(user, tours) {
         <div class="adt-row"><span class="muted">Email</span><b class="mono">${esc(user.email || '—')}</b></div>
         <div class="adt-row"><span class="muted">User ID</span><b class="mono">${esc(user.id || '—')}</b></div>
         <div class="adt-row"><span class="muted">Status</span><b>${user.claimed ? 'Active · signed in' : 'Pending invite'}</b></div>
-        <div class="adt-row"><span class="muted">Subscription</span><b style="color:${subscribed ? (isComp ? '#b1c8ee' : 'var(--good)') : 'var(--warm-mute)'}">${tier}</b></div>
+        <div class="adt-row"><span class="muted">Subscription</span><b style="color:${subColor}">${subLabel}</b></div>
         ${subStartedAt ? `<div class="adt-row"><span class="muted">Subscribed on</span><b class="mono">${subStartedAt}</b></div>` : ''}
         ${isComp && user.compGrantedBy ? `<div class="adt-row"><span class="muted">Comped by</span><b class="mono">${esc(user.compGrantedBy)}</b></div>` : ''}
         ${isComp && compGrantedAt ? `<div class="adt-row"><span class="muted">Comp granted</span><b class="mono">${compGrantedAt}</b></div>` : ''}
         ${isComp && user.compNote ? `<div class="adt-row"><span class="muted">Reason</span><b>${esc(user.compNote)}</b></div>` : ''}
-        ${subscribed && isComp ? `<div style="margin-top:8px"><button type="button" class="btn" onclick="event.stopPropagation();_adminRevokeComp('${esc(user.id)}')" style="font-size:11px;padding:5px 10px;border-color:rgba(232,69,69,.4);color:#f0a39d">Revoke comp access</button></div>` : ''}
+        ${(isPending || isRevoked) && revokedAt ? `<div class="adt-row"><span class="muted">Revoked on</span><b class="mono">${revokedAt}</b></div>` : ''}
+        ${(isPending || isRevoked) && user.revokedBy ? `<div class="adt-row"><span class="muted">Revoked by</span><b class="mono">${esc(user.revokedBy)}</b></div>` : ''}
+        ${(isPending || isRevoked) && user.revokedReason ? `<div class="adt-row"><span class="muted">Revoke reason</span><b>${esc(user.revokedReason)}</b></div>` : ''}
+        ${subscribed ? `
+          <div style="margin-top:10px;display:flex;gap:8px">
+            <button type="button" class="btn" onclick="event.stopPropagation();_adminRevokeAccess('${esc(user.id)}')" style="font-size:11px;padding:6px 12px;border-color:rgba(232,69,69,.45);color:#f0a39d;background:rgba(220,90,80,.05)">${isPending ? 'Update revocation' : 'Revoke access'}</button>
+          </div>
+        ` : ''}
       </div>
       <div class="adt-section">
         <div class="adt-h">Activity · ${ownedTours.length} tour${ownedTours.length===1?'':'s'}</div>
@@ -10375,19 +10421,32 @@ function _renderAdminConsole() {
   const totalNotifications = tours.reduce((n, t) => n + (t.notifications?.length || 0), 0);
 
   // Single subscription tier ($49.99/mo flat). A TM's "tier" can be:
-  //   - 'sub'  : paying subscriber (Stripe checkout completed)
-  //   - 'comp' : manually granted by an admin (friends & family, beta,
-  //              comp accounts) — distinguished so we never confuse a
-  //              freebie with a paying customer in the analytics
-  //   - 'none' : signed up but no subscription attached
+  //   - 'sub'   : paying subscriber (Stripe checkout completed)
+  //   - 'comp'  : manually granted by an admin (friends & family, beta,
+  //               etc.) — distinguished so we never confuse a freebie
+  //               with a paying customer in the analytics
+  //   - 'pending': access has been revoked but they still have until
+  //               their billing-cycle end. Treated as subscribed for
+  //               display + counts so they don't disappear from view
+  //               while the wind-down runs out.
+  //   - 'none'  : signed up but no subscription attached, or fully revoked
   const tmDetails = tms.map(u => {
     const ownedTours = tours.filter(t => t.ownerId === u.id);
-    const subscribed = u.subscriptionStatus === 'active';
+    const status = u.subscriptionStatus;
     const isComp = u.subscriptionPlan === 'comp';
-    const tier = subscribed
-      ? (isComp ? 'Comp · $0' : 'Subscribed · $49.99')
-      : 'Not subscribed';
-    const tierKey = subscribed ? (isComp ? 'comp' : 'sub') : 'none';
+    const isPending = status === 'pending_revoke';
+    const subscribed = status === 'active' || isPending;
+    let tier, tierKey;
+    if (isPending) {
+      tier = isComp ? 'Comp · ending soon' : 'Subscribed · ending soon';
+      tierKey = 'pending';
+    } else if (subscribed) {
+      tier = isComp ? 'Comp · $0' : 'Subscribed · $49.99';
+      tierKey = isComp ? 'comp' : 'sub';
+    } else {
+      tier = status === 'revoked' ? 'Access revoked' : 'Not subscribed';
+      tierKey = 'none';
+    }
     return { user: u, tours: ownedTours.length, tier, tierKey };
   });
 
@@ -10481,6 +10540,7 @@ function _renderAdminConsole() {
             const isOpen = _adminExpanded.type === 'tm' && _adminExpanded.id === user.id;
             const tierColor = tierKey === 'sub' ? 'var(--good)'
               : tierKey === 'comp' ? '#b1c8ee'
+              : tierKey === 'pending' ? '#fdba74'
               : 'var(--warm-mute)';
             return `
               <div class="atr expandable ${isOpen?'expanded':''}" onclick="_adminToggleExpand('tm','${esc(user.id)}',event)">
@@ -10806,25 +10866,120 @@ function _adminGrantTMSubmit() {
   _renderAdminConsole();
 }
 
-function _adminRevokeComp(userId) {
+// Revoke access from any subscriber (paying OR comp). Opens a modal
+// that collects a required reason for the audit trail and asks the
+// admin to choose between cutting access immediately vs letting them
+// keep it through the end of their current billing cycle.
+function _adminRevokeAccess(userId) {
   if (!state || !state.users || !state.users[userId]) return;
   const u = state.users[userId];
-  if (u.subscriptionPlan !== 'comp') return; // safety: only revoke comps
-  confirmTyped({
-    title: `Revoke comp access for ${esc(u.name || u.email)}?`,
-    message: `Their Tour Manager subscription will be marked as inactive. Their account, tours, and crew roster stay intact — they just lose the free seat. They can re-subscribe through Stripe to restore access. This cannot be undone (you'd have to grant a fresh comp to restore it).`,
-    magic: 'REVOKE',
-    confirmLabel: 'Revoke comp',
-    danger: true,
-    onConfirm: () => {
-      u.subscriptionStatus = 'revoked';
-      u.subscriptionPlan = null;
-      u.compRevokedAt = Date.now();
-      saveState();
-      toast(`Comp revoked for ${esc(u.name || u.email)}`, '');
-      _renderAdminConsole();
-    }
+  if (u.subscriptionStatus !== 'active' && u.subscriptionStatus !== 'pending_revoke') {
+    toast('That user has no active subscription to revoke', 'error');
+    return;
+  }
+  const isComp = u.subscriptionPlan === 'comp';
+  const isPending = u.subscriptionStatus === 'pending_revoke';
+  // Compute the next billing-cycle end based on subscriptionStartedAt.
+  // For paying TMs this is the next monthly anniversary; for comps,
+  // there's no real billing — we use the same anniversary math but
+  // label it as "scheduled end."
+  const cycleEnd = _computeNextCycleEnd(u.subscriptionStartedAt || Date.now());
+  const cycleEndLabel = new Date(cycleEnd).toLocaleDateString();
+  openModal({
+    title: `Revoke access · ${esc(u.name || u.email)}`,
+    size: '',
+    hideFooter: true,
+    body: `
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="font-size:13.5px;line-height:1.6;color:var(--warm)">
+          You're about to revoke <b style="color:#fdba74">${esc(u.name || u.email)}</b>'s Tour Manager access. Their account, tours, and crew roster stay intact — they just lose the seat. They can re-subscribe through Stripe to restore access at any time.
+        </div>
+        ${isPending ? `
+          <div style="padding:10px 14px;background:rgba(253,186,116,.08);border:1px solid rgba(253,186,116,.4);border-radius:8px;font-size:12.5px;line-height:1.55;color:var(--warm)">
+            <b style="color:#fdba74">Note:</b> this user already has a pending revocation. Submitting this form will overwrite it with the new reason and timing.
+          </div>
+        ` : ''}
+        <div class="field">
+          <label>Reason · audit trail (required)</label>
+          <textarea id="rv_reason" rows="3" placeholder="e.g. Account violation · stopped responding · subscription dispute · refund issued · etc." style="width:100%"></textarea>
+        </div>
+        <div class="field">
+          <label style="display:block;margin-bottom:8px">When should access end?</label>
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:rgba(0,0,0,.3);border:1px solid var(--line-2);border-radius:8px;cursor:pointer;margin-bottom:6px">
+            <input type="radio" name="rv_when" value="cycle_end" checked style="margin-top:2px">
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--warm)">End at billing cycle · ${esc(cycleEndLabel)}</div>
+              <div style="font-size:12px;color:var(--warm-mute);line-height:1.45;margin-top:2px">${isComp ? 'They keep their comp seat through this date, then access ends.' : "They keep what they've already paid for. Standard polite cutoff."}</div>
+            </div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:rgba(0,0,0,.3);border:1px solid var(--line-2);border-radius:8px;cursor:pointer">
+            <input type="radio" name="rv_when" value="immediate" style="margin-top:2px">
+            <div>
+              <div style="font-size:13px;font-weight:600;color:#f0a39d">End immediately</div>
+              <div style="font-size:12px;color:var(--warm-mute);line-height:1.45;margin-top:2px">Access cuts off right now. Use for serious breaches, fraud, refunds, or revoking a comp you handed out by mistake.</div>
+            </div>
+          </label>
+        </div>
+        ${!isComp ? `
+          <div style="padding:11px 14px;background:rgba(232,148,58,.06);border:1px solid rgba(232,148,58,.3);border-radius:8px;font-size:12px;line-height:1.55;color:var(--warm-mute)">
+            <b style="color:var(--hi)">Heads up · paying subscriber:</b> revoking access on Bandmate's side does NOT cancel their Stripe subscription. You'll also want to cancel the subscription in your <a href="https://dashboard.stripe.com" target="_blank" rel="noopener" style="color:var(--hi)">Stripe dashboard</a> so they stop being charged. (When the planned backend webhook is in place, this happens automatically.)
+          </div>
+        ` : ''}
+        <div style="display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--line);padding-top:14px">
+          <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+          <button type="button" class="btn primary" onclick="_adminConfirmRevoke('${esc(userId)}')" style="background:linear-gradient(135deg,#dc5a50,#a83830);color:#fff;border:none">Revoke access →</button>
+        </div>
+      </div>
+    `,
   });
+  setTimeout(() => document.getElementById('rv_reason')?.focus(), 80);
+}
+
+function _adminConfirmRevoke(userId) {
+  const u = state?.users?.[userId];
+  if (!u) { toast('User not found', 'error'); closeModal(); return; }
+  const reason = (document.getElementById('rv_reason')?.value || '').trim();
+  if (!reason) { toast('Reason is required', 'error'); return; }
+  const whenEl = document.querySelector('input[name="rv_when"]:checked');
+  const when = whenEl ? whenEl.value : 'cycle_end';
+  const adminEmail = JSON.parse(localStorage.getItem(ADMIN_SESSION_KEY) || '{}').email || 'admin';
+  const now = Date.now();
+
+  if (when === 'immediate') {
+    u.subscriptionStatus = 'revoked';
+    u.accessExpiresAt = now;
+  } else {
+    u.subscriptionStatus = 'pending_revoke';
+    u.accessExpiresAt = _computeNextCycleEnd(u.subscriptionStartedAt || now);
+  }
+  u.revokedAt = now;
+  u.revokedBy = adminEmail;
+  u.revokedReason = reason;
+  u.revokeMode = when;
+  saveState();
+  closeModal();
+  if (when === 'immediate') {
+    toast(`Access revoked for ${esc(u.name || u.email)} · effective immediately`, '');
+  } else {
+    const dateStr = new Date(u.accessExpiresAt).toLocaleDateString();
+    toast(`Access revocation scheduled for ${esc(u.name || u.email)} · ends ${dateStr}`, '');
+  }
+  _renderAdminConsole();
+}
+
+// Compute the next monthly billing anniversary after `now`. If the
+// subscription started on Jan 15 and today is Mar 20, the next cycle
+// end is Apr 15. Defensive: if start is in the future, returns it as-is.
+function _computeNextCycleEnd(startedAt) {
+  const start = new Date(startedAt);
+  const now = new Date();
+  if (start > now) return start.getTime();
+  const next = new Date(start);
+  next.setHours(0, 0, 0, 0);
+  while (next <= now) {
+    next.setMonth(next.getMonth() + 1);
+  }
+  return next.getTime();
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -10851,6 +11006,18 @@ function showPricingScreen() {
   document.getElementById('landingScreen').hidden = true;
   document.getElementById('loginScreen').hidden = true;
   document.getElementById('pricingScreen').hidden = false;
+  // Pricing is reachable from the landing "Sign up" button (pre-auth) or
+  // from the in-app upgrade modal (post-auth). In the pre-auth path we
+  // want the homepage video to keep playing behind it; in the post-auth
+  // path we don't. We can tell the two apart by whether a user is
+  // currently signed in.
+  const isPreAuth = !state || !state.currentUserId;
+  if (isPreAuth) {
+    document.body.classList.add('bg-logo-hidden');
+    document.body.classList.add('bg-video-on');
+  } else {
+    document.body.classList.remove('bg-video-on');
+  }
   window.scrollTo(0, 0);
 }
 function hidePricingScreen() {
@@ -12905,7 +13072,8 @@ Object.assign(window, {
   _adminExportAll, _adminBroadcastModal, _adminBroadcastSend,
   _adminClaimUnclaimed, _adminPurgeDevice,
   _adminToggleExpand, _adminToggleToolsMenu, _adminCloseToolsMenu,
-  _adminGrantTMAccess, _adminGrantTMSubmit, _adminRevokeComp,
+  _adminGrantTMAccess, _adminGrantTMSubmit,
+  _adminRevokeAccess, _adminConfirmRevoke,
   downloadTourGridCSV, downloadHotelsCSV, downloadContactsCSV, downloadSettlementsCSV, downloadTasksCSV,
   deleteDate, getActiveDate
 });
