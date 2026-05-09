@@ -223,6 +223,7 @@ input,select,textarea{font:inherit;color:inherit}
 .day-pill.s-travel .pstatus{background:#8aa9d8;box-shadow:0 0 6px rgba(138,169,216,.55)}
 .day-pill.s-off .pstatus{background:#8aa9d8;box-shadow:0 0 6px rgba(138,169,216,.4)}
 .day-pill.s-press .pstatus{background:#f5d76e;box-shadow:0 0 6px rgba(245,215,110,.55)}
+.day-pill.s-rehearsal .pstatus{background:#b89ad8;box-shadow:0 0 6px rgba(184,154,216,.55)}
 .day-pill.is-today{outline:1px solid var(--hot);outline-offset:-1px}
 .day-strip-actions{display:flex;align-items:center;gap:6px;flex:none}
 .day-add-btn{
@@ -3008,7 +3009,7 @@ function loadState() {
         // values like CONFIRMED / ON SALE / HOLD that previously rendered as
         // "PRESS" with no Show Day badge.
         const s = String(d.status || '').toLowerCase().trim();
-        if (!['show','off','travel','press'].includes(s)) {
+        if (!['show','off','travel','press','rehearsal'].includes(s)) {
           d.status = (d.venue || d.city) ? 'show' : 'show';
           didOffMigrate = true;
         }
@@ -3652,7 +3653,8 @@ async function _modalSubmit() {
    ===================================================================== */
 // Show/hide venue + show-day fields based on the selected status. Wired to
 // the status <select>'s onchange so the form reshapes interactively when
-// the TM picks "Day off" / "Travel day" / "Press day" instead of "Show day".
+// the TM picks "Day off" / "Travel day" / "Press day" / "Rehearsal day"
+// instead of "Show day".
 function _dateModalApplyStatus() {
   const sel = document.getElementById('d_status');
   if (!sel) return;
@@ -3661,19 +3663,27 @@ function _dateModalApplyStatus() {
   if (!grid) return;
   const isShow = status === 'show';
   const isPress = status === 'press';
+  const isRehearsal = status === 'rehearsal';
   // Show-day fields (capacity, promoter, doors, set time, load-in, soundcheck)
-  // visible only when status is 'show'. Venue field stays for show + press.
+  // visible only when status is 'show'. Venue field stays for show + press +
+  // rehearsal (where it acts as the rehearsal location).
   grid.querySelectorAll('[data-show-day]').forEach(el => {
     const isVenueRow = el.querySelector('#d_venue');
     if (isVenueRow) {
-      el.hidden = !(isShow || isPress);
+      el.hidden = !(isShow || isPress || isRehearsal);
     } else {
       el.hidden = !isShow;
     }
   });
-  // Press day relabels the venue field to "Press location" so it reads naturally.
+  // Relabel the venue field per status. Rehearsal days reuse the same
+  // string field but call it "Rehearsal location" so it reads naturally;
+  // press days read as "Press location"; everywhere else it's "Venue".
   const venueLbl = document.getElementById('d_venue_lbl');
-  if (venueLbl) venueLbl.textContent = isPress ? 'Press location' : 'Venue';
+  if (venueLbl) {
+    venueLbl.textContent = isRehearsal ? 'Rehearsal location'
+      : isPress ? 'Press location'
+      : 'Venue';
+  }
 }
 
 function openDateModal(id) {
@@ -3693,6 +3703,7 @@ function openDateModal(id) {
             <option value="travel" ${d.status==='travel'?'selected':''}>Travel day</option>
             <option value="off" ${d.status==='off'?'selected':''}>Day off</option>
             <option value="press" ${d.status==='press'?'selected':''}>Press day</option>
+            <option value="rehearsal" ${d.status==='rehearsal'?'selected':''}>Rehearsal day</option>
           </select>
         </div>
         <div class="field"><label>City *</label><input id="d_city" value="${esc(d.city)}"></div>
@@ -3712,10 +3723,14 @@ function openDateModal(id) {
       const status = $('#d_status').value;
       const isShow = status === 'show';
       const isPress = status === 'press';
-      const showsVenue = isShow || isPress;
-      // For non-show / non-press statuses, leave hidden fields alone (they
-      // collect '' from the unrendered inputs anyway, but keep the existing
-      // value when editing in case the TM toggles status back later).
+      const isRehearsal = status === 'rehearsal';
+      const showsVenue = isShow || isPress || isRehearsal;
+      // For non-show statuses, leave hidden fields alone (they collect ''
+      // from the unrendered inputs anyway, but keep the existing value
+      // when editing in case the TM toggles status back later). Rehearsal
+      // days share the venue field (relabeled "Rehearsal location" in UI)
+      // but never carry capacity / doors / set time / promoter — those
+      // belong to actual ticketed shows.
       const get = (sel) => { const el = $(sel); return el ? el.value.trim() : ''; };
       const data = {
         date: $('#d_date').value, city: $('#d_city').value.trim(), state: $('#d_state').value.trim(),
@@ -4762,7 +4777,9 @@ function renderDayStamp() {
   const status = ad.status === 'show' ? 'SHOW NIGHT'
     : ad.status === 'travel' ? 'TRAVEL DAY'
     : ad.status === 'off' ? 'DAY OFF'
-    : ad.status === 'press' ? 'PRESS DAY' : ad.status?.toUpperCase();
+    : ad.status === 'press' ? 'PRESS DAY'
+    : ad.status === 'rehearsal' ? 'REHEARSAL DAY'
+    : ad.status?.toUpperCase();
   const parts = [
     `<span class="dot"></span>`,
     `<span>DAY ${(idx+1).toString().padStart(2,'0')} / ${total.toString().padStart(2,'0')}</span>`,
@@ -4912,12 +4929,14 @@ function renderDashboard() {
   // venue or city but an unrecognized status string (CONFIRMED, ON SALE, HOLD,
   // etc. from external Excel sheets). Without this, real shows kept rendering
   // as "PRESS" because 'press' was the catch-all branch.
-  const effectiveStatus = ['show','off','travel','press'].includes(ad.status)
+  const effectiveStatus = ['show','off','travel','press','rehearsal'].includes(ad.status)
     ? ad.status
     : ((ad.venue || ad.city) ? 'show' : 'show');
   const status = effectiveStatus === 'show' ? 'SHOW NIGHT'
     : effectiveStatus === 'travel' ? 'TRAVEL DAY'
-    : effectiveStatus === 'off' ? 'DAY OFF' : 'PRESS';
+    : effectiveStatus === 'off' ? 'DAY OFF'
+    : effectiveStatus === 'rehearsal' ? 'REHEARSAL'
+    : 'PRESS';
 
   // KPI computations
   const totalDates = T().dates.length;
@@ -4967,7 +4986,11 @@ function renderDashboard() {
     if (nextDate.doors) timeBits.push(`Doors ${esc(nextDate.doors)}`);
     if (nextDate.setTime) timeBits.push(`Set ${esc(nextDate.setTime)}`);
     const nextStatus = (nextDate.status || 'show').toLowerCase();
-    const statusLabel = nextStatus === 'off' ? 'Day off' : nextStatus === 'travel' ? 'Travel day' : nextStatus === 'press' ? 'Press' : null;
+    const statusLabel = nextStatus === 'off' ? 'Day off'
+      : nextStatus === 'travel' ? 'Travel day'
+      : nextStatus === 'press' ? 'Press'
+      : nextStatus === 'rehearsal' ? 'Rehearsal'
+      : null;
     nextPreviewMeta = `<div class="m hop-preview">
       <div class="l">Tomorrow · ${fmtMD(nextDate.date)} · ${dow(nextDate.date)}</div>
       <div class="v" style="line-height:1.25">${esc(nextDate.city)}${nextDate.state ? ', ' + esc(nextDate.state) : ''}</div>
@@ -5057,16 +5080,22 @@ function renderDashboard() {
     <div class="dash-hero">
       <div class="day-sheet">
         ${effectiveStatus === 'show' ? `<div class="ribbon ribbon-show" onmousemove="rbReflect(event,this)" onmouseleave="rbReflectReset(this)"><span class="rb-text">Show Day</span><span class="rb-shine"></span></div>` : ''}
-        <h3>${esc((ad.status === 'off' ? 'DAY OFF' : ad.status === 'travel' ? 'TRAVEL' : ad.status === 'press' ? 'PRESS' : (ad.city || 'SHOW')).toUpperCase())} · DAY ${(T().dates.findIndex(d=>d.id===ad.id)+1).toString().padStart(2,'0')} / ${T().dates.length.toString().padStart(2,'0')}</h3>
+        <h3>${esc((ad.status === 'off' ? 'DAY OFF' : ad.status === 'travel' ? 'TRAVEL' : ad.status === 'press' ? 'PRESS' : ad.status === 'rehearsal' ? 'REHEARSAL' : (ad.city || 'SHOW')).toUpperCase())} · DAY ${(T().dates.findIndex(d=>d.id===ad.id)+1).toString().padStart(2,'0')} / ${T().dates.length.toString().padStart(2,'0')}</h3>
         <div class="city">${ad.status === 'off' ? 'Day off' : ad.status === 'travel' ? 'Travel day' : esc(ad.venue || ad.city)}</div>
         ${ad.status === 'show' || ad.status === 'press' ? `
           <div class="venue">${ad.venue ? esc(ad.city) + (ad.state ? ', ' + esc(ad.state) : '') : ''}${ad.capacity ? ' · Capacity ' + esc(ad.capacity) : (isMissing('capacity') ? ' · <span style="color:#fdba74">Capacity ⚠</span>' : '')}</div>
+        ` : ad.status === 'rehearsal' ? `
+          <div class="venue">${ad.city ? esc(ad.city) + (ad.state ? ', ' + esc(ad.state) : '') : ''}</div>
         ` : (ad.city ? `<div class="venue">${esc(ad.city)}${ad.state ? ', ' + esc(ad.state) : ''}</div>` : '')}
         ${(ad.status === 'show' || ad.status === 'press') ? `
         <div class="meta" style="margin-bottom:8px">
           <div class="m${isMissing('doors')?' field-warn':''}"><div class="l">Doors</div><div class="v">${ad.doors ? esc(ad.doors) : '<span style="color:#fdba74">Not set</span>'}</div></div>
           <div class="m${isMissing('set time')?' field-warn':''}"><div class="l">Set time</div><div class="v">${ad.setTime ? esc(ad.setTime) : '<span style="color:#fdba74">Not set</span>'}</div></div>
           <div class="m${isMissing('venue')?' field-warn':''}"><div class="l">Venue</div><div class="v">${ad.venue ? esc(ad.venue) : '<span style="color:#fdba74">Not set</span>'}</div></div>
+        </div>
+        ` : ad.status === 'rehearsal' ? `
+        <div class="meta" style="margin-bottom:8px">
+          <div class="m${isMissing('venue')?' field-warn':''}"><div class="l">Rehearsal location</div><div class="v">${ad.venue ? esc(ad.venue) : '<span style="color:#fdba74">Not set</span>'}</div></div>
         </div>
         ` : ''}
         <div class="gridrun">${scheduleHtml}</div>
@@ -5109,7 +5138,7 @@ function renderDashboard() {
     </div>
 
     <div class="k-grid">
-      <div class="kpi"><div class="label">Tour dates</div><div class="value mono">${totalDates}</div><div class="delta">${T().dates.filter(d=>d.status==='show').length} shows · ${T().dates.filter(d=>d.status==='travel').length} travel · ${T().dates.filter(d=>d.status==='off').length} off</div></div>
+      <div class="kpi"><div class="label">Tour dates</div><div class="value mono">${totalDates}</div><div class="delta">${T().dates.filter(d=>d.status==='show').length} shows · ${T().dates.filter(d=>d.status==='rehearsal').length} reh · ${T().dates.filter(d=>d.status==='travel').length} travel · ${T().dates.filter(d=>d.status==='off').length} off</div></div>
       <div class="kpi"><div class="label">Settled</div><div class="value mono">${settled} / ${T().dates.filter(d=>d.status==='show').length}</div><div class="delta">${T().meta.currency} ${totalSettled.toLocaleString()}</div></div>
       <div class="kpi ${dueToday?'bad':''}"><div class="label">Open tasks</div><div class="value mono">${openTasks}</div><div class="delta" style="${dueToday?'color:var(--red)':''}">${dueToday} due today</div></div>
       <div class="kpi"><div class="label">Guest list · today</div><div class="value mono">${todayGuests}</div><div class="delta">${ad.guests.filter(g=>g.status==='pending').length} pending</div></div>
@@ -6014,13 +6043,17 @@ function renderPhone() {
   // TODAY
   const myRoom = ad.hotel?.rooms.find(r => r.personId === viewerKey);
   const myItems = ad.schedule.filter(s => isItemVisibleToViewer(s, viewer, isTM));
-  const status = ad.status === 'show' ? 'SHOW NIGHT' : ad.status === 'travel' ? 'TRAVEL' : ad.status === 'off' ? 'DAY OFF' : 'PRESS';
+  const status = ad.status === 'show' ? 'SHOW NIGHT'
+    : ad.status === 'travel' ? 'TRAVEL'
+    : ad.status === 'off' ? 'DAY OFF'
+    : ad.status === 'rehearsal' ? 'REHEARSAL'
+    : 'PRESS';
 
   $('#ph-today').innerHTML = `
     <div class="p-card hi">
       <div class="lbl">${status}${ad.venue ? ' · ' + esc(ad.venue.toUpperCase()) : ''}</div>
       <div class="h">${isTM ? 'Full day view' : (viewer ? 'Hey ' + esc(viewer.name.split(' ')[0]) : 'Your day')}</div>
-      <div class="sub">${ad.status === 'show' ? `${ad.doors ? 'Doors ' + esc(ad.doors) : ''}${ad.setTime ? ' · Set ' + esc(ad.setTime) : ''}${myItems.length ? ' · ' + myItems.length + ' items' : ''}` : ad.status === 'travel' ? `Travel day${myItems.length ? ' · ' + myItems.length + ' items' : ''}` : ad.status === 'off' ? 'Day off' : 'Press day'}</div>
+      <div class="sub">${ad.status === 'show' ? `${ad.doors ? 'Doors ' + esc(ad.doors) : ''}${ad.setTime ? ' · Set ' + esc(ad.setTime) : ''}${myItems.length ? ' · ' + myItems.length + ' items' : ''}` : ad.status === 'travel' ? `Travel day${myItems.length ? ' · ' + myItems.length + ' items' : ''}` : ad.status === 'off' ? 'Day off' : ad.status === 'rehearsal' ? `Rehearsal day${myItems.length ? ' · ' + myItems.length + ' items' : ''}` : 'Press day'}</div>
       <div style="margin-top:8px">
         ${myItems.length ? myItems.slice(0, 8).map(s => `
           <div class="p-row">
@@ -7188,7 +7221,7 @@ function _validImportedDate(d) {
   if (!d.date) return false;
   if (d.city) return true;
   if (d.venue) return true;
-  if (d.status === 'off' || d.status === 'travel' || d.status === 'press') return true;
+  if (d.status === 'off' || d.status === 'travel' || d.status === 'press' || d.status === 'rehearsal') return true;
   return false;
 }
 
@@ -7332,11 +7365,15 @@ function mapCSVRow(row, kind) {
     if (statusU === 'PRESS' || statusU === 'PRESS DAY' || statusU === 'MEDIA') {
       status = 'press';
     }
+    // Detect rehearsal days from STATUS column
+    if (statusU === 'REHEARSAL' || statusU === 'REHEARSAL DAY' || statusU === 'REHEARSE' || statusU === 'PRODUCTION REHEARSAL') {
+      status = 'rehearsal';
+    }
     // Anything else (CONFIRMED, ON SALE, HOLD, SOLD OUT, ANNOUNCED, etc.) falls
     // back to 'show' as long as there's a venue or city. Without normalization,
     // unknown status values caused the dashboard to render "PRESS" as a fallback
     // and the day-sheet to mis-classify show days as off days.
-    if (!['show','off','travel','press'].includes(status)) {
+    if (!['show','off','travel','press','rehearsal'].includes(status)) {
       if (venue || city) status = 'show';
       else status = 'show'; // empty row will get filtered out anyway
     }
@@ -11216,6 +11253,18 @@ function calcLiveDateGaps(d) {
   if (!d.city || cityU === 'OFF') missing.push('city');
   if (status === 'travel') {
     if (!d.travel || !d.travel.length) missing.push('travel items');
+    return missing;
+  }
+  // Rehearsal days: like a show day but without the audience-side
+  // requirements. Required: city + venue (rehearsal location) + schedule
+  // + (hotel OR travel). NOT required: capacity, doors, set time,
+  // promoter — none of those exist for a closed-door rehearsal.
+  if (status === 'rehearsal') {
+    if (!d.venue) missing.push('venue');
+    const hasHotel = !!d.hotel;
+    const hasTravel = !!(d.travel && d.travel.length);
+    if (!hasHotel && !hasTravel) missing.push('hotel or travel');
+    if (!d.schedule || !d.schedule.length) missing.push('schedule');
     return missing;
   }
   // Show / press days require the full kit
