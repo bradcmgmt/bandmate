@@ -657,7 +657,13 @@ input,select,textarea{font:inherit;color:inherit}
 .p-card{background:linear-gradient(180deg,rgba(24,17,11,.95),rgba(17,12,8,.95));
   border:1px solid var(--line);border-radius:14px;padding:15px;display:flex;flex-direction:column;gap:8px;
   box-shadow:inset 0 1px 0 rgba(232,148,58,.06)}
-.p-card.hi{background:radial-gradient(300px 200px at 50% 0%,rgba(232,148,58,.22),transparent 60%),linear-gradient(180deg,#1f160c,#110c08);
+/* Highlighted phone-preview card. The radial copper glow that used to
+   sit at the top edge created a bright-to-dark gradient backdrop, which
+   in turn made flat cream type (e.g. "Full day view") look gradient-y
+   even though the text itself is uniform. Backdrop is now a flat dark
+   fill — the card still reads as "highlighted" via its top accent
+   line, inset border ring, copper eyebrow, and overall glow shadow. */
+.p-card.hi{background:#150e08;
   color:var(--warm);border:1px solid var(--line-2);position:relative;overflow:hidden;
   box-shadow:var(--glow-1),inset 0 1px 0 rgba(232,148,58,.15),inset 0 0 0 1px rgba(232,148,58,.06)}
 .p-card.hi::before{content:"";position:absolute;left:50%;top:-1px;transform:translateX(-50%);width:60%;height:1px;background:linear-gradient(90deg,transparent,var(--hi),transparent)}
@@ -1456,7 +1462,7 @@ body.print-stage-mode #stagePrintArea{
 .phone-app-bar{perspective:500px}
 .phone-avatar{flex:0 0 auto;width:32px;height:38px;object-fit:contain;
   filter:drop-shadow(0 0 6px rgba(232,148,58,.25));
-  animation:phoneAvatarSpin 14s linear infinite;
+  animation:phoneAvatarSpin 9s linear infinite;
   transform-origin:50% 50%;backface-visibility:visible;will-change:transform,filter}
 @keyframes phoneAvatarSpin{
   0%   {transform:rotateY(0deg);   filter:drop-shadow(0 0 6px rgba(232,148,58,.25))}
@@ -2747,7 +2753,6 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
       </div>
     </div>
     <div class="right-cluster">
-      <button type="button" class="icon-btn" title="Reset tour" onclick="resetTour()">⟲</button>
       <div class="export-dropdown" id="exportDropdown">
         <button type="button" class="icon-btn" title="Export tour" onclick="toggleExportMenu()">⇣</button>
         <div class="export-menu" id="exportMenu" hidden></div>
@@ -9841,6 +9846,7 @@ function renderTourSwitcher() {
     ${u && u.role === 'tm' ? `<button class="ts-action" type="button" onclick="newTourFlow()"><span style="text-align:center">+</span><span>New tour</span></button>` : ''}
     ${u && T().ownerId === u.id ? `<button class="ts-action" type="button" onclick="renameCurrentTour()"><span style="text-align:center">✎</span><span>Rename current</span></button>` : ''}
     ${u && T().ownerId === u.id ? `<button class="ts-action" type="button" onclick="deleteCurrentTour()" style="color:var(--red);border-color:rgba(232,69,69,.35)"><span style="text-align:center">×</span><span>Delete current</span></button>` : ''}
+    <button class="ts-action" type="button" onclick="closeTourSwitcher();resetTour()" style="color:var(--red);border-color:rgba(232,69,69,.35)"><span style="text-align:center">⟲</span><span>Reset everything</span></button>
   `;
 }
 
