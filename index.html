@@ -665,7 +665,11 @@ input,select,textarea{font:inherit;color:inherit}
 .p-card .lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--warm-mute)}
 .p-card.hi .lbl{color:var(--hi);position:relative;z-index:1}
 .p-card .h{font-weight:800;font-size:16px;line-height:1.2;color:var(--warm)}
-.p-card.hi .h{font-size:20px;background:linear-gradient(180deg,#fff5e0,#e8943a);-webkit-background-clip:text;background-clip:text;color:transparent;position:relative;z-index:1}
+/* Highlighted card heading — flat cream. The cream → copper gradient
+   that used to live here read as obvious texture on short labels like
+   "Full day view" (the TM preview heading), so we keep it solid like
+   the tour banner. */
+.p-card.hi .h{font-size:20px;color:var(--warm);position:relative;z-index:1}
 .p-card .sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--warm-mute);letter-spacing:.06em}
 .p-card.hi .sub{color:var(--warm-mute);position:relative;z-index:1}
 .p-row{display:grid;grid-template-columns:54px 1fr auto;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px solid rgba(232,148,58,.08);position:relative;z-index:1}
