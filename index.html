@@ -22,7 +22,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0705'/%3E%3Cg%3E%3Ccircle cx='16' cy='16' r='6' fill='%23e8943a'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23e8943a' stroke-opacity='.4' stroke-width='1'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Anton&family=Bowlby+One&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Bebas+Neue&display=swap" rel="stylesheet" />
 
 <style>
 :root{
@@ -1912,17 +1912,18 @@ body.travel-assistant-mode #travelAssistantArea{
 .landing-wordmark .lb-version{color:rgba(232,148,58,.55);letter-spacing:.18em;
   font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700}
 
-/* Rock-and-roll display headline. Anton — heavy condensed sans, the font
-   on every concert poster from the last 30 years. Skewed italic for the
-   second line gives it the swagger of a tour-poster pull-quote. */
-.landing-headline{margin:0 0 48px;font-family:'Anton','Bowlby One','Inter',sans-serif;
-  font-weight:400;font-size:clamp(64px,11vw,156px);line-height:.92;letter-spacing:.005em;
+/* Display headline. Bebas Neue — condensed concert-poster sans, but lighter
+   and more refined than Anton. Keeps the music-industry feel without
+   feeling brutalist. The second line gets a soft -4deg skew for a
+   subtle italic swagger rather than full-on tour-poster lean. */
+.landing-headline{margin:0 0 48px;font-family:'Bebas Neue','Inter',sans-serif;
+  font-weight:400;font-size:clamp(58px,9.5vw,132px);line-height:.96;letter-spacing:.02em;
   text-transform:uppercase;
   color:transparent;background:linear-gradient(180deg,#fff5e0 0%,#e8943a 70%,#9c5a18 100%);
   -webkit-background-clip:text;background-clip:text}
-.landing-headline em{font-style:normal;display:inline-block;transform:skew(-8deg);
+.landing-headline em{font-style:normal;display:inline-block;transform:skew(-4deg);
   color:transparent;background:linear-gradient(180deg,#e8943a 0%,#c47323 85%);
-  -webkit-background-clip:text;background-clip:text;letter-spacing:.005em;margin-top:6px}
+  -webkit-background-clip:text;background-clip:text;letter-spacing:.02em;margin-top:4px}
 
 .landing-cta{display:flex;gap:14px;justify-content:center;align-items:stretch;
   margin-bottom:36px;flex-wrap:wrap}
