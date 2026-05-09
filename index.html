@@ -1973,7 +1973,8 @@ body.travel-assistant-mode #travelAssistantArea{
 .pricing-sub{margin:0 auto 40px;max-width:560px;font-size:14.5px;line-height:1.6;color:var(--warm-mute)}
 .pricing-sub b{color:var(--warm)}
 .pricing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:36px;text-align:left}
-@media (max-width:840px){.pricing-grid{grid-template-columns:1fr;max-width:440px;margin-left:auto;margin-right:auto}}
+.pricing-grid-2{grid-template-columns:1.1fr 1fr;max-width:780px;margin-left:auto;margin-right:auto;margin-bottom:24px}
+@media (max-width:840px){.pricing-grid,.pricing-grid-2{grid-template-columns:1fr;max-width:440px;margin-left:auto;margin-right:auto}}
 .pricing-card{position:relative;background:linear-gradient(180deg,#15100a,#0e0805);
   border:1px solid var(--line-2);border-radius:14px;padding:24px 22px 22px;
   display:flex;flex-direction:column}
@@ -2005,6 +2006,30 @@ body.travel-assistant-mode #travelAssistantArea{
 .pricing-card.pc-business .pc-cta:hover{background:rgba(138,169,216,.1)}
 .pc-foot{margin-top:10px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);
   letter-spacing:.06em;text-align:center}
+.pc-foot-detail{margin-bottom:12px}
+/* Fine print explaining the auto-upgrade ceiling. Lives at the bottom of
+   the Tour Manager card — small but legible, with an info glyph anchor. */
+.pc-fineprint{display:flex;gap:9px;align-items:flex-start;padding:10px 12px;
+  background:rgba(232,148,58,.05);border:1px solid rgba(232,148,58,.25);border-radius:7px;
+  font-size:11.5px;line-height:1.5;color:var(--warm-mute)}
+.pc-fineprint b{color:var(--warm)}
+.pc-fp-glyph{flex:0 0 18px;width:18px;height:18px;border-radius:50%;
+  background:rgba(232,148,58,.18);border:1px solid rgba(232,148,58,.45);color:var(--hi);
+  display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;
+  font-size:10px;font-weight:800;font-style:italic;margin-top:1px}
+
+/* "Just here as band or crew?" callout below the pricing grid — drops them
+   into the crew sign-up flow without needing to scroll back to landing. */
+.pricing-band-cta{display:flex;align-items:center;gap:14px;max-width:780px;margin:0 auto 28px;
+  padding:14px 18px;background:linear-gradient(135deg,rgba(138,169,216,.1),rgba(138,169,216,.03));
+  border:1px solid rgba(138,169,216,.4);border-radius:12px;text-align:left}
+.pbcta-text{flex:1;min-width:0}
+.pbcta-h{font-size:14px;font-weight:700;color:var(--warm)}
+.pbcta-s{font-size:12.5px;color:var(--warm-mute);margin-top:2px;line-height:1.5}
+.pbcta-btn{flex:0 0 auto;background:rgba(138,169,216,.16);border:1px solid #b1c8ee;color:#b1c8ee;
+  padding:9px 18px;border-radius:8px;cursor:pointer;font-family:'Inter',sans-serif;font-weight:700;
+  font-size:13px;letter-spacing:.02em}
+.pbcta-btn:hover{background:rgba(138,169,216,.28)}
 
 .pricing-free{display:flex;align-items:center;gap:14px;max-width:560px;margin:0 auto 40px;
   padding:14px 18px;background:rgba(109,207,139,.06);border:1px solid rgba(109,207,139,.35);border-radius:10px;text-align:left}
@@ -2206,7 +2231,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
     </h1>
 
     <div class="landing-cta">
-      <button type="button" class="landing-btn primary" onclick="landingChoose('tm')">
+      <button type="button" class="landing-btn" onclick="landingChoose('tm')">
         <span class="lcta-eyebrow">FOR TOUR MANAGERS</span>
         <span class="lcta-label">Sign in →</span>
       </button>
@@ -2214,7 +2239,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
         <span class="lcta-eyebrow">FOR BAND &amp; CREW</span>
         <span class="lcta-label">Sign in →</span>
       </button>
-      <button type="button" class="landing-btn landing-btn-signup" onclick="showPricingScreen()">
+      <button type="button" class="landing-btn primary" onclick="showPricingScreen()">
         <span class="lcta-eyebrow">NEW TO BANDMATE</span>
         <span class="lcta-label">Sign up →</span>
       </button>
@@ -2248,37 +2273,26 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
     <h1 class="pricing-headline">Pick your tour manager plan.</h1>
     <p class="pricing-sub">Band &amp; crew accounts are <b>always free</b> — they only need an invite from their TM.</p>
 
-    <div class="pricing-grid">
+    <div class="pricing-grid pricing-grid-2">
 
-      <div class="pricing-card">
-        <div class="pc-tier">SOLO</div>
+      <div class="pricing-card pc-featured">
+        <div class="pc-badge">MOST CHOSEN</div>
+        <div class="pc-tier">TOUR MANAGER</div>
         <div class="pc-price"><span class="pc-amount">$49.99</span><span class="pc-cycle">/mo</span></div>
-        <div class="pc-pitch">For TMs running up to 3 active tours.</div>
+        <div class="pc-pitch">One flat rate for everything you need to run tours.</div>
         <ul class="pc-features">
-          <li>Up to 3 tours</li>
+          <li>Up to 3 active tours</li>
           <li>Unlimited band &amp; crew invites</li>
           <li>Full dashboard, push notifications, day sheets</li>
           <li>Travel Assistant + import wizard</li>
           <li>All tour data stays yours</li>
         </ul>
-        <button type="button" class="pc-cta" onclick="_pricingSubscribe('solo')">Subscribe →</button>
-        <div class="pc-foot">Cancel anytime · 7-day full refund</div>
-      </div>
-
-      <div class="pricing-card pc-featured">
-        <div class="pc-badge">MOST CHOSEN</div>
-        <div class="pc-tier">PRO</div>
-        <div class="pc-price"><span class="pc-amount">$69.99</span><span class="pc-cycle">/mo</span></div>
-        <div class="pc-pitch">For TMs running 4 or more tours simultaneously.</div>
-        <ul class="pc-features">
-          <li>Unlimited tours</li>
-          <li>Everything in Solo</li>
-          <li>Bulk import across tours</li>
-          <li>Cross-tour crew sync</li>
-          <li>Priority support</li>
-        </ul>
-        <button type="button" class="pc-cta primary" onclick="_pricingSubscribe('pro')">Subscribe →</button>
-        <div class="pc-foot">Cancel anytime · 7-day full refund</div>
+        <button type="button" class="pc-cta primary" onclick="_pricingSubscribe('solo')">Subscribe →</button>
+        <div class="pc-foot pc-foot-detail">Cancel anytime · 7-day full refund</div>
+        <div class="pc-fineprint">
+          <span class="pc-fp-glyph">i</span>
+          Running <b>4 or more tours simultaneously</b>? Your plan auto-upgrades to <b>$69.99/mo</b> — that's the maximum, it never costs more than that no matter how many tours you run.
+        </div>
       </div>
 
       <div class="pricing-card pc-business">
@@ -2298,12 +2312,12 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 
     </div>
 
-    <div class="pricing-free">
-      <div class="pf-glyph">●</div>
-      <div>
-        <div class="pf-h">Band &amp; crew · always free</div>
-        <div class="pf-s">No card, no charge — they sign in with the email their TM invited them at.</div>
+    <div class="pricing-band-cta">
+      <div class="pbcta-text">
+        <div class="pbcta-h">Just here as band or crew?</div>
+        <div class="pbcta-s">Free forever — sign up and your TM will connect your account to their tour.</div>
       </div>
+      <button type="button" class="pbcta-btn" onclick="hidePricingScreen();landingChoose('crew')">Sign up free →</button>
     </div>
 
     <div class="pricing-faq">
@@ -9899,9 +9913,51 @@ function signUp() {
     toast(`Welcome, ${firstName} — found you on ${linkedTours} tour${linkedTours===1?'':'s'}`, 'good');
   } else if (matches.length > 0) {
     toast(`Welcome, ${firstName} — claimed your existing crew account`, 'good');
+  } else if (role === 'crew' && matches.length === 0) {
+    // Crew signed up but no TM has added their email to any tour yet — show a
+    // friendly explainer modal so they know what's expected next.
+    setTimeout(() => _showCrewNoToursModal(firstName, email), 100);
   } else {
     toast(`Welcome, ${firstName}`, 'good');
   }
+}
+
+// Modal shown to a fresh crew sign-up who has no tours connected yet. The
+// only way for crew to get into a tour is for a TM to invite them via the
+// Crew Roster (which links by email). This screen makes that explicit so
+// they know to nudge their TM.
+function _showCrewNoToursModal(firstName, email) {
+  openModal({
+    title: `Welcome, ${esc(firstName)}!`,
+    size: '',
+    hideFooter: true,
+    body: `
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="font-size:14px;line-height:1.6;color:var(--warm)">
+          Your account is set up — but you're not connected to any tours yet.
+        </div>
+        <div style="padding:14px 16px;background:rgba(138,169,216,.08);border:1px solid rgba(138,169,216,.4);border-radius:9px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.16em;color:#b1c8ee;text-transform:uppercase;font-weight:700;margin-bottom:6px">HOW IT WORKS</div>
+          <div style="font-size:13px;line-height:1.6;color:var(--warm)">
+            Tour Managers connect your account to their tour by adding <b style="color:#b1c8ee">${esc(email)}</b> to their Crew Roster. Once they do, the tour shows up here automatically — you'll see your schedule, hotel, room assignments, set lists, and notifications.
+          </div>
+        </div>
+        <div style="font-size:13px;line-height:1.6;color:var(--warm-mute)">
+          <b style="color:var(--warm)">What to do now:</b> message your TM and let them know you've signed up. Give them this exact email — <span style="font-family:'JetBrains Mono',monospace;color:var(--hi)">${esc(email)}</span> — so they can add you.
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--line);padding-top:14px;margin-top:6px">
+          <button type="button" class="btn" onclick="_copyCrewEmail('${esc(email).replace(/'/g, "\\'")}');">Copy email</button>
+          <button type="button" class="btn primary" onclick="closeModal()">Got it</button>
+        </div>
+      </div>
+    `,
+  });
+}
+function _copyCrewEmail(email) {
+  try {
+    navigator.clipboard.writeText(email);
+    toast('Email copied — paste it in your message to the TM', 'good');
+  } catch(e) { toast('Copy failed — copy manually: ' + email, 'error'); }
 }
 
 function logout() {
@@ -11426,6 +11482,7 @@ Object.assign(window, {
   showLoginScreen, hideLoginScreen, loginWithEmail, loginAsExisting, signUp, logout, showLoginForm, showSignupForm, toggleAccountMenu, closeAccountMenu,
   showLandingScreen, hideLandingScreen, landingChoose,
   showPricingScreen, hidePricingScreen, _pricingSubscribe, _pricingInquire,
+  _showCrewNoToursModal, _copyCrewEmail,
   downloadTourGridCSV, downloadHotelsCSV, downloadContactsCSV, downloadSettlementsCSV, downloadTasksCSV,
   deleteDate, getActiveDate
 });
