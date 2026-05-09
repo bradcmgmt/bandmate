@@ -2177,6 +2177,108 @@ body.travel-assistant-mode #travelAssistantArea{
 .admin-foot code{background:rgba(232,148,58,.1);padding:2px 7px;border-radius:4px;color:var(--warm);
   font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.04em;text-transform:none}
 
+/* ========== Tools popup — kebab trigger in header ==========
+   Three-dot button reveals an absolute-positioned card containing the
+   four admin actions. Replaces the old full-width Tools section. */
+.admin-tools-wrap{position:relative}
+.admin-tools-trigger{width:38px;height:38px;border-radius:9px;border:1px solid var(--line-2);
+  background:rgba(0,0,0,.32);color:var(--warm);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  padding:0;transition:border-color .15s,background .15s,color .15s}
+.admin-tools-trigger:hover{border-color:var(--hi);color:var(--hi);background:rgba(232,148,58,.06)}
+.admin-tools-trigger.open{border-color:var(--hi);color:var(--hi);background:rgba(232,148,58,.1)}
+.att-dots{display:flex;flex-direction:column;gap:3px;align-items:center;justify-content:center}
+.att-dots span{width:4px;height:4px;border-radius:50%;background:currentColor}
+.admin-tools-pop{position:absolute;top:calc(100% + 8px);right:0;min-width:300px;
+  background:rgba(20,15,11,.98);border:1px solid var(--line-2);border-radius:11px;padding:6px;
+  display:flex;flex-direction:column;gap:1px;z-index:5;
+  box-shadow:0 22px 48px rgba(0,0,0,.65),0 0 40px -10px rgba(232,148,58,.15)}
+.admin-tools-pop[hidden]{display:none}
+.atp-eyebrow{padding:8px 12px 4px;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.32em;
+  color:var(--hi);text-transform:uppercase;font-weight:700}
+.atp-divider{height:1px;background:var(--line);margin:6px 8px}
+.atp-item{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:9px 12px;
+  background:transparent;border:1px solid transparent;border-radius:7px;cursor:pointer;text-align:left;width:100%;
+  font-family:inherit;color:var(--warm)}
+.atp-item:hover{background:rgba(232,148,58,.06);border-color:rgba(232,148,58,.25)}
+.atp-item.danger:hover{background:rgba(220,90,80,.08);border-color:rgba(220,90,80,.4)}
+.atp-item .atp-h{font-size:13px;font-weight:700;color:var(--warm)}
+.atp-item.danger .atp-h{color:#f0a39d}
+.atp-item .atp-s{font-size:11.5px;color:var(--warm-mute);font-weight:400;line-height:1.4}
+
+/* ========== Expandable rows ==========
+   Every TM/Tour/Crew row is clickable. Hover lifts the background; click
+   toggles the .expanded class which subtly highlights the row and reveals
+   the .atr-detail panel directly underneath. */
+.admin-hint{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.16em;
+  color:var(--warm-mute);text-transform:uppercase;font-weight:600}
+.atr.expandable{cursor:pointer;transition:background .12s,border-color .12s}
+.atr.expandable:hover:not(.atr-head){background:rgba(232,148,58,.05)}
+.atr.expandable.expanded{background:rgba(232,148,58,.08);border-bottom-color:rgba(232,148,58,.25)}
+.atr-caret{display:inline-block;margin-left:8px;color:var(--hi);font-size:10px;opacity:.6;transition:opacity .12s}
+.atr.expandable:hover .atr-caret,.atr.expandable.expanded .atr-caret{opacity:1}
+
+.atr-detail{padding:18px 20px;background:rgba(0,0,0,.36);border-bottom:1px solid var(--line);
+  display:grid;grid-template-columns:1fr 1fr;gap:24px;animation:adFade .2s ease}
+@keyframes adFade{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (max-width:780px){.atr-detail{grid-template-columns:1fr}}
+.adt-section{display:flex;flex-direction:column}
+.adt-h{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.18em;
+  color:var(--hi);text-transform:uppercase;margin-bottom:6px;font-weight:700}
+.adt-row{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  font-size:12.5px;padding:5px 0;border-bottom:1px dashed rgba(232,148,58,.08)}
+.adt-row:last-child{border-bottom:none}
+.adt-row > span,.adt-row > b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adt-row b{color:var(--warm);font-weight:600;text-align:right}
+.adt-row .muted{color:var(--warm-mute)}
+.adt-row .mono{font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.adt-empty{font-size:12px;color:var(--warm-mute);font-style:italic;padding:6px 0}
+
+/* ========== Analytics grid ==========
+   Two cards side-by-side replacing the old Tools / Resources grid: a
+   plan-tier breakdown with horizontal bars + MRR total, and a pending-
+   invites leaderboard that doubles as a navigation shortcut into the
+   relevant TM's detail panel above. */
+.admin-analytics-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:780px){.admin-analytics-grid{grid-template-columns:1fr}}
+.aa-bars{display:flex;flex-direction:column;gap:10px;margin-bottom:6px}
+.aa-bar-row{display:grid;grid-template-columns:130px 1fr 50px;gap:12px;align-items:center;font-size:13px;color:var(--warm)}
+.aa-bar-label{font-weight:600}
+.aa-bar-track{height:7px;background:rgba(232,148,58,.08);border-radius:4px;overflow:hidden;border:1px solid var(--line)}
+.aa-bar-fill{height:100%;border-radius:3px;transition:width .3s ease}
+.aa-fill-pro{background:linear-gradient(90deg,#e8943a,#c9772a)}
+.aa-fill-solo{background:linear-gradient(90deg,#b1c8ee,#7a93b8)}
+.aa-fill-none{background:rgba(245,233,214,.25)}
+.aa-bar-num{text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--warm);font-weight:700}
+.aa-mrr{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.aa-mrr-num{font-family:'Bebas Neue','Inter',sans-serif;font-size:34px;line-height:1;
+  color:var(--good);font-weight:400;letter-spacing:.01em}
+.aa-mrr-lbl{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.16em;
+  color:var(--warm-mute);text-transform:uppercase;margin-top:4px}
+.aa-mrr-side{text-align:right}
+.aa-mrr-side-num{font-family:'Bebas Neue','Inter',sans-serif;font-size:24px;line-height:1;color:var(--warm);font-weight:400}
+.aa-mrr-side-lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.16em;
+  color:var(--warm-mute);text-transform:uppercase;margin-top:3px}
+
+.aa-pending{display:flex;flex-direction:column;gap:6px}
+.aa-pending-row{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  width:100%;padding:9px 12px;background:rgba(0,0,0,.22);border:1px solid var(--line);border-radius:8px;
+  cursor:pointer;text-align:left;font-family:inherit;color:inherit;transition:border-color .12s,background .12s}
+.aa-pending-row:hover{border-color:var(--hi);background:rgba(232,148,58,.06)}
+.aap-name{display:flex;flex-direction:column;gap:1px;min-width:0;overflow:hidden}
+.aap-name b{color:var(--warm);font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aap-meta{font-size:10.5px;letter-spacing:.06em}
+.aap-count{flex:0 0 auto;font-family:'Bebas Neue','Inter',sans-serif;font-size:22px;color:var(--hi);font-weight:400;letter-spacing:.01em;display:flex;align-items:baseline;gap:6px}
+.aap-lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.14em;color:var(--warm-mute);text-transform:uppercase;font-weight:700}
+.aa-foot-note{margin-top:10px;font-size:11.5px;color:var(--warm-mute);line-height:1.5;font-style:italic}
+
+.aa-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  padding:24px 16px;text-align:center}
+.aae-glyph{width:42px;height:42px;border-radius:50%;background:rgba(109,207,139,.12);color:var(--good);
+  display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;border:1px solid rgba(109,207,139,.4);margin-bottom:4px}
+.aae-h{font-size:14px;font-weight:700;color:var(--warm)}
+.aae-s{font-size:12.5px;color:var(--warm-mute);line-height:1.5;max-width:280px}
+
 .login-overlay{
   position:fixed;inset:0;z-index:300;
   background:radial-gradient(800px 500px at 50% 30%,rgba(232,148,58,.10),transparent 60%),var(--ink);
@@ -9909,6 +10011,140 @@ function adminLogout() {
   toast('Signed out of admin', '');
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Admin console interactivity — tracks which row is currently expanded
+// and whether the "tools" kebab menu in the header is open. Every row in
+// the TM / Tours / Crew tables is clickable: clicking re-renders the
+// console with an inline detail panel slotted in below the row.
+// ─────────────────────────────────────────────────────────────────────
+let _adminExpanded = { type: null, id: null };
+let _adminToolsMenuOpen = false;
+
+function _adminToggleExpand(type, id, ev) {
+  if (ev) { ev.stopPropagation(); }
+  if (_adminExpanded.type === type && _adminExpanded.id === id) {
+    _adminExpanded = { type: null, id: null };
+  } else {
+    _adminExpanded = { type, id };
+  }
+  _renderAdminConsole();
+}
+
+function _adminToggleToolsMenu(ev) {
+  if (ev) { ev.stopPropagation(); }
+  _adminToolsMenuOpen = !_adminToolsMenuOpen;
+  const menu = document.getElementById('adminToolsMenu');
+  const trig = document.getElementById('adminToolsTrigger');
+  if (menu) menu.hidden = !_adminToolsMenuOpen;
+  if (trig) trig.classList.toggle('open', _adminToolsMenuOpen);
+}
+function _adminCloseToolsMenu() {
+  _adminToolsMenuOpen = false;
+  const menu = document.getElementById('adminToolsMenu');
+  const trig = document.getElementById('adminToolsTrigger');
+  if (menu) menu.hidden = true;
+  if (trig) trig.classList.remove('open');
+}
+
+// Detail-panel renderers — each takes the row's data and returns an HTML
+// fragment that gets injected directly under the clicked row. Two-column
+// grid: left side = identity / status, right side = related entities.
+function _adminTMDetail(user, tours) {
+  const ownedTours = tours.filter(t => t.ownerId === user.id);
+  const allCrewIds = new Set();
+  ownedTours.forEach(t => (t.crew || []).forEach(c => c.userId && allCrewIds.add(c.userId)));
+  const totalDates = ownedTours.reduce((n, t) => n + (t.dates?.length || 0), 0);
+  const totalNotifs = ownedTours.reduce((n, t) => n + (t.notifications?.length || 0), 0);
+  const tier = ownedTours.length >= 4 ? '$69.99/mo · Pro tier (auto-upgraded)'
+    : ownedTours.length > 0 ? '$49.99/mo · Solo tier'
+    : 'Not subscribed yet';
+  const upgradedAt = user.upgradePromptedAt ? new Date(user.upgradePromptedAt).toLocaleDateString() : null;
+  return `
+    <div class="atr-detail" onclick="event.stopPropagation()">
+      <div class="adt-section">
+        <div class="adt-h">Account</div>
+        <div class="adt-row"><span class="muted">Full name</span><b>${esc(user.name || '—')}</b></div>
+        <div class="adt-row"><span class="muted">Email</span><b class="mono">${esc(user.email || '—')}</b></div>
+        <div class="adt-row"><span class="muted">User ID</span><b class="mono">${esc(user.id || '—')}</b></div>
+        <div class="adt-row"><span class="muted">Status</span><b>${user.claimed ? 'Active · signed in' : 'Pending invite'}</b></div>
+        <div class="adt-row"><span class="muted">Plan</span><b style="color:${ownedTours.length >= 4 ? 'var(--hi)' : 'var(--warm)'}">${tier}</b></div>
+        ${upgradedAt ? `<div class="adt-row"><span class="muted">Upgrade prompted</span><b class="mono">${upgradedAt}</b></div>` : ''}
+      </div>
+      <div class="adt-section">
+        <div class="adt-h">Activity · ${ownedTours.length} tour${ownedTours.length===1?'':'s'}</div>
+        <div class="adt-row"><span class="muted">Tour dates total</span><b>${totalDates}</b></div>
+        <div class="adt-row"><span class="muted">Crew under this TM</span><b>${allCrewIds.size}</b></div>
+        <div class="adt-row"><span class="muted">Notifications sent</span><b>${totalNotifs}</b></div>
+        ${ownedTours.length ? `
+          <div class="adt-h" style="margin-top:10px">Tours owned</div>
+          ${ownedTours.map(t => `<div class="adt-row"><span class="muted">${esc(t.meta?.tourName || t.name || '—')}</span><b>${(t.crew||[]).length} crew · ${(t.dates||[]).length} dates</b></div>`).join('')}
+        ` : '<div class="adt-empty">No tours created yet — they\'ve signed up but haven\'t built anything.</div>'}
+      </div>
+    </div>
+  `;
+}
+
+function _adminTourDetailHTML(t, users) {
+  const owner = users.find(u => u.id === t.ownerId);
+  const dates = t.dates || [];
+  const crew = t.crew || [];
+  const notifs = t.notifications || [];
+  const start = dates[0]?.date;
+  const end = dates[dates.length-1]?.date;
+  const showDays = dates.filter(d => d.kind === 'show' || (!d.kind && d.venue)).length;
+  const offDays = dates.filter(d => d.kind === 'off').length;
+  const travelDays = dates.filter(d => d.kind === 'travel').length;
+  return `
+    <div class="atr-detail" onclick="event.stopPropagation()">
+      <div class="adt-section">
+        <div class="adt-h">Tour</div>
+        <div class="adt-row"><span class="muted">Tour name</span><b>${esc(t.meta?.tourName || t.name || '—')}</b></div>
+        <div class="adt-row"><span class="muted">Artist</span><b>${esc(t.meta?.artist || '—')}</b></div>
+        <div class="adt-row"><span class="muted">Owner (TM)</span><b>${esc(owner?.name || owner?.email || '—')}</b></div>
+        <div class="adt-row"><span class="muted">Tour ID</span><b class="mono">${esc(t.id || '—')}</b></div>
+        <div class="adt-row"><span class="muted">Date range</span><b class="mono">${start ? esc(fmtMD(start)) : '—'} → ${end ? esc(fmtMD(end)) : '—'}</b></div>
+        <div class="adt-row"><span class="muted">Day mix</span><b>${dates.length} total · ${showDays} show · ${offDays} off · ${travelDays} travel</b></div>
+      </div>
+      <div class="adt-section">
+        <div class="adt-h">Crew · ${crew.length}</div>
+        ${crew.length ? crew.slice(0, 8).map(c => {
+          const u = state.users[c.userId];
+          return `<div class="adt-row"><span class="muted">${esc(u?.name || c.name || '—')}</span><b class="mono">${esc(c.role || '—')}</b></div>`;
+        }).join('') + (crew.length > 8 ? `<div class="adt-empty">+${crew.length-8} more</div>` : '') : '<div class="adt-empty">No crew assigned to this tour</div>'}
+        <div class="adt-h" style="margin-top:10px">Push notifications</div>
+        <div class="adt-row"><span class="muted">Sent on this tour</span><b>${notifs.length}</b></div>
+        ${notifs.length ? `<div class="adt-row"><span class="muted">Most recent</span><b class="mono">${esc(new Date(notifs[notifs.length-1].sentAt || Date.now()).toLocaleDateString())}</b></div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function _adminCrewDetail(user, tours) {
+  const userTours = tours.filter(t => (t.crew||[]).some(c => c.userId === user.id));
+  const rolesByTour = userTours.map(t => {
+    const c = (t.crew||[]).find(x => x.userId === user.id);
+    return { tour: t, role: c?.role || '—' };
+  });
+  return `
+    <div class="atr-detail" onclick="event.stopPropagation()">
+      <div class="adt-section">
+        <div class="adt-h">Account</div>
+        <div class="adt-row"><span class="muted">Name</span><b>${esc(user.name || '—')}</b></div>
+        <div class="adt-row"><span class="muted">Email</span><b class="mono">${esc(user.email || '—')}</b></div>
+        <div class="adt-row"><span class="muted">User ID</span><b class="mono">${esc(user.id || '—')}</b></div>
+        <div class="adt-row"><span class="muted">Status</span><b>${user.claimed ? 'Active · signed in' : 'Pending invite (TM hasn\'t added them, or they haven\'t accepted)'}</b></div>
+      </div>
+      <div class="adt-section">
+        <div class="adt-h">Tours · ${userTours.length}</div>
+        ${rolesByTour.length ? rolesByTour.map(({tour, role}) => {
+          const owner = state.users[tour.ownerId];
+          return `<div class="adt-row"><span class="muted">${esc(tour.meta?.tourName || tour.name || '—')}</span><b class="mono">${esc(role)} · TM ${esc(owner?.name || '—')}</b></div>`;
+        }).join('') : '<div class="adt-empty">Not assigned to any tours yet</div>'}
+      </div>
+    </div>
+  `;
+}
+
 function _renderAdminConsole() {
   const consoleEl = document.getElementById('adminConsole');
   if (!consoleEl) return;
@@ -9918,14 +10154,35 @@ function _renderAdminConsole() {
   const crew = users.filter(u => u.role === 'crew');
   const claimed = users.filter(u => u.claimed);
   const unclaimed = users.filter(u => !u.claimed);
-  const tmsByPlanTier = tms.map(u => {
-    const ownedTours = tours.filter(t => t.ownerId === u.id);
-    const tier = ownedTours.length >= 4 ? 'Pro · $69.99' : ownedTours.length > 0 ? 'Solo · $49.99' : 'No tours';
-    return { user: u, tours: ownedTours.length, tier };
-  });
   const totalCrewSeats = tours.reduce((n, t) => n + (t.crew?.length || 0), 0);
   const totalNotifications = tours.reduce((n, t) => n + (t.notifications?.length || 0), 0);
-  const totalTasks = tours.reduce((n, t) => n + (t.tasks?.length || 0), 0);
+
+  const tmDetails = tms.map(u => {
+    const ownedTours = tours.filter(t => t.ownerId === u.id);
+    const tier = ownedTours.length >= 4 ? 'Pro · $69.99' : ownedTours.length > 0 ? 'Solo · $49.99' : 'No tours';
+    const tierKey = ownedTours.length >= 4 ? 'pro' : ownedTours.length > 0 ? 'solo' : 'none';
+    return { user: u, tours: ownedTours.length, tier, tierKey };
+  });
+
+  // Plan-tier breakdown — counts + monthly recurring revenue estimate. MRR
+  // is illustrative ("on this device") because we don't yet have a backend
+  // to confirm Stripe-active subscribers; once Supabase is in, swap to the
+  // real MRR call. Pricing: Pro = $69.99/mo, Solo = $49.99/mo.
+  const tierCounts = { pro: 0, solo: 0, none: 0 };
+  tmDetails.forEach(t => tierCounts[t.tierKey]++);
+  const tierMax = Math.max(tierCounts.pro, tierCounts.solo, tierCounts.none, 1);
+  const mrr = (tierCounts.pro * 69.99) + (tierCounts.solo * 49.99);
+
+  // Pending-invite leaderboard — surfaces TMs whose tours have the most
+  // unclaimed crew records, so an owner can prioritize who to nudge.
+  const pendingByTM = tms.map(u => {
+    const ownedTours = tours.filter(t => t.ownerId === u.id);
+    const pending = ownedTours.flatMap(t => t.crew || [])
+      .filter(c => c.userId && state.users[c.userId] && !state.users[c.userId].claimed).length;
+    return { user: u, pending, tourCount: ownedTours.length };
+  }).filter(x => x.pending > 0).sort((a, b) => b.pending - a.pending).slice(0, 6);
+
+  const adminEmail = JSON.parse(localStorage.getItem(ADMIN_SESSION_KEY) || '{}').email || '';
 
   consoleEl.innerHTML = `
     <div class="admin-head">
@@ -9934,7 +10191,32 @@ function _renderAdminConsole() {
         <div class="admin-brand-name">Admin overview</div>
       </div>
       <div class="admin-head-actions">
-        <span class="admin-session">${esc(JSON.parse(localStorage.getItem(ADMIN_SESSION_KEY)||'{}').email || '')}</span>
+        <span class="admin-session">${esc(adminEmail)}</span>
+        <div class="admin-tools-wrap">
+          <button type="button" id="adminToolsTrigger" class="admin-tools-trigger" onclick="_adminToggleToolsMenu(event)" title="Admin tools" aria-label="Admin tools">
+            <span class="att-dots"><span></span><span></span><span></span></span>
+          </button>
+          <div class="admin-tools-pop" id="adminToolsMenu" hidden>
+            <div class="atp-eyebrow">Tools</div>
+            <button type="button" class="atp-item" onclick="_adminCloseToolsMenu();_adminExportAll()">
+              <span class="atp-h">Export full state · JSON</span>
+              <span class="atp-s">Download a backup of every user, tour, and notification.</span>
+            </button>
+            <button type="button" class="atp-item" onclick="_adminCloseToolsMenu();_adminBroadcastModal()">
+              <span class="atp-h">Send broadcast notification</span>
+              <span class="atp-s">Push a message to every tour's notification feed.</span>
+            </button>
+            <button type="button" class="atp-item" onclick="_adminCloseToolsMenu();_adminClaimUnclaimed()">
+              <span class="atp-h">Audit unclaimed accounts</span>
+              <span class="atp-s">Export the pending-invite list to nudge TMs.</span>
+            </button>
+            <div class="atp-divider"></div>
+            <button type="button" class="atp-item danger" onclick="_adminCloseToolsMenu();_adminPurgeDevice()">
+              <span class="atp-h">Wipe device state</span>
+              <span class="atp-s">Clear all local data. Irreversible.</span>
+            </button>
+          </div>
+        </div>
         <button type="button" class="btn" onclick="adminLogout()">Sign out</button>
       </div>
     </div>
@@ -9958,19 +10240,24 @@ function _renderAdminConsole() {
     <div class="admin-section">
       <div class="admin-section-head">
         <h3>Tour Managers <span class="muted mono">${tms.length}</span></h3>
+        <span class="admin-hint">Click any row for details</span>
       </div>
       ${tms.length ? `
         <div class="admin-table">
           <div class="atr atr-head"><span>Name</span><span>Email</span><span>Tours</span><span>Plan tier</span><span>Status</span></div>
-          ${tmsByPlanTier.map(({user, tours, tier}) => `
-            <div class="atr">
-              <span><b>${esc(user.name || '—')}</b></span>
-              <span class="muted mono">${esc(user.email || '—')}</span>
-              <span>${tours}</span>
-              <span style="color:${tours>=4?'var(--hi)':tours>0?'var(--warm)':'var(--warm-mute)'}">${tier}</span>
-              <span><span class="status-pill ${user.claimed?'good':'warn'}">${user.claimed?'Active':'Pending'}</span></span>
-            </div>
-          `).join('')}
+          ${tmDetails.map(({user, tours: tCount, tier}) => {
+            const isOpen = _adminExpanded.type === 'tm' && _adminExpanded.id === user.id;
+            return `
+              <div class="atr expandable ${isOpen?'expanded':''}" onclick="_adminToggleExpand('tm','${esc(user.id)}',event)">
+                <span><b>${esc(user.name || '—')}</b></span>
+                <span class="muted mono">${esc(user.email || '—')}</span>
+                <span>${tCount}</span>
+                <span style="color:${tCount>=4?'var(--hi)':tCount>0?'var(--warm)':'var(--warm-mute)'}">${tier}</span>
+                <span><span class="status-pill ${user.claimed?'good':'warn'}">${user.claimed?'Active':'Pending'}</span><span class="atr-caret">${isOpen?'▾':'▸'}</span></span>
+              </div>
+              ${isOpen ? _adminTMDetail(user, tours) : ''}
+            `;
+          }).join('')}
         </div>
       ` : '<div class="empty-row">No tour managers in local state.</div>'}
     </div>
@@ -9978,6 +10265,7 @@ function _renderAdminConsole() {
     <div class="admin-section">
       <div class="admin-section-head">
         <h3>Tours <span class="muted mono">${tours.length}</span></h3>
+        <span class="admin-hint">Click any row for details</span>
       </div>
       ${tours.length ? `
         <div class="admin-table">
@@ -9986,15 +10274,17 @@ function _renderAdminConsole() {
             const owner = users.find(u => u.id === t.ownerId);
             const start = t.dates?.[0]?.date || '—';
             const end = t.dates?.[t.dates.length-1]?.date || '—';
+            const isOpen = _adminExpanded.type === 'tour' && _adminExpanded.id === t.id;
             return `
-              <div class="atr atr-tours">
+              <div class="atr atr-tours expandable ${isOpen?'expanded':''}" onclick="_adminToggleExpand('tour','${esc(t.id)}',event)">
                 <span><b>${esc(t.meta?.tourName || t.name || '—')}</b></span>
                 <span class="muted">${esc(t.meta?.artist || '—')}</span>
                 <span class="muted mono">${esc(owner?.name || owner?.email || '—')}</span>
                 <span>${(t.dates||[]).length}</span>
                 <span>${(t.crew||[]).length}</span>
-                <span class="muted mono">${esc(fmtMD(start))} → ${esc(fmtMD(end))}</span>
+                <span class="muted mono">${esc(fmtMD(start))} → ${esc(fmtMD(end))} <span class="atr-caret">${isOpen?'▾':'▸'}</span></span>
               </div>
+              ${isOpen ? _adminTourDetailHTML(t, users) : ''}
             `;
           }).join('')}
         </div>
@@ -10003,69 +10293,83 @@ function _renderAdminConsole() {
 
     <div class="admin-section">
       <div class="admin-section-head">
-        <h3>Crew &amp; Band</h3>
+        <h3>Crew &amp; Band <span class="muted mono">${crew.length}</span></h3>
+        <span class="admin-hint">Click any row for details</span>
       </div>
       ${crew.length ? `
         <div class="admin-table">
           <div class="atr atr-head atr-crew"><span>Name</span><span>Email</span><span>Status</span><span>Tours</span></div>
           ${crew.map(u => {
             const userTours = tours.filter(t => (t.crew||[]).some(c => c.userId === u.id));
+            const isOpen = _adminExpanded.type === 'crew' && _adminExpanded.id === u.id;
             return `
-              <div class="atr atr-crew">
+              <div class="atr atr-crew expandable ${isOpen?'expanded':''}" onclick="_adminToggleExpand('crew','${esc(u.id)}',event)">
                 <span><b>${esc(u.name || '—')}</b></span>
                 <span class="muted mono">${esc(u.email || '—')}</span>
                 <span><span class="status-pill ${u.claimed?'good':'warn'}">${u.claimed?'Active':'Pending invite'}</span></span>
-                <span>${userTours.length}</span>
+                <span>${userTours.length} <span class="atr-caret">${isOpen?'▾':'▸'}</span></span>
               </div>
+              ${isOpen ? _adminCrewDetail(u, tours) : ''}
             `;
           }).join('')}
         </div>
       ` : '<div class="empty-row">No crew accounts in local state.</div>'}
     </div>
 
-    <div class="admin-grid">
-      <div class="admin-section admin-tools">
-        <div class="admin-section-head"><h3>Tools</h3></div>
-        <div class="atool-list">
-          <button type="button" class="atool" onclick="_adminExportAll()">
-            <div class="atool-h">Export full state · JSON</div>
-            <div class="atool-s">Download a complete backup of every user, tour, and notification on this device.</div>
-          </button>
-          <button type="button" class="atool" onclick="_adminBroadcastModal()">
-            <div class="atool-h">Send broadcast notification</div>
-            <div class="atool-s">Push a message to every tour's notification feed at once.</div>
-          </button>
-          <button type="button" class="atool" onclick="_adminClaimUnclaimed()">
-            <div class="atool-h">Audit unclaimed accounts</div>
-            <div class="atool-s">List crew records waiting for sign-up so you can nudge their TMs.</div>
-          </button>
-          <button type="button" class="atool danger" onclick="_adminPurgeDevice()">
-            <div class="atool-h">Wipe device state</div>
-            <div class="atool-s">Removes ALL local data on this device. Irreversible. Use only for clean-room QA.</div>
-          </button>
+    <div class="admin-analytics-grid">
+      <div class="admin-section">
+        <div class="admin-section-head"><h3>Plan-tier breakdown</h3></div>
+        <div class="aa-bars">
+          <div class="aa-bar-row">
+            <span class="aa-bar-label" style="color:var(--hi)">Pro · $69.99</span>
+            <div class="aa-bar-track"><div class="aa-bar-fill aa-fill-pro" style="width:${(tierCounts.pro/tierMax)*100}%"></div></div>
+            <span class="aa-bar-num">${tierCounts.pro}</span>
+          </div>
+          <div class="aa-bar-row">
+            <span class="aa-bar-label">Solo · $49.99</span>
+            <div class="aa-bar-track"><div class="aa-bar-fill aa-fill-solo" style="width:${(tierCounts.solo/tierMax)*100}%"></div></div>
+            <span class="aa-bar-num">${tierCounts.solo}</span>
+          </div>
+          <div class="aa-bar-row">
+            <span class="aa-bar-label" style="color:var(--warm-mute)">No tours yet</span>
+            <div class="aa-bar-track"><div class="aa-bar-fill aa-fill-none" style="width:${(tierCounts.none/tierMax)*100}%"></div></div>
+            <span class="aa-bar-num">${tierCounts.none}</span>
+          </div>
+        </div>
+        <div class="aa-mrr">
+          <div>
+            <div class="aa-mrr-num">$${mrr.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+            <div class="aa-mrr-lbl">Estimated MRR · this device</div>
+          </div>
+          <div class="aa-mrr-side">
+            <div class="aa-mrr-side-num">${tierCounts.pro + tierCounts.solo}</div>
+            <div class="aa-mrr-side-lbl">paid TMs</div>
+          </div>
         </div>
       </div>
 
-      <div class="admin-section admin-resources">
-        <div class="admin-section-head"><h3>Resources</h3></div>
-        <div class="ares-list">
-          <a class="ares" href="https://dashboard.stripe.com" target="_blank" rel="noopener">
-            <div class="ares-h">Stripe dashboard ↗</div>
-            <div class="ares-s">Subscribers, invoices, refunds, payment links.</div>
-          </a>
-          <a class="ares" href="https://vercel.com/dashboard" target="_blank" rel="noopener">
-            <div class="ares-h">Vercel deployments ↗</div>
-            <div class="ares-s">Build logs, domain config, env vars.</div>
-          </a>
-          <a class="ares" href="https://github.com/bradcmgmt/bandmate" target="_blank" rel="noopener">
-            <div class="ares-h">GitHub repo ↗</div>
-            <div class="ares-s">Source, commits, issues.</div>
-          </a>
-          <a class="ares" href="mailto:support@bandmate.art" target="_blank" rel="noopener">
-            <div class="ares-h">Support inbox ↗</div>
-            <div class="ares-s">Read what TMs are stuck on.</div>
-          </a>
-        </div>
+      <div class="admin-section">
+        <div class="admin-section-head"><h3>Pending invites by TM</h3></div>
+        ${pendingByTM.length ? `
+          <div class="aa-pending">
+            ${pendingByTM.map(({user, pending, tourCount}) => `
+              <button type="button" class="aa-pending-row" onclick="_adminToggleExpand('tm','${esc(user.id)}',event);document.querySelector('.atr.expandable.expanded')?.scrollIntoView({behavior:'smooth',block:'center'})">
+                <span class="aap-name">
+                  <b>${esc(user.name || user.email || '—')}</b>
+                  <span class="muted mono aap-meta">${tourCount} tour${tourCount===1?'':'s'}</span>
+                </span>
+                <span class="aap-count">${pending} <span class="aap-lbl">unclaimed</span></span>
+              </button>
+            `).join('')}
+          </div>
+          <div class="aa-foot-note">Click any TM to jump to their detail. The unclaimed crew belong to tours <i>they own</i> — they're best positioned to nudge them.</div>
+        ` : `
+          <div class="aa-empty">
+            <div class="aae-glyph">✓</div>
+            <div class="aae-h">No pending invites</div>
+            <div class="aae-s">Every crew record on this device has been claimed by its account holder.</div>
+          </div>
+        `}
       </div>
     </div>
 
@@ -11947,6 +12251,9 @@ function init() {
       if (_toolsMenuOpen && !e.target.closest('#toolsDropdown')) {
         closeToolsMenu();
       }
+      if (_adminToolsMenuOpen && !e.target.closest('.admin-tools-wrap')) {
+        _adminCloseToolsMenu();
+      }
     });
   } catch (e) { console.error('outsideClick bind:', e); }
   try {
@@ -12025,6 +12332,7 @@ Object.assign(window, {
   showAdminScreen, adminLogin, adminLogout,
   _adminExportAll, _adminBroadcastModal, _adminBroadcastSend,
   _adminClaimUnclaimed, _adminPurgeDevice,
+  _adminToggleExpand, _adminToggleToolsMenu, _adminCloseToolsMenu,
   downloadTourGridCSV, downloadHotelsCSV, downloadContactsCSV, downloadSettlementsCSV, downloadTasksCSV,
   deleteDate, getActiveDate
 });
