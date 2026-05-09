@@ -9998,11 +9998,10 @@ function showLandingScreen() {
 }
 function hideLandingScreen() {
   document.getElementById('landingScreen').hidden = true;
-  // Re-enable the ambient watermark unless we're routing into the login
-  // overlay (showLoginScreen will re-apply the hidden class itself).
-  if (document.getElementById('loginScreen').hidden) {
-    document.body.classList.remove('bg-logo-hidden');
-  }
+  // Re-enable the ambient watermark. Every other surface (login, app,
+  // pricing, admin, onboarding) shows the particle rabbit — only the
+  // public landing page suppresses it.
+  document.body.classList.remove('bg-logo-hidden');
 }
 // ─────────────────────────────────────────────────────────────────────
 // ADMIN / OWNER CONSOLE
@@ -10637,9 +10636,11 @@ function showLoginScreen() {
   if (pricing) pricing.hidden = true;
   const screen = document.getElementById('loginScreen');
   screen.hidden = false;
-  // Suppress the ambient particle watermark — login is auth surface and
-  // the watermark would just be visual noise behind the form.
-  document.body.classList.add('bg-logo-hidden');
+  // Login surface KEEPS the ambient particle watermark — only the public
+  // landing page suppresses it (that page already leads with its own
+  // hero rabbit). Make sure the class is removed in case we got here
+  // from the landing page where it was applied.
+  document.body.classList.remove('bg-logo-hidden');
   renderLoginAccounts();
   // First-time visitor (no claimed accounts) → default to signup form
   // Returning visitor (has accounts) → default to sign-in form
@@ -10655,11 +10656,9 @@ function showLoginScreen() {
 
 function hideLoginScreen() {
   document.getElementById('loginScreen').hidden = true;
-  // Re-enable the watermark unless we're bouncing back to the landing
-  // page (showLandingScreen will re-apply it itself).
-  if (document.getElementById('landingScreen').hidden) {
-    document.body.classList.remove('bg-logo-hidden');
-  }
+  // Login surface keeps the watermark, so nothing to toggle here. If
+  // we're bouncing back to landing, showLandingScreen will re-apply
+  // the bg-logo-hidden class itself.
 }
 
 function renderLoginAccounts() {
