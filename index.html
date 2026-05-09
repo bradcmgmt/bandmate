@@ -22,7 +22,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0705'/%3E%3Cg%3E%3Ccircle cx='16' cy='16' r='6' fill='%23e8943a'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23e8943a' stroke-opacity='.4' stroke-width='1'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Anton&family=Bowlby+One&display=swap" rel="stylesheet" />
 
 <style>
 :root{
@@ -1887,21 +1887,35 @@ body.travel-assistant-mode #travelAssistantArea{
   background-size:48px 48px;opacity:.5;mask-image:radial-gradient(ellipse 90% 70% at 50% 50%,#000,transparent 80%)}
 .landing-content{position:relative;z-index:1;max-width:980px;width:100%;text-align:center}
 
-.landing-brand{display:inline-flex;align-items:baseline;gap:10px;
-  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.32em;
-  color:var(--warm-mute);font-weight:700;margin-bottom:48px}
-.landing-brand .lb-mark{width:8px;height:8px;background:var(--hi);border-radius:50%;
-  box-shadow:0 0 12px var(--hi);align-self:center}
-.landing-brand .lb-name{color:var(--warm);font-weight:800;letter-spacing:.36em}
-.landing-brand .lb-version{color:rgba(232,148,58,.5);letter-spacing:.18em;font-size:10px}
+/* Spinning rabbit avatar above the headline. Slow continuous rotation
+   feels like a record on a turntable — quiet, on-brand, never showy. */
+.landing-mark{margin-bottom:30px;display:flex;justify-content:center}
+.landing-avatar{width:96px;height:auto;display:block;
+  filter:drop-shadow(0 0 18px rgba(232,148,58,.45));
+  animation:landingSpin 12s linear infinite;
+  transform-origin:50% 50%}
+@keyframes landingSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.landing-avatar{animation:none}}
 
-.landing-headline{margin:0 0 56px;font-family:'Inter',sans-serif;font-weight:900;
-  font-size:clamp(54px,9vw,128px);line-height:.95;letter-spacing:-.04em;
-  color:transparent;background:linear-gradient(180deg,#fff5e0 0%,#e8943a 75%,#9c5a18 100%);
+/* Wordmark logo now sits beneath the pitch (was at the top, before the
+   avatar took over). Centered, sized down so it reads as a sign-off. */
+.landing-wordmark{display:inline-flex;align-items:center;gap:10px;margin-top:8px}
+.landing-wordmark .landing-wordmark-img{height:36px;width:auto;
+  filter:drop-shadow(0 0 8px rgba(232,148,58,.25))}
+.landing-wordmark .lb-version{color:rgba(232,148,58,.55);letter-spacing:.18em;
+  font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700}
+
+/* Rock-and-roll display headline. Anton — heavy condensed sans, the font
+   on every concert poster from the last 30 years. Skewed italic for the
+   second line gives it the swagger of a tour-poster pull-quote. */
+.landing-headline{margin:0 0 48px;font-family:'Anton','Bowlby One','Inter',sans-serif;
+  font-weight:400;font-size:clamp(64px,11vw,156px);line-height:.92;letter-spacing:.005em;
+  text-transform:uppercase;
+  color:transparent;background:linear-gradient(180deg,#fff5e0 0%,#e8943a 70%,#9c5a18 100%);
   -webkit-background-clip:text;background-clip:text}
-.landing-headline em{font-style:italic;font-weight:700;color:transparent;
-  background:linear-gradient(180deg,#e8943a 0%,#c47323 80%);
-  -webkit-background-clip:text;background-clip:text;letter-spacing:-.02em}
+.landing-headline em{font-style:normal;display:inline-block;transform:skew(-8deg);
+  color:transparent;background:linear-gradient(180deg,#e8943a 0%,#c47323 85%);
+  -webkit-background-clip:text;background-clip:text;letter-spacing:.005em;margin-top:6px}
 
 .landing-cta{display:flex;gap:14px;justify-content:center;align-items:stretch;
   margin-bottom:36px;flex-wrap:wrap}
@@ -1920,7 +1934,7 @@ body.travel-assistant-mode #travelAssistantArea{
 .landing-btn.primary .lcta-label{color:#fff5e0}
 .landing-btn.primary:hover{box-shadow:0 0 32px -2px rgba(232,148,58,.6),0 12px 28px -10px rgba(232,148,58,.5)}
 
-.landing-pitch{margin:0 auto 60px;max-width:560px;font-size:16px;line-height:1.65;
+.landing-pitch{margin:0 auto 32px;max-width:560px;font-size:16px;line-height:1.65;
   color:var(--warm);font-weight:500;letter-spacing:.005em}
 .landing-pitch .lp-fade{color:var(--warm-mute);font-weight:400}
 
@@ -1929,8 +1943,10 @@ body.travel-assistant-mode #travelAssistantArea{
 .landing-foot .lf-sep{opacity:.5}
 
 @media (max-width:560px){
-  .landing-headline{font-size:54px;margin-bottom:36px}
-  .landing-brand{margin-bottom:28px}
+  .landing-headline{font-size:64px;margin-bottom:36px}
+  .landing-mark{margin-bottom:20px}
+  .landing-avatar{width:72px}
+  .landing-wordmark .landing-wordmark-img{height:28px}
   .landing-cta{flex-direction:column;align-items:stretch}
   .landing-btn{min-width:0}
 }
@@ -2114,9 +2130,8 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 <div class="landing-overlay" id="landingScreen" hidden>
   <div class="landing-bg"></div>
   <div class="landing-content">
-    <div class="landing-brand">
-      <img src="logo.png" class="brand-logo brand-logo-xl landing-logo" alt="Bandmate" />
-      <span class="lb-version">v0.3</span>
+    <div class="landing-mark">
+      <img src="avatar.png" class="landing-avatar" alt="Bandmate" />
     </div>
 
     <h1 class="landing-headline">
@@ -2138,6 +2153,11 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
       Tour management, finally on the same page.<br>
       <span class="lp-fade">Built for the people behind the curtain.</span>
     </p>
+
+    <div class="landing-wordmark">
+      <img src="logo.png" class="brand-logo landing-wordmark-img" alt="Bandmate" />
+      <span class="lb-version">v0.3</span>
+    </div>
   </div>
 </div>
 
