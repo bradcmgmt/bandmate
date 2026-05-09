@@ -2059,6 +2059,124 @@ body.travel-assistant-mode #travelAssistantArea{
 .pfaq-q{font-size:13.5px;font-weight:700;color:var(--warm);margin-bottom:4px}
 .pfaq-a{font-size:13px;color:var(--warm-mute);line-height:1.5}
 
+/* ============ ADMIN / OWNER DASHBOARD ============ */
+/* Owner-only console reachable at /admin (or /?admin=1 fallback). Visual
+   language: a notch more "control panel" than the public site — denser
+   tables, monospace meta, copper accents kept but cooled so it reads as
+   internal tooling, not marketing surface. */
+.admin-overlay{position:fixed;inset:0;z-index:250;background:#08060a;
+  overflow-y:auto;padding:32px 28px 80px;display:flex;flex-direction:column;align-items:center}
+.admin-overlay[hidden]{display:none}
+.admin-overlay .landing-bg{opacity:.45}
+
+/* Login gate — narrow centered card. Mirrors the login-card styling but
+   with a more clinical "owner console" treatment (mono eyebrow, no logo
+   image, slim spacing) so it's clearly a different surface than the
+   public TM/crew sign-in. */
+.admin-login{position:relative;z-index:1;width:100%;max-width:420px;margin:auto;display:flex;align-items:center;justify-content:center;min-height:80vh}
+.admin-login[hidden]{display:none}
+.admin-login-card{width:100%;background:rgba(20,15,11,.92);border:1px solid var(--line-2);border-radius:14px;padding:32px 28px 26px;
+  box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 60px -20px rgba(232,148,58,.18)}
+.admin-login-eyebrow{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.32em;
+  color:var(--hi);text-transform:uppercase;margin-bottom:14px;text-align:center}
+.admin-login-headline{font-family:'Bebas Neue','Inter',sans-serif;font-size:34px;line-height:1;letter-spacing:.02em;
+  color:var(--warm);margin:0 0 22px;text-align:center;font-weight:400}
+.admin-login-form{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.admin-login-form input{background:rgba(0,0,0,.32);border:1px solid var(--line-2);border-radius:8px;
+  padding:11px 13px;color:var(--warm);font-family:'Inter',sans-serif;font-size:14px;width:100%;outline:none;transition:border-color .15s}
+.admin-login-form input:focus{border-color:var(--hi)}
+.admin-login-form input::placeholder{color:var(--warm-mute);opacity:.7}
+.admin-login-hint{text-align:center;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.18em;
+  color:var(--warm-mute);text-transform:uppercase;line-height:1.5}
+
+/* Console — the actual dashboard once logged in. Wide layout, header
+   sticky-ish at top, sections stacked. */
+.admin-content{position:relative;z-index:1;width:100%;max-width:1180px;display:flex;flex-direction:column;gap:22px}
+.admin-content[hidden]{display:none}
+
+.admin-head{display:flex;align-items:center;justify-content:space-between;gap:18px;
+  padding:18px 22px;background:rgba(20,15,11,.78);border:1px solid var(--line-2);border-radius:14px}
+.admin-brand-eyebrow{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.34em;
+  color:var(--hi);text-transform:uppercase;margin-bottom:4px}
+.admin-brand-name{font-family:'Bebas Neue','Inter',sans-serif;font-size:30px;line-height:1;letter-spacing:.02em;
+  color:var(--warm);font-weight:400}
+.admin-head-actions{display:flex;align-items:center;gap:12px}
+.admin-session{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--warm-mute);
+  padding:6px 10px;background:rgba(0,0,0,.32);border:1px solid var(--line);border-radius:6px;letter-spacing:.05em}
+
+/* Yellow warning banner explaining device-local data limitation. */
+.admin-warning{display:flex;align-items:flex-start;gap:12px;
+  padding:13px 16px;background:rgba(232,148,58,.07);border:1px solid rgba(232,148,58,.35);border-radius:10px;
+  font-size:12.5px;color:var(--warm);line-height:1.55}
+.admin-warning .aw-glyph{flex:0 0 auto;width:22px;height:22px;border-radius:50%;
+  background:rgba(232,148,58,.18);color:var(--hi);display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:13px;border:1px solid rgba(232,148,58,.5)}
+.admin-warning b{color:var(--hi);font-weight:700}
+
+/* Stats grid — eight tile summary across the top of the console. */
+.admin-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media (max-width:780px){.admin-stats{grid-template-columns:repeat(2,1fr)}}
+.ast{padding:14px 16px;background:rgba(20,15,11,.72);border:1px solid var(--line-2);border-radius:11px;
+  display:flex;flex-direction:column;gap:4px}
+.ast-num{font-family:'Bebas Neue','Inter',sans-serif;font-size:36px;line-height:1;color:var(--warm);font-weight:400;letter-spacing:.01em}
+.ast-lbl{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.16em;color:var(--warm-mute);text-transform:uppercase}
+
+/* Section block — each table or card list lives inside one of these. */
+.admin-section{padding:18px 20px;background:rgba(20,15,11,.72);border:1px solid var(--line-2);border-radius:13px;
+  display:flex;flex-direction:column;gap:14px}
+.admin-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.admin-section-head h3{margin:0;font-family:'Bebas Neue','Inter',sans-serif;font-size:22px;color:var(--warm);
+  font-weight:400;letter-spacing:.03em}
+.admin-section-head .muted{color:var(--warm-mute);font-size:12px;font-weight:400}
+
+/* Table — flex-row "atr" cards. Five columns by default; .atr-tours uses
+   six and .atr-crew uses four. Header row has a darker accent and mono
+   labels. */
+.admin-table{display:flex;flex-direction:column;gap:0;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.atr{display:grid;grid-template-columns:1.4fr 1.6fr .6fr 1fr .8fr;gap:12px;align-items:center;
+  padding:11px 14px;border-bottom:1px solid var(--line);font-size:13px;color:var(--warm);background:rgba(0,0,0,.18)}
+.atr:last-child{border-bottom:none}
+.atr.atr-head{background:rgba(232,148,58,.06);font-family:'JetBrains Mono',monospace;font-size:10.5px;
+  letter-spacing:.18em;color:var(--warm-mute);text-transform:uppercase;padding:9px 14px}
+.atr.atr-tours{grid-template-columns:1.3fr 1fr 1.2fr .5fr .5fr 1.4fr}
+.atr.atr-crew{grid-template-columns:1.4fr 1.6fr .8fr .5fr}
+.atr span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.atr b{color:var(--warm);font-weight:700}
+.atr .muted{color:var(--warm-mute)}
+.atr .mono{font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.empty-row{padding:18px;background:rgba(0,0,0,.18);border:1px dashed var(--line-2);border-radius:9px;
+  text-align:center;color:var(--warm-mute);font-size:12.5px}
+
+.status-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;
+  font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;
+  background:rgba(255,255,255,.04);border:1px solid var(--line-2);color:var(--warm-mute)}
+.status-pill.good{background:rgba(109,207,139,.1);border-color:rgba(109,207,139,.4);color:#9ee0b5}
+.status-pill.warn{background:rgba(232,148,58,.1);border-color:rgba(232,148,58,.4);color:var(--hi)}
+
+/* Two-column tools/resources grid at the bottom of the console. Each
+   tool is a button styled as a card; each resource is an external <a>
+   link styled the same. */
+.admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:780px){.admin-grid{grid-template-columns:1fr}}
+.atool-list,.ares-list{display:flex;flex-direction:column;gap:8px}
+.atool,.ares{display:flex;flex-direction:column;gap:3px;padding:13px 15px;
+  background:rgba(0,0,0,.22);border:1px solid var(--line-2);border-radius:10px;text-align:left;cursor:pointer;
+  text-decoration:none;color:inherit;font-family:inherit;transition:border-color .15s,background .15s,transform .1s}
+.atool:hover,.ares:hover{border-color:var(--hi);background:rgba(232,148,58,.05)}
+.atool:active,.ares:active{transform:translateY(1px)}
+.atool-h,.ares-h{font-size:13.5px;font-weight:700;color:var(--warm)}
+.atool-s,.ares-s{font-size:12px;color:var(--warm-mute);line-height:1.45}
+.atool.danger{border-color:rgba(220,90,80,.45);background:rgba(220,90,80,.06)}
+.atool.danger .atool-h{color:#f0a39d}
+.atool.danger:hover{border-color:#dc5a50;background:rgba(220,90,80,.12)}
+
+.admin-foot{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  padding:14px 18px;background:rgba(0,0,0,.32);border:1px solid var(--line);border-radius:10px;
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;color:var(--warm-mute);text-transform:uppercase;line-height:1.5}
+.afoot-version{color:var(--hi);font-weight:700}
+.admin-foot code{background:rgba(232,148,58,.1);padding:2px 7px;border-radius:4px;color:var(--warm);
+  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.04em;text-transform:none}
+
 .login-overlay{
   position:fixed;inset:0;z-index:300;
   background:radial-gradient(800px 500px at 50% 30%,rgba(232,148,58,.10),transparent 60%),var(--ink);
@@ -2271,6 +2389,29 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
       <span class="lb-version">v0.3</span>
     </div>
   </div>
+</div>
+
+<!-- ============ ADMIN / OWNER DASHBOARD ============ -->
+<!-- Reached only via typing /admin in the URL bar (or /?admin=1 as a
+     fallback if Vercel rewrites aren't yet set up). Has its own login
+     gate — separate from the TM/crew sign-in flow on the public site. -->
+<div class="admin-overlay" id="adminScreen" hidden>
+  <div class="landing-bg"></div>
+
+  <div class="admin-login" id="adminLoginGate">
+    <div class="admin-login-card">
+      <div class="admin-login-eyebrow">BANDMATE · OWNER CONSOLE</div>
+      <h1 class="admin-login-headline">Admin sign-in</h1>
+      <div class="admin-login-form">
+        <input type="email" id="ad_email" placeholder="admin@bandmate.art" autocomplete="username">
+        <input type="password" id="ad_pass" placeholder="Password" autocomplete="current-password">
+        <button type="button" class="btn primary" onclick="adminLogin()" style="width:100%;padding:11px;font-size:14px;font-weight:700">Enter →</button>
+      </div>
+      <div class="admin-login-hint">Owner-only access. This page is unlinked from the public site.</div>
+    </div>
+  </div>
+
+  <div class="admin-content" id="adminConsole" hidden></div>
 </div>
 
 <!-- ============ PRICING PAGE ============ -->
@@ -9698,6 +9839,327 @@ function hideLandingScreen() {
   document.getElementById('landingScreen').hidden = true;
 }
 // ─────────────────────────────────────────────────────────────────────
+// ADMIN / OWNER CONSOLE
+// Hidden URL: bandmate.art/admin (also available at /?admin=1 as a
+// fallback if no Vercel rewrite is in place yet).
+//
+// Auth model: a list of allowed admin emails + a single shared password.
+// This is MVP-grade — for production, replace with proper backend auth
+// (Supabase / Stripe Identity / etc.) so credentials aren't sitting in
+// the bundled JS. The constants below are the ONE PLACE you change to
+// rotate credentials. After login, a session flag in localStorage
+// remembers the admin so they don't re-auth on every visit.
+// ─────────────────────────────────────────────────────────────────────
+const ADMIN_EMAILS = ['brad@r-m.art', 'admin@bandmate.art'];
+const ADMIN_PASSWORD = 'change-this-in-production';
+const ADMIN_SESSION_KEY = 'bandmate.admin.session';
+
+function _isAdminPath() {
+  const p = (window.location.pathname || '').toLowerCase();
+  const q = new URLSearchParams(window.location.search || '');
+  return p === '/admin' || p === '/admin/' || p.endsWith('/admin') || p.endsWith('/admin/') || q.get('admin') === '1';
+}
+
+function _adminSessionActive() {
+  try {
+    const s = JSON.parse(localStorage.getItem(ADMIN_SESSION_KEY) || 'null');
+    return s && s.email && ADMIN_EMAILS.includes(s.email.toLowerCase());
+  } catch (e) { return false; }
+}
+
+function showAdminScreen() {
+  // Hide everything else on the page
+  document.getElementById('app').hidden = true;
+  document.getElementById('onboarding')?.classList.add('hidden');
+  ['landingScreen','loginScreen','pricingScreen'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.hidden = true;
+  });
+  const overlay = document.getElementById('adminScreen');
+  overlay.hidden = false;
+  if (_adminSessionActive()) {
+    document.getElementById('adminLoginGate').hidden = true;
+    document.getElementById('adminConsole').hidden = false;
+    _renderAdminConsole();
+  } else {
+    document.getElementById('adminLoginGate').hidden = false;
+    document.getElementById('adminConsole').hidden = true;
+    setTimeout(() => document.getElementById('ad_email')?.focus(), 50);
+  }
+}
+
+function adminLogin() {
+  const email = (document.getElementById('ad_email').value || '').trim().toLowerCase();
+  const pass = (document.getElementById('ad_pass').value || '').trim();
+  if (!email || !pass) { toast('Email and password required', 'error'); return; }
+  if (!ADMIN_EMAILS.includes(email)) { toast('Email not on the admin list', 'error'); return; }
+  if (pass !== ADMIN_PASSWORD) { toast('Wrong password', 'error'); return; }
+  localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ email, at: Date.now() }));
+  document.getElementById('adminLoginGate').hidden = true;
+  document.getElementById('adminConsole').hidden = false;
+  _renderAdminConsole();
+  toast('Admin access granted', 'good');
+}
+
+function adminLogout() {
+  localStorage.removeItem(ADMIN_SESSION_KEY);
+  document.getElementById('adminLoginGate').hidden = false;
+  document.getElementById('adminConsole').hidden = true;
+  document.getElementById('ad_email').value = '';
+  document.getElementById('ad_pass').value = '';
+  toast('Signed out of admin', '');
+}
+
+function _renderAdminConsole() {
+  const consoleEl = document.getElementById('adminConsole');
+  if (!consoleEl) return;
+  const users = state && state.users ? Object.values(state.users) : [];
+  const tours = state && state.tours ? Object.values(state.tours) : [];
+  const tms = users.filter(u => u.role === 'tm');
+  const crew = users.filter(u => u.role === 'crew');
+  const claimed = users.filter(u => u.claimed);
+  const unclaimed = users.filter(u => !u.claimed);
+  const tmsByPlanTier = tms.map(u => {
+    const ownedTours = tours.filter(t => t.ownerId === u.id);
+    const tier = ownedTours.length >= 4 ? 'Pro · $69.99' : ownedTours.length > 0 ? 'Solo · $49.99' : 'No tours';
+    return { user: u, tours: ownedTours.length, tier };
+  });
+  const totalCrewSeats = tours.reduce((n, t) => n + (t.crew?.length || 0), 0);
+  const totalNotifications = tours.reduce((n, t) => n + (t.notifications?.length || 0), 0);
+  const totalTasks = tours.reduce((n, t) => n + (t.tasks?.length || 0), 0);
+
+  consoleEl.innerHTML = `
+    <div class="admin-head">
+      <div class="admin-brand">
+        <div class="admin-brand-eyebrow">BANDMATE · OWNER CONSOLE</div>
+        <div class="admin-brand-name">Admin overview</div>
+      </div>
+      <div class="admin-head-actions">
+        <span class="admin-session">${esc(JSON.parse(localStorage.getItem(ADMIN_SESSION_KEY)||'{}').email || '')}</span>
+        <button type="button" class="btn" onclick="adminLogout()">Sign out</button>
+      </div>
+    </div>
+
+    <div class="admin-warning">
+      <span class="aw-glyph">!</span>
+      <span>Currently showing <b>device-local data only</b>. True cross-account visibility (every TM, every tour across the platform) requires the planned Supabase / backend integration. Treat numbers below as a snapshot of this device's state.</span>
+    </div>
+
+    <div class="admin-stats">
+      <div class="ast"><div class="ast-num">${users.length}</div><div class="ast-lbl">Total accounts</div></div>
+      <div class="ast"><div class="ast-num" style="color:var(--hi)">${tms.length}</div><div class="ast-lbl">Tour Managers</div></div>
+      <div class="ast"><div class="ast-num" style="color:#b1c8ee">${crew.length}</div><div class="ast-lbl">Crew &amp; Band</div></div>
+      <div class="ast"><div class="ast-num" style="color:var(--good)">${claimed.length}</div><div class="ast-lbl">Claimed</div></div>
+      <div class="ast"><div class="ast-num" style="color:var(--warm-mute)">${unclaimed.length}</div><div class="ast-lbl">Pending invites</div></div>
+      <div class="ast"><div class="ast-num">${tours.length}</div><div class="ast-lbl">Active tours</div></div>
+      <div class="ast"><div class="ast-num">${totalCrewSeats}</div><div class="ast-lbl">Total crew seats</div></div>
+      <div class="ast"><div class="ast-num">${totalNotifications}</div><div class="ast-lbl">Notifications sent</div></div>
+    </div>
+
+    <div class="admin-section">
+      <div class="admin-section-head">
+        <h3>Tour Managers <span class="muted mono">${tms.length}</span></h3>
+      </div>
+      ${tms.length ? `
+        <div class="admin-table">
+          <div class="atr atr-head"><span>Name</span><span>Email</span><span>Tours</span><span>Plan tier</span><span>Status</span></div>
+          ${tmsByPlanTier.map(({user, tours, tier}) => `
+            <div class="atr">
+              <span><b>${esc(user.name || '—')}</b></span>
+              <span class="muted mono">${esc(user.email || '—')}</span>
+              <span>${tours}</span>
+              <span style="color:${tours>=4?'var(--hi)':tours>0?'var(--warm)':'var(--warm-mute)'}">${tier}</span>
+              <span><span class="status-pill ${user.claimed?'good':'warn'}">${user.claimed?'Active':'Pending'}</span></span>
+            </div>
+          `).join('')}
+        </div>
+      ` : '<div class="empty-row">No tour managers in local state.</div>'}
+    </div>
+
+    <div class="admin-section">
+      <div class="admin-section-head">
+        <h3>Tours <span class="muted mono">${tours.length}</span></h3>
+      </div>
+      ${tours.length ? `
+        <div class="admin-table">
+          <div class="atr atr-head atr-tours"><span>Name</span><span>Artist</span><span>Owner</span><span>Dates</span><span>Crew</span><span>Range</span></div>
+          ${tours.map(t => {
+            const owner = users.find(u => u.id === t.ownerId);
+            const start = t.dates?.[0]?.date || '—';
+            const end = t.dates?.[t.dates.length-1]?.date || '—';
+            return `
+              <div class="atr atr-tours">
+                <span><b>${esc(t.meta?.tourName || t.name || '—')}</b></span>
+                <span class="muted">${esc(t.meta?.artist || '—')}</span>
+                <span class="muted mono">${esc(owner?.name || owner?.email || '—')}</span>
+                <span>${(t.dates||[]).length}</span>
+                <span>${(t.crew||[]).length}</span>
+                <span class="muted mono">${esc(fmtMD(start))} → ${esc(fmtMD(end))}</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      ` : '<div class="empty-row">No tours in local state.</div>'}
+    </div>
+
+    <div class="admin-section">
+      <div class="admin-section-head">
+        <h3>Crew &amp; Band</h3>
+      </div>
+      ${crew.length ? `
+        <div class="admin-table">
+          <div class="atr atr-head atr-crew"><span>Name</span><span>Email</span><span>Status</span><span>Tours</span></div>
+          ${crew.map(u => {
+            const userTours = tours.filter(t => (t.crew||[]).some(c => c.userId === u.id));
+            return `
+              <div class="atr atr-crew">
+                <span><b>${esc(u.name || '—')}</b></span>
+                <span class="muted mono">${esc(u.email || '—')}</span>
+                <span><span class="status-pill ${u.claimed?'good':'warn'}">${u.claimed?'Active':'Pending invite'}</span></span>
+                <span>${userTours.length}</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      ` : '<div class="empty-row">No crew accounts in local state.</div>'}
+    </div>
+
+    <div class="admin-grid">
+      <div class="admin-section admin-tools">
+        <div class="admin-section-head"><h3>Tools</h3></div>
+        <div class="atool-list">
+          <button type="button" class="atool" onclick="_adminExportAll()">
+            <div class="atool-h">Export full state · JSON</div>
+            <div class="atool-s">Download a complete backup of every user, tour, and notification on this device.</div>
+          </button>
+          <button type="button" class="atool" onclick="_adminBroadcastModal()">
+            <div class="atool-h">Send broadcast notification</div>
+            <div class="atool-s">Push a message to every tour's notification feed at once.</div>
+          </button>
+          <button type="button" class="atool" onclick="_adminClaimUnclaimed()">
+            <div class="atool-h">Audit unclaimed accounts</div>
+            <div class="atool-s">List crew records waiting for sign-up so you can nudge their TMs.</div>
+          </button>
+          <button type="button" class="atool danger" onclick="_adminPurgeDevice()">
+            <div class="atool-h">Wipe device state</div>
+            <div class="atool-s">Removes ALL local data on this device. Irreversible. Use only for clean-room QA.</div>
+          </button>
+        </div>
+      </div>
+
+      <div class="admin-section admin-resources">
+        <div class="admin-section-head"><h3>Resources</h3></div>
+        <div class="ares-list">
+          <a class="ares" href="https://dashboard.stripe.com" target="_blank" rel="noopener">
+            <div class="ares-h">Stripe dashboard ↗</div>
+            <div class="ares-s">Subscribers, invoices, refunds, payment links.</div>
+          </a>
+          <a class="ares" href="https://vercel.com/dashboard" target="_blank" rel="noopener">
+            <div class="ares-h">Vercel deployments ↗</div>
+            <div class="ares-s">Build logs, domain config, env vars.</div>
+          </a>
+          <a class="ares" href="https://github.com/bradcmgmt/bandmate" target="_blank" rel="noopener">
+            <div class="ares-h">GitHub repo ↗</div>
+            <div class="ares-s">Source, commits, issues.</div>
+          </a>
+          <a class="ares" href="mailto:support@bandmate.art" target="_blank" rel="noopener">
+            <div class="ares-h">Support inbox ↗</div>
+            <div class="ares-s">Read what TMs are stuck on.</div>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-foot">
+      <span class="afoot-version">BANDMATE · v0.3 · OWNER CONSOLE</span>
+      <span class="afoot-info">This page is intentionally unlinked from the public site. Bookmark <code>${esc(window.location.origin)}/admin</code> to return.</span>
+    </div>
+  `;
+}
+
+function _adminExportAll() {
+  if (!state) { toast('No state to export', 'error'); return; }
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `bandmate-admin-export-${todayISO()}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast('Exported', 'good');
+}
+
+function _adminBroadcastModal() {
+  openModal({
+    title: 'Broadcast notification · all tours',
+    size: '',
+    hideFooter: true,
+    body: `
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="font-size:13px;color:var(--warm-mute);line-height:1.5">
+          Sends a notification to <b style="color:var(--warm)">${(state?.tours ? Object.keys(state.tours).length : 0)} tour${(state?.tours && Object.keys(state.tours).length === 1) ? '' : 's'}</b> on this device. The message will appear in every tour's notification feed for ALL band &amp; crew on it.
+        </div>
+        <textarea id="ab_body" rows="4" style="width:100%;background:rgba(0,0,0,.3);border:1px solid var(--line-2);border-radius:8px;padding:11px 13px;color:var(--warm);font-family:'Inter',sans-serif;font-size:13px;line-height:1.5" placeholder="Heads up — Bandmate will be down for maintenance Sunday 2-4am ET."></textarea>
+        <div style="display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--line);padding-top:14px">
+          <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+          <button type="button" class="btn primary" onclick="_adminBroadcastSend()">Send to all →</button>
+        </div>
+      </div>
+    `,
+  });
+}
+
+function _adminBroadcastSend() {
+  const body = (document.getElementById('ab_body')?.value || '').trim();
+  if (!body) { toast('Type a message first', 'error'); return; }
+  if (!state || !state.tours) { toast('No tours', 'error'); closeModal(); return; }
+  const note = {
+    sentBy: 'Bandmate Team',
+    sentById: 'admin',
+    body,
+    audience: { groups: ['All'], individuals: [], label: 'ALL · BROADCAST' },
+    priority: 'important',
+    when: 'now',
+  };
+  let sent = 0;
+  Object.values(state.tours).forEach(t => {
+    if (!t.notifications) t.notifications = [];
+    t.notifications.push({ id: uid('pn'), sentAt: Date.now(), ...note });
+    sent++;
+  });
+  saveState();
+  closeModal();
+  toast(`Broadcast sent to ${sent} tour${sent===1?'':'s'}`, 'good');
+  _renderAdminConsole();
+}
+
+function _adminClaimUnclaimed() {
+  if (!state || !state.users) { toast('No users', 'error'); return; }
+  const unclaimed = Object.values(state.users).filter(u => !u.claimed && u.email);
+  if (!unclaimed.length) { toast('All accounts are claimed', 'good'); return; }
+  const list = unclaimed.map(u => `${u.name} <${u.email}>`).join('\n');
+  const blob = new Blob([list], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `bandmate-unclaimed-${todayISO()}.txt`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast(`Exported ${unclaimed.length} unclaimed accounts`, 'good');
+}
+
+function _adminPurgeDevice() {
+  confirmTyped({
+    title: 'Wipe device state?',
+    message: 'This permanently removes <b>every</b> user, tour, notification, and setting on this device. The site will reload to a fresh landing page. Cannot be undone.',
+    magic: 'WIPE',
+    confirmLabel: 'Wipe everything',
+    danger: true,
+    onConfirm: () => {
+      try { localStorage.clear(); } catch(e) {}
+      location.reload();
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Pricing page — three tiers: Solo ($49.99/mo), Pro ($69.99/mo, max),
 // Business (custom). Each "Subscribe" button hands off to a Stripe
 // Payment Link. Replace the URLs below with the real ones from your
@@ -11488,6 +11950,15 @@ function init() {
     });
   } catch (e) { console.error('outsideClick bind:', e); }
   try {
+    // Admin / owner console — checked BEFORE the normal landing/login
+    // routing so visiting bandmate.art/admin (or /?admin=1 as fallback)
+    // always goes straight to the owner console regardless of whether a
+    // TM / crew session is active. The page is intentionally unlinked
+    // from any public surface — you reach it by typing the URL.
+    if (_isAdminPath()) {
+      showAdminScreen();
+      return;
+    }
     if (!state || !state.currentUserId) {
       // No state OR no logged-in user → land on the public-facing landing
       // page. From there, the user picks a role (TM / Band & Crew) and
@@ -11551,6 +12022,9 @@ Object.assign(window, {
   showPricingScreen, hidePricingScreen, _pricingSubscribe, _pricingInquire,
   _showCrewNoToursModal, _copyCrewEmail,
   _checkPricingUpgrade, _showPricingUpgradeModal,
+  showAdminScreen, adminLogin, adminLogout,
+  _adminExportAll, _adminBroadcastModal, _adminBroadcastSend,
+  _adminClaimUnclaimed, _adminPurgeDevice,
   downloadTourGridCSV, downloadHotelsCSV, downloadContactsCSV, downloadSettlementsCSV, downloadTasksCSV,
   deleteDate, getActiveDate
 });
