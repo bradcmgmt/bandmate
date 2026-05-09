@@ -2001,6 +2001,42 @@ body.travel-assistant-mode #travelAssistantArea{
 }
 
 /* ============ PRICING PAGE ============ */
+/* ============ POST-PAYMENT WELCOME OVERLAY ============
+   Shown immediately after a successful Stripe checkout. Centered card
+   on a dark canvas — same visual language as landing/pricing/login but
+   leans celebratory: glowing checkmark, big plan name, single primary
+   CTA. Z-index is HIGHER than landing (200) and pricing (200) but
+   below modals (1000) so post-payment toasts/etc still work. */
+.welcome-overlay{position:fixed;inset:0;z-index:240;background:#0a0705;
+  display:flex;align-items:center;justify-content:center;padding:30px;overflow-y:auto}
+.welcome-overlay[hidden]{display:none}
+.welcome-content{position:relative;z-index:1;max-width:560px;width:100%;text-align:center;padding:24px 0 60px;
+  display:flex;flex-direction:column;align-items:center;gap:18px}
+.welcome-eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.34em;
+  color:var(--good);text-transform:uppercase;font-weight:700}
+.welcome-icon{width:74px;height:74px;border-radius:50%;background:rgba(109,207,139,.12);
+  border:1.5px solid rgba(109,207,139,.55);color:var(--good);
+  display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:800;line-height:1;
+  box-shadow:0 0 32px rgba(109,207,139,.3)}
+.welcome-headline{font-family:'Bebas Neue','Inter',sans-serif;font-size:60px;line-height:1;
+  letter-spacing:.01em;color:#fff5e0;font-weight:400;margin:8px 0 0;max-width:480px}
+.welcome-headline em{font-style:normal;color:var(--hi)}
+.welcome-sub{font-size:15px;color:var(--warm-mute);line-height:1.55;max-width:440px;margin:0}
+.welcome-meta{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:6px;
+  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;
+  color:var(--warm-mute);text-transform:uppercase}
+.welcome-meta .wm-row{padding:5px 11px;background:rgba(232,148,58,.06);border:1px solid rgba(232,148,58,.18);
+  border-radius:6px;color:var(--warm)}
+.welcome-meta .wm-row b{color:var(--hi);font-weight:700}
+.welcome-cta{margin-top:14px}
+.welcome-cta .welcome-go{padding:13px 28px;font-size:15px;font-weight:800;letter-spacing:.06em;
+  background:linear-gradient(135deg,#e8943a,#c9772a);color:#0e0805;
+  border:none;border-radius:9px;cursor:pointer;
+  box-shadow:0 0 28px rgba(232,148,58,.5),0 6px 18px rgba(0,0,0,.4);transition:box-shadow .15s,transform .1s}
+.welcome-cta .welcome-go:hover{box-shadow:0 0 36px rgba(232,148,58,.7),0 8px 22px rgba(0,0,0,.5)}
+.welcome-cta .welcome-go:active{transform:translateY(1px)}
+.welcome-fineprint{font-size:12.5px;color:var(--warm-mute);line-height:1.55;margin-top:8px;max-width:420px}
+
 .pricing-overlay{position:fixed;inset:0;z-index:200;background:#0a0705;
   padding:40px 24px;display:flex;align-items:flex-start;justify-content:center;
   font-family:'Inter',sans-serif;color:var(--warm);overflow-y:auto}
@@ -2594,22 +2630,16 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
         <div class="pc-tier">TOUR MANAGER</div>
         <div class="pc-price">
           <span class="pc-amount">$49.99</span><span class="pc-cycle">/mo</span>
-          <span class="pc-info" tabindex="0" aria-label="Pricing details">
-            <span class="pc-info-glyph">i</span>
-            <span class="pc-info-tip" role="tooltip">
-              <b>Pricing ceiling:</b> if you run <b>4 or more tours</b> simultaneously, your plan auto-upgrades to <b>$69.99/mo</b> — that's the maximum. It never costs more than that no matter how many tours you run.
-            </span>
-          </span>
         </div>
-        <div class="pc-pitch">One flat rate for everything you need to run tours.</div>
+        <div class="pc-pitch">One flat rate. Every feature. No tier ceiling.</div>
         <ul class="pc-features">
-          <li>Up to 3 active tours</li>
+          <li>Unlimited tours</li>
           <li>Unlimited band &amp; crew invites</li>
           <li>Full dashboard, push notifications, day sheets</li>
           <li>Travel Assistant + import wizard</li>
           <li>All tour data stays yours</li>
         </ul>
-        <button type="button" class="pc-cta primary" onclick="_pricingSubscribe('solo')">Subscribe →</button>
+        <button type="button" class="pc-cta primary" onclick="_pricingSubscribe()">Subscribe →</button>
         <div class="pc-foot">Cancel anytime · 7-day full refund</div>
       </div>
 
@@ -2640,8 +2670,8 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 
     <div class="pricing-faq">
       <div class="pfaq-item">
-        <div class="pfaq-q">What if I add a 4th tour while on Solo?</div>
-        <div class="pfaq-a">We'll prompt you to upgrade to Pro the moment you create it. The upgrade is one click and Stripe prorates the difference automatically.</div>
+        <div class="pfaq-q">Is there a tour limit?</div>
+        <div class="pfaq-a">No. One flat rate covers as many tours as you can run — solo TM with one act, or busy book with a dozen. We don't believe in volume penalties.</div>
       </div>
       <div class="pfaq-item">
         <div class="pfaq-q">Can I cancel?</div>
@@ -2653,6 +2683,39 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- ============ POST-PAYMENT WELCOME OVERLAY ============ -->
+<!-- Lands here after a successful Stripe checkout. The Payment Link is
+     configured to redirect to bandmate.art/?subscribed=1&plan=solo|pro,
+     and Stripe automatically appends &session_id=cs_xxx. We detect that
+     query string in init() and show this overlay. From here, the user
+     either creates a new account (most common — they paid before signing
+     up) or, if they're already logged in, gets their subscription
+     attached to their existing user record.
+
+     Note: without a backend webhook, we can't VERIFY the session_id is
+     real. For MVP this is acceptable — fraudsters who hit the URL
+     directly without paying just get an account, which is functionally
+     the same as if signup were free. Real verification needs Stripe to
+     POST a customer.subscription.created webhook to a server endpoint;
+     swap _consumePendingSubscription() for that lookup once you ship a
+     backend. -->
+<div class="welcome-overlay" id="welcomeScreen" hidden>
+  <div class="landing-bg"></div>
+  <div class="welcome-content">
+    <div class="welcome-eyebrow">PAYMENT CONFIRMED</div>
+    <div class="welcome-icon">✓</div>
+    <h1 class="welcome-headline">Welcome to <em id="welcomePlanName">Bandmate</em>.</h1>
+    <p class="welcome-sub">Your subscription is active. One last step — set up your account so you can start building tours.</p>
+    <div class="welcome-meta" id="welcomeMeta"></div>
+    <div class="welcome-cta">
+      <button type="button" class="btn primary welcome-go" onclick="_welcomeContinue()">Create my account →</button>
+    </div>
+    <div class="welcome-fineprint">
+      Already have a Bandmate account? <a href="javascript:void(0)" onclick="_welcomeContinueAsExisting()" style="color:var(--hi)">Sign in instead</a> and we'll attach the subscription to it.
+    </div>
   </div>
 </div>
 
@@ -7902,7 +7965,6 @@ function izApply() {
   } else {
     toast(`Tour fully built from ${s.files.length} document${s.files.length===1?'':'s'}`, 'good');
   }
-  _checkPricingUpgrade();
 }
 
 
@@ -9970,7 +10032,6 @@ function newTourManualFlow() {
       saveState();
       renderAll();
       toast(`Tour "${name}" created`, 'good');
-      _checkPricingUpgrade();
     }
   });
 }
@@ -10164,10 +10225,9 @@ function _adminTMDetail(user, tours) {
   ownedTours.forEach(t => (t.crew || []).forEach(c => c.userId && allCrewIds.add(c.userId)));
   const totalDates = ownedTours.reduce((n, t) => n + (t.dates?.length || 0), 0);
   const totalNotifs = ownedTours.reduce((n, t) => n + (t.notifications?.length || 0), 0);
-  const tier = ownedTours.length >= 4 ? '$69.99/mo · Pro tier (auto-upgraded)'
-    : ownedTours.length > 0 ? '$49.99/mo · Solo tier'
-    : 'Not subscribed yet';
-  const upgradedAt = user.upgradePromptedAt ? new Date(user.upgradePromptedAt).toLocaleDateString() : null;
+  const subscribed = user.subscriptionStatus === 'active';
+  const tier = subscribed ? '$49.99/mo · active' : 'Not subscribed yet';
+  const subStartedAt = user.subscriptionStartedAt ? new Date(user.subscriptionStartedAt).toLocaleDateString() : null;
   return `
     <div class="atr-detail" onclick="event.stopPropagation()">
       <div class="adt-section">
@@ -10176,8 +10236,8 @@ function _adminTMDetail(user, tours) {
         <div class="adt-row"><span class="muted">Email</span><b class="mono">${esc(user.email || '—')}</b></div>
         <div class="adt-row"><span class="muted">User ID</span><b class="mono">${esc(user.id || '—')}</b></div>
         <div class="adt-row"><span class="muted">Status</span><b>${user.claimed ? 'Active · signed in' : 'Pending invite'}</b></div>
-        <div class="adt-row"><span class="muted">Plan</span><b style="color:${ownedTours.length >= 4 ? 'var(--hi)' : 'var(--warm)'}">${tier}</b></div>
-        ${upgradedAt ? `<div class="adt-row"><span class="muted">Upgrade prompted</span><b class="mono">${upgradedAt}</b></div>` : ''}
+        <div class="adt-row"><span class="muted">Subscription</span><b style="color:${subscribed ? 'var(--good)' : 'var(--warm-mute)'}">${tier}</b></div>
+        ${subStartedAt ? `<div class="adt-row"><span class="muted">Subscribed on</span><b class="mono">${subStartedAt}</b></div>` : ''}
       </div>
       <div class="adt-section">
         <div class="adt-h">Activity · ${ownedTours.length} tour${ownedTours.length===1?'':'s'}</div>
@@ -10266,21 +10326,26 @@ function _renderAdminConsole() {
   const totalCrewSeats = tours.reduce((n, t) => n + (t.crew?.length || 0), 0);
   const totalNotifications = tours.reduce((n, t) => n + (t.notifications?.length || 0), 0);
 
+  // Single subscription tier now ($49.99/mo flat). The "tier" for each
+  // TM is just whether they have an active subscription on their user
+  // record, which is set by the post-payment welcome flow.
   const tmDetails = tms.map(u => {
     const ownedTours = tours.filter(t => t.ownerId === u.id);
-    const tier = ownedTours.length >= 4 ? 'Pro · $69.99' : ownedTours.length > 0 ? 'Solo · $49.99' : 'No tours';
-    const tierKey = ownedTours.length >= 4 ? 'pro' : ownedTours.length > 0 ? 'solo' : 'none';
+    const subscribed = u.subscriptionStatus === 'active';
+    const tier = subscribed ? 'Subscribed · $49.99' : 'Not subscribed';
+    const tierKey = subscribed ? 'sub' : 'none';
     return { user: u, tours: ownedTours.length, tier, tierKey };
   });
 
-  // Plan-tier breakdown — counts + monthly recurring revenue estimate. MRR
-  // is illustrative ("on this device") because we don't yet have a backend
-  // to confirm Stripe-active subscribers; once Supabase is in, swap to the
-  // real MRR call. Pricing: Pro = $69.99/mo, Solo = $49.99/mo.
-  const tierCounts = { pro: 0, solo: 0, none: 0 };
+  // Subscription breakdown — count of active vs. unsubscribed TMs and a
+  // monthly recurring revenue estimate. MRR is illustrative ("on this
+  // device") because we don't yet have a backend to confirm Stripe-side
+  // subscription state; once a webhook + backend exist, swap this for
+  // the real MRR call.
+  const tierCounts = { sub: 0, none: 0 };
   tmDetails.forEach(t => tierCounts[t.tierKey]++);
-  const tierMax = Math.max(tierCounts.pro, tierCounts.solo, tierCounts.none, 1);
-  const mrr = (tierCounts.pro * 69.99) + (tierCounts.solo * 49.99);
+  const tierMax = Math.max(tierCounts.sub, tierCounts.none, 1);
+  const mrr = tierCounts.sub * 49.99;
 
   // Pending-invite leaderboard — surfaces TMs whose tours have the most
   // unclaimed crew records, so an owner can prioritize who to nudge.
@@ -10353,15 +10418,16 @@ function _renderAdminConsole() {
       </div>
       ${tms.length ? `
         <div class="admin-table">
-          <div class="atr atr-head"><span>Name</span><span>Email</span><span>Tours</span><span>Plan tier</span><span>Status</span></div>
-          ${tmDetails.map(({user, tours: tCount, tier}) => {
+          <div class="atr atr-head"><span>Name</span><span>Email</span><span>Tours</span><span>Subscription</span><span>Status</span></div>
+          ${tmDetails.map(({user, tours: tCount, tier, tierKey}) => {
             const isOpen = _adminExpanded.type === 'tm' && _adminExpanded.id === user.id;
+            const tierColor = tierKey === 'sub' ? 'var(--good)' : 'var(--warm-mute)';
             return `
               <div class="atr expandable ${isOpen?'expanded':''}" onclick="_adminToggleExpand('tm','${esc(user.id)}',event)">
                 <span><b>${esc(user.name || '—')}</b></span>
                 <span class="muted mono">${esc(user.email || '—')}</span>
                 <span>${tCount}</span>
-                <span style="color:${tCount>=4?'var(--hi)':tCount>0?'var(--warm)':'var(--warm-mute)'}">${tier}</span>
+                <span style="color:${tierColor}">${tier}</span>
                 <span><span class="status-pill ${user.claimed?'good':'warn'}">${user.claimed?'Active':'Pending'}</span><span class="atr-caret">${isOpen?'▾':'▸'}</span></span>
               </div>
               ${isOpen ? _adminTMDetail(user, tours) : ''}
@@ -10427,20 +10493,15 @@ function _renderAdminConsole() {
 
     <div class="admin-analytics-grid">
       <div class="admin-section">
-        <div class="admin-section-head"><h3>Plan-tier breakdown</h3></div>
+        <div class="admin-section-head"><h3>Subscription breakdown</h3></div>
         <div class="aa-bars">
           <div class="aa-bar-row">
-            <span class="aa-bar-label" style="color:var(--hi)">Pro · $69.99</span>
-            <div class="aa-bar-track"><div class="aa-bar-fill aa-fill-pro" style="width:${(tierCounts.pro/tierMax)*100}%"></div></div>
-            <span class="aa-bar-num">${tierCounts.pro}</span>
+            <span class="aa-bar-label" style="color:var(--hi)">Subscribed · $49.99</span>
+            <div class="aa-bar-track"><div class="aa-bar-fill aa-fill-pro" style="width:${(tierCounts.sub/tierMax)*100}%"></div></div>
+            <span class="aa-bar-num">${tierCounts.sub}</span>
           </div>
           <div class="aa-bar-row">
-            <span class="aa-bar-label">Solo · $49.99</span>
-            <div class="aa-bar-track"><div class="aa-bar-fill aa-fill-solo" style="width:${(tierCounts.solo/tierMax)*100}%"></div></div>
-            <span class="aa-bar-num">${tierCounts.solo}</span>
-          </div>
-          <div class="aa-bar-row">
-            <span class="aa-bar-label" style="color:var(--warm-mute)">No tours yet</span>
+            <span class="aa-bar-label" style="color:var(--warm-mute)">Not subscribed</span>
             <div class="aa-bar-track"><div class="aa-bar-fill aa-fill-none" style="width:${(tierCounts.none/tierMax)*100}%"></div></div>
             <span class="aa-bar-num">${tierCounts.none}</span>
           </div>
@@ -10451,7 +10512,7 @@ function _renderAdminConsole() {
             <div class="aa-mrr-lbl">Estimated MRR · this device</div>
           </div>
           <div class="aa-mrr-side">
-            <div class="aa-mrr-side-num">${tierCounts.pro + tierCounts.solo}</div>
+            <div class="aa-mrr-side-num">${tierCounts.sub}</div>
             <div class="aa-mrr-side-lbl">paid TMs</div>
           </div>
         </div>
@@ -10581,14 +10642,12 @@ function _adminPurgeDevice() {
 // the customer self-service portal — no backend on our side needed
 // for the MVP.
 // ─────────────────────────────────────────────────────────────────────
-// Stripe Payment Link URLs. These are TEST-mode links — they only work
-// with Stripe's test cards (e.g. 4242 4242 4242 4242). Once you've
-// switched the Stripe dashboard to live mode and recreated the products
-// + payment links there, paste the live URLs here. The live URLs do
-// NOT have "test_" in them.
+// Stripe Payment Link URL. Single subscription tier — $49.99/mo flat,
+// every feature included. This is a TEST-mode link; once you flip Stripe
+// to live mode and recreate the product + payment link there, paste the
+// live URL here. Live URLs do NOT have "test_" in them.
 const STRIPE_LINKS = {
-  solo: 'https://buy.stripe.com/test_aFafZh71dfJt8J73QV2sM00',
-  pro:  'https://buy.stripe.com/test_dRmcN585h2WH6AZ1IN2sM01',
+  subscription: 'https://buy.stripe.com/test_aFafZh71dfJt8J73QV2sM00',
 };
 const BUSINESS_INQUIRY_EMAIL = 'info@bandmate.art';
 
@@ -10603,13 +10662,16 @@ function showPricingScreen() {
 function hidePricingScreen() {
   document.getElementById('pricingScreen').hidden = true;
 }
-function _pricingSubscribe(tier) {
-  const url = STRIPE_LINKS[tier];
+function _pricingSubscribe() {
+  // Single-tier subscription — opens the Stripe Payment Link in a new
+  // tab so the user can come back to Bandmate after paying. Old call
+  // sites that still pass a tier argument (e.g. '/solo') just get
+  // ignored — the function takes no params now.
+  const url = STRIPE_LINKS.subscription;
   if (!url || url.includes('REPLACE_WITH')) {
     toast('Stripe payment link not configured yet — coming soon', 'error');
     return;
   }
-  // Open in new tab so the user can come back to Bandmate after paying.
   window.open(url, '_blank', 'noopener,noreferrer');
 }
 function _pricingInquire() {
@@ -10618,51 +10680,176 @@ function _pricingInquire() {
   window.location.href = `mailto:${BUSINESS_INQUIRY_EMAIL}?subject=${subject}&body=${body}`;
 }
 
-// Watches the current TM's owned-tour count and surfaces a friendly modal
-// the first time they cross the 4-tour threshold — at which point their
-// $49.99/mo plan auto-upgrades to $69.99/mo (the maximum). Tracked via a
-// flag on the user record so we don't pester them on every subsequent
-// tour creation.
-function _checkPricingUpgrade() {
-  if (!state || !state.currentUserId) return;
-  const u = state.users[state.currentUserId];
-  if (!u || u.role !== 'tm') return; // only TMs are billed
-  const ownedCount = Object.values(state.tours || {})
-    .filter(t => t.ownerId === u.id).length;
-  if (ownedCount < 4) return;
-  if (u.upgradePromptedAt) return; // already shown once — never bug them again
-  u.upgradePromptedAt = Date.now();
-  saveState();
-  setTimeout(() => _showPricingUpgradeModal(ownedCount), 200);
+// ─────────────────────────────────────────────────────────────────────
+// POST-PAYMENT WELCOME FLOW
+//
+// Triggered when the user lands on bandmate.art/?subscribed=1 — that's
+// the URL Stripe redirects to after a successful checkout. Stripe also
+// passes &plan=solo|pro (which we set when configuring the Payment Link)
+// and automatically appends &session_id=cs_xxx + sometimes
+// &prefilled_email=alice@band.com.
+//
+// The flow:
+//   1. _isPostPaymentRedirect() detects the magic query string
+//   2. _stashPendingSubscription() saves plan/session/email to a small
+//      cache so they survive across page navigations (signup form
+//      submission triggers a re-render that loses URL state otherwise)
+//   3. showWelcomeScreen() renders the celebratory overlay
+//   4. _welcomeContinue() routes into signup with email pre-filled
+//   5. signUp() reads the pending subscription and persists it onto
+//      the new user record (subscriptionStatus / plan / startedAt)
+//   6. After the user finishes signup, they go straight to onboarding
+//
+// Without a backend webhook we can't VERIFY the session_id; we trust
+// the URL. For MVP this is fine — the worst case is someone hits the
+// URL directly and gets a free Bandmate account, which is what would
+// happen if signup were free anyway.
+// ─────────────────────────────────────────────────────────────────────
+const PENDING_SUBSCRIPTION_KEY = 'bandmate.pending.subscription';
+
+function _isPostPaymentRedirect() {
+  const q = new URLSearchParams(window.location.search || '');
+  return q.get('subscribed') === '1';
 }
 
-function _showPricingUpgradeModal(tourCount) {
-  openModal({
-    title: 'Heads up — pricing change',
-    size: '',
-    hideFooter: true,
-    body: `
-      <div style="display:flex;flex-direction:column;gap:14px">
-        <div style="font-size:14px;line-height:1.6;color:var(--warm)">
-          You just created your <b>${tourCount}${tourCount===4?'th':tourCount===5?'th':'th'}</b> tour — congrats on running a busy book.
-        </div>
-        <div style="padding:14px 16px;background:rgba(232,148,58,.06);border:1px solid rgba(232,148,58,.4);border-radius:9px">
-          <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.16em;color:var(--hi);text-transform:uppercase;font-weight:700;margin-bottom:6px">YOUR PLAN AUTO-UPGRADES</div>
-          <div style="font-size:13.5px;line-height:1.6;color:var(--warm)">
-            Plans of <b style="color:var(--hi)">4 or more tours</b> shift from <b>$49.99/mo</b> to <b style="color:var(--hi)">$69.99/mo</b>. That's the maximum — your plan never costs more than that, no matter how many tours you run.
-          </div>
-        </div>
-        <div style="font-size:13px;line-height:1.6;color:var(--warm-mute)">
-          The change takes effect on your next billing cycle. Stripe prorates the difference automatically — you'll see a small adjustment on your next invoice. Nothing breaks; everything keeps working.
-        </div>
-        <div style="display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--line);padding-top:14px;margin-top:6px">
-          <button type="button" class="btn" onclick="closeModal();showPricingScreen()">View pricing details</button>
-          <button type="button" class="btn primary" onclick="closeModal()">Got it</button>
-        </div>
-      </div>
-    `,
-  });
+function _stashPendingSubscription() {
+  const q = new URLSearchParams(window.location.search || '');
+  const plan = q.get('plan') || 'solo';
+  // Stripe surfaces the customer's email a few different ways depending
+  // on the redirect config — try them all.
+  const email = q.get('prefilled_email') || q.get('customer_email') || q.get('email') || '';
+  const sessionId = q.get('session_id') || '';
+  // Single subscription tier — `plan` is kept on the record for forward
+  // compatibility (in case tiers come back), but only ever has one value.
+  const data = {
+    plan: 'standard',
+    email,
+    sessionId,
+    capturedAt: Date.now(),
+  };
+  try { localStorage.setItem(PENDING_SUBSCRIPTION_KEY, JSON.stringify(data)); } catch (e) {}
+  // Clean the URL so a refresh doesn't re-trigger the welcome flow.
+  // Leave any non-payment params (e.g. /admin) intact.
+  try {
+    const cleaned = new URL(window.location.href);
+    ['subscribed','plan','session_id','prefilled_email','customer_email','email'].forEach(k => cleaned.searchParams.delete(k));
+    window.history.replaceState({}, '', cleaned.pathname + (cleaned.search ? cleaned.search : '') + cleaned.hash);
+  } catch (e) {}
+  return data;
 }
+
+function _readPendingSubscription() {
+  try {
+    const raw = localStorage.getItem(PENDING_SUBSCRIPTION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+function _clearPendingSubscription() {
+  try { localStorage.removeItem(PENDING_SUBSCRIPTION_KEY); } catch (e) {}
+}
+
+function showWelcomeScreen() {
+  const pending = _readPendingSubscription();
+  if (!pending) return; // nothing to welcome
+  // Hide every other surface
+  document.getElementById('app').hidden = true;
+  document.getElementById('onboarding')?.classList.add('hidden');
+  ['landingScreen','loginScreen','pricingScreen','adminScreen'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.hidden = true;
+  });
+  document.getElementById('welcomeScreen').hidden = false;
+  // The welcome surface is post-auth-y but technically the user doesn't
+  // have a Bandmate account yet — the watermark stays HIDDEN here so
+  // the celebratory moment isn't visually noisy. Lifts as soon as
+  // they finish signup and hit the dashboard.
+  document.body.classList.add('bg-logo-hidden');
+
+  // Single subscription tier now — show the brand name only.
+  document.getElementById('welcomePlanName').textContent = 'Bandmate';
+  const meta = document.getElementById('welcomeMeta');
+  if (meta) {
+    meta.innerHTML = `
+      <span class="wm-row"><b>Plan:</b> Tour Manager</span>
+      <span class="wm-row"><b>Billing:</b> $49.99/mo</span>
+      ${pending.email ? `<span class="wm-row"><b>Email:</b> ${esc(pending.email)}</span>` : ''}
+    `;
+  }
+}
+
+function hideWelcomeScreen() {
+  const el = document.getElementById('welcomeScreen');
+  if (el) el.hidden = true;
+}
+
+// "Create my account" — primary CTA. Routes into the signup form
+// (existing login overlay in signup mode) with email + role prefilled.
+function _welcomeContinue() {
+  const pending = _readPendingSubscription();
+  hideWelcomeScreen();
+  if (!state) state = newEmptyState();
+  // If the user is somehow already logged in (rare edge case — they
+  // were signed in when they paid), just attach the subscription to
+  // the existing record and route them to the app.
+  if (state.currentUserId && state.users && state.users[state.currentUserId]) {
+    _attachSubscriptionToCurrentUser(pending);
+    _clearPendingSubscription();
+    document.body.classList.remove('bg-logo-hidden');
+    toast(`Welcome to Bandmate — your subscription is active`, 'good');
+    if (!state.onboarded) {
+      document.getElementById('onboarding').classList.remove('hidden');
+    } else {
+      renderAll();
+      try { applyTabFromState(); } catch (e) {}
+      try { syncPhoneScreenFromTab(); } catch (e) {}
+    }
+    return;
+  }
+  // Otherwise: open the signup form, prefill email, set role to TM.
+  showLoginScreen();
+  showSignupForm();
+  setTimeout(() => {
+    const emailEl = document.getElementById('su_email');
+    const roleEl = document.getElementById('su_role');
+    const nameEl = document.getElementById('su_name');
+    if (emailEl && pending && pending.email) emailEl.value = pending.email;
+    if (roleEl) roleEl.value = 'tm'; // anyone who paid is a TM
+    if (nameEl) nameEl.focus();
+  }, 80);
+}
+
+// Alternative path — the user already has a Bandmate account on this
+// device (e.g. they paid from a logged-out session but had an account
+// before). Sign them in and attach the subscription.
+function _welcomeContinueAsExisting() {
+  hideWelcomeScreen();
+  showLoginScreen();
+  showLoginForm();
+  // Prefill the sign-in email if we have it.
+  const pending = _readPendingSubscription();
+  setTimeout(() => {
+    const li = document.getElementById('li_email');
+    if (li && pending && pending.email) li.value = pending.email;
+  }, 80);
+}
+
+// Persist subscription details onto a user record. Called from signUp()
+// for new accounts and from _welcomeContinue() for already-logged-in
+// users.
+function _attachSubscriptionToCurrentUser(pending) {
+  if (!pending || !state || !state.currentUserId) return;
+  const u = state.users[state.currentUserId];
+  if (!u) return;
+  u.subscriptionStatus = 'active';
+  u.subscriptionPlan = pending.plan || 'solo';
+  u.subscriptionStartedAt = pending.capturedAt || Date.now();
+  if (pending.sessionId) u.stripeSessionId = pending.sessionId;
+  saveState();
+}
+
+// Pricing is a single flat tier ($49.99/mo, unlimited tours) — no
+// auto-upgrade behavior, no tier crossing. The old _checkPricingUpgrade
+// and _showPricingUpgradeModal functions were removed.
 
 function landingChoose(role) {
   hideLandingScreen();
@@ -10776,6 +10963,16 @@ function loginAsExisting(userId) {
   if (!state.users[userId].claimed) { toast('That account hasn\'t been claimed yet — sign up to claim it', 'error'); return; }
   state.currentUserId = userId;
   state.users[userId].lastLoginAt = Date.now();
+  // Pending Stripe subscription? Attach it now so the existing account
+  // gets billing flipped on. Only TMs are billed, so skip for crew.
+  const pending = _readPendingSubscription();
+  if (pending && state.users[userId].role === 'tm') {
+    _attachSubscriptionToCurrentUser(pending);
+    _clearPendingSubscription();
+    setTimeout(() => {
+      toast(`Subscription attached to your account`, 'good');
+    }, 200);
+  }
   saveState();
   postLoginRouting();
 }
@@ -10858,10 +11055,20 @@ function signUp() {
   });
 
   state.currentUserId = userId;
+  // If there's a pending Stripe subscription waiting (the user paid
+  // before signing up — the most common path), attach it now so the new
+  // account starts with active billing on its record.
+  const pending = _readPendingSubscription();
+  if (pending && role === 'tm') {
+    _attachSubscriptionToCurrentUser(pending);
+    _clearPendingSubscription();
+  }
   saveState();
   postLoginRouting();
   const firstName = name.split(' ')[0];
-  if (linkedTours > 0) {
+  if (pending && role === 'tm') {
+    toast(`Welcome, ${firstName} — your subscription is active`, 'good');
+  } else if (linkedTours > 0) {
     toast(`Welcome, ${firstName} — found you on ${linkedTours} tour${linkedTours===1?'':'s'}`, 'good');
   } else if (matches.length > 0) {
     toast(`Welcome, ${firstName} — claimed your existing crew account`, 'good');
@@ -12414,6 +12621,15 @@ function init() {
       showAdminScreen();
       return;
     }
+    // Post-payment redirect from Stripe — handled BEFORE the normal
+    // landing/login routing. The query string carries plan+session info
+    // we need to attach to the new user; stash it now (which also
+    // cleans the URL) so it survives the upcoming signup flow.
+    if (_isPostPaymentRedirect()) {
+      _stashPendingSubscription();
+      showWelcomeScreen();
+      return;
+    }
     if (!state || !state.currentUserId) {
       // No state OR no logged-in user → land on the public-facing landing
       // page. From there, the user picks a role (TM / Band & Crew) and
@@ -12478,7 +12694,7 @@ Object.assign(window, {
   showLandingScreen, hideLandingScreen, landingChoose,
   showPricingScreen, hidePricingScreen, _pricingSubscribe, _pricingInquire,
   _showCrewNoToursModal, _copyCrewEmail,
-  _checkPricingUpgrade, _showPricingUpgradeModal,
+  showWelcomeScreen, hideWelcomeScreen, _welcomeContinue, _welcomeContinueAsExisting,
   showAdminScreen, adminLogin, adminLogout,
   _adminExportAll, _adminBroadcastModal, _adminBroadcastSend,
   _adminClaimUnclaimed, _adminPurgeDevice,
