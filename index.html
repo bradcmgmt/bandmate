@@ -10581,11 +10581,14 @@ function _adminPurgeDevice() {
 // the customer self-service portal — no backend on our side needed
 // for the MVP.
 // ─────────────────────────────────────────────────────────────────────
+// Stripe Payment Link URLs. These are TEST-mode links — they only work
+// with Stripe's test cards (e.g. 4242 4242 4242 4242). Once you've
+// switched the Stripe dashboard to live mode and recreated the products
+// + payment links there, paste the live URLs here. The live URLs do
+// NOT have "test_" in them.
 const STRIPE_LINKS = {
-  // TODO: paste real Stripe Payment Link URLs here once they exist.
-  // Format example: 'https://buy.stripe.com/test_aBcDeFgHiJkLmNoP01'
-  solo: 'https://buy.stripe.com/REPLACE_WITH_SOLO_LINK',
-  pro:  'https://buy.stripe.com/REPLACE_WITH_PRO_LINK',
+  solo: 'https://buy.stripe.com/test_aFafZh71dfJt8J73QV2sM00',
+  pro:  'https://buy.stripe.com/test_dRmcN585h2WH6AZ1IN2sM01',
 };
 const BUSINESS_INQUIRY_EMAIL = 'info@bandmate.art';
 
