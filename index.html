@@ -9998,10 +9998,9 @@ function showLandingScreen() {
 }
 function hideLandingScreen() {
   document.getElementById('landingScreen').hidden = true;
-  // Re-enable the ambient watermark. Every other surface (login, app,
-  // pricing, admin, onboarding) shows the particle rabbit — only the
-  // public landing page suppresses it.
-  document.body.classList.remove('bg-logo-hidden');
+  // Don't touch bg-logo-hidden here — whichever screen we're routing
+  // INTO is responsible for setting it (login keeps it on, app /
+  // onboarding / admin remove it via postLoginRouting + init).
 }
 // ─────────────────────────────────────────────────────────────────────
 // ADMIN / OWNER CONSOLE
@@ -10636,11 +10635,10 @@ function showLoginScreen() {
   if (pricing) pricing.hidden = true;
   const screen = document.getElementById('loginScreen');
   screen.hidden = false;
-  // Login surface KEEPS the ambient particle watermark — only the public
-  // landing page suppresses it (that page already leads with its own
-  // hero rabbit). Make sure the class is removed in case we got here
-  // from the landing page where it was applied.
-  document.body.classList.remove('bg-logo-hidden');
+  // Suppress the ambient particle watermark on auth surfaces. The rule
+  // is "no watermark until you're logged in" — landing, login, signup
+  // all hide it; onboarding, dashboard, admin all show it.
+  document.body.classList.add('bg-logo-hidden');
   renderLoginAccounts();
   // First-time visitor (no claimed accounts) → default to signup form
   // Returning visitor (has accounts) → default to sign-in form
@@ -10876,6 +10874,11 @@ function postLoginRouting() {
   hideLoginScreen();
   const u = U();
   if (!u) { showLoginScreen(); return; }
+  // We've successfully resolved a user — fade the ambient particle
+  // watermark in for every subsequent surface (onboarding, app, admin).
+  // Landing + login + sign-up screens are the only places the watermark
+  // is suppressed.
+  document.body.classList.remove('bg-logo-hidden');
 
   // Find tours visible to this user
   const owned = u.role === 'tm'
