@@ -48,6 +48,22 @@ body{
 body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
   background:repeating-linear-gradient(0deg,rgba(232,148,58,.03) 0 1px,transparent 1px 4px);
   mix-blend-mode:overlay;opacity:.4}
+
+/* ============ AMBIENT PARTICLE BACKGROUND ============
+   Cursor-reactive particle render of avatar.png. Floats ABOVE working
+   surfaces (z-index:50) but at very low opacity (.055) so it reads as a
+   living watermark, not foreground content. pointer-events:none so it
+   never intercepts clicks — every click lands on whatever it's drawn
+   over. Sits below modals (which are 800+) and below toasts.
+   Hidden entirely on the landing + login pages via body.bg-logo-hidden,
+   and respects prefers-reduced-motion. */
+#bgLogoCanvas{position:fixed;inset:0;width:100vw;height:100vh;
+  z-index:50;pointer-events:none;display:block;
+  opacity:0;transition:opacity 700ms ease-out}
+#bgLogoCanvas.ready{opacity:.055}
+body.bg-logo-hidden #bgLogoCanvas{opacity:0}
+@media (prefers-reduced-motion:reduce){#bgLogoCanvas{opacity:0!important}}
+
 a{color:inherit;text-decoration:none}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 input,select,textarea{font:inherit;color:inherit}
@@ -114,8 +130,10 @@ input,select,textarea{font:inherit;color:inherit}
 .tour-banner::before,.tour-banner::after{content:"";position:absolute;top:50%;width:42px;height:1px;background:linear-gradient(90deg,transparent,var(--hi),transparent)}
 .tour-banner::before{left:-12px;transform:translateY(-50%)}
 .tour-banner::after{right:-12px;transform:translateY(-50%)}
-.tour-banner .name{font-weight:900;letter-spacing:.18em;font-size:13.5px;
-  background:linear-gradient(180deg,#fff2dc,#d97706);-webkit-background-clip:text;background-clip:text;color:transparent}
+/* Tour banner — name + sub. Flat colors only: the original gradient
+   (cream → copper) and any background-clip:text texture have been
+   removed so both lines read as a uniform tone in any lighting. */
+.tour-banner .name{font-weight:900;letter-spacing:.18em;font-size:13.5px;color:var(--warm)}
 .tour-banner .sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);
   letter-spacing:.16em;text-transform:uppercase;display:flex;gap:10px;align-items:center}
 .tour-banner .sub .pip{width:4px;height:4px;background:var(--hi);border-radius:50%;display:inline-block;box-shadow:0 0 6px var(--hi)}
@@ -1426,9 +1444,24 @@ body.print-stage-mode #stagePrintArea{
 /* Avatar logo (rabbit mark) sits to the left of the city + day stamp on
    the crew/mobile preview header. The rabbit's tall ears mean we use
    `contain` (not `cover`) so the whole figure shows; aspect-ratio is
-   slightly portrait so it has room without dwarfing the city text. */
+   slightly portrait so it has room without dwarfing the city text.
+   Slow rotateY spin matches the landing-page rabbit — same 3D flip,
+   slowed to 14s so it doesn't pull focus while a user is working. The
+   parent .phone-app-bar gets `perspective` so the rotation reads as
+   depth instead of a flat horizontal squash. */
+.phone-app-bar{perspective:500px}
 .phone-avatar{flex:0 0 auto;width:32px;height:38px;object-fit:contain;
-  filter:drop-shadow(0 0 6px rgba(232,148,58,.25))}
+  filter:drop-shadow(0 0 6px rgba(232,148,58,.25));
+  animation:phoneAvatarSpin 14s linear infinite;
+  transform-origin:50% 50%;backface-visibility:visible;will-change:transform,filter}
+@keyframes phoneAvatarSpin{
+  0%   {transform:rotateY(0deg);   filter:drop-shadow(0 0 6px rgba(232,148,58,.25))}
+  25%  {transform:rotateY(90deg);  filter:drop-shadow(0 0 12px rgba(232,148,58,.5))}
+  50%  {transform:rotateY(180deg); filter:drop-shadow(0 0 6px rgba(232,148,58,.25))}
+  75%  {transform:rotateY(270deg); filter:drop-shadow(0 0 12px rgba(232,148,58,.5))}
+  100% {transform:rotateY(360deg); filter:drop-shadow(0 0 6px rgba(232,148,58,.25))}
+}
+@media (prefers-reduced-motion:reduce){.phone-avatar{animation:none;filter:drop-shadow(0 0 6px rgba(232,148,58,.25))}}
 .phone-trigger-chev{color:var(--warm-mute);font-size:12px;flex:none;transition:transform .15s,color .15s}
 .phone-app-bar.menu-open .phone-trigger-chev{transform:rotate(180deg);color:var(--hi)}
 
@@ -2450,6 +2483,18 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 </style>
 </head>
 <body>
+
+<!-- ============ AMBIENT BACKGROUND PARTICLES ============
+     Cursor-reactive particle render of the Bandmate avatar. Lives behind
+     every working surface (dashboard, admin, onboarding, pricing, mobile
+     view) so the brand mark drifts subtly behind the UI like a watermark
+     that's alive. The canvas is intentionally HIDDEN on the landing /
+     login screens — those pages already lead with a hero rabbit + brand
+     copy, so a second drifting rabbit behind them would compete. The
+     `body.bg-logo-hidden` class is toggled by show/hideLandingScreen +
+     show/hideLoginScreen to suppress it on those surfaces.
+     Engine adapted from the Privatus build. -->
+<canvas id="bgLogoCanvas" aria-hidden="true"></canvas>
 
 <!-- ============ LANDING PAGE ============ -->
 <!-- Public-facing first impression. Anyone arriving from search or a fresh
@@ -3786,6 +3831,11 @@ function applyScheduleTemplate(tplId) {
   closeSchedTemplateMenu();
   toast(`Applied "${tpl.name}" · ${tpl.items.length} item${tpl.items.length===1?'':'s'} ${mode==='replace'?'replaced':'added'}`, 'good');
   renderSchedule();
+  // Re-evaluate gap indicators since adding schedule items clears the
+  // schedule hard ⚠ on the tab and (when no other hard gaps remain) the
+  // red ⚠ on the day pill.
+  renderDayStrip();
+  applyTabGapIndicators();
 }
 
 function renameScheduleTemplate(tplId) {
@@ -3889,6 +3939,11 @@ function applyTravelTemplate(tplId) {
   closeTravelTemplateMenu();
   toast(`Applied "${tpl.name}" · ${tpl.items.length} move${tpl.items.length===1?'':'s'} ${mode==='replace'?'replaced':'added'}`, 'good');
   renderTravel();
+  // Re-evaluate gap indicators since adding travel items can clear the
+  // "hotel or travel" either-or warning on Travel + Hotels tabs and the
+  // blue ! on the day pill.
+  renderDayStrip();
+  applyTabGapIndicators();
 }
 
 function renameTravelTemplate(tplId) {
@@ -9936,9 +9991,18 @@ function showLandingScreen() {
   const pricing = document.getElementById('pricingScreen');
   if (pricing) pricing.hidden = true;
   document.getElementById('landingScreen').hidden = false;
+  // Suppress the ambient particle watermark on the public-facing landing
+  // page — that surface already leads with a hero rabbit, so a second
+  // drifting rabbit behind the buttons would compete.
+  document.body.classList.add('bg-logo-hidden');
 }
 function hideLandingScreen() {
   document.getElementById('landingScreen').hidden = true;
+  // Re-enable the ambient watermark unless we're routing into the login
+  // overlay (showLoginScreen will re-apply the hidden class itself).
+  if (document.getElementById('loginScreen').hidden) {
+    document.body.classList.remove('bg-logo-hidden');
+  }
 }
 // ─────────────────────────────────────────────────────────────────────
 // ADMIN / OWNER CONSOLE
@@ -10573,6 +10637,9 @@ function showLoginScreen() {
   if (pricing) pricing.hidden = true;
   const screen = document.getElementById('loginScreen');
   screen.hidden = false;
+  // Suppress the ambient particle watermark — login is auth surface and
+  // the watermark would just be visual noise behind the form.
+  document.body.classList.add('bg-logo-hidden');
   renderLoginAccounts();
   // First-time visitor (no claimed accounts) → default to signup form
   // Returning visitor (has accounts) → default to sign-in form
@@ -10588,6 +10655,11 @@ function showLoginScreen() {
 
 function hideLoginScreen() {
   document.getElementById('loginScreen').hidden = true;
+  // Re-enable the watermark unless we're bouncing back to the landing
+  // page (showLandingScreen will re-apply it itself).
+  if (document.getElementById('landingScreen').hidden) {
+    document.body.classList.remove('bg-logo-hidden');
+  }
 }
 
 function renderLoginAccounts() {
@@ -12273,6 +12345,8 @@ function init() {
     // TM / crew session is active. The page is intentionally unlinked
     // from any public surface — you reach it by typing the URL.
     if (_isAdminPath()) {
+      // Admin console wants the watermark visible — it's a working surface.
+      document.body.classList.remove('bg-logo-hidden');
       showAdminScreen();
       return;
     }
@@ -12284,10 +12358,12 @@ function init() {
     } else if (!state.onboarded) {
       document.getElementById('onboarding').classList.remove('hidden');
       document.getElementById('app').hidden = true;
+      document.body.classList.remove('bg-logo-hidden');
     } else {
       renderAll();
       try { applyTabFromState(); } catch (e) { console.error('applyTabFromState:', e); }
       try { syncPhoneScreenFromTab(); } catch (e) { console.error('syncPhoneScreenFromTab:', e); }
+      document.body.classList.remove('bg-logo-hidden');
     }
   } catch (e) {
     console.error('init render:', e);
@@ -12348,6 +12424,256 @@ Object.assign(window, {
 });
 
 try { init(); } catch (e) { console.error("init failed:", e); }
+
+// ─────────────────────────────────────────────────────────────────────
+// AMBIENT BACKGROUND PARTICLES
+// Cursor-reactive particle render of the Bandmate avatar (rabbit). The
+// avatar image is sampled into ~thousands of individual pixel particles
+// at the center of the viewport. Each particle:
+//   1. wobbles continuously with three layered sine waves (slow drift,
+//      mid wobble, fast shimmer) so the logo never looks frozen
+//   2. is dragged along by cursor velocity when the cursor is nearby,
+//      with gaussian falloff so the effect is soft and organic
+//   3. lerps back home (smoothstep) when the cursor approaches the
+//      logo's center — the rabbit re-forms itself
+// Visibility is controlled separately via body.bg-logo-hidden — the
+// engine keeps running, but the canvas's CSS opacity drops to 0 on the
+// landing + login pages so we never compete with the hero rabbit.
+// Engine adapted from the Privatus build, retuned for Bandmate's copper
+// palette + smaller viewport tolerance.
+// ─────────────────────────────────────────────────────────────────────
+(function initBandmateBackgroundParticles(){
+  const canvas = document.getElementById('bgLogoCanvas');
+  if (!canvas || !canvas.getContext) return;
+  const ctx = canvas.getContext('2d');
+
+  // ----- Tunables -----
+  const SAMPLE_STEP     = 3;     // 3px sample spacing through the avatar
+  const LOGO_FRACTION   = 0.26;  // logo is ~26% of the shorter viewport side
+  const MAX_LOGO_PX     = 360;   // hard cap on render size
+  const DRAG_STRENGTH   = 1.6;   // how strongly cursor velocity drags pixels
+  const DRAG_RADIUS     = 105;   // px, gaussian falloff radius
+  const MAX_DRAG_DIST   = 95;    // typical clamp; per-particle max varies
+  const RECALL_RADIUS   = 200;   // distance from center to start re-forming
+  const RECALL_STRENGTH = 0.16;  // lerp rate toward home position
+  const LIFE_AMP_HOME    = 2.2;  // baseline wobble amplitude
+  const LIFE_AMP_DRIFTED = 3.2;  // wobble when at max drag distance
+  const LIFE_AMP_CURSOR  = 4.5;  // bonus wobble when cursor is on top
+
+  let particles = [];
+  let logoImg = null;
+  let homeOffsetX = 0, homeOffsetY = 0;
+  let logoRenderW = 0, logoRenderH = 0;
+
+  // Cursor tracking — canvas fills viewport so clientX/Y is canvas space.
+  let mouseX = 0, mouseY = 0;
+  let prevMouseX = 0, prevMouseY = 0;
+  window.addEventListener('mousemove', e => {
+    mouseX = e.clientX; mouseY = e.clientY;
+  }, { passive: true });
+  window.addEventListener('touchmove', e => {
+    if (e.touches[0]) { mouseX = e.touches[0].clientX; mouseY = e.touches[0].clientY; }
+  }, { passive: true });
+
+  function fitCanvas(){
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width  = Math.floor(window.innerWidth  * dpr);
+    canvas.height = Math.floor(window.innerHeight * dpr);
+    canvas.style.width  = window.innerWidth  + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Park cursor at logo center on init so first frame is an assembled
+    // logo, not particles flying toward (0,0).
+    mouseX = prevMouseX = window.innerWidth  / 2;
+    mouseY = prevMouseY = window.innerHeight / 2;
+  }
+
+  function buildParticles(img){
+    if (!img) return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const maxSide = Math.min(Math.min(vw, vh) * LOGO_FRACTION, MAX_LOGO_PX);
+    const scale = Math.min(maxSide / img.width, maxSide / img.height);
+    logoRenderW = img.width  * scale;
+    logoRenderH = img.height * scale;
+    homeOffsetX = (vw - logoRenderW) / 2;
+    homeOffsetY = (vh - logoRenderH) / 2;
+
+    const off = document.createElement('canvas');
+    off.width  = Math.ceil(logoRenderW);
+    off.height = Math.ceil(logoRenderH);
+    const octx = off.getContext('2d');
+    octx.drawImage(img, 0, 0, off.width, off.height);
+    let data;
+    try {
+      data = octx.getImageData(0, 0, off.width, off.height).data;
+    } catch (e) {
+      // CORS taint — leave the canvas hidden so we don't crash.
+      console.warn('[Bandmate] background particle init: canvas tainted, aborting:', e);
+      return;
+    }
+
+    particles = [];
+    for (let py = 0; py < off.height; py += SAMPLE_STEP) {
+      for (let px = 0; px < off.width; px += SAMPLE_STEP) {
+        const i = (py * off.width + px) * 4;
+        const a = data[i + 3];
+        if (a < 40) continue;
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        const hx = homeOffsetX + px;
+        const hy = homeOffsetY + py;
+        // Per-particle max drag — cubed random skews most particles near
+        // the typical cap with a small "outlier" tail that wanders
+        // further. Gives the boundary a fuzzy, organic edge instead of
+        // a hard geometric wall.
+        const rOutlier = Math.random();
+        const maxDragMul = 0.85 + rOutlier * rOutlier * rOutlier * 3.2;
+        particles.push({
+          hx: hx + (Math.random() - 0.5) * 0.6,
+          hy: hy + (Math.random() - 0.5) * 0.6,
+          x: hx, y: hy,
+          r, g, b, a,
+          size: 1.1 + Math.random() * 1.4,
+          looseness: 0.7 + Math.random() * 0.6,
+          maxDrag: MAX_DRAG_DIST * maxDragMul,
+          phaseA: Math.random() * Math.PI * 2,
+          phaseB: Math.random() * Math.PI * 2,
+          phaseC: Math.random() * Math.PI * 2,
+          rateA: 0.0014 + Math.random() * 0.0010,
+          rateB: 0.0038 + Math.random() * 0.0024,
+          rateC: 0.0085 + Math.random() * 0.0050,
+        });
+      }
+    }
+    canvas.classList.add('ready');
+  }
+
+  let rafId = 0;
+  function render(now){
+    rafId = requestAnimationFrame(render);
+
+    const cursorVX = mouseX - prevMouseX;
+    const cursorVY = mouseY - prevMouseY;
+    prevMouseX = mouseX;
+    prevMouseY = mouseY;
+
+    // Motion-trail fade. destination-out erases existing pixels instead
+    // of painting a solid color over them — keeps the canvas mostly
+    // transparent so underlying UI shows through.
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+    ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+    ctx.restore();
+
+    if (!particles.length) return;
+
+    // Reform factor: smoothstep so the logo eases gently back together
+    // as the cursor approaches its center.
+    const cx = homeOffsetX + logoRenderW / 2;
+    const cy = homeOffsetY + logoRenderH / 2;
+    const cdx = mouseX - cx;
+    const cdy = mouseY - cy;
+    const cursorDistFromCenter = Math.sqrt(cdx * cdx + cdy * cdy);
+    const t = Math.max(0, Math.min(1, 1 - cursorDistFromCenter / RECALL_RADIUS));
+    const reformFactor = t * t * (3 - 2 * t);
+    const recallRate = RECALL_STRENGTH * reformFactor;
+
+    const dragRSq2 = 2 * DRAG_RADIUS * DRAG_RADIUS;
+
+    for (const p of particles) {
+      // 1) Drag — particles near the cursor move with cursor velocity
+      const dx = mouseX - p.x;
+      const dy = mouseY - p.y;
+      const proximity = Math.exp(-(dx * dx + dy * dy) / dragRSq2);
+      if (proximity > 0.001) {
+        const k = proximity * DRAG_STRENGTH * p.looseness;
+        p.x += cursorVX * k;
+        p.y += cursorVY * k;
+      }
+      // 2) Reform — lerp toward home only when cursor is in recall zone
+      if (recallRate > 0.0001) {
+        p.x += (p.hx - p.x) * recallRate;
+        p.y += (p.hy - p.y) * recallRate;
+      }
+      // 3) Clamp — particles can't drift further than per-particle cap
+      const dxH = p.x - p.hx;
+      const dyH = p.y - p.hy;
+      const distH = Math.sqrt(dxH * dxH + dyH * dyH);
+      if (distH > p.maxDrag) {
+        const s = p.maxDrag / distH;
+        p.x = p.hx + dxH * s;
+        p.y = p.hy + dyH * s;
+      }
+    }
+
+    // Draw — liveliness wobble is a render-time offset so it never pollutes state.
+    for (const p of particles) {
+      const dx = p.x - p.hx;
+      const dy = p.y - p.hy;
+      const drift = Math.min(1, Math.sqrt(dx * dx + dy * dy) / MAX_DRAG_DIST);
+
+      const cdxP = mouseX - p.x;
+      const cdyP = mouseY - p.y;
+      const cursorProximity = Math.exp(-(cdxP * cdxP + cdyP * cdyP) / dragRSq2);
+
+      const amp = LIFE_AMP_HOME
+                + (LIFE_AMP_DRIFTED - LIFE_AMP_HOME) * drift
+                + LIFE_AMP_CURSOR * cursorProximity;
+      const lifeX = Math.sin(now * p.rateA + p.phaseA)        * amp * 0.55
+                  + Math.sin(now * p.rateB + p.phaseB)        * amp * 0.30
+                  + Math.sin(now * p.rateC + p.phaseC)        * amp * 0.15;
+      const lifeY = Math.cos(now * p.rateA * 0.92 + p.phaseA) * amp * 0.55
+                  + Math.cos(now * p.rateB * 1.08 + p.phaseB) * amp * 0.30
+                  + Math.cos(now * p.rateC * 1.13 + p.phaseC) * amp * 0.15;
+
+      const size = p.size * (1 - drift * 0.18);
+      const alpha = (p.a / 255) * (1 - drift * 0.12);
+
+      ctx.fillStyle = `rgba(${p.r|0},${p.g|0},${p.b|0},${alpha})`;
+      ctx.beginPath();
+      ctx.arc(p.x + lifeX, p.y + lifeY, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function start(){ if (!rafId) rafId = requestAnimationFrame(render); }
+  function stop(){ if (rafId) { cancelAnimationFrame(rafId); rafId = 0; } }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stop(); else start();
+  });
+
+  let resizeDebounce;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeDebounce);
+    resizeDebounce = setTimeout(() => {
+      fitCanvas();
+      if (logoImg) buildParticles(logoImg);
+    }, 150);
+  });
+
+  fitCanvas();
+
+  // Load avatar.png and start the engine. crossOrigin deliberately
+  // omitted — setting it forces a CORS request that taints the canvas
+  // if the server (Vercel) doesn't send Access-Control-Allow-Origin,
+  // which would leave the watermark stuck at opacity:0 forever.
+  const img = new Image();
+  img.onload = () => {
+    try {
+      logoImg = img;
+      buildParticles(img);
+      start();
+    } catch (e) {
+      console.warn('[Bandmate] background particle init failed:', e);
+    }
+  };
+  img.onerror = (e) => {
+    console.warn('[Bandmate] background avatar failed to load:', e);
+  };
+  img.src = 'avatar.png';
+})();
 
 </script>
 </body>
