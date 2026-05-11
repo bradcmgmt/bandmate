@@ -722,6 +722,34 @@ input,select,textarea{font:inherit;color:inherit}
 .p-card.hi .p-row:last-child{border-bottom:0}
 .p-row .t{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;color:var(--hi)}
 .p-row .lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--warm-mute)}
+
+/* Phone travel row — tappable card listing each travel item with a
+   small type pill (BUS/FLT/VAN/...), time, description, and on the
+   right edge the conf or flight number plus a chevron hinting that
+   it expands. Tapping opens _phoneShowTravel() which renders the
+   full detail (notes, person, all fields). */
+.ph-travel-row{
+  display:grid;grid-template-columns:36px 44px 1fr auto auto;gap:10px;align-items:center;
+  padding:10px 11px;background:rgba(232,148,58,.04);
+  border:1px solid var(--line-2);border-radius:10px;
+  text-align:left;font-family:inherit;color:inherit;cursor:pointer;width:100%;
+  transition:border-color .12s,background .12s,transform .08s}
+.ph-travel-row:hover{border-color:rgba(232,148,58,.45);background:rgba(232,148,58,.07)}
+.ph-travel-row:active{transform:scale(.99)}
+.ph-travel-row .ptr-type{
+  display:inline-flex;align-items:center;justify-content:center;
+  font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.12em;font-weight:700;
+  color:var(--hi);background:rgba(232,148,58,.1);border:1px solid rgba(232,148,58,.35);
+  border-radius:5px;padding:3px 5px;text-transform:uppercase}
+.ph-travel-row .ptr-time{
+  font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;color:var(--hi)}
+.ph-travel-row .ptr-desc{
+  font-size:12.5px;color:var(--warm);font-weight:600;
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ph-travel-row .ptr-code{
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);
+  letter-spacing:.04em;font-weight:600}
+.ph-travel-row .ptr-chev{color:var(--warm-mute);font-size:14px;line-height:1;opacity:.6}
 .p-row .what{font-size:13px;font-weight:600;color:var(--warm)}
 
 /* ============ MODAL ============ */
@@ -4213,7 +4241,7 @@ function openTravelModal(itemId) {
   const ad = getActiveDate();
   if (!ad) return;
   const item = itemId ? ad.travel.find(i => i.id === itemId) : null;
-  const i = item || { type: 'bus', description: '', time: '', conf: '', person: '', notes: '', allDay: false, groups: ['All'], individuals: [] };
+  const i = item || { type: 'bus', description: '', time: '', conf: '', person: '', notes: '', allDay: false, groups: ['All'], individuals: [], flightNumber: '' };
   openModal({
     title: item ? 'Edit travel' : 'Add travel item',
     showDelete: !!item,
@@ -4221,7 +4249,7 @@ function openTravelModal(itemId) {
     body: `
       <div class="form-grid">
         <div class="field"><label>Type</label>
-          <select id="tv_type">
+          <select id="tv_type" onchange="_travelModalApplyType()">
             <option value="bus" ${i.type==='bus'?'selected':''}>Bus / Coach</option>
             <option value="flight" ${i.type==='flight'?'selected':''}>Flight</option>
             <option value="van" ${i.type==='van'?'selected':''}>Van / Sprinter</option>
@@ -4238,6 +4266,10 @@ function openTravelModal(itemId) {
         <div class="field full"><label>Description *</label><input id="tv_desc" value="${esc(i.description)}" placeholder="e.g. Sleeper bus → Chicago"></div>
         <div class="field"><label>Conf #</label><input id="tv_conf" value="${esc(i.conf)}"></div>
         <div class="field"><label>Person <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(legacy / free text)</span></label><input id="tv_person" value="${esc(i.person)}" placeholder="e.g. ALL, Riley P."></div>
+        <div class="field full" data-flight-only ${i.type === 'flight' ? '' : 'hidden'}>
+          <label>Flight # <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional)</span></label>
+          <input id="tv_flight" value="${esc(i.flightNumber || '')}" placeholder="e.g. AA 484 · DL 1290 · UA 422">
+        </div>
         <div class="field full"><label>Visible to groups <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span></label>
           ${renderGroupPicker('tv_grp', i.groups && i.groups.length ? i.groups : ['All'], true)}
         </div>
@@ -4258,10 +4290,15 @@ function openTravelModal(itemId) {
       const groups = readGroupPicker('tv_grp');
       const indivPicker = document.getElementById('tv_ind_picker');
       const individuals = indivPicker ? [...indivPicker.querySelectorAll('.group-pick.on')].map(b => b.dataset.cid) : [];
+      const type = $('#tv_type').value;
+      // Flight number is only persisted when Type is Flight — switching
+      // away from Flight and saving wipes the value, so a future bus/van
+      // doesn't carry a stale flight # in its data.
+      const flightNumber = type === 'flight' ? ($('#tv_flight')?.value.trim() || '') : '';
       const data = {
-        type: $('#tv_type').value, description, time: allDay ? '' : $('#tv_time').value.trim(), allDay,
+        type, description, time: allDay ? '' : $('#tv_time').value.trim(), allDay,
         person: $('#tv_person').value.trim(), conf: $('#tv_conf').value.trim(), notes: $('#tv_notes').value.trim(),
-        groups, individuals
+        groups, individuals, flightNumber,
       };
       if (item) Object.assign(item, data);
       else ad.travel.push({ id: uid('tv'), ...data });
@@ -4273,6 +4310,19 @@ function openTravelModal(itemId) {
       });
       saveState();
     }
+  });
+}
+
+// Flight # field only applies to type=flight travel items, so it
+// shows/hides based on the Type select. Wired up via the select's
+// onchange. Called once on modal open too (the field starts hidden
+// or visible based on the existing item's type when editing).
+function _travelModalApplyType() {
+  const sel = document.getElementById('tv_type');
+  if (!sel) return;
+  const isFlight = sel.value === 'flight';
+  document.querySelectorAll('[data-flight-only]').forEach(el => {
+    el.hidden = !isFlight;
   });
 }
 
@@ -6202,6 +6252,10 @@ function renderPhone() {
   // TODAY
   const myRoom = ad.hotel?.rooms.find(r => r.personId === viewerKey);
   const myItems = ad.schedule.filter(s => isItemVisibleToViewer(s, viewer, isTM));
+  // Travel items visible to this viewer — same group/individual filter
+  // that schedule uses. Each row in the rendered list is tappable to
+  // pop a detail sheet showing flight #, conf #, person, notes.
+  const myTravel = (ad.travel || []).filter(t => isItemVisibleToViewer(t, viewer, isTM));
   const status = ad.status === 'show' ? 'SHOW NIGHT'
     : ad.status === 'travel' ? 'TRAVEL'
     : ad.status === 'off' ? 'DAY OFF'
@@ -6223,6 +6277,27 @@ function renderPhone() {
         `).join('') : `<div class="p-row"><span class="what muted" style="grid-column:1/-1">${ad.status === 'travel' ? 'Travel day — no schedule items.' : ad.status === 'off' ? 'Day off — nothing scheduled.' : isTM ? 'No schedule items on this day yet.' : 'Nothing scheduled for you on this day.'}</span></div>`}
       </div>
     </div>
+
+    ${myTravel.length ? `
+      <div class="p-card">
+        <div class="lbl">TRAVEL · ${myTravel.length} ${myTravel.length === 1 ? 'move' : 'moves'}</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">
+          ${myTravel.map(t => {
+            const typeLabel = ({bus:'BUS',flight:'FLT',van:'VAN',car:'CAR',train:'TRAIN'})[t.type] || (t.type || '').toUpperCase();
+            const codeLabel = t.flightNumber || t.conf || '';
+            return `
+              <button type="button" class="ph-travel-row" onclick="_phoneShowTravel('${esc(t.id)}')">
+                <span class="ptr-type">${esc(typeLabel)}</span>
+                <span class="ptr-time">${t.allDay ? 'ALL' : esc(t.time || '—')}</span>
+                <span class="ptr-desc">${esc(t.description || '—')}</span>
+                ${codeLabel ? `<span class="ptr-code">${esc(codeLabel)}</span>` : ''}
+                <span class="ptr-chev">›</span>
+              </button>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    ` : ''}
 
     ${myRoom || (isTM && ad.hotel) ? `
       <div class="p-card">
@@ -8716,6 +8791,45 @@ function denyAllPending() {
   pending.forEach(g => { g.status = 'denied'; g.deniedAt = Date.now(); });
   saveState(); renderAll();
   toast(`Denied ${pending.length} guest${pending.length===1?'':'s'}`, '');
+}
+
+// Detail sheet for a single travel item on the crew mobile view. Opens
+// when crew tap one of the rows on the TODAY screen's TRAVEL card.
+// Surfaces every field they might need at a glance — flight #, conf #,
+// who it's for, notes — so they don't have to ping the TM mid-day to
+// ask "what's the confirmation number again?"
+function _phoneShowTravel(itemId) {
+  const ad = getActiveDate();
+  if (!ad) return;
+  const t = (ad.travel || []).find(x => x.id === itemId);
+  if (!t) return;
+  const typeLabel = ({bus:'Bus / Coach', flight:'Flight', van:'Van / Sprinter', car:'Car / Runner', train:'Train'})[t.type] || (t.type || 'Travel');
+  const timeLabel = t.allDay ? 'All day' : (t.time ? t.time : '—');
+  const detailRow = (label, value, mono = false, color = '') => `
+    <div style="padding:9px 0;border-bottom:1px dashed rgba(232,148,58,.08)">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.18em;color:var(--warm-mute);text-transform:uppercase;margin-bottom:3px;font-weight:700">${esc(label)}</div>
+      <div style="${mono ? "font-family:'JetBrains Mono',monospace;" : ''}font-size:14px;color:${color || 'var(--warm)'};line-height:1.45;font-weight:${mono ? '700' : '600'}">${esc(value)}</div>
+    </div>
+  `;
+  openModal({
+    title: `${typeLabel} · ${timeLabel}`,
+    hideFooter: true,
+    body: `
+      <div style="display:flex;flex-direction:column;gap:0">
+        ${t.description ? detailRow('Description', t.description) : ''}
+        ${t.flightNumber ? detailRow('Flight number', t.flightNumber, true, 'var(--hi)') : ''}
+        ${t.conf ? detailRow('Confirmation #', t.conf, true) : ''}
+        ${t.person ? detailRow('Person', t.person) : ''}
+        ${t.notes ? detailRow('Notes', t.notes) : ''}
+        ${!t.flightNumber && !t.conf && !t.person && !t.notes ? `
+          <div class="muted" style="padding:18px 0;font-size:12.5px;color:var(--warm-mute);font-style:italic;text-align:center">No additional details added for this travel item yet.</div>
+        ` : ''}
+        <div style="display:flex;justify-content:flex-end;border-top:1px solid var(--line);padding-top:14px;margin-top:14px">
+          <button type="button" class="btn primary" onclick="closeModal()" style="padding:9px 18px">Close</button>
+        </div>
+      </div>
+    `,
+  });
 }
 
 function openGuestModalForViewer() {
@@ -13089,13 +13203,14 @@ Object.assign(window, {
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
   setCrewView, openManageGroupsModal, addGroup, renameGroup, deleteGroup, toggleGroupPick, toggleGroupExpand, toggleCrewInGroup, setAllInGroup,
   approveGuest, denyGuest, approveAllPending, denyAllPending, openGuestModalForViewer,
+  _phoneShowTravel,
   printStageCopy, closeStagePrint,
   toggleSchedPicker, closeSchedPicker, toggleSchedGroup, toggleSchedIndiv, clearSchedAssignments, renderVizPicker,
   setPhoneViewDate, jumpPhoneToToday, togglePhoneDateMenu, closePhoneDateMenu,
   openFeedbackModal, submitFeedback,
   scanTour, openTourScan, rescanTourAnimated, calcLiveDateGaps,
   openImportData, _idzAddFiles, _idzRemove, _idzClear, _idzAnalyze, _idzMergeNow,
-  _dateModalApplyStatus,
+  _dateModalApplyStatus, _travelModalApplyType,
   toggleToolsMenu, closeToolsMenu,
   openPushNotifications, _pnToggleGroup, _pnUseTemplate, _pnSaveCustomTemplate,
   _pnOpenIndividualPicker, _pnSend, _pnApplySuggest, _pnNudgeTask,
