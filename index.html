@@ -58,11 +58,21 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
    Hidden entirely on the landing + login pages via body.bg-logo-hidden,
    and respects prefers-reduced-motion. */
 #bgLogoCanvas{position:fixed;inset:0;width:100vw;height:100vh;
-  z-index:50;pointer-events:none;display:block;
+  z-index:251;pointer-events:none;display:block;
   opacity:0;transition:opacity 700ms ease-out}
 #bgLogoCanvas.ready{opacity:.055}
 body.bg-logo-hidden #bgLogoCanvas{opacity:0}
 @media (prefers-reduced-motion:reduce){#bgLogoCanvas{opacity:0!important}}
+
+/* Particle canvas z-index reasoning:
+     50  → below all overlays (original setting). Watermark only shows
+            on the dashboard because nothing covers it there.
+     251 → above onboarding (200), pricing (200), welcome (240), admin
+            (250). Watermark now also shows on those working surfaces.
+            Still below login (300), modals (1000), toasts (1100), and
+            stage-print (99999) so it never interferes with auth, dialogs,
+            or printed output. Visibility is still suppressed on auth
+            surfaces (landing/login) via body.bg-logo-hidden. */
 
 /* ============ HOMEPAGE BACKGROUND VIDEO ============
    `bg-video-on` body class controls visibility — added by
@@ -11558,6 +11568,12 @@ function postLoginRouting() {
       document.getElementById('app').hidden = false;
       document.getElementById('onboarding').classList.add('hidden');
       renderAll();
+      // Activate the right tab + phone screen. renderAll() populates
+      // panel contents but doesn't toggle the .active class — without
+      // this, the dashboard panel stays display:none until a tab is
+      // clicked or the page is refreshed.
+      try { applyTabFromState(); } catch (e) { console.error('applyTabFromState:', e); }
+      try { syncPhoneScreenFromTab(); } catch (e) { console.error('syncPhoneScreenFromTab:', e); }
     }
   } else {
     // Pick the most recent tour
@@ -11569,6 +11585,11 @@ function postLoginRouting() {
     document.getElementById('app').hidden = false;
     document.getElementById('onboarding').classList.add('hidden');
     renderAll();
+    // Activate the right tab + phone screen — same rationale as the
+    // crew branch above. Without these, the dashboard appears blank
+    // post-login until the user clicks a tab or refreshes.
+    try { applyTabFromState(); } catch (e) { console.error('applyTabFromState:', e); }
+    try { syncPhoneScreenFromTab(); } catch (e) { console.error('syncPhoneScreenFromTab:', e); }
   }
 }
 
