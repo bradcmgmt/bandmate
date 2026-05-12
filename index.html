@@ -696,7 +696,12 @@ input,select,textarea{font:inherit;color:inherit}
 .p-screen.on{display:flex}
 .p-card{background:linear-gradient(180deg,rgba(24,17,11,.95),rgba(17,12,8,.95));
   border:1px solid var(--line);border-radius:14px;padding:15px;display:flex;flex-direction:column;gap:8px;
-  box-shadow:inset 0 1px 0 rgba(232,148,58,.06)}
+  box-shadow:inset 0 1px 0 rgba(232,148,58,.06);
+  /* Lock cards to their content size — without this, the .p-screen flex
+     parent can compress cards (especially .p-card.hi which has
+     overflow:hidden) when total content height exceeds the viewport,
+     causing the sub line to get clipped under the hi card's inset border. */
+  flex-shrink:0}
 /* Highlighted phone-preview card. The radial copper glow that used to
    sit at the top edge created a bright-to-dark gradient backdrop, which
    in turn made flat cream type (e.g. "Full day view") look gradient-y
@@ -6410,13 +6415,35 @@ function renderPhone() {
     <div class="p-card">
       <div class="lbl">UPCOMING — ${T().dates.length - T().dates.findIndex(d=>d.id===ad.id)} DAYS</div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
-        ${T().dates.slice(T().dates.findIndex(d=>d.id===ad.id), T().dates.findIndex(d=>d.id===ad.id) + 6).map(d => `
-          <div style="display:grid;grid-template-columns:46px 1fr auto;gap:10px;padding:10px 0;border-bottom:1px dashed rgba(232,148,58,.1)" onclick="setActive('${d.id}')">
-            <div class="mono" style="${d.id===ad.id?'color:var(--hot)':''};font-weight:700;font-size:13px">${fmtMD(d.date)}</div>
-            <div><div style="font-weight:700;font-size:13px;color:var(--warm)">${esc(d.city)}${d.venue ? ' · ' + esc(d.venue) : ''}</div><div class="mono" style="font-size:10.5px;color:var(--warm-mute)">${d.doors ? 'Doors ' + esc(d.doors) : ''} ${d.setTime ? '· Set ' + esc(d.setTime) : ''}</div></div>
-            <div class="mono" style="font-size:10.5px;color:${d.status==='show'?'var(--good)':d.status==='travel'?'var(--cool)':'var(--warm-mute)'}">${esc((d.status||'').toUpperCase())}</div>
-          </div>
-        `).join('')}
+        ${T().dates.slice(T().dates.findIndex(d=>d.id===ad.id), T().dates.findIndex(d=>d.id===ad.id) + 6).map(d => {
+          // Travel day rows open a quick travel-detail sheet instead of
+          // just jumping the active date — saves the crew member a tab
+          // switch to find their bus/flight info. Other day types keep
+          // the existing setActive behavior.
+          const isTravelDay = d.status === 'travel';
+          const onClick = isTravelDay
+            ? `_phoneShowDayTravel('${esc(d.id)}')`
+            : `setActive('${esc(d.id)}')`;
+          // "Date · City · Doors/Set" stays the same for all day types;
+          // for travel days the city / venue fields may be empty so we
+          // fall back to a friendlier "Travel day" label.
+          const isOff = d.status === 'off';
+          const titleLine = isTravelDay
+            ? `${esc(d.city || 'Travel day')}${d.venue ? ' · ' + esc(d.venue) : ''}`
+            : isOff
+              ? 'Day off'
+              : `${esc(d.city)}${d.venue ? ' · ' + esc(d.venue) : ''}`;
+          return `
+            <div style="display:grid;grid-template-columns:46px 1fr auto;gap:10px;padding:10px 0;border-bottom:1px dashed rgba(232,148,58,.1);cursor:pointer" onclick="${onClick}">
+              <div class="mono" style="${d.id===ad.id?'color:var(--hot)':''};font-weight:700;font-size:13px">${fmtMD(d.date)}</div>
+              <div>
+                <div style="font-weight:700;font-size:13px;color:var(--warm)">${titleLine}</div>
+                <div class="mono" style="font-size:10.5px;color:var(--warm-mute)">${d.doors ? 'Doors ' + esc(d.doors) : ''} ${d.setTime ? '· Set ' + esc(d.setTime) : ''}${isTravelDay ? `${(d.travel||[]).length} ${(d.travel||[]).length === 1 ? 'move' : 'moves'} · tap for details` : ''}</div>
+              </div>
+              <div class="mono" style="font-size:10.5px;color:${d.status==='show'?'var(--good)':d.status==='travel'?'var(--cool)':'var(--warm-mute)'}">${esc((d.status||'').toUpperCase())}</div>
+            </div>
+          `;
+        }).join('')}
       </div>
     </div>
   `;
@@ -8791,6 +8818,52 @@ function denyAllPending() {
   pending.forEach(g => { g.status = 'denied'; g.deniedAt = Date.now(); });
   saveState(); renderAll();
   toast(`Denied ${pending.length} guest${pending.length===1?'':'s'}`, '');
+}
+
+// Travel-day quick sheet shown from the SCHEDULE upcoming list. Lets
+// the crew tap a future travel day and immediately see the bus/flight
+// list for that day without having to first navigate the active date.
+// Each item in the list is tappable to drill into the full per-item
+// detail (flight #, conf #, etc.) via _phoneShowTravel.
+function _phoneShowDayTravel(dateId) {
+  const tour = T();
+  const d = tour.dates.find(x => x.id === dateId);
+  if (!d) return;
+  const viewer = getCrewById(viewerKey);
+  const isTM = viewerKey === 'tm';
+  const items = (d.travel || []).filter(t => isItemVisibleToViewer(t, viewer, isTM));
+  const dateLabel = `${fmtMD(d.date)} · ${dow(d.date)}`;
+  openModal({
+    title: `Travel day · ${dateLabel}`,
+    hideFooter: true,
+    body: `
+      <div style="display:flex;flex-direction:column;gap:14px">
+        ${items.length ? `
+          <div style="display:flex;flex-direction:column;gap:8px">
+            ${items.map(t => {
+              const typeLabel = ({bus:'BUS', flight:'FLT', van:'VAN', car:'CAR', train:'TRAIN'})[t.type] || (t.type || '').toUpperCase();
+              const codeLabel = t.flightNumber || t.conf || '';
+              return `
+                <button type="button" class="ph-travel-row" onclick="closeModal();setTimeout(()=>_phoneShowTravel('${esc(t.id)}'),50)">
+                  <span class="ptr-type">${esc(typeLabel)}</span>
+                  <span class="ptr-time">${t.allDay ? 'ALL' : esc(t.time || '—')}</span>
+                  <span class="ptr-desc">${esc(t.description || '—')}</span>
+                  ${codeLabel ? `<span class="ptr-code">${esc(codeLabel)}</span>` : ''}
+                  <span class="ptr-chev">›</span>
+                </button>
+              `;
+            }).join('')}
+          </div>
+        ` : `
+          <div class="muted" style="font-size:13px;color:var(--warm-mute);font-style:italic;text-align:center;padding:16px 0">No travel items added for this day yet.</div>
+        `}
+        <div style="display:flex;gap:8px;justify-content:space-between;border-top:1px solid var(--line);padding-top:14px">
+          <button type="button" class="btn" onclick="closeModal();setActive('${esc(dateId)}')">Jump to this day →</button>
+          <button type="button" class="btn primary" onclick="closeModal()" style="padding:8px 16px">Close</button>
+        </div>
+      </div>
+    `,
+  });
 }
 
 // Detail sheet for a single travel item on the crew mobile view. Opens
@@ -13203,7 +13276,7 @@ Object.assign(window, {
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
   setCrewView, openManageGroupsModal, addGroup, renameGroup, deleteGroup, toggleGroupPick, toggleGroupExpand, toggleCrewInGroup, setAllInGroup,
   approveGuest, denyGuest, approveAllPending, denyAllPending, openGuestModalForViewer,
-  _phoneShowTravel,
+  _phoneShowTravel, _phoneShowDayTravel,
   printStageCopy, closeStagePrint,
   toggleSchedPicker, closeSchedPicker, toggleSchedGroup, toggleSchedIndiv, clearSchedAssignments, renderVizPicker,
   setPhoneViewDate, jumpPhoneToToday, togglePhoneDateMenu, closePhoneDateMenu,
