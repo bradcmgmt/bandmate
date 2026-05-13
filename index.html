@@ -1464,6 +1464,32 @@ input,select,textarea{font:inherit;color:inherit}
   100% { left:105%; opacity:0 }
 }
 
+/* In-modal scanning overlay — fades in over the existing tour scan
+   contents while the fresh scan computes, then gets replaced when
+   openTourScan() swaps the modal's innerHTML. Keeps the modal on
+   screen the whole time (no flicker) and gives the TM clear feedback
+   that something's happening. */
+.scan-loading-overlay{
+  position:absolute;inset:0;z-index:10;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  background:rgba(10,7,5,.86);
+  backdrop-filter:blur(3px);
+  animation:scanOverlayFade .2s ease-out}
+@keyframes scanOverlayFade{from{opacity:0}to{opacity:1}}
+.scan-spinner{
+  width:42px;height:42px;
+  border:3px solid rgba(232,148,58,.18);
+  border-top-color:var(--hi);
+  border-radius:50%;
+  animation:scanSpin .85s linear infinite;
+  box-shadow:0 0 20px -4px rgba(232,148,58,.45)}
+@keyframes scanSpin{to{transform:rotate(360deg)}}
+.scan-loading-text{
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  letter-spacing:.22em;text-transform:uppercase;
+  color:var(--hi);font-weight:700;
+  text-shadow:0 0 12px rgba(232,148,58,.35)}
+
 /* Tour-scan modal: re-scan button pinned to the top, sticky as user scrolls the gap list */
 .scan-toolbar{display:flex;gap:8px;justify-content:flex-end;margin:-8px -4px 14px;padding:10px 4px;
   position:sticky;top:-4px;background:linear-gradient(180deg,rgba(20,14,9,.98) 0%,rgba(20,14,9,.92) 80%,rgba(20,14,9,0) 100%);
@@ -2272,6 +2298,44 @@ body.travel-assistant-mode #travelAssistantArea{
 .welcome-cta .welcome-go:active{transform:translateY(1px)}
 .welcome-fineprint{font-size:12.5px;color:var(--warm-mute);line-height:1.55;margin-top:8px;max-width:420px}
 
+/* ============ CREW DESKTOP BLOCK ============
+   Replaces the entire UI for logged-in band/crew users — no dashboard,
+   no phone preview, just a friendly "download the app" gate. Higher
+   z-index than admin (250) and welcome (240) so it always wins when
+   stacked. Below modals (1000) and toasts (1100). */
+.crew-block-overlay{position:fixed;inset:0;z-index:260;background:#0a0705;
+  display:flex;align-items:center;justify-content:center;padding:30px;overflow-y:auto}
+.crew-block-overlay[hidden]{display:none}
+.crew-block-content{position:relative;z-index:1;max-width:540px;width:100%;text-align:center;padding:24px 0 60px;
+  display:flex;flex-direction:column;align-items:center;gap:16px}
+.crew-block-avatar{width:84px;height:auto;display:block;
+  animation:landingSpin 12s linear infinite;
+  transform-origin:50% 50%;backface-visibility:visible;
+  filter:drop-shadow(0 0 18px rgba(232,148,58,.45));margin-bottom:4px}
+@media (prefers-reduced-motion:reduce){.crew-block-avatar{animation:none}}
+.crew-block-eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.32em;
+  color:var(--hi);text-transform:uppercase;font-weight:700}
+.crew-block-headline{font-family:'Bebas Neue','Inter',sans-serif;font-size:54px;line-height:1.04;
+  letter-spacing:.01em;color:#fff5e0;font-weight:400;margin:6px 0 0;max-width:480px}
+.crew-block-headline em{font-style:normal;color:var(--hi)}
+.crew-block-sub{font-size:15px;color:var(--warm-mute);line-height:1.55;max-width:440px;margin:0 0 8px}
+
+.crew-block-stores{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+.crew-block-store{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;
+  padding:10px 22px;background:rgba(0,0,0,.5);border:1px solid var(--line-2);border-radius:12px;
+  text-decoration:none;color:var(--warm);font-family:'Inter',sans-serif;
+  min-width:180px;text-align:left;cursor:pointer;
+  transition:border-color .15s,background .15s,transform .08s}
+.crew-block-store:hover{border-color:var(--hi);background:rgba(232,148,58,.06)}
+.crew-block-store:active{transform:translateY(1px)}
+.crew-block-store .cbs-eyebrow{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.18em;
+  color:var(--warm-mute);text-transform:uppercase;font-weight:700;line-height:1}
+.crew-block-store .cbs-name{font-size:18px;font-weight:700;color:var(--warm);margin-top:3px;line-height:1.1}
+
+.crew-block-fineprint{font-size:12.5px;color:var(--warm-mute);line-height:1.7;margin-top:14px;max-width:440px}
+.crew-block-signout{color:var(--hi);font-weight:700;cursor:pointer;text-decoration:none}
+.crew-block-signout:hover{text-decoration:underline}
+
 .pricing-overlay{position:fixed;inset:0;z-index:200;background:#0a0705;
   padding:40px 24px;display:flex;align-items:flex-start;justify-content:center;
   font-family:'Inter',sans-serif;color:var(--warm);overflow-y:auto}
@@ -3006,6 +3070,37 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
     </div>
     <div class="welcome-fineprint">
       Already have a Bandmate account? <a href="javascript:void(0)" onclick="_welcomeContinueAsExisting()" style="color:var(--hi)">Sign in instead</a> and we'll attach the subscription to it.
+    </div>
+  </div>
+</div>
+
+<!-- ============ CREW DESKTOP BLOCK ============
+     When a band/crew user signs in, Bandmate is intentionally mobile-only
+     for them. This overlay replaces the dashboard entirely with a friendly
+     "Download the mobile app" prompt. They can sign out from here to leave
+     or switch accounts. The mobile app itself is a future build — for now
+     this is a placeholder gate, and the app-store links are dead links
+     ready to swap in real URLs once the apps ship. -->
+<div class="crew-block-overlay" id="crewBlockScreen" hidden>
+  <div class="landing-bg"></div>
+  <div class="crew-block-content">
+    <img src="avatar.png" class="crew-block-avatar" alt="Bandmate">
+    <div class="crew-block-eyebrow">BANDMATE · BAND &amp; CREW</div>
+    <h1 class="crew-block-headline">Bandmate is <em>mobile-only</em><br>for band &amp; crew.</h1>
+    <p class="crew-block-sub" id="crewBlockSub">Welcome — your account is set up. Grab the Bandmate app on your phone to see your tour schedule, hotel, set list, and notifications.</p>
+    <div class="crew-block-stores">
+      <a href="#" class="crew-block-store" id="crewBlockIos" target="_blank" rel="noopener" aria-label="Download on the App Store">
+        <span class="cbs-eyebrow">DOWNLOAD ON THE</span>
+        <span class="cbs-name">App Store</span>
+      </a>
+      <a href="#" class="crew-block-store" id="crewBlockAndroid" target="_blank" rel="noopener" aria-label="Get it on Google Play">
+        <span class="cbs-eyebrow">GET IT ON</span>
+        <span class="cbs-name">Google Play</span>
+      </a>
+    </div>
+    <div class="crew-block-fineprint">
+      Coming soon — apps are in review. We&rsquo;ll email you the day they go live.<br>
+      Want to switch accounts? <a href="javascript:void(0)" onclick="logout()" class="crew-block-signout">Sign out</a>
     </div>
   </div>
 </div>
@@ -8837,6 +8932,111 @@ function extractFromFilename(name) {
 }
 
 /* ---------- merge & gap analysis ---------- */
+// Walk every extracted item in a single file's result, figure out which
+// dates received data from it across EVERY tour the user owns, then
+// attach the file to each of those dates as an attachment. Used by
+// both the initial import and the re-sync flow so a PDF the TM
+// uploaded shows up under the right city's Attachments tab — and on
+// multiple tours when the same TM manages overlapping bookings (e.g.
+// two artists sharing a Hyatt block, same Chicago venue across two
+// tours, a co-headline deal memo).
+//
+// Matching strategy (per tour):
+//   • Dates extracted from this file → matched back by date+city
+//   • Hotels extracted → matched by hotel.date (preferred) or hotel.city
+//   • Flights / travel extracted → matched by date (exact, then closest
+//     preceding date if no exact)
+//   • Falls back to current tour's date[0] if nothing matched anywhere
+//     (contacts-only files, crew rosters) so the file isn't orphaned.
+//
+// Scoped to OWNED tours only — crew-member relationships don't grant
+// upload permissions, so we don't attach to tours where the user is
+// just a viewer.
+function _attachImportedFileToMatchingDates(r) {
+  if (!r || !r.file) return;
+  const u = U();
+  if (!u || !state || !state.tours) return;
+  // Only attach to tours the current user is the OWNER of. A TM running
+  // multiple artists might have one file that legitimately covers more
+  // than one tour; we want to find all of those, but not silently
+  // scribble on a tour where they're only crew.
+  const ownedTours = Object.values(state.tours).filter(t => t.ownerId === u.id);
+  if (!ownedTours.length) return;
+
+  // Track unique (tourId, dateId) pairs that should receive the attachment.
+  const targets = new Set();
+
+  ownedTours.forEach(tour => {
+    if (!tour.dates || !tour.dates.length) return;
+
+    // 1. Dates extracted from this file — date+city is the strong match
+    (r.extracted.dates || []).forEach(d => {
+      const td = tour.dates.find(x =>
+        x.date === d.date && (x.city || '').toLowerCase() === (d.city || '').toLowerCase()
+      ) || tour.dates.find(x => x.date === d.date);
+      if (td) targets.add(tour.id + '|' + td.id);
+    });
+
+    // 2. Hotels extracted — match by date (preferred) or by city
+    (r.extracted.hotels || []).forEach(h => {
+      let target = null;
+      if (h.date) target = tour.dates.find(x => x.date === h.date);
+      if (!target && h.city) target = tour.dates.find(x => (x.city || '').toLowerCase() === h.city.toLowerCase());
+      if (target) targets.add(tour.id + '|' + target.id);
+    });
+
+    // 3. Travel items — exact date or closest preceding date
+    (r.extracted.travel || []).forEach(t => {
+      let target = null;
+      if (t.date) target = tour.dates.find(x => x.date === t.date);
+      if (!target && t.date) {
+        const sorted = tour.dates.filter(x => x.date && x.date <= t.date)
+          .sort((a, b) => b.date.localeCompare(a.date));
+        target = sorted[0];
+      }
+      if (target) targets.add(tour.id + '|' + target.id);
+    });
+  });
+
+  // Fallback — if nothing matched on ANY tour, attach to the current
+  // tour's first date so the file is still findable.
+  if (targets.size === 0) {
+    const currentTour = T();
+    if (currentTour && currentTour.dates && currentTour.dates.length) {
+      targets.add(currentTour.id + '|' + currentTour.dates[0].id);
+    }
+  }
+
+  // Type guess from file kind
+  const fileType = r.kind === 'pdf' ? 'Contract'
+    : (r.kind && r.kind.startsWith('csv')) ? 'Other'
+    : (r.kind === 'xlsx' || r.kind === 'xlsx_unknown' || r.kind === 'xlsx_unread') ? 'Other'
+    : 'Other';
+
+  // Attach to each unique (tour, date) pair, deduped per-date by filename
+  // so re-syncing the same file doesn't double up.
+  targets.forEach(key => {
+    const sep = key.indexOf('|');
+    const tourId = key.slice(0, sep);
+    const dateId = key.slice(sep + 1);
+    const tour = state.tours[tourId];
+    if (!tour) return;
+    const date = (tour.dates || []).find(d => d.id === dateId);
+    if (!date) return;
+    if (!date.attachments) date.attachments = [];
+    if (date.attachments.some(a => a.name === r.file.name)) return;
+    date.attachments.push({
+      id: uid('at'),
+      name: r.file.name,
+      type: fileType,
+      size: formatSize(r.file.size || 0),
+      link: '',
+      tags: 'imported',
+      addedAt: Date.now(),
+    });
+  });
+}
+
 function mergeImportResults(results) {
   const merged = { dates: [], contacts: [], hotels: [], crew: [], travel: [] };
   results.forEach(r => {
@@ -9169,19 +9369,16 @@ function izApply() {
     });
   });
 
-  // Attach raw files (metadata only) to first date
+  // Attach each uploaded file (metadata only) to every tour date that
+  // received data from it. A deal-memo PDF for "Detroit · Mar 4" lands
+  // on the Detroit date. A hotel-confirmation PDF for "Chicago · Mar 5"
+  // lands on the Chicago date. A multi-leg flight itinerary lands on
+  // every show date its flights touch. Files that didn't match any
+  // specific date (contacts-only files, crew rosters) still get
+  // attached to the first date so they're recoverable.
   if (T().dates.length) {
     s.results.forEach(r => {
-      const target = T().dates[0];
-      target.attachments.push({
-        id: uid('at'),
-        name: r.file.name,
-        type: r.kind.startsWith('csv') ? 'Other' : (r.kind === 'pdf' ? 'Contract' : 'Other'),
-        size: formatSize(r.file.size || 0),
-        link: '',
-        tags: 'imported',
-        addedAt: Date.now(),
-      });
+      _attachImportedFileToMatchingDates(r);
     });
   }
 
@@ -12418,6 +12615,41 @@ function hideWelcomeScreen() {
   if (el) el.hidden = true;
 }
 
+// Show the crew "download the mobile app" gate. This is the ONLY thing
+// a band / crew user sees once authenticated — Bandmate is intentionally
+// mobile-only for crew so they're not stuck navigating a desktop
+// dashboard meant for the TM. They can sign out from this screen to
+// switch accounts or hand the device back.
+function showCrewBlockScreen() {
+  document.getElementById('app').hidden = true;
+  document.getElementById('onboarding')?.classList.add('hidden');
+  ['landingScreen','loginScreen','pricingScreen','adminScreen','welcomeScreen'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.hidden = true;
+  });
+  document.getElementById('crewBlockScreen').hidden = false;
+  // The watermark stays HIDDEN on this surface — the rotating avatar in
+  // the hero already provides the brand presence we need; a second
+  // drifting rabbit behind it would compete.
+  document.body.classList.add('bg-logo-hidden');
+  document.body.classList.remove('bg-video-on');
+  // Personalize the sub-copy with the user's first name when we have it.
+  const u = U();
+  const sub = document.getElementById('crewBlockSub');
+  if (u && sub) {
+    const firstName = (u.name || '').split(/\s+/)[0];
+    sub.textContent = firstName
+      ? `Welcome${firstName ? ', ' + firstName : ''} — your account is set up. Grab the Bandmate app on your phone to see your tour schedule, hotel, set list, and notifications.`
+      : sub.textContent;
+  }
+  // App-store URLs are placeholders — swap in real links once the apps
+  // ship. For now they're inert (href="#") and won't navigate away.
+}
+
+function hideCrewBlockScreen() {
+  const el = document.getElementById('crewBlockScreen');
+  if (el) el.hidden = true;
+}
+
 // "Create my account" — primary CTA. Routes into the signup form
 // (existing login overlay in signup mode) with email + role prefilled.
 function _welcomeContinue() {
@@ -12763,6 +12995,9 @@ function logout() {
   if (!confirm('Sign out? Your tour data stays on this device.')) return;
   state.currentUserId = null;
   saveState();
+  // Hide the crew block screen explicitly — without this, signing out
+  // from the crew gate would leave it visible behind the landing page.
+  hideCrewBlockScreen();
   showLandingScreen();
 }
 
@@ -12777,6 +13012,14 @@ function postLoginRouting() {
   // past the public-facing surface now.
   document.body.classList.remove('bg-logo-hidden');
   document.body.classList.remove('bg-video-on');
+
+  // Band / crew users are mobile-only by design — there's no desktop
+  // experience for them. Show a download-the-mobile-app gate instead
+  // of routing into the tour preview. They can sign out from there.
+  if (u.role === 'crew') {
+    showCrewBlockScreen();
+    return;
+  }
 
   // Find tours visible to this user
   const owned = u.role === 'tm'
@@ -13460,7 +13703,14 @@ async function _idzAnalyze() {
     _renderImportDataModal();
     try {
       // Reuse the same per-file processor the import wizard uses.
-      const r = await processOne(s.file);
+      // (Was previously calling processOne() — undefined — which made
+      //  this whole flow silently fail with "ReferenceError." The real
+      //  function is processImportFile from the wizard.)
+      const r = await processImportFile(s.file);
+      // Keep a reference to the original File object so the merge step
+      // can attach it to its corresponding tour date(s). processImportFile
+      // only returns file metadata; we need the full File for size/etc.
+      r._sourceFile = s.file;
       s.result = r;
       s.status = 'done';
     } catch (e) {
@@ -13616,6 +13866,26 @@ function _idzMergeNow() {
     }
   });
 
+  // ── Attachments: for every file uploaded in this re-sync, attach
+  //   it to every date (across every owned tour) that received data
+  //   from it. Deduped per-date, so re-syncing the same file twice
+  //   doesn't double up. We tally across all owned tours since a single
+  //   file can legitimately land on multiple tours. ──
+  let attachmentsAdded = 0;
+  const me = U();
+  const ownedTours = me ? Object.values(state.tours).filter(t => t.ownerId === me.id) : [tour];
+  const countAttachments = (fileName) => ownedTours.reduce((n, t) =>
+    n + (t.dates || []).reduce((m, d) => m + ((d.attachments || []).filter(a => a.name === fileName).length), 0), 0);
+  _importStaging.forEach(s => {
+    if (s.status !== 'done' || !s.result || !s.result.file) return;
+    const fileName = s.result.file.name;
+    const before = countAttachments(fileName);
+    _attachImportedFileToMatchingDates(s.result);
+    const after = countAttachments(fileName);
+    attachmentsAdded += (after - before);
+  });
+  if (attachmentsAdded) stats.attachmentsAdded = attachmentsAdded;
+
   saveState();
   _importStaging = [];
   closeModal();
@@ -13625,8 +13895,10 @@ function _idzMergeNow() {
   if (stats.datesUpdated) msgBits.push(`${stats.fieldsFilled} field${stats.fieldsFilled===1?'':'s'} filled across ${stats.datesUpdated} date${stats.datesUpdated===1?'':'s'}`);
   if (stats.datesAdded) msgBits.push(`${stats.datesAdded} new date${stats.datesAdded===1?'':'s'}`);
   if (stats.hotelsAttached) msgBits.push(`${stats.hotelsAttached} hotel${stats.hotelsAttached===1?'':'s'} attached`);
+  if (stats.travelAttached) msgBits.push(`${stats.travelAttached} flight${stats.travelAttached===1?'':'s'} attached`);
   if (stats.contactsAdded) msgBits.push(`${stats.contactsAdded} new contact${stats.contactsAdded===1?'':'s'}`);
   if (stats.crewAdded) msgBits.push(`${stats.crewAdded} new crew`);
+  if (stats.attachmentsAdded) msgBits.push(`${stats.attachmentsAdded} file${stats.attachmentsAdded===1?'':'s'} filed under matching dates`);
   toast(msgBits.length ? `Merged: ${msgBits.join(' · ')}` : 'Nothing new to merge', msgBits.length ? 'good' : '');
 }
 
@@ -14046,11 +14318,26 @@ function rescanTourAnimated(btn) {
     btn.classList.add('scanning');
     setTimeout(() => { try { btn.classList.remove('scanning'); } catch(e) {} }, 800);
   }
-  // Close any open modal first (e.g. the existing scan results), then re-open
-  // after the animation has had time to play.
-  const overlay = document.querySelector('.modal-overlay');
-  if (overlay) closeModal();
-  setTimeout(() => openTourScan(), 650);
+  // Keep the modal on screen — overlay a "scanning…" loading state on
+  // top of the current body, then replace the modal contents in-place
+  // with the fresh scan output. No closeModal() call means no flicker.
+  const modalBody = document.querySelector('.modal-overlay .modal-body');
+  if (modalBody && !modalBody.querySelector('.scan-loading-overlay')) {
+    if (getComputedStyle(modalBody).position === 'static') modalBody.style.position = 'relative';
+    const overlay = document.createElement('div');
+    overlay.className = 'scan-loading-overlay';
+    overlay.innerHTML = `
+      <div class="scan-spinner" aria-hidden="true"></div>
+      <div class="scan-loading-text">Re-scanning tour…</div>
+    `;
+    modalBody.appendChild(overlay);
+  }
+  // After the loading animation has had time to settle (and any saveState
+  // calls from upstream actions have flushed), render the fresh scan
+  // results. openTourScan() does root.innerHTML = new markup, so the
+  // existing modal is replaced in a single synchronous swap — perceived
+  // as "the content just updated" rather than "modal closed and re-opened."
+  setTimeout(() => { try { openTourScan(); } catch (e) { console.warn('rescan failed:', e); } }, 600);
 }
 
 function openTourScan() {
@@ -14360,6 +14647,10 @@ function init() {
       // page. From there, the user picks a role (TM / Band & Crew) and
       // routes into the existing sign-in / sign-up overlay.
       showLandingScreen();
+    } else if (state.users && state.users[state.currentUserId] && state.users[state.currentUserId].role === 'crew') {
+      // Already-logged-in crew user reloading the page — keep them on
+      // the mobile-app-download gate, never the desktop dashboard.
+      showCrewBlockScreen();
     } else if (!state.onboarded) {
       document.getElementById('onboarding').classList.remove('hidden');
       document.getElementById('app').hidden = true;
@@ -14428,6 +14719,7 @@ Object.assign(window, {
   showPricingScreen, hidePricingScreen, _pricingSubscribe, _pricingInquire,
   _showCrewNoToursModal, _copyCrewEmail,
   showWelcomeScreen, hideWelcomeScreen, _welcomeContinue, _welcomeContinueAsExisting,
+  showCrewBlockScreen, hideCrewBlockScreen,
   showAdminScreen, adminLogin, adminLogout,
   _adminExportAll, _adminBroadcastModal, _adminBroadcastSend,
   _adminClaimUnclaimed, _adminPurgeDevice,
