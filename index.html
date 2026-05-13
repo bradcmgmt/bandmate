@@ -3861,15 +3861,26 @@ function fillDateGapsWithOffDays() {
 function _padTourEdgesWithTravelDays() {
   const tour = T();
   if (!tour || !tour.dates || !tour.dates.length) return 0;
-  // Find first/last entries that look like real show data. We don't
-  // pad off / travel entries — only actual SHOWS get the courtesy.
-  const shows = tour.dates.filter(d =>
-    /^\d{4}-\d{2}-\d{2}/.test(d.date || '') &&
-    ((d.status || 'show').toLowerCase() === 'show' || d.venue || (d.city && d.city.trim()))
-  );
-  if (!shows.length) return 0;
-  shows.sort((a, b) => a.date.localeCompare(b.date));
-  const have = new Set(tour.dates.filter(d => d.date).map(d => d.date.slice(0, 10)));
+  // Pad only when the import begins AND ends with show days. The rule:
+  // you have to get TO the first show and home FROM the last show, but
+  // if the user uploaded a hotel-only confirmation, a travel-day-only
+  // itinerary, or anything else where the first/last dates aren't
+  // shows, we don't add yet more travel days — the document already
+  // frames itself. Check first and last independently so a tour that
+  // STARTS with a show but ENDS with a non-show still gets the leading
+  // pad, and vice versa.
+  const sortedAll = tour.dates
+    .filter(d => /^\d{4}-\d{2}-\d{2}/.test(d.date || ''))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (!sortedAll.length) return 0;
+  const isShow = d => {
+    const st = (d.status || 'show').toLowerCase();
+    // A "show day" for padding purposes means status===show with
+    // real venue/city signal — not just any date that defaulted to
+    // status='show' because the parser didn't know better.
+    return st === 'show' && (d.venue || (d.city && d.city.trim()));
+  };
+  const have = new Set(sortedAll.map(d => d.date.slice(0, 10)));
   let added = 0;
   const mkTravel = (iso, label) => ({
     id: uid('dt'),
@@ -3886,17 +3897,21 @@ function _padTourEdgesWithTravelDays() {
     _imported: true,
     _autoFilled: true,
   });
-  const before = addDaysISO(shows[0].date.slice(0, 10), -1);
-  if (before && !have.has(before)) {
-    tour.dates.push(mkTravel(before, 'Auto-added travel day — arrival before first show'));
-    have.add(before);
-    added++;
+  if (isShow(sortedAll[0])) {
+    const before = addDaysISO(sortedAll[0].date.slice(0, 10), -1);
+    if (before && !have.has(before)) {
+      tour.dates.push(mkTravel(before, 'Auto-added travel day — arrival before first show'));
+      have.add(before);
+      added++;
+    }
   }
-  const after = addDaysISO(shows[shows.length - 1].date.slice(0, 10), 1);
-  if (after && !have.has(after)) {
-    tour.dates.push(mkTravel(after, 'Auto-added travel day — fly-home after last show'));
-    have.add(after);
-    added++;
+  if (isShow(sortedAll[sortedAll.length - 1])) {
+    const after = addDaysISO(sortedAll[sortedAll.length - 1].date.slice(0, 10), 1);
+    if (after && !have.has(after)) {
+      tour.dates.push(mkTravel(after, 'Auto-added travel day — fly-home after last show'));
+      have.add(after);
+      added++;
+    }
   }
   if (added) tour.dates.sort((a, b) => (a.date || 'zz').localeCompare(b.date || 'zz'));
   return added;
@@ -8543,8 +8558,35 @@ function _parseFlightContext(ctx, code, num, absIdx, fullText) {
   const tm = ctx.match(/\b(\d{1,2}:\d{2}\s*(?:AM|PM)?)/i);
   if (tm) flight.time = tm[1].trim();
 
-  // Date
-  const dt = _parseDateLoose(ctx);
+  // Date — three-tier resolution:
+  //   1. Full date with year inside the local context window
+  //   2. "DEPARTURE: <DAY> <DD> <MONTH>" or "TRIP TO ... <DD> <MONTH>"
+  //      pattern near the flight (no year) — pair with doc-level year
+  //   3. Plain "<DD> <MONTH>" anywhere in the window, but only if it
+  //      isn't immediately followed by a year (would have hit tier 1)
+  // The doc-level fallback (set by _extractFlightsFromText) only kicks
+  // in if all three tiers come up empty. This stops a travel PDF whose
+  // top says "11 MAY 2026" (the hotel date) from poisoning a flight
+  // that's actually on May 12.
+  let dt = _parseDateLoose(ctx);
+  if (!dt) {
+    const months = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12 };
+    // Pull year from the doc-level fallback if available.
+    const docDate = _findFirstFullDate(fullText || '');
+    const year = docDate ? docDate.slice(0, 4) : String(new Date().getFullYear());
+    // Tier 2: anchored on DEPARTURE / DEPART / TRIP TO / FLIGHT label
+    let dm = ctx.match(/\b(?:DEPARTURE|DEPART(?:ING|S)?|TRIP\s+TO\s+[^,\n]+|FLIGHT)\s*[:.,]?\s*(?:[A-Z]{3,9}\s+)?(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/i);
+    // Tier 3: any bare "DD MONTH" or "MONTH DD" near the flight that
+    // doesn't have a 4-digit year right after it. Negative lookahead
+    // catches both "12 MAY 2026" (would have matched tier 1) and stops
+    // us from re-matching a "11 May 2026" boilerplate that already got
+    // converted to ISO by tier 1 above.
+    if (!dm) dm = ctx.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?!\w)/i);
+    if (dm) {
+      const month = months[dm[2].toLowerCase().slice(0, 3)];
+      dt = `${year}-${String(month).padStart(2, '0')}-${String(dm[1]).padStart(2, '0')}`;
+    }
+  }
   if (dt) flight.date = dt;
 
   // Confirmation / PNR
