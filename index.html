@@ -272,6 +272,45 @@ input,select,textarea{font:inherit;color:inherit}
 }
 .day-add-btn:hover{background:rgba(232,148,58,.08);border-style:solid}
 
+/* Add-date chooser cards (single date vs. date range). Two big
+   side-by-side cards inside the modal, each with an icon, title,
+   and sub-copy. The "range" variant is featured (copper-tinted) since
+   it's the new flow we want to promote. */
+.add-mode-card{
+  padding:18px 16px;background:rgba(0,0,0,.32);
+  border:1px solid var(--line-2);border-radius:11px;cursor:pointer;
+  text-align:left;display:flex;flex-direction:column;gap:6px;
+  font-family:inherit;color:inherit;
+  transition:border-color .15s,background .15s,transform .08s}
+.add-mode-card:hover{border-color:var(--hi);background:rgba(232,148,58,.05)}
+.add-mode-card:active{transform:translateY(1px)}
+.add-mode-card.amc-featured{border-color:rgba(232,148,58,.4);background:rgba(232,148,58,.07)}
+.add-mode-card.amc-featured:hover{border-color:var(--hi);background:rgba(232,148,58,.12)}
+.amc-icon{
+  width:40px;height:40px;border-radius:50%;
+  background:rgba(232,148,58,.12);border:1px solid rgba(232,148,58,.4);
+  color:var(--hi);display:flex;align-items:center;justify-content:center;
+  font-size:20px;font-weight:800;margin-bottom:6px;line-height:1}
+.amc-title{font-size:15px;font-weight:700;color:var(--warm)}
+.amc-sub{font-size:12.5px;color:var(--warm-mute);line-height:1.5}
+
+/* Per-date type-picker rows on the range step — one row per date in
+   range with index, date, day-of-week, and a small type-select. Dates
+   that already exist on the tour are flagged with .adr-dup and lose
+   the type select since they'll be skipped on commit. */
+.adr-row{
+  display:grid;grid-template-columns:30px 60px 50px 1fr;gap:12px;align-items:center;
+  padding:8px 10px;background:rgba(0,0,0,.22);border:1px solid var(--line-2);border-radius:8px}
+.adr-row.adr-dup{background:rgba(253,186,116,.05);border-color:rgba(253,186,116,.3)}
+.adr-row.adr-dup .adr-date{color:rgba(245,233,214,.6)}
+.adr-idx{font-size:10px;color:var(--warm-mute);letter-spacing:.1em;font-weight:700}
+.adr-date{font-size:13px;font-weight:700;color:var(--warm)}
+.adr-dow{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--warm-mute);font-weight:700}
+.adr-type{
+  background:rgba(0,0,0,.4);border:1px solid var(--line-2);border-radius:6px;
+  padding:6px 10px;color:var(--warm);font-family:'Inter',sans-serif;font-size:12.5px;cursor:pointer;width:100%}
+.adr-type:focus{border-color:var(--hi);outline:none}
+
 /* ============ STAGE ============ */
 .stage{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:24px;padding:24px 22px 60px;max-width:1640px;margin:0 auto;min-width:0}
 
@@ -2978,7 +3017,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
   <div class="day-strip-wrap">
     <div class="day-strip" id="dayStrip"></div>
     <div class="day-strip-actions">
-      <button type="button" class="day-add-btn" onclick="openDateModal()">+ Add Date</button>
+      <button type="button" class="day-add-btn" onclick="openAddDateChooser()">+ Add Date</button>
     </div>
   </div>
 
@@ -3875,6 +3914,215 @@ function _dateModalApplyStatus() {
     venueLbl.textContent = isRehearsal ? 'Rehearsal location'
       : isPress ? 'Press location'
       : 'Venue';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// ADD DATE — chooser flow
+//
+// When a TM clicks "+ Add Date" we route through a small chooser that
+// gives two paths:
+//   1. Single date  → falls through to openDateModal() (the existing
+//                     fully-detailed single-add form).
+//   2. Date range   → start + end picker, then a per-day type list,
+//                     commits all dates at once. Designed for blocking
+//                     out a whole tour in seconds; cities/venues/doors
+//                     get filled in afterwards on each individual date.
+//
+// Range mode caps at 90 days per submit so the TM doesn't accidentally
+// add a year of placeholder dates by mistyping a year. They can run
+// the flow again for additional ranges.
+// ─────────────────────────────────────────────────────────────────────
+function openAddDateChooser() {
+  openModal({
+    title: 'Add tour dates',
+    hideFooter: true,
+    body: `
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <p style="font-size:13.5px;color:var(--warm-mute);line-height:1.55;margin:0">How do you want to add?</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <button type="button" class="add-mode-card" onclick="closeModal();setTimeout(()=>openDateModal(),30)">
+            <div class="amc-icon">+</div>
+            <div class="amc-title">Single date</div>
+            <div class="amc-sub">Add one date now with city, venue, doors, set time, etc.</div>
+          </button>
+          <button type="button" class="add-mode-card amc-featured" onclick="closeModal();setTimeout(()=>openAddDateRange(),30)">
+            <div class="amc-icon">⇆</div>
+            <div class="amc-title">Date range</div>
+            <div class="amc-sub">Block out a tour by start + end. Set type per day, fill details later.</div>
+          </button>
+        </div>
+        <div style="display:flex;justify-content:flex-end;border-top:1px solid var(--line);padding-top:14px;margin-top:4px">
+          <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+        </div>
+      </div>
+    `,
+  });
+}
+
+function openAddDateRange() {
+  const today = todayISO();
+  openModal({
+    title: 'Pick a date range',
+    hideFooter: true,
+    body: `
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <p style="font-size:13.5px;color:var(--warm-mute);line-height:1.55;margin:0">
+          One entry per day from start through end. You'll pick the type for each day on the next step.
+        </p>
+        <div class="form-grid">
+          <div class="field">
+            <label>Start date *</label>
+            <input type="date" id="rng_start" value="${today}">
+          </div>
+          <div class="field">
+            <label>End date *</label>
+            <input type="date" id="rng_end" value="${today}">
+          </div>
+        </div>
+        <div id="rng_preview" style="font-size:12.5px;color:var(--warm-mute);line-height:1.55;font-family:'JetBrains Mono',monospace;letter-spacing:.04em"></div>
+        <div style="display:flex;gap:8px;justify-content:space-between;border-top:1px solid var(--line);padding-top:14px">
+          <button type="button" class="btn" onclick="closeModal();setTimeout(()=>openAddDateChooser(),30)">← Back</button>
+          <button type="button" class="btn primary" onclick="_addDateRangeNext()">Next · pick types →</button>
+        </div>
+      </div>
+    `,
+  });
+  // Live preview of how many days the range will produce.
+  const update = () => {
+    const s = document.getElementById('rng_start')?.value;
+    const e = document.getElementById('rng_end')?.value;
+    const out = document.getElementById('rng_preview');
+    if (!out) return;
+    if (!s || !e) { out.textContent = ''; return; }
+    if (e < s) { out.innerHTML = `<span style="color:var(--red)">End date must be on or after start.</span>`; return; }
+    const days = _daysBetween(s, e);
+    if (days > 90) { out.innerHTML = `<span style="color:var(--red)">${days} days exceeds the 90-day cap. Pick a shorter range or add another range after.</span>`; return; }
+    out.textContent = `${days} ${days === 1 ? 'day' : 'days'} will be added.`;
+  };
+  setTimeout(() => {
+    document.getElementById('rng_start')?.addEventListener('input', update);
+    document.getElementById('rng_end')?.addEventListener('input', update);
+    update();
+  }, 30);
+}
+
+function _daysBetween(start, end) {
+  const ms = new Date(end).getTime() - new Date(start).getTime();
+  return Math.round(ms / 86400000) + 1; // inclusive
+}
+
+function _addDateRangeNext() {
+  const s = document.getElementById('rng_start')?.value;
+  const e = document.getElementById('rng_end')?.value;
+  if (!s || !e) { toast('Pick both dates', 'error'); return; }
+  if (e < s) { toast('End must be on or after start', 'error'); return; }
+  const days = _daysBetween(s, e);
+  if (days > 90) { toast('Max 90 days at a time — split into multiple ranges', 'error'); return; }
+  closeModal();
+  setTimeout(() => openAddDateRangeTypes(s, e), 30);
+}
+
+function openAddDateRangeTypes(startDate, endDate) {
+  const days = _daysBetween(startDate, endDate);
+  const dates = [];
+  for (let i = 0; i < days; i++) dates.push(addDaysISO(startDate, i));
+  // Flag dates that already exist on this tour so the TM knows they'll
+  // be skipped on commit (we don't overwrite, don't duplicate).
+  const existingByDate = new Set(T().dates.map(d => d.date).filter(Boolean));
+
+  openModal({
+    title: `Pick a type for each date · ${days} ${days === 1 ? 'day' : 'days'}`,
+    size: 'lg',
+    hideFooter: true,
+    body: `
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:13px;color:var(--warm-mute);line-height:1.55">
+          Set each day's type. Once added, you can drop into any date to fill in city, venue, doors, set time, schedule, etc.
+        </div>
+        <div style="padding:10px 12px;background:rgba(232,148,58,.04);border:1px solid var(--line-2);border-radius:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.16em;color:var(--warm-mute);text-transform:uppercase;margin-right:4px">Set all to:</span>
+          <button type="button" class="btn" onclick="_bulkSetRangeType('show')" style="padding:5px 10px;font-size:11px">Show</button>
+          <button type="button" class="btn" onclick="_bulkSetRangeType('off')" style="padding:5px 10px;font-size:11px">Off</button>
+          <button type="button" class="btn" onclick="_bulkSetRangeType('travel')" style="padding:5px 10px;font-size:11px">Travel</button>
+          <button type="button" class="btn" onclick="_bulkSetRangeType('rehearsal')" style="padding:5px 10px;font-size:11px">Rehearsal</button>
+          <button type="button" class="btn" onclick="_bulkSetRangeType('press')" style="padding:5px 10px;font-size:11px">Press</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow-y:auto;padding-right:4px">
+          ${dates.map((dt, idx) => {
+            const dup = existingByDate.has(dt);
+            return `
+              <div class="adr-row${dup ? ' adr-dup' : ''}">
+                <span class="adr-idx mono">${String(idx+1).padStart(2,'0')}</span>
+                <span class="adr-date mono">${fmtMD(dt)}</span>
+                <span class="adr-dow mono">${dow(dt)}</span>
+                ${dup ? `
+                  <span class="adr-dup-label" style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#fdba74;font-weight:700">Already on tour — will skip</span>
+                ` : `
+                  <select class="adr-type" data-idx="${idx}">
+                    <option value="show" selected>Show day</option>
+                    <option value="off">Day off</option>
+                    <option value="travel">Travel day</option>
+                    <option value="rehearsal">Rehearsal day</option>
+                    <option value="press">Press day</option>
+                  </select>
+                `}
+              </div>
+            `;
+          }).join('')}
+        </div>
+        <div style="display:flex;gap:8px;justify-content:space-between;border-top:1px solid var(--line);padding-top:14px">
+          <button type="button" class="btn" onclick="closeModal();setTimeout(()=>openAddDateRange(),30)">← Back</button>
+          <button type="button" class="btn primary" onclick="_commitDateRange('${startDate}','${endDate}')">Add ${days} ${days===1?'date':'dates'} →</button>
+        </div>
+      </div>
+    `,
+  });
+}
+
+function _bulkSetRangeType(type) {
+  document.querySelectorAll('.adr-type').forEach(sel => { sel.value = type; });
+}
+
+function _commitDateRange(startDate, endDate) {
+  const days = _daysBetween(startDate, endDate);
+  let added = 0;
+  let skipped = 0;
+  let firstNewId = null;
+  for (let i = 0; i < days; i++) {
+    const dt = addDaysISO(startDate, i);
+    if (T().dates.some(d => d.date === dt)) { skipped++; continue; }
+    const typeSel = document.querySelector(`.adr-type[data-idx="${i}"]`);
+    const status = typeSel ? typeSel.value : 'show';
+    const newDate = {
+      id: uid('dt'),
+      date: dt, city: '', state: '', country: '',
+      venue: '', capacity: '', status,
+      doors: '', setTime: '', loadIn: '', soundcheck: '',
+      promoter: '', notes: '',
+      schedule: [], travel: [], guests: [], setList: [], attachments: [],
+      hotel: null,
+      settlement: { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' },
+    };
+    T().dates.push(newDate);
+    if (!firstNewId) firstNewId = newDate.id;
+    added++;
+  }
+  // Keep dates sorted chronologically — both for the day strip and for
+  // adjacency logic (next-day previews, hotel-or-travel rules, etc.).
+  T().dates.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  // If the tour had no active date yet (fresh tour), make the first
+  // newly-added one active so the TM lands on it after commit.
+  if (firstNewId && !T().activeDateId) T().activeDateId = firstNewId;
+  saveState();
+  closeModal();
+  renderAll();
+  if (added > 0 && skipped > 0) {
+    toast(`Added ${added} · skipped ${skipped} that already exist`, '');
+  } else if (added > 0) {
+    toast(`Added ${added} ${added===1?'date':'dates'}`, 'good');
+  } else if (skipped > 0) {
+    toast(`Skipped ${skipped} — all of those dates already exist`, 'error');
   }
 }
 
@@ -5134,7 +5382,7 @@ function renderDashboard() {
       <div class="empty">
         <h3>Your tour is ready — add your first date</h3>
         <p>Each date holds its own schedule, hotel, guest list, set list, and settlement. You can also import dates from a CSV.</p>
-        <button type="button" onclick="openDateModal()">+ Add first date</button>
+        <button type="button" onclick="openAddDateChooser()">+ Add first date</button>
       </div>
     `;
     return;
@@ -5884,7 +6132,7 @@ function renderVenues() {
       <div class="empty">
         <h3>No venues yet</h3>
         <p>Venues populate automatically as you add tour dates.</p>
-        <button type="button" onclick="openDateModal()">+ Add a date</button>
+        <button type="button" onclick="openAddDateChooser()">+ Add a date</button>
       </div>
     ` : `
       <div class="tbl">
@@ -6616,7 +6864,7 @@ function printDay() {
    HELPERS
    ===================================================================== */
 function noDate() {
-  return `<div class="empty"><h3>No active date</h3><p>Add a date to start using this section.</p><button type="button" onclick="openDateModal()">+ Add date</button></div>`;
+  return `<div class="empty"><h3>No active date</h3><p>Add a date to start using this section.</p><button type="button" onclick="openAddDateChooser()">+ Add date</button></div>`;
 }
 
 /* =====================================================================
@@ -13269,6 +13517,8 @@ Object.assign(window, {
   izAddFiles, izRemoveFile, izStartAnalyze, izApply, izBack,
   resetTour, exportTour, printDay,
   openDateModal, openScheduleModal, openTravelModal, openHotelModal, openRoomModal,
+  openAddDateChooser, openAddDateRange, openAddDateRangeTypes,
+  _addDateRangeNext, _bulkSetRangeType, _commitDateRange,
   openGuestModal, openAllotmentModal, openSetItemModal, moveSetItem, copySetList,
   openSettleModal, openAttachModal, openContactModal, openCrewModal, openCrewMemberModal,
   openTaskModal, openTagModal, toggleTask,
