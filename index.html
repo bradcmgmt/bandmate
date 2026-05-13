@@ -311,6 +311,49 @@ input,select,textarea{font:inherit;color:inherit}
   padding:6px 10px;color:var(--warm);font-family:'Inter',sans-serif;font-size:12.5px;cursor:pointer;width:100%}
 .adr-type:focus{border-color:var(--hi);outline:none}
 
+/* Calendar widget for the date-range modal. Click-to-select range
+   interaction; visuals use the same copper/amber language as the
+   rest of the site so it doesn't feel like a transplant. Sunday-first
+   week, single-month at a time, prev/next arrows for nav. */
+.cal-widget{
+  margin-top:2px;padding:12px;
+  background:rgba(0,0,0,.32);border:1px solid var(--line-2);border-radius:10px;
+  display:flex;flex-direction:column;gap:6px}
+.cal-head{display:flex;align-items:center;justify-content:space-between;padding:2px 4px 6px}
+.cal-title{
+  font-family:'Bebas Neue','Inter',sans-serif;font-size:20px;
+  letter-spacing:.02em;color:var(--warm);font-weight:400}
+.cal-nav{
+  width:30px;height:30px;border-radius:7px;
+  background:rgba(0,0,0,.32);border:1px solid var(--line-2);color:var(--warm-mute);
+  font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:border-color .12s,color .12s,background .12s}
+.cal-nav:hover{border-color:var(--hi);color:var(--hi);background:rgba(232,148,58,.08)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cal-grid-head{margin-bottom:2px}
+.cal-grid-head span{
+  font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;
+  color:var(--warm-mute);text-align:center;padding:6px 0;text-transform:uppercase;font-weight:700}
+.cal-cell{
+  aspect-ratio:1;background:transparent;border:1px solid transparent;border-radius:6px;
+  font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:600;color:var(--warm);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;line-height:1;
+  transition:background .12s,color .12s,border-color .12s,transform .08s}
+.cal-cell:hover:not(.cal-empty):not(.cal-start):not(.cal-end){
+  background:rgba(232,148,58,.08);border-color:rgba(232,148,58,.35);color:var(--hi)}
+.cal-cell:active:not(.cal-empty){transform:scale(.94)}
+.cal-empty{background:transparent;cursor:default;pointer-events:none;border:none}
+.cal-today{border-color:rgba(232,148,58,.55);color:var(--hi)}
+.cal-in-range{
+  background:rgba(232,148,58,.16);border-color:transparent;color:var(--warm)}
+.cal-start,.cal-end{
+  background:linear-gradient(135deg,#e8943a,#c9772a);color:#0e0805;
+  border-color:transparent;font-weight:800;
+  box-shadow:0 0 14px -2px rgba(232,148,58,.55)}
+.cal-start:hover,.cal-end:hover{
+  background:linear-gradient(135deg,#f5a64e,#d97f2c);color:#0e0805;
+  border-color:transparent}
+
 /* ============ STAGE ============ */
 .stage{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:24px;padding:24px 22px 60px;max-width:1640px;margin:0 auto;min-width:0}
 
@@ -3968,7 +4011,7 @@ function openAddDateRange() {
     body: `
       <div style="display:flex;flex-direction:column;gap:14px">
         <p style="font-size:13.5px;color:var(--warm-mute);line-height:1.55;margin:0">
-          One entry per day from start through end. You'll pick the type for each day on the next step.
+          Click two days on the calendar to pick the range — or type the dates directly. You'll set each day's type on the next step.
         </p>
         <div class="form-grid">
           <div class="field">
@@ -3980,6 +4023,7 @@ function openAddDateRange() {
             <input type="date" id="rng_end" value="${today}">
           </div>
         </div>
+        <div id="cal_widget" class="cal-widget"></div>
         <div id="rng_preview" style="font-size:12.5px;color:var(--warm-mute);line-height:1.55;font-family:'JetBrains Mono',monospace;letter-spacing:.04em"></div>
         <div style="display:flex;gap:8px;justify-content:space-between;border-top:1px solid var(--line);padding-top:14px">
           <button type="button" class="btn" onclick="closeModal();setTimeout(()=>openAddDateChooser(),30)">← Back</button>
@@ -4000,11 +4044,139 @@ function openAddDateRange() {
     if (days > 90) { out.innerHTML = `<span style="color:var(--red)">${days} days exceeds the 90-day cap. Pick a shorter range or add another range after.</span>`; return; }
     out.textContent = `${days} ${days === 1 ? 'day' : 'days'} will be added.`;
   };
+  // Two-way sync: typing in the inputs should redraw the calendar to
+  // match, and clicking the calendar updates the inputs (handled in
+  // _calPickDate which dispatches a synthetic 'input' event).
+  const syncFromInputs = () => {
+    const s = document.getElementById('rng_start')?.value;
+    const e = document.getElementById('rng_end')?.value;
+    if (s) _calState.start = s;
+    if (e) _calState.end = e;
+    if (s) _calState.viewMonth = s.slice(0, 7);
+    _calRender();
+  };
   setTimeout(() => {
-    document.getElementById('rng_start')?.addEventListener('input', update);
-    document.getElementById('rng_end')?.addEventListener('input', update);
+    document.getElementById('rng_start')?.addEventListener('input', () => { update(); syncFromInputs(); });
+    document.getElementById('rng_end')?.addEventListener('input', () => { update(); syncFromInputs(); });
+    _calInit();
     update();
   }, 30);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Calendar widget for the date-range step. Lightweight, theme-matched,
+// click-to-select range. Two-way synced with the start/end date inputs
+// above it so the TM can use whichever interaction feels natural —
+// type dates directly OR click days on the calendar.
+//
+// Selection logic:
+//   • No selection → click sets both start AND end (single day).
+//   • Single day selected → next click extends to a range (the
+//     earlier of the two becomes start, later becomes end).
+//   • Range selected → next click resets to a new single day.
+// ─────────────────────────────────────────────────────────────────────
+let _calState = { viewMonth: null, start: null, end: null };
+
+function _calInit() {
+  const s = document.getElementById('rng_start')?.value || todayISO();
+  const e = document.getElementById('rng_end')?.value || s;
+  _calState.start = s;
+  _calState.end = e;
+  _calState.viewMonth = s.slice(0, 7); // "YYYY-MM"
+  _calRender();
+}
+
+function _calNavMonth(delta) {
+  if (!_calState.viewMonth) return;
+  const [yr, mo] = _calState.viewMonth.split('-').map(Number);
+  const d = new Date(yr, mo - 1 + delta, 1);
+  _calState.viewMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  _calRender();
+}
+
+function _calPickDate(iso) {
+  // Range complete → start fresh from this date
+  if (_calState.start && _calState.end && _calState.start !== _calState.end) {
+    _calState.start = iso;
+    _calState.end = iso;
+  } else if (_calState.start && _calState.end && _calState.start === _calState.end) {
+    // Single day already selected → extend to range
+    if (iso < _calState.start) _calState.start = iso;
+    else _calState.end = iso;
+  } else {
+    _calState.start = iso;
+    _calState.end = iso;
+  }
+  // Push the new selection back into the date inputs WITHOUT dispatching
+  // an 'input' event. Dispatching synchronously triggered the input
+  // handler's syncFromInputs() helper, which read the second input
+  // BEFORE we'd updated it, then wrote that stale value back onto
+  // _calState.end — silently snapping any range back to a single day.
+  // We update the preview text directly here instead.
+  const s = document.getElementById('rng_start');
+  const e = document.getElementById('rng_end');
+  if (s) s.value = _calState.start;
+  if (e) e.value = _calState.end;
+  // Manually update the "N days will be added" preview line since we
+  // no longer fire the 'input' event that would have done it.
+  const out = document.getElementById('rng_preview');
+  if (out && _calState.start && _calState.end) {
+    const days = _daysBetween(_calState.start, _calState.end);
+    if (days > 90) {
+      out.innerHTML = `<span style="color:var(--red)">${days} days exceeds the 90-day cap. Pick a shorter range or add another range after.</span>`;
+    } else {
+      out.textContent = `${days} ${days === 1 ? 'day' : 'days'} will be added.`;
+    }
+  }
+  _calRender();
+}
+
+function _calRender() {
+  const root = document.getElementById('cal_widget');
+  if (!root || !_calState.viewMonth) return;
+  const [yr, mo] = _calState.viewMonth.split('-').map(Number);
+  const firstDay = new Date(yr, mo - 1, 1);
+  const lastDay = new Date(yr, mo, 0);
+  const daysInMonth = lastDay.getDate();
+  // Sunday-first week (American convention) — getDay() returns 0=Sun.
+  const startCol = firstDay.getDay();
+  const today = todayISO();
+  const monthLabel = firstDay.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const cells = [];
+  for (let i = 0; i < startCol; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push(`${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+  }
+
+  root.innerHTML = `
+    <div class="cal-head">
+      <button type="button" class="cal-nav" onclick="_calNavMonth(-1)" aria-label="Previous month">◀</button>
+      <div class="cal-title">${monthLabel}</div>
+      <button type="button" class="cal-nav" onclick="_calNavMonth(1)" aria-label="Next month">▶</button>
+    </div>
+    <div class="cal-grid cal-grid-head">
+      <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+    </div>
+    <div class="cal-grid">
+      ${cells.map(iso => {
+        if (!iso) return `<span class="cal-cell cal-empty" aria-hidden="true"></span>`;
+        const dayNum = parseInt(iso.slice(8, 10), 10);
+        const isStart = iso === _calState.start;
+        const isEnd   = iso === _calState.end;
+        const inRange = _calState.start && _calState.end && iso > _calState.start && iso < _calState.end;
+        const isToday = iso === today;
+        const classes = ['cal-cell',
+          isStart ? 'cal-start' : '',
+          isEnd ? 'cal-end' : '',
+          inRange ? 'cal-in-range' : '',
+          isStart && isEnd ? 'cal-single' : '',
+          isToday ? 'cal-today' : '',
+        ].filter(Boolean).join(' ');
+        return `<button type="button" class="${classes}" onclick="_calPickDate('${iso}')">${dayNum}</button>`;
+      }).join('')}
+    </div>
+  `;
 }
 
 function _daysBetween(start, end) {
@@ -12955,9 +13127,12 @@ function _renderPushNotificationsModal() {
               <div>
                 <div class="pn-section-lbl">WHEN</div>
                 <select class="pn-select" id="pn_when" onchange="_pnDraft.when=this.value">
-                  <option value="now">Send now</option>
-                  ${(ad?.schedule || []).map(s => `<option value="before:${s.id}:30">30 min before ${esc(s.what || s.time)}</option>`).join('')}
-                  <option value="recurring:show">Recurring · every show day</option>
+                  <option value="now" ${_pnDraft.when === 'now' ? 'selected' : ''}>Send now</option>
+                  ${(ad?.schedule || []).map(s => {
+                    const v = `before:${s.id}:30`;
+                    return `<option value="${v}" ${_pnDraft.when === v ? 'selected' : ''}>30 min before ${esc(s.what || s.time)}</option>`;
+                  }).join('')}
+                  <option value="recurring:show" ${_pnDraft.when === 'recurring:show' ? 'selected' : ''}>Recurring · every show day</option>
                 </select>
               </div>
             </div>
@@ -13093,6 +13268,10 @@ function _pnSmartSuggest(ad) {
         headline: `${delta} min until ${s.what || s.time}`,
         sub: `Send a reminder?`,
         body: `${s.what || 'Heads up'} in ${delta} min — see you there.`,
+        // Pass the schedule item back so _pnApplySuggest can map the
+        // suggestion to the matching "30 min before ___" When option
+        // instead of falling back to a generic "Send now".
+        scheduleItemId: s.id,
       };
     }
   }
@@ -13127,6 +13306,12 @@ function _pnApplySuggest() {
   _pnDraft.body = sug.body;
   if (!_pnDraft.groups.length) _pnDraft.groups = ['All'];
   _pnDraft.priority = 'important';
+  // Reminder suggestions are NOW-actions — "the event is happening soon,
+  // ping everyone now." Set When = 'now' so the composer reflects that
+  // intent explicitly (previously, if the user had manually picked a
+  // "30 min before X" option earlier, the dropdown kept showing it even
+  // though _pnDraft.when had been reset — the dropdown's <option> tags
+  // were missing the `selected` attribute, which is fixed now too).
   _pnDraft.when = 'now';
   _renderPushNotificationsModal();
 }
@@ -13519,6 +13704,7 @@ Object.assign(window, {
   openDateModal, openScheduleModal, openTravelModal, openHotelModal, openRoomModal,
   openAddDateChooser, openAddDateRange, openAddDateRangeTypes,
   _addDateRangeNext, _bulkSetRangeType, _commitDateRange,
+  _calInit, _calNavMonth, _calPickDate, _calRender,
   openGuestModal, openAllotmentModal, openSetItemModal, moveSetItem, copySetList,
   openSettleModal, openAttachModal, openContactModal, openCrewModal, openCrewMemberModal,
   openTaskModal, openTagModal, toggleTask,
