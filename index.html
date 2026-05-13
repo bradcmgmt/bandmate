@@ -7058,13 +7058,6 @@ function renderPhone() {
       </div>
     ` : ''}
 
-    ${ad.dayNotes && ad.dayNotes.replace(/<[^>]+>/g, '').trim() ? `
-      <div class="p-card p-card-notes">
-        <div class="lbl" style="color:#f5d76e">DAY NOTES</div>
-        <div class="p-notes-body">${ad.dayNotes}</div>
-      </div>
-    ` : ''}
-
     ${myRoom || (isTM && ad.hotel) ? `
       <div class="p-card">
         <div class="lbl">${myRoom ? 'YOUR ROOM' : 'HOTEL'}</div>
@@ -7076,6 +7069,13 @@ function renderPhone() {
         <div class="lbl">HOTEL</div>
         <div class="h">${esc(ad.hotel.name)}</div>
         <div class="sub">No room assigned to ${esc(viewer?.name || 'you')} yet</div>
+      </div>
+    ` : ''}
+
+    ${ad.dayNotes && ad.dayNotes.replace(/<[^>]+>/g, '').trim() ? `
+      <div class="p-card p-card-notes">
+        <div class="lbl" style="color:#f5d76e">DAY NOTES</div>
+        <div class="p-notes-body">${ad.dayNotes}</div>
       </div>
     ` : ''}
 
@@ -7393,7 +7393,7 @@ function newImportWizardState() {
   return {
     files: [],
     results: [],
-    merged: { dates: [], contacts: [], hotels: [], crew: [] },
+    merged: { dates: [], contacts: [], hotels: [], crew: [], travel: [] },
     basics: { tourName: '', artist: '', presenter: '' },
     step: 'start',
   };
@@ -7538,7 +7538,7 @@ async function izStartAnalyze() {
 }
 
 function emptyExtract() {
-  return { dates: [], contacts: [], hotels: [], crew: [], attachOnly: false, money: [] };
+  return { dates: [], contacts: [], hotels: [], crew: [], travel: [], attachOnly: false, money: [] };
 }
 
 function renderImportAnalyzing() {
@@ -7660,7 +7660,9 @@ async function processImportFile(file) {
     addFromFilenameHints(fnExt, file, result);
     result.notes.push('Apple Numbers files can\'t be parsed in-browser yet — export as CSV or XLSX from Numbers (File → Export To → Excel) and re-upload for full extraction.');
   } else if (ext === 'pdf') {
-    const text = await extractPDFText(file);
+    const pdfResult = await extractPDFText(file);
+    const text = pdfResult ? pdfResult.text : null;
+    const pdfError = pdfResult ? pdfResult.error : 'unknown';
     if (text) {
       result.snippet = text.slice(0, 200);
       result.kind = 'pdf';
@@ -7670,7 +7672,19 @@ async function processImportFile(file) {
       result.extracted.attachOnly = true;
       const fnExt = extractFromFilename(file.name);
       addFromFilenameHints(fnExt, file, result);
-      result.notes.push('PDF text extraction unavailable — kept as attachment with filename hints.');
+      // Surface the specific error message so a TM seeing "PDF couldn't
+      // be read" knows whether to try a different file, unlock the PDF,
+      // or scan a paper original — instead of getting a generic "kept
+      // as attachment" line that gives them no recourse.
+      if (pdfError && /encrypted|password/i.test(pdfError)) {
+        result.notes.push('PDF is password-protected — remove the password and re-upload, or re-export from the source as an unlocked PDF.');
+      } else if (pdfError && /image|scan/i.test(pdfError)) {
+        result.notes.push('PDF appears to be a scanned image with no embedded text. Try re-exporting from the original tool, or run OCR on it first.');
+      } else if (pdfError) {
+        result.notes.push(`PDF read failed (${pdfError}) — kept as attachment. Try re-exporting the PDF, or paste the contents as text.`);
+      } else {
+        result.notes.push('PDF text extraction unavailable — kept as attachment with filename hints.');
+      }
     }
   } else if (ext === 'txt' || ext === 'md') {
     const text = await file.text();
@@ -7839,8 +7853,11 @@ async function extractXLSXSheets(file) {
 
 async function extractPDFText(file) {
   let lib;
-  try { lib = await loadPDFjs(); } catch (e) { return null; }
-  if (!lib) return null;
+  try { lib = await loadPDFjs(); } catch (e) {
+    console.warn('[Bandmate] PDF.js failed to load:', e);
+    return { text: null, error: 'PDF parser failed to load (check internet connection)' };
+  }
+  if (!lib) return { text: null, error: 'PDF parser unavailable' };
   try {
     const buf = await file.arrayBuffer();
     const pdf = await lib.getDocument({ data: buf }).promise;
@@ -7877,9 +7894,13 @@ async function extractPDFText(file) {
       });
       out += pageText + '\n\n';
     }
-    return out;
+    return { text: out, error: null };
   } catch (e) {
-    return null;
+    console.warn('[Bandmate] PDF parse failed:', e);
+    // Common cases: encrypted PDF, image-only (scanned, no embedded text),
+    // corrupted file. Surface the message so the TM can see WHY it failed.
+    const msg = (e && (e.message || e.name)) || 'unknown error';
+    return { text: null, error: msg };
   }
 }
 
@@ -8097,6 +8118,188 @@ function _extractEmails(text) {
   return out;
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Hotel & flight extraction from PDF / text itineraries.
+//
+// TMs often upload travel itineraries — flight tickets, hotel
+// confirmations, agency travel sheets — alongside their deal memos.
+// These parsers run on EVERY text/PDF doc (independent of the deal-memo
+// path) and try to recognize:
+//   • Hotels — chain name OR "Hotel:" label, plus check-in/out,
+//     confirmation #, phone, address.
+//   • Flights — airline IATA code + flight number, departure/arrival
+//     airport codes, time, confirmation/PNR, passenger name.
+//
+// Both parsers prefer false negatives over false positives — better
+// to miss an item than to surface garbage. Extracted items are
+// attached to the right tour date by city / date match in izApply.
+// ─────────────────────────────────────────────────────────────────────
+function _extractHotelsFromText(text) {
+  if (!text) return [];
+  const hotels = [];
+  const blocks = text.split(/\n{2,}/);
+  for (const block of blocks) {
+    const hotel = _parseHotelBlock(block);
+    if (hotel && hotel.name) hotels.push(hotel);
+  }
+  // Dedupe by name + check-in date
+  const seen = new Set();
+  return hotels.filter(h => {
+    const key = (h.name || '').toLowerCase().trim() + '|' + (h.date || '');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function _parseHotelBlock(block) {
+  if (!block || block.length < 30) return null;
+  // Strong signal: a hotel-related keyword OR a recognizable chain name
+  const hasHotelKw = /\b(?:hotel|property|lodging|accommodation|stay\s+at|inn|resort|suites)\b/i.test(block);
+  const chainRe = /\b(Marriott|Hyatt|Hilton|Westin|Sheraton|Holiday\s+Inn|Hampton\s+Inn|Courtyard|Residence\s+Inn|Four\s+Seasons|Ritz[- ]Carlton|W\s+Hotel|Kimpton|Loews|Fairmont|St\.?\s*Regis|Le\s+Meridien|Moxy|Aloft|Element|Edition|Standard|NoMad|Public|Graduate|Ace\s+Hotel|Virgin\s+Hotel|Cambria|Conrad|DoubleTree|Embassy\s+Suites|Hyatt\s+Place|Hyatt\s+Regency|Grand\s+Hyatt|Park\s+Hyatt|JW\s+Marriott|Renaissance|Autograph|Tribute|Gaylord|Sofitel|Pullman|Raffles|Fairfield|Home2|TownePlace|SpringHill|Best\s+Western|Quality\s+Inn|Comfort\s+Inn|La\s+Quinta|Days\s+Inn|Super\s+8|Motel\s+6|Wyndham|Radisson|Crowne\s+Plaza|InterContinental|Andaz|Thompson|Tommie|1\s+Hotel|Soho\s+House|Nobu|Edition|The\s+Standard|Ace|Freehand|Pendry|Hoxton)\b/i;
+  const hasChainName = chainRe.test(block);
+  if (!hasHotelKw && !hasChainName) return null;
+
+  const hotel = { name: '', address: '', conf: '', checkIn: '', checkOut: '', phone: '', notes: '', date: '', city: '' };
+
+  // Name: prefer "Hotel:" label, else first line containing chain
+  const labelMatch = block.match(/(?:Hotel|Property|Lodging|Accommodation)\s*[:.]\s*(.+)/i);
+  if (labelMatch) {
+    hotel.name = labelMatch[1].trim().split('\n')[0].slice(0, 100);
+  } else {
+    const lines = block.split('\n');
+    for (const line of lines) {
+      if (chainRe.test(line)) { hotel.name = line.trim().slice(0, 100); break; }
+    }
+  }
+  if (!hotel.name) return null;
+
+  // Address — "123 Main St" or "City, ST 12345" pattern
+  const cityStateZip = block.match(/([A-Z][A-Za-z .'-]+),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)/);
+  if (cityStateZip) {
+    hotel.city = cityStateZip[1].trim();
+    // Try to capture the street line preceding city/state
+    const idx = block.indexOf(cityStateZip[0]);
+    const before = block.slice(Math.max(0, idx - 200), idx).split('\n').filter(l => l.trim()).pop();
+    if (before && /^\d+\s/.test(before.trim())) {
+      hotel.address = `${before.trim()}, ${cityStateZip[0]}`;
+    } else {
+      hotel.address = cityStateZip[0];
+    }
+  }
+
+  // Confirmation
+  const confMatch = block.match(/\b(?:Conf(?:irmation)?(?:\s*(?:#|No\.?|Number|Code))?|Reservation(?:\s*#|\s*No\.?)?)\s*[:#]?\s*([A-Z0-9-]{4,20})/i);
+  if (confMatch) hotel.conf = confMatch[1];
+
+  // Phone
+  const phoneMatch = block.match(/(?:Phone|Tel|T)[:.\s]*(\+?[\d][\d\s\-().]{8,20})/i);
+  if (phoneMatch) hotel.phone = phoneMatch[1].trim();
+
+  // Check-in (date + time)
+  const inMatch = block.match(/Check[- ]?in[:\s]*([^\n]{4,40})/i);
+  if (inMatch) {
+    const v = inMatch[1];
+    const tm = v.match(/\d{1,2}:\d{2}\s*(?:AM|PM)?/i);
+    if (tm) hotel.checkIn = tm[0].trim();
+    const dt = _parseDateLoose(v);
+    if (dt) hotel.date = dt;
+  }
+  // Check-out
+  const outMatch = block.match(/Check[- ]?out[:\s]*([^\n]{4,40})/i);
+  if (outMatch) {
+    const tm = outMatch[1].match(/\d{1,2}:\d{2}\s*(?:AM|PM)?/i);
+    if (tm) hotel.checkOut = tm[0].trim();
+  }
+
+  // If we still have no date, try any date in the block as a fallback
+  if (!hotel.date) {
+    const dt = _parseDateLoose(block);
+    if (dt) hotel.date = dt;
+  }
+
+  return hotel;
+}
+
+function _extractFlightsFromText(text) {
+  if (!text) return [];
+  const flights = [];
+  // IATA airline codes (2-3 letters) + flight number (1-5 digits)
+  const re = /\b(AA|DL|UA|WN|B6|AS|NK|F9|HA|VX|G4|SY|VG|VS|BA|LH|AC|AF|KL|LX|TK|EK|QF|QR|LY|IB|FI|EI|TP|FR|U2|AY|SK|SN|OS|AZ|JL|NH|KE|OZ|CI|BR|CA|CZ|MU|SQ|CX|NZ|FJ|AM|AV|CM|LA|AR)\s*[-#]?\s*(\d{1,5})\b/g;
+  const seen = new Set();
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const code = m[1].toUpperCase();
+    const num = m[2];
+    const key = code + num;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const start = Math.max(0, m.index - 250);
+    const end = Math.min(text.length, m.index + 250);
+    const ctx = text.slice(start, end);
+    flights.push(_parseFlightContext(ctx, code, num, m.index, text));
+  }
+  return flights;
+}
+
+function _parseFlightContext(ctx, code, num, absIdx, fullText) {
+  const flight = {
+    type: 'flight',
+    description: '',
+    time: '',
+    flightNumber: `${code} ${num}`,
+    conf: '',
+    person: '',
+    notes: '',
+    allDay: false,
+    date: '',
+  };
+
+  // Route: "JFK → LAX" / "JFK to LAX" / "JFK-LAX" — IATA codes are 3 letters
+  const routeMatch = ctx.match(/\b([A-Z]{3})\s*(?:[→\->–—]|to)\s*([A-Z]{3})\b/);
+  if (routeMatch && routeMatch[1] !== routeMatch[2]) {
+    flight.description = `${routeMatch[1]} → ${routeMatch[2]}`;
+  } else {
+    flight.description = `Flight ${code} ${num}`;
+  }
+
+  // Time — first valid time near the airport codes (avoid generic "1:00")
+  const tm = ctx.match(/\b(\d{1,2}:\d{2}\s*(?:AM|PM)?)/i);
+  if (tm) flight.time = tm[1].trim();
+
+  // Date
+  const dt = _parseDateLoose(ctx);
+  if (dt) flight.date = dt;
+
+  // Confirmation / PNR
+  const conf = ctx.match(/\b(?:Conf(?:irmation)?(?:\s*(?:#|No\.?|Number|Code))?|PNR|Record\s*Locator|Booking\s*(?:#|No\.?|Reference|Ref))\s*[:#]?\s*([A-Z0-9]{4,8})/i);
+  if (conf) flight.conf = conf[1];
+
+  // Passenger name — line like "John Smith" or "SMITH/JOHN" near the flight
+  const nameMatch = ctx.match(/\b([A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/) || ctx.match(/\b([A-Z]{2,}\/[A-Z]{2,})\b/);
+  if (nameMatch) flight.person = nameMatch[1];
+
+  return flight;
+}
+
+function _parseDateLoose(text) {
+  if (!text) return '';
+  // ISO YYYY-MM-DD
+  let m = text.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  // MM/DD/YYYY or M/D/YYYY
+  m = text.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return `${m[3]}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
+  // "March 4, 2026" / "Mar 4 2026"
+  const months = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12 };
+  m = text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2}),?\s*(\d{4})/i);
+  if (m) {
+    const month = months[m[1].toLowerCase().slice(0,3)];
+    return `${m[3]}-${String(month).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
+  }
+  return '';
+}
+
 function processTextDoc(text, file, result) {
   // First try the deal-memo path. Touring agents either bundle ALL memos
   // for a tour into one fat PDF, or send each show as its own file — many
@@ -8148,6 +8351,9 @@ function processTextDoc(text, file, result) {
       });
     });
     if (emails.length) result.notes.push(`Contacts · ${Math.min(emails.length, 30)} emails extracted`);
+    // Even on deal-memo files, also scan for travel itinerary blocks.
+    // Some agencies bundle the flights / hotels into the same PDF.
+    _extractTravelAndHotelsInto(text, result);
     return;
   }
 
@@ -8192,9 +8398,32 @@ function processTextDoc(text, file, result) {
       notes: 'Extracted from ' + file.name,
     });
   });
-  if (!ext2.candidateDate && !ext2.emails.length) {
+  // Always run the travel / hotel extractors — they're independent of
+  // the deal-memo / single-show paths and can pull useful itinerary
+  // data out of any PDF (boarding passes, hotel confirmations,
+  // production travel sheets, etc.).
+  _extractTravelAndHotelsInto(text, result);
+  if (!ext2.candidateDate && !ext2.emails.length
+      && !(result.extracted.hotels || []).length
+      && !(result.extracted.travel || []).length) {
     result.notes.push('No structured data found — kept as attachment');
     result.extracted.attachOnly = true;
+  }
+}
+
+// Shared helper: pull hotel + flight items from any text doc and
+// push them onto the result. Logs notes for each non-empty category.
+function _extractTravelAndHotelsInto(text, result) {
+  if (!result.extracted.travel) result.extracted.travel = [];
+  const hotels = _extractHotelsFromText(text);
+  if (hotels.length) {
+    result.extracted.hotels.push(...hotels);
+    result.notes.push(`Hotels · ${hotels.length} extracted`);
+  }
+  const flights = _extractFlightsFromText(text);
+  if (flights.length) {
+    result.extracted.travel.push(...flights);
+    result.notes.push(`Flights · ${flights.length} extracted`);
   }
 }
 
@@ -8609,12 +8838,13 @@ function extractFromFilename(name) {
 
 /* ---------- merge & gap analysis ---------- */
 function mergeImportResults(results) {
-  const merged = { dates: [], contacts: [], hotels: [], crew: [] };
+  const merged = { dates: [], contacts: [], hotels: [], crew: [], travel: [] };
   results.forEach(r => {
     merged.dates.push(...(r.extracted.dates || []));
     merged.contacts.push(...(r.extracted.contacts || []));
     merged.hotels.push(...(r.extracted.hotels || []));
     merged.crew.push(...(r.extracted.crew || []));
+    merged.travel.push(...(r.extracted.travel || []));
   });
 
   // dedupe dates by date+city, merging fields preferentially
@@ -8889,18 +9119,54 @@ function izApply() {
   s.merged.contacts.forEach(c => T().contacts.push({ id: uid('co'), ...c }));
   s.merged.crew.forEach(c => T().crew.push({ id: uid('cw'), ...c }));
 
-  // Match hotels to dates
+  // Match hotels to dates — never overwrites a hotel already attached
+  // (TM may have manually entered one before re-syncing).
   s.merged.hotels.forEach(h => {
     let target = null;
     if (h.date) target = T().dates.find(d => d.date === h.date);
-    if (!target && h.city) target = T().dates.find(d => d.city.toLowerCase() === h.city.toLowerCase());
-    if (target) {
+    if (!target && h.city) target = T().dates.find(d => (d.city || '').toLowerCase() === h.city.toLowerCase());
+    if (target && !target.hotel) {
       target.hotel = {
         name: h.name, address: h.address || '', conf: h.conf || '',
         checkIn: h.checkIn || '', checkOut: h.checkOut || '',
         phone: h.phone || '', notes: h.notes || '', rooms: []
       };
     }
+  });
+
+  // Attach extracted flight / travel items to the date with a matching
+  // date (or, falling back, the closest preceding show date). Skips
+  // anything that would create a duplicate flight number on the same
+  // date so re-importing the same itinerary doesn't double up.
+  (s.merged.travel || []).forEach(t => {
+    let target = null;
+    if (t.date) target = T().dates.find(d => d.date === t.date);
+    if (!target && T().dates.length) {
+      // Find closest preceding date if no exact match — useful when a
+      // flight itinerary lists Mar 5 but the tour has shows on Mar 4 + Mar 6
+      const tDate = t.date;
+      if (tDate) {
+        const sorted = T().dates.filter(d => d.date && d.date <= tDate).sort((a,b) => b.date.localeCompare(a.date));
+        target = sorted[0];
+      }
+    }
+    if (!target) return;
+    if (!target.travel) target.travel = [];
+    const dupKey = (t.flightNumber || '') + '|' + (t.description || '');
+    if (target.travel.some(x => ((x.flightNumber || '') + '|' + (x.description || '')) === dupKey)) return;
+    target.travel.push({
+      id: uid('tv'),
+      type: t.type || 'flight',
+      description: t.description || '',
+      time: t.time || '',
+      flightNumber: t.flightNumber || '',
+      conf: t.conf || '',
+      person: t.person || '',
+      notes: t.notes || '',
+      allDay: !!t.allDay,
+      groups: ['All'],
+      individuals: [],
+    });
   });
 
   // Attach raw files (metadata only) to first date
@@ -13216,6 +13482,7 @@ function _idzMergeNow() {
   const allContacts = [];
   const allHotels = [];
   const allCrew = [];
+  const allTravel = [];
   _importStaging.forEach(s => {
     if (s.status === 'done' && s.result) {
       const ex = s.result.extracted || {};
@@ -13223,10 +13490,11 @@ function _idzMergeNow() {
       if (ex.contacts) allContacts.push(...ex.contacts);
       if (ex.hotels) allHotels.push(...ex.hotels);
       if (ex.crew) allCrew.push(...ex.crew);
+      if (ex.travel) allTravel.push(...ex.travel);
     }
   });
 
-  const stats = { datesUpdated: 0, datesAdded: 0, hotelsAttached: 0, contactsAdded: 0, crewAdded: 0, fieldsFilled: 0 };
+  const stats = { datesUpdated: 0, datesAdded: 0, hotelsAttached: 0, travelAttached: 0, contactsAdded: 0, crewAdded: 0, fieldsFilled: 0 };
 
   // ── Dates: match by ISO date, fill missing fields only ───────────────
   allDates.forEach(d => {
@@ -13291,6 +13559,36 @@ function _idzMergeNow() {
       stats.hotelsAttached++;
       stats.fieldsFilled++;
     }
+  });
+
+  // ── Flights / travel items: attach to a matching date, or the closest
+  //   preceding date if no exact match. Skips duplicates by flight #. ──
+  allTravel.forEach(t => {
+    let target = null;
+    if (t.date) target = tour.dates.find(d => d.date === t.date);
+    if (!target && t.date) {
+      const sorted = tour.dates.filter(d => d.date && d.date <= t.date).sort((a,b) => b.date.localeCompare(a.date));
+      target = sorted[0];
+    }
+    if (!target) return;
+    if (!target.travel) target.travel = [];
+    const dupKey = (t.flightNumber || '') + '|' + (t.description || '');
+    if (target.travel.some(x => ((x.flightNumber || '') + '|' + (x.description || '')) === dupKey)) return;
+    target.travel.push({
+      id: uid('tv'),
+      type: t.type || 'flight',
+      description: t.description || '',
+      time: t.time || '',
+      flightNumber: t.flightNumber || '',
+      conf: t.conf || '',
+      person: t.person || '',
+      notes: t.notes || '',
+      allDay: !!t.allDay,
+      groups: ['All'],
+      individuals: [],
+    });
+    stats.travelAttached = (stats.travelAttached || 0) + 1;
+    stats.fieldsFilled++;
   });
 
   // ── Contacts: dedupe by email, then by name ──────────────────────────
