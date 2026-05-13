@@ -4356,9 +4356,21 @@ function openDateModal(id) {
         soundcheck: isShow ? get('#d_sc') : (editing ? editing.soundcheck : ''),
         notes: $('#d_notes').value.trim(),
       };
-      if (!data.date || !data.city) { toast('Date and city required', 'error'); return false; }
+      // Date is always required; city is required for surfaces that
+      // actually need a place (show / press / rehearsal). Off days and
+      // travel days can be saved without a city — they're still useful
+      // as schedule placeholders, and forcing a city would mean a TM
+      // confirming an auto-inserted placeholder off-day would have to
+      // invent a city for it.
+      if (!data.date) { toast('Date required', 'error'); return false; }
+      const cityRequired = isShow || isPress || isRehearsal;
+      if (cityRequired && !data.city) { toast('City required for this day type', 'error'); return false; }
       if (editing) {
         Object.assign(editing, data);
+        // Saving an edit clears the _autoFilled flag — the TM has now
+        // explicitly reviewed this placeholder day, so it stops showing
+        // up in the tour scan as "needs confirmation."
+        if (editing._autoFilled) delete editing._autoFilled;
       } else {
         const newDate = {
           id: uid('dt'), ...data,
@@ -8532,8 +8544,11 @@ function izApply() {
   // a press hit, or a day-off plan. This walks the sorted list, detects any
   // pair more than one day apart, and inserts a minimal off-day entry for
   // every missing calendar day in between (load-out → travel → off → off →
-  // travel → next show).
-  fillDateGapsWithOffDays();
+  // travel → next show). The function returns the number of placeholder
+  // days inserted — we surface that count in the post-import toast so the
+  // TM knows to review them. Each placeholder also carries _autoFilled:true
+  // which the tour scan picks up as a "needs confirmation" gap.
+  const autoFilledCount = fillDateGapsWithOffDays() || 0;
 
   s.merged.contacts.forEach(c => T().contacts.push({ id: uid('co'), ...c }));
   s.merged.crew.forEach(c => T().crew.push({ id: uid('cw'), ...c }));
@@ -8578,8 +8593,17 @@ function izApply() {
   renderAll();
 
   const gaps = calcGapSummary(s.merged);
-  if (gaps.totalGaps) {
-    toast(`Tour built — ${gaps.totalGaps} gaps need manual entry`, '');
+  // Build a single composite toast that mentions both gaps and any
+  // auto-filled placeholder days so the TM knows EXACTLY what needs
+  // their attention next. Auto-filled days are flagged separately
+  // because they're a different kind of work — they're already days
+  // on the tour, but they need a one-tap confirmation that the type
+  // we guessed (Off) is right.
+  const bits = [];
+  if (gaps.totalGaps) bits.push(`${gaps.totalGaps} gap${gaps.totalGaps===1?'':'s'} need manual entry`);
+  if (autoFilledCount) bits.push(`${autoFilledCount} placeholder ${autoFilledCount===1?'day':'days'} between imported dates — confirm or change each`);
+  if (bits.length) {
+    toast(`Tour built — ${bits.join(' · ')}`, '');
   } else {
     toast(`Tour fully built from ${s.files.length} document${s.files.length===1?'':'s'}`, 'good');
   }
@@ -12609,6 +12633,24 @@ function scanTour(tour) {
     scan.globalGaps.push({ what: `${pastUnpaid.length} past show${pastUnpaid.length===1?'':'s'} awaiting settlement`, fix: 'Settlements tab → log final amounts and check Settled' });
   } else if (dates.some(d => d.status === 'show' && d.settlement?.settled)) {
     scan.completeGlobal.push('All past show settlements recorded');
+  }
+
+  // Auto-filled gap days from import. fillDateGapsWithOffDays() inserts
+  // these as a courtesy when an imported document leaves blank calendar
+  // days between dates — we'd rather have an off-day placeholder than a
+  // hole the TM might miss. But the TM should explicitly confirm each
+  // one (is it actually an off day? a travel leg? a rehearsal?), so we
+  // surface them here as a distinct gap until they've been touched.
+  // A date is considered "reviewed" once the TM either:
+  //   • saves an edit in the Date modal (which clears _autoFilled), or
+  //   • clicks the "Confirm" button on the day-sheet review banner.
+  const autoFilled = dates.filter(d => d._autoFilled && d.status === 'off');
+  if (autoFilled.length) {
+    const first = autoFilled[0];
+    scan.globalGaps.push({
+      what: `${autoFilled.length} placeholder ${autoFilled.length === 1 ? 'day was' : 'days were'} auto-inserted between imported dates — needs confirmation`,
+      fix: `Open each (starting ${fmtMD(first.date)}) and confirm it's actually an Off day, or change the type to Travel / Rehearsal / Show as appropriate. Saving any edit clears the placeholder flag.`,
+    });
   }
 
   return scan;
