@@ -717,6 +717,22 @@ input,select,textarea{font:inherit;color:inherit}
   font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase}
 .tile .tile-actions button:hover{color:var(--hi);border-color:var(--hi)}
 .tile .tile-actions button.del:hover{color:var(--red);border-color:var(--red)}
+/* The View and Download buttons render as anchor-or-button — same
+   visual treatment as the surrounding action buttons. View gets the
+   accent color since it's the primary affordance. */
+.tile .tile-actions .at-view-btn,
+.tile .tile-actions a.at-view-btn{flex:1;padding:5px 8px;border:1px solid rgba(232,148,58,.35);border-radius:5px;
+  background:rgba(232,148,58,.10);color:var(--hi);
+  font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+  text-align:center;text-decoration:none;cursor:pointer;display:inline-block;line-height:1.5}
+.tile .tile-actions .at-view-btn:hover,
+.tile .tile-actions a.at-view-btn:hover{border-color:var(--hi);background:rgba(232,148,58,.16)}
+.tile .tile-actions .at-dl-btn{flex:1;padding:5px 8px;border:1px solid var(--line-2);border-radius:5px;
+  background:rgba(232,148,58,.04);color:var(--warm-mute);
+  font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
+.tile .tile-actions .at-dl-btn:hover{color:var(--hi);border-color:var(--hi)}
+.tile .ftype .at-imp{font-size:9px;letter-spacing:.18em;color:#7adc97;border:1px solid rgba(122,220,151,.4);
+  padding:2px 6px;border-radius:4px;background:rgba(122,220,151,.06)}
 
 /* contact rows */
 .contact-row{display:grid;grid-template-columns:46px 1fr 1.2fr 110px 80px;gap:12px;align-items:center;padding:13px 14px;border-top:1px solid var(--line)}
@@ -1352,6 +1368,12 @@ input,select,textarea{font:inherit;color:inherit}
 .travel-share{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .travel-share.muted-share{color:var(--warm-mute);font-family:'JetBrains Mono',monospace;font-size:10px;
   letter-spacing:.06em;font-style:italic}
+/* Imported flights start with no audience and surface a bright warning
+   chip so the TM picks who's actually flying before it broadcasts. */
+.viz-chip.warn-chip{background:rgba(253,186,116,.16);color:#fdba74;border:1px solid rgba(253,186,116,.55);
+  font-weight:700;letter-spacing:.18em;animation:warnPulse 2.2s ease-in-out infinite}
+@keyframes warnPulse{0%,100%{box-shadow:0 0 0 0 rgba(253,186,116,.0)}50%{box-shadow:0 0 0 4px rgba(253,186,116,.18)}}
+.item-row.travel-needs-audience{background:rgba(253,186,116,.04);border-left:2px solid rgba(253,186,116,.45)}
 
 /* Schedule · Templates dropdown — save current run-of-show, deploy saved ones. */
 .sched-template-wrap{display:inline-block}
@@ -5091,8 +5113,9 @@ function openTravelModal(itemId) {
           <label>Flight # <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional)</span></label>
           <input id="tv_flight" value="${esc(i.flightNumber || '')}" placeholder="e.g. AA 484 · DL 1290 · UA 422">
         </div>
-        <div class="field full"><label>Visible to groups <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span></label>
-          ${renderGroupPicker('tv_grp', i.groups && i.groups.length ? i.groups : ['All'], true)}
+        <div class="field full">
+          <label>Visible to groups <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span>${i._audienceNeeded ? ' <span class="mono" style="color:#fdba74;font-size:10px;letter-spacing:.18em;text-transform:uppercase;margin-left:6px">! Imported — pick who&apos;s flying</span>' : ''}</label>
+          ${renderGroupPicker('tv_grp', i.groups && i.groups.length ? i.groups : (i._audienceNeeded ? [] : ['All']), true)}
         </div>
         <div class="field full"><label>+ Specific individuals <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(in addition to groups)</span></label>
           <div class="group-picker" id="tv_ind_picker">
@@ -5121,6 +5144,10 @@ function openTravelModal(itemId) {
         person: $('#tv_person').value.trim(), conf: $('#tv_conf').value.trim(), notes: $('#tv_notes').value.trim(),
         groups, individuals, flightNumber,
       };
+      // Clear the audience-needed flag once the TM picks anyone —
+      // groups or individuals. This drops the bright ! warning chip
+      // and removes the entry from the tour scan gap list.
+      if (groups.length || individuals.length) data._audienceNeeded = false;
       if (item) Object.assign(item, data);
       else ad.travel.push({ id: uid('tv'), ...data });
       // All-day items sort first, then by time
@@ -5451,39 +5478,180 @@ function openSettleModal(dateId) {
    ATTACHMENTS — metadata only (production = cloud storage)
    ===================================================================== */
 const ATTACH_TYPES = ['Contract', 'Rider', 'Stage Plot', 'Input List', 'Day Sheet', 'Parking', 'Immigration', 'Venue Map', 'Other'];
+// Holds the most recently picked file for openAttachModal between
+// the file input's change event and the modal's onSubmit. Keyed by
+// the modal's session (cleared whenever the modal is reopened) so a
+// stale pick from a previous open can't leak into the new save.
+let _attachPickedFile = null;
+let _attachPickedDataUrl = '';
+
 function openAttachModal(attId) {
   const ad = getActiveDate();
   if (!ad) return;
   const a = attId ? ad.attachments.find(x => x.id === attId) : null;
-  const v = a || { name: '', type: 'Contract', size: '', link: '', tags: '' };
+  const v = a || { name: '', type: 'Contract', size: '', link: '', tags: '', dataUrl: '', mime: '' };
+  _attachPickedFile = null;
+  _attachPickedDataUrl = '';
+  const hasInline = !!(a && a.dataUrl);
   openModal({
     title: a ? 'Edit attachment' : 'Add attachment',
     showDelete: !!a,
     onDelete: a ? () => { ad.attachments = ad.attachments.filter(x => x.id !== a.id); saveState(); } : null,
     body: `
       <div class="form-grid">
+        <div class="field full">
+          <label>Pick a file <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(stored inline · up to 5 MB)</span></label>
+          <input type="file" id="at_file" onchange="_attachFilePicked(this)">
+          <div id="at_file_status" class="muted mono" style="font-size:10.5px;margin-top:4px;letter-spacing:.06em">
+            ${hasInline ? `Inline file stored · ${esc(v.size || '')}` : 'No file picked yet — or use the cloud link below'}
+          </div>
+        </div>
         <div class="field full"><label>File name *</label><input id="at_name" value="${esc(v.name)}" placeholder="e.g. Royale-Performance-Agreement.pdf"></div>
         <div class="field"><label>Type</label>
           <select id="at_type">${ATTACH_TYPES.map(t => `<option ${v.type===t?'selected':''}>${t}</option>`).join('')}</select>
         </div>
         <div class="field"><label>Size</label><input id="at_size" value="${esc(v.size)}" placeholder="1.2 MB"></div>
-        <div class="field full"><label>Link / cloud URL</label><input id="at_link" value="${esc(v.link)}" placeholder="https://drive.google.com/..."></div>
+        <div class="field full"><label>Link / cloud URL <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional · used when no inline file)</span></label><input id="at_link" value="${esc(v.link)}" placeholder="https://drive.google.com/..."></div>
         <div class="field full"><label>Tags (comma sep)</label><input id="at_tags" value="${esc(v.tags)}" placeholder="Legal, Tech, Hospitality"></div>
       </div>
-      <div class="help">Bandmate stores file metadata + a link. Actual files would live in cloud storage in production (Drive / Dropbox / S3).</div>
+      <div class="help">Pick a file to store it inline (lives in this browser's local storage). For files over 5 MB or shared from elsewhere, paste a cloud URL instead — Drive / Dropbox / S3 / Box.</div>
     `,
     onSubmit: () => {
       const name = $('#at_name').value.trim();
       if (!name) { toast('File name required', 'error'); return false; }
       const data = {
         name, type: $('#at_type').value, size: $('#at_size').value.trim(),
-        link: $('#at_link').value.trim(), tags: $('#at_tags').value.trim(), addedAt: a?.addedAt || Date.now()
+        link: $('#at_link').value.trim(), tags: $('#at_tags').value.trim(),
+        addedAt: a?.addedAt || Date.now(),
       };
+      // Inline a freshly picked file. Editing an existing attachment
+      // without picking a new file keeps the previous dataUrl/mime.
+      if (_attachPickedDataUrl) {
+        data.dataUrl = _attachPickedDataUrl;
+        data.mime = (_attachPickedFile && _attachPickedFile.type) || _guessMimeFromName(name);
+      } else if (a) {
+        data.dataUrl = a.dataUrl || '';
+        data.mime = a.mime || '';
+      }
       if (a) Object.assign(a, data);
       else ad.attachments.push({ id: uid('at'), ...data });
       saveState();
+      _attachPickedFile = null;
+      _attachPickedDataUrl = '';
     }
   });
+}
+
+// File-input change handler for openAttachModal. Reads small files as
+// data URLs and auto-fills the Name / Size fields. Refuses files over
+// 5 MB (would risk filling localStorage) — those are surfaced as a
+// toast so the TM can paste a cloud link instead.
+async function _attachFilePicked(input) {
+  const file = input && input.files && input.files[0];
+  const status = document.getElementById('at_file_status');
+  if (!file) { _attachPickedFile = null; _attachPickedDataUrl = ''; return; }
+  const INLINE_LIMIT = 5 * 1024 * 1024;
+  if (file.size > INLINE_LIMIT) {
+    toast(`File ${(file.size/1024/1024).toFixed(1)} MB — too large to store inline. Add a cloud link instead.`, 'error');
+    input.value = '';
+    _attachPickedFile = null;
+    _attachPickedDataUrl = '';
+    if (status) status.textContent = 'No file picked — over 5 MB; paste a cloud URL below.';
+    return;
+  }
+  try {
+    const dataUrl = await _fileToDataURL(file);
+    _attachPickedFile = file;
+    _attachPickedDataUrl = dataUrl;
+    // Auto-fill name + size if not already set
+    const nameInp = document.getElementById('at_name');
+    const sizeInp = document.getElementById('at_size');
+    if (nameInp && !nameInp.value.trim()) nameInp.value = file.name;
+    if (sizeInp && !sizeInp.value.trim()) sizeInp.value = formatSize(file.size);
+    if (status) status.textContent = `Ready to save · ${formatSize(file.size)} · ${file.name}`;
+  } catch (e) {
+    toast('Could not read file: ' + (e.message || e), 'error');
+  }
+}
+
+// Walk every owned tour for the attachment id. We don't restrict to
+// the active date because View/Download buttons should still work
+// even if the user is looking at a date that doesn't own the file.
+function _findAttachmentById(attId) {
+  const tours = (state && state.tours) ? Object.values(state.tours) : [];
+  for (const tour of tours) {
+    for (const d of (tour.dates || [])) {
+      const hit = (d.attachments || []).find(x => x.id === attId);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+// Open an inline-stored attachment for viewing. PDFs and images render
+// natively in a new tab; other types (Word, Excel, etc.) the browser
+// will offer to download — that's the standard data-URL behavior and
+// matches user expectations for "view it now".
+function _viewAttachment(attId) {
+  const a = _findAttachmentById(attId);
+  if (!a || !a.dataUrl) { toast('No inline file stored for this attachment', 'error'); return; }
+  // Convert the data URL to a Blob URL — Chrome/Edge block direct
+  // navigation to large data: URLs, but Blob URLs always work and
+  // honor the original MIME type.
+  try {
+    const url = _dataUrlToBlobUrl(a.dataUrl, a.mime);
+    const w = window.open(url, '_blank', 'noopener,noreferrer');
+    // Revoke the blob URL after a delay — the new tab needs time to
+    // grab it, but we don't want to leak memory. 60s is conservative.
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    if (!w) toast('Allow pop-ups to view inline attachments', 'error');
+  } catch (e) {
+    toast('Could not open attachment: ' + (e.message || e), 'error');
+  }
+}
+
+// Trigger a file download with the original filename. Uses an anchor
+// click trick — every browser respects download="filename" when the
+// href is a Blob URL.
+function _downloadAttachment(attId) {
+  const a = _findAttachmentById(attId);
+  if (!a || !a.dataUrl) { toast('No inline file stored for this attachment', 'error'); return; }
+  try {
+    const url = _dataUrlToBlobUrl(a.dataUrl, a.mime);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = a.name || 'attachment';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (e) {
+    toast('Could not download attachment: ' + (e.message || e), 'error');
+  }
+}
+
+// Convert a "data:<mime>;base64,<...>" string to a Blob URL. Browsers
+// allow Blob URLs at arbitrary size — data: URLs hit length caps for
+// inline navigation, especially in Chrome.
+function _dataUrlToBlobUrl(dataUrl, mimeHint) {
+  const commaIdx = dataUrl.indexOf(',');
+  if (commaIdx < 0) throw new Error('Malformed data URL');
+  const meta = dataUrl.slice(0, commaIdx);
+  const body = dataUrl.slice(commaIdx + 1);
+  const isBase64 = /;base64/i.test(meta);
+  const mimeMatch = meta.match(/^data:([^;]+)/i);
+  const mime = (mimeMatch && mimeMatch[1]) || mimeHint || 'application/octet-stream';
+  let bin;
+  if (isBase64) {
+    const raw = atob(body);
+    const arr = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    bin = arr;
+  } else {
+    bin = new TextEncoder().encode(decodeURIComponent(body));
+  }
+  const blob = new Blob([bin], { type: mime });
+  return URL.createObjectURL(blob);
 }
 
 /* =====================================================================
@@ -6269,19 +6437,31 @@ function _mergedDaySchedule(ad) {
     const code = t.flightNumber ? ' · ' + t.flightNumber : (t.conf ? ' · ' + t.conf : '');
     return `${type}${code}${t.description ? ' · ' + t.description : ''}`;
   };
-  const travelRows = (ad.travel || []).map(t => ({
-    id: '_tv_' + t.id,
-    time: t.time || '',
-    allDay: !!t.allDay,
-    what: travelLabel(t),
-    who: t.person || '',
-    notes: t.notes || '',
-    groups: (t.groups && t.groups.length) ? t.groups : ['All'],
-    individuals: t.individuals || [],
-    _fromTravel: true,
-    _travelId: t.id,
-    _travelType: t.type,
-  }));
+  const travelRows = (ad.travel || []).map(t => {
+    // Propagate the audience-needed flag onto the virtual schedule
+    // row so isItemVisibleToViewer hides it from non-TM viewers until
+    // the TM resolves it. Without this, an imported flight would leak
+    // into the crew's Today schedule (which falls back to ['All']
+    // when groups are empty for legacy compatibility).
+    const audienceNeeded = !!t._audienceNeeded || (((t.type || '').toLowerCase() === 'flight') && !(t.groups && t.groups.length) && !(t.individuals && t.individuals.length));
+    return {
+      id: '_tv_' + t.id,
+      time: t.time || '',
+      allDay: !!t.allDay,
+      what: travelLabel(t),
+      who: t.person || '',
+      notes: t.notes || '',
+      // Mirror the source item's audience instead of defaulting to
+      // 'All' — that default would override _audienceNeeded since
+      // 'All' bypasses the visibility check.
+      groups: audienceNeeded ? [] : ((t.groups && t.groups.length) ? t.groups : ['All']),
+      individuals: t.individuals || [],
+      _fromTravel: true,
+      _travelId: t.id,
+      _travelType: t.type,
+      _audienceNeeded: audienceNeeded,
+    };
+  });
   const merged = sched.concat(travelRows);
   const toMin = (item) => {
     if (item.allDay) return -1;
@@ -6412,11 +6592,21 @@ function renderTravel() {
           const grps = t.groups || [];
           const indivs = t.individuals || [];
           const indivCrew = indivs.map(id => T().crew.find(c => c.id === id)).filter(Boolean);
-          const sharedHtml = (grps.length || indivs.length)
-            ? `<div class="travel-share">${grps.map(g => `<span class="viz-chip group ${g==='All'?'all':''}">${esc(g)}</span>`).join('')}${indivCrew.map(c => `<span class="viz-chip indiv">${esc(c.name.split(' ')[0])}</span>`).join('')}</div>`
-            : `<div class="travel-share muted-share">Visible to all — set audience in Edit</div>`;
+          // Audience-needed flag — set on flights when they come in via
+          // an import without an explicit passenger list. Renders a
+          // bright ! exclamation badge prompting the TM to pick who's
+          // on the flight before broadcasting it to the crew.
+          const audienceNeeded = !!t._audienceNeeded || (((t.type || '').toLowerCase() === 'flight') && !grps.length && !indivs.length);
+          let sharedHtml;
+          if (audienceNeeded) {
+            sharedHtml = `<div class="travel-share"><span class="viz-chip warn-chip" title="Needs audience — pick who's on this flight">! NEEDS AUDIENCE</span></div>`;
+          } else if (grps.length || indivs.length) {
+            sharedHtml = `<div class="travel-share">${grps.map(g => `<span class="viz-chip group ${g==='All'?'all':''}">${esc(g)}</span>`).join('')}${indivCrew.map(c => `<span class="viz-chip indiv">${esc(c.name.split(' ')[0])}</span>`).join('')}</div>`;
+          } else {
+            sharedHtml = `<div class="travel-share muted-share">Visible to all — set audience in Edit</div>`;
+          }
           return `
-          <div class="item-row" style="grid-template-columns:60px 80px 1fr 110px 80px;align-items:flex-start">
+          <div class="item-row${audienceNeeded ? ' travel-needs-audience' : ''}" style="grid-template-columns:60px 80px 1fr 110px 80px;align-items:flex-start">
             <span class="who" style="color:var(--hi);padding-top:6px">${esc(TRAVEL_BADGE[t.type] || t.type.toUpperCase())}</span>
             <span class="t" style="padding-top:6px">${t.allDay ? 'ALL DAY' : esc(t.time || '—')}</span>
             <span class="what" style="padding-top:6px">${esc(t.description)}${t.notes ? `<span class="note">${esc(t.notes)}</span>` : ''}${sharedHtml}</span>
@@ -6857,17 +7047,32 @@ function renderAttachments() {
       </div>
     ` : `
       <div class="tile-grid">
-        ${items.map(a => `
+        ${items.map(a => {
+          // Three viewing options based on what's stored:
+          //   1. Inline file (dataUrl)  → View + Download both wired
+          //      to the data URL with proper filename
+          //   2. Cloud link only        → Open in new tab
+          //   3. Metadata only          → Edit only
+          const hasInline = !!a.dataUrl;
+          const hasLink = !!a.link;
+          const viewBtn = hasInline
+            ? `<button type="button" class="at-view-btn" onclick="_viewAttachment('${a.id}')">View</button>`
+            : (hasLink ? `<a class="at-view-btn" href="${esc(a.link)}" target="_blank" rel="noopener noreferrer">Open ↗</a>` : '');
+          const downloadBtn = hasInline
+            ? `<button type="button" class="at-dl-btn" onclick="_downloadAttachment('${a.id}')">Download</button>`
+            : '';
+          return `
           <div class="tile">
-            <div class="ftype"><div class="left"><span class="dot"></span> ${esc(a.type.toUpperCase())}</div></div>
+            <div class="ftype"><div class="left"><span class="dot"></span> ${esc(a.type.toUpperCase())}</div>${a.tags === 'imported' ? '<span class="at-imp">↑ IMPORTED</span>' : ''}</div>
             <div class="name">${esc(a.name)}</div>
             <div class="meta"><span>${esc(a.size || '—')}</span><span>${esc(a.tags || '')}</span></div>
             <div class="tile-actions">
-              ${a.link ? `<a href="${esc(a.link)}" target="_blank" rel="noopener noreferrer" style="flex:1;text-align:center;padding:5px 8px;border:1px solid var(--line-2);border-radius:5px;background:rgba(232,148,58,.04);color:var(--hi);font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;text-decoration:none">Open ↗</a>` : ''}
+              ${viewBtn}
+              ${downloadBtn}
               <button type="button" onclick="openAttachModal('${a.id}')">Edit</button>
             </div>
-          </div>
-        `).join('')}
+          </div>`;
+        }).join('')}
       </div>
     `}
   `;
@@ -7963,7 +8168,50 @@ async function processImportFile(file) {
     addFromFilenameHints(fnExt, file, result);
     result.notes.push('Unsupported file type — kept as attachment.');
   }
+  // Inline the file contents as a data URL so the Attachments tab can
+  // offer View / Download later. Cap at 5 MB per file — anything larger
+  // would risk blowing the localStorage quota (~5–10 MB total per
+  // origin). For oversize files we still attach the metadata, just
+  // without inline contents; the TM can re-upload or add a cloud link.
+  const INLINE_LIMIT = 5 * 1024 * 1024;
+  if (file.size <= INLINE_LIMIT) {
+    try {
+      result.dataUrl = await _fileToDataURL(file);
+      result.mime = file.type || _guessMimeFromName(file.name);
+    } catch (_) { /* swallow — attachment will just lack inline contents */ }
+  } else {
+    result.notes.push(`File ${(file.size/1024/1024).toFixed(1)} MB — too large to store inline; add a cloud link in the Attachments tab.`);
+  }
   return result;
+}
+
+// Read a File / Blob as a base64 data URL. Returns a Promise resolving
+// to a "data:<mime>;base64,..." string suitable for an <a href> or
+// <iframe src> in the Attachments view.
+function _fileToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error || new Error('FileReader failed'));
+    r.readAsDataURL(file);
+  });
+}
+
+// Best-effort MIME guess from filename extension — File.type is
+// frequently empty (especially for files dragged in from Finder /
+// Explorer), so we fall back to this map.
+function _guessMimeFromName(name) {
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  const map = {
+    pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+    gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+    csv: 'text/csv', json: 'application/json', txt: 'text/plain', md: 'text/markdown',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    xls: 'application/vnd.ms-excel',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  };
+  return map[ext] || 'application/octet-stream';
 }
 
 async function processCSV(text, file, result) {
@@ -9369,6 +9617,12 @@ function _attachImportedFileToMatchingDates(r) {
       type: fileType,
       size: formatSize(r.file.size || 0),
       link: '',
+      // Inline file contents (data URL) and detected MIME so the
+      // Attachments tab can render View / Download buttons that
+      // actually work, not just metadata. Empty when file was too
+      // large to inline — falls back to the cloud-link UX.
+      dataUrl: r.dataUrl || '',
+      mime: r.mime || '',
       tags: 'imported',
       addedAt: Date.now(),
     });
@@ -9728,6 +9982,13 @@ function izApply() {
     if (!target.travel) target.travel = [];
     const dupKey = (t.flightNumber || '') + '|' + (t.description || '');
     if (target.travel.some(x => ((x.flightNumber || '') + '|' + (x.description || '')) === dupKey)) return;
+    // Audience defaults by travel type. Flights almost always carry
+    // specific people (a band member rebooking, an opener flying out
+    // separately), so we leave them with no audience and surface a
+    // "needs audience" gap on the dashboard / tour scan — the TM has
+    // to pick who's actually on the flight. Buses / vans / trains /
+    // cars usually carry the whole tour, so default them to "All".
+    const isFlight = (t.type || 'flight').toLowerCase() === 'flight';
     target.travel.push({
       id: uid('tv'),
       type: t.type || 'flight',
@@ -9738,8 +9999,9 @@ function izApply() {
       person: t.person || '',
       notes: t.notes || '',
       allDay: !!t.allDay,
-      groups: ['All'],
+      groups: isFlight ? [] : ['All'],
       individuals: [],
+      _audienceNeeded: isFlight,
     });
   });
 
@@ -10207,6 +10469,12 @@ function migrateGroups() {
 
 function isItemVisibleToViewer(item, viewer, isTM) {
   if (isTM) return true;
+  // Imported flights start with no audience and an _audienceNeeded
+  // flag. Until the TM picks who's actually on the flight, the row
+  // stays hidden from crew so we don't broadcast a placeholder to
+  // everyone. The flag is cleared the moment the TM saves any
+  // groups/individuals selection.
+  if (item && item._audienceNeeded) return false;
   const groups = item.groups || [];
   const indivs = item.individuals || [];
   if (!groups.length && !indivs.length) return true;                 // legacy: no assignment = visible
@@ -13871,6 +14139,18 @@ function calcLiveDateGaps(d) {
   // night, the Hotels tab is considered complete. TMs add room blocks as a
   // convenience, not a requirement, so it shouldn't drive a gap warning.
   if (!d.schedule || !d.schedule.length) missing.push('schedule');
+  // Imported flights start with no audience so the TM has to confirm
+  // who's actually on the flight before the crew sees it. Surface that
+  // as its own gap so it shows on the Travel tab AND the Tour Scan.
+  const flightsNeedingAudience = (d.travel || []).filter(t => {
+    const isFlight = (t.type || '').toLowerCase() === 'flight';
+    if (!isFlight) return false;
+    const hasAudience = (t.groups && t.groups.length) || (t.individuals && t.individuals.length);
+    return t._audienceNeeded || !hasAudience;
+  });
+  if (flightsNeedingAudience.length) {
+    missing.push(`flight audience · ${flightsNeedingAudience.length} flight${flightsNeedingAudience.length===1?'':'s'} need${flightsNeedingAudience.length===1?'s':''} a passenger list`);
+  }
   return missing;
 }
 
@@ -13885,6 +14165,7 @@ function gapsByTab(d) {
     if (g === 'date' || g === 'city' || g === 'venue' || g === 'capacity') map.dashboard.hard.push(g);
     else if (g === 'schedule') map.schedule.hard.push(g);
     else if (g === 'travel items') map.travel.hard.push(g);
+    else if (g.startsWith('flight audience')) map.travel.hard.push(g);
     else if (g === 'hotel or travel') {
       // either-or: surface on BOTH Travel and Hotels with the "or" treatment
       map.travel.or.push(g);
@@ -14303,6 +14584,11 @@ function _idzMergeNow() {
     if (!target.travel) target.travel = [];
     const dupKey = (t.flightNumber || '') + '|' + (t.description || '');
     if (target.travel.some(x => ((x.flightNumber || '') + '|' + (x.description || '')) === dupKey)) return;
+    // Same audience-by-type rule as the new-tour import path —
+    // flights leave audience unset (gap on dashboard, item in tour
+    // scan) so the TM picks who's flying; buses/vans/etc. default to
+    // "All" since they usually carry the whole tour.
+    const isFlight = (t.type || 'flight').toLowerCase() === 'flight';
     target.travel.push({
       id: uid('tv'),
       type: t.type || 'flight',
@@ -14313,8 +14599,9 @@ function _idzMergeNow() {
       person: t.person || '',
       notes: t.notes || '',
       allDay: !!t.allDay,
-      groups: ['All'],
+      groups: isFlight ? [] : ['All'],
       individuals: [],
+      _audienceNeeded: isFlight,
     });
     stats.travelAttached = (stats.travelAttached || 0) + 1;
     stats.fieldsFilled++;
@@ -14828,7 +15115,7 @@ function _scanGapToTab(missing) {
   // Priority order — fix the most critical gap first
   for (const m of missing) {
     if (m === 'schedule') return 'schedule';
-    if (m === 'hotel or travel' || m === 'travel items') return 'travel';
+    if (m === 'hotel or travel' || m === 'travel items' || (typeof m === 'string' && m.startsWith('flight audience'))) return 'travel';
     if (m === 'hotel' || m === 'hotel rooms') return 'hotels';
   }
   // Anything else (city / venue / capacity / etc.) lives on the
@@ -15223,7 +15510,7 @@ Object.assign(window, {
   _addDateRangeNext, _bulkSetRangeType, _commitDateRange,
   _calInit, _calNavMonth, _calPickDate, _calRender,
   openGuestModal, openAllotmentModal, openSetItemModal, moveSetItem, copySetList,
-  openSettleModal, openAttachModal, openContactModal, openCrewModal, openCrewMemberModal,
+  openSettleModal, openAttachModal, _attachFilePicked, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal,
   openTaskModal, openTagModal, toggleTask,
   setActive, closeModal, _modalSubmit, goToTab,
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
