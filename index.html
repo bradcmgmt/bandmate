@@ -1667,7 +1667,55 @@ body.print-stage-mode #stagePrintArea{
   body.print-stage-mode #stagePrintArea{position:static;overflow:visible}
   .stage-print-page{padding:0;max-width:none}
   .sp-song{page-break-inside:avoid}
+  .gp-page{padding:0;max-width:none}
+  .gp-row{page-break-inside:avoid}
 }
+
+/* Guest list print sheet (box-office copy). High-contrast B&W —
+   designed to look right on the cheapest venue printer. Letter-size
+   max-width, table-based layout for easy ticking-off names. */
+.gp-page{
+  font-family:'Inter',sans-serif;background:#fff;color:#000;
+  padding:32px 44px;max-width:850px;margin:0 auto}
+.gp-head{border-bottom:3px solid #000;padding-bottom:14px;margin-bottom:18px}
+.gp-eyebrow{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.28em;
+  text-transform:uppercase;color:#000;font-weight:700;margin-bottom:6px}
+.gp-artist{font-size:28px;font-weight:900;letter-spacing:.02em;line-height:1.1;margin-bottom:4px}
+.gp-meta{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;
+  font-weight:700;color:#000;margin-bottom:8px}
+.gp-summary{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;
+  font-weight:700;color:#444;text-transform:uppercase}
+
+.gp-table{width:100%;border-collapse:collapse;margin-top:6px}
+.gp-table thead th{text-align:left;font-family:'JetBrains Mono',monospace;font-size:10px;
+  letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:#000;
+  padding:9px 8px 6px;border-bottom:2px solid #000}
+.gp-table tbody td{padding:11px 8px;border-bottom:1px solid #999;vertical-align:middle;font-size:13.5px;color:#000}
+.gp-table .gp-n{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#000;width:40px;text-align:right}
+.gp-table .gp-name{font-size:15px;font-weight:600}
+.gp-table .gp-name b{font-weight:800}
+.gp-table .gp-plus{font-family:'JetBrains Mono',monospace;font-weight:700;color:#000;margin-left:6px}
+.gp-table .gp-pass{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;letter-spacing:.12em;
+  text-transform:uppercase;color:#000;width:110px;white-space:nowrap}
+.gp-table .gp-by{font-family:'JetBrains Mono',monospace;font-size:11px;color:#444;width:170px}
+.gp-table .gp-sig{width:120px;height:32px;border:none}
+.gp-table .gp-sig::before{content:"";display:block;height:24px;border-bottom:1px solid #000}
+.gp-table.gp-table-pending tbody td{opacity:.65}
+
+.gp-section-head{margin:22px 0 4px;font-family:'JetBrains Mono',monospace;font-size:11px;
+  letter-spacing:.22em;text-transform:uppercase;font-weight:800;color:#000;
+  padding-bottom:6px;border-bottom:2px dashed #000}
+
+.gp-foot{display:grid;grid-template-columns:1fr 1fr 1fr;gap:32px;margin-top:32px;padding-top:18px;
+  border-top:3px solid #000}
+.gp-sign{display:flex;flex-direction:column}
+.gp-sign-line{height:36px;border-bottom:1px solid #000}
+.gp-sign-lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.2em;
+  text-transform:uppercase;color:#000;font-weight:700;margin-top:4px}
+
+.gp-empty{text-align:center;padding:32px 0;font-style:italic;color:#444}
+.gp-fineprint{text-align:center;margin-top:18px;font-family:'JetBrains Mono',monospace;font-size:9px;
+  letter-spacing:.14em;color:#666;text-transform:uppercase;line-height:1.5}
 
 
 /* ============ INLINE SCHEDULE VISIBILITY PICKER ============ */
@@ -3255,11 +3303,11 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
       <nav class="tabs" id="tabs">
         <button type="button" class="tab active" data-tab="dashboard"><span class="num">01</span> Dashboard</button>
         <button type="button" class="tab" data-tab="schedule"><span class="num">02</span> Schedule</button>
-        <button type="button" class="tab" data-tab="travel"><span class="num">03</span> Travel</button>
-        <button type="button" class="tab" data-tab="hotels"><span class="num">04</span> Hotels</button>
-        <button type="button" class="tab" data-tab="guest"><span class="num">05</span> Guest List</button>
-        <button type="button" class="tab" data-tab="setlist"><span class="num">06</span> Set List</button>
-        <button type="button" class="tab" data-tab="notes"><span class="num">07</span> Day Notes</button>
+        <button type="button" class="tab" data-tab="notes"><span class="num">03</span> Day Notes</button>
+        <button type="button" class="tab" data-tab="travel"><span class="num">04</span> Travel</button>
+        <button type="button" class="tab" data-tab="hotels"><span class="num">05</span> Hotels</button>
+        <button type="button" class="tab" data-tab="guest"><span class="num">06</span> Guest List</button>
+        <button type="button" class="tab" data-tab="setlist"><span class="num">07</span> Set List</button>
         <button type="button" class="tab" data-tab="files"><span class="num">08</span> Attachments</button>
         <button type="button" class="tab tab-fixed" data-tab="acct"><span class="num">09</span> Settlements</button>
         <button type="button" class="tab tab-fixed" data-tab="venues"><span class="num">10</span> Venues</button>
@@ -3271,11 +3319,11 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 
       <div class="panel active" data-panel="dashboard" id="p-dashboard"></div>
       <div class="panel" data-panel="schedule" id="p-schedule"></div>
+      <div class="panel" data-panel="notes" id="p-notes"></div>
       <div class="panel" data-panel="travel" id="p-travel"></div>
       <div class="panel" data-panel="hotels" id="p-hotels"></div>
       <div class="panel" data-panel="guest" id="p-guest"></div>
       <div class="panel" data-panel="setlist" id="p-setlist"></div>
-      <div class="panel" data-panel="notes" id="p-notes"></div>
       <div class="panel" data-panel="acct" id="p-acct"></div>
       <div class="panel" data-panel="files" id="p-files"></div>
       <div class="panel" data-panel="venues" id="p-venues"></div>
@@ -3804,6 +3852,56 @@ function fillDateGapsWithOffDays() {
   return inserted;
 }
 
+// After importing a tour, look at the show-date range and add one
+// travel-day entry immediately before the first show and one immediately
+// after the last show — unless those dates already exist on the tour.
+// Status='travel' so they're flagged in the dashboard as "needs travel
+// detail" rather than as off-days. This frames the tour the way TMs
+// actually work — arrive a day early, depart a day late.
+function _padTourEdgesWithTravelDays() {
+  const tour = T();
+  if (!tour || !tour.dates || !tour.dates.length) return 0;
+  // Find first/last entries that look like real show data. We don't
+  // pad off / travel entries — only actual SHOWS get the courtesy.
+  const shows = tour.dates.filter(d =>
+    /^\d{4}-\d{2}-\d{2}/.test(d.date || '') &&
+    ((d.status || 'show').toLowerCase() === 'show' || d.venue || (d.city && d.city.trim()))
+  );
+  if (!shows.length) return 0;
+  shows.sort((a, b) => a.date.localeCompare(b.date));
+  const have = new Set(tour.dates.filter(d => d.date).map(d => d.date.slice(0, 10)));
+  let added = 0;
+  const mkTravel = (iso, label) => ({
+    id: uid('dt'),
+    date: iso,
+    city: '', state: '', country: '',
+    venue: '', capacity: '',
+    status: 'travel',
+    doors: '', setTime: '', loadIn: '', soundcheck: '',
+    promoter: '',
+    schedule: [], travel: [], guests: [], setList: [], attachments: [],
+    hotel: null,
+    settlement: { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' },
+    notes: label,
+    _imported: true,
+    _autoFilled: true,
+  });
+  const before = addDaysISO(shows[0].date.slice(0, 10), -1);
+  if (before && !have.has(before)) {
+    tour.dates.push(mkTravel(before, 'Auto-added travel day — arrival before first show'));
+    have.add(before);
+    added++;
+  }
+  const after = addDaysISO(shows[shows.length - 1].date.slice(0, 10), 1);
+  if (after && !have.has(after)) {
+    tour.dates.push(mkTravel(after, 'Auto-added travel day — fly-home after last show'));
+    have.add(after);
+    added++;
+  }
+  if (added) tour.dates.sort((a, b) => (a.date || 'zz').localeCompare(b.date || 'zz'));
+  return added;
+}
+
 // Add N days to an ISO date string (YYYY-MM-DD). Returns '' if input is invalid.
 function addDaysISO(iso, n) {
   if (!iso || typeof iso !== 'string') return '';
@@ -4067,7 +4165,7 @@ function exportTour() {
    MODAL SYSTEM
    ===================================================================== */
 let _modalOnSubmit = null;
-function openModal({ title, body, onSubmit, submitLabel = 'Save', size = '', showDelete = false, onDelete = null, hideFooter = false }) {
+function openModal({ title, body, onSubmit, submitLabel = 'Save', size = '', showDelete = false, onDelete = null, hideFooter = false, deleteLabel = 'Delete' }) {
   _modalOnSubmit = onSubmit;
   const root = $('#modalRoot');
   root.innerHTML = `
@@ -4080,7 +4178,7 @@ function openModal({ title, body, onSubmit, submitLabel = 'Save', size = '', sho
         <div class="modal-body">${body}</div>
         ${hideFooter ? '' : `
           <div class="modal-foot">
-            ${showDelete ? `<button type="button" class="btn danger" onclick="_modalDelete()">Delete</button><div class="flex1"></div>` : ''}
+            ${showDelete ? `<button type="button" class="btn danger" onclick="_modalDelete()">${esc(deleteLabel)}</button><div class="flex1"></div>` : ''}
             <button type="button" class="btn" onclick="closeModal()">Cancel</button>
             <button type="button" class="btn primary" onclick="_modalSubmit()">${esc(submitLabel)}</button>
           </div>
@@ -4483,6 +4581,7 @@ function openDateModal(id) {
     title: editing ? `Edit ${d.city || 'date'} · ${fmtDate(d.date)}` : 'Add tour date',
     size: 'lg',
     showDelete: !!editing,
+    deleteLabel: 'Delete Date',
     onDelete: editing ? () => deleteDate(editing.id) : null,
     body: `
       <div class="form-grid" id="d_grid">
@@ -6369,6 +6468,7 @@ function renderGuestList() {
       <span class="stamp">${approvedCount} ✓ · ${pendingCount} ⌛ · ${deniedCount} ✗</span>
       <button type="button" class="tb-btn primary" onclick="openGuestModal()">+ Add guest</button>
       <button type="button" class="tb-btn" onclick="openAllotmentModal()">Allotments</button>
+      <button type="button" class="tb-btn" onclick="printGuestList()">↪ Print for venue</button>
     </div>
 
     ${pendingCount ? `
@@ -8231,12 +8331,43 @@ function _extractEmails(text) {
 // ─────────────────────────────────────────────────────────────────────
 function _extractHotelsFromText(text) {
   if (!text) return [];
+  // Document-level fallback date — see note in _findFirstFullDate. Used
+  // when a hotel's local block doesn't contain a parseable date.
+  const fallbackDate = _findFirstFullDate(text);
   const hotels = [];
-  const blocks = text.split(/\n{2,}/);
-  for (const block of blocks) {
-    const hotel = _parseHotelBlock(block);
-    if (hotel && hotel.name) hotels.push(hotel);
+
+  // PDF.js text extraction tends to put each visual block on its own
+  // \n{2,}-delimited paragraph, even when the address / phone /
+  // check-in are visually adjacent to the hotel name. Splitting on
+  // blank lines and running the parser per-block worked for clean
+  // text docs but failed for columnar PDF layouts where the Marriott
+  // "block" is just the 3-line name. To fix: when we find a hotel
+  // marker (chain name OR "Hotel:" label) in the text, take a WIDE
+  // context window (200 chars before, 2500 after) and parse that.
+  // Each window captures all the fragmented blocks that belong to
+  // one hotel reservation. Overlapping windows get deduped at the end.
+  const markerRe = /\b(Marriott|Hyatt|Hilton|Westin|Sheraton|Holiday\s+Inn|Hampton\s+Inn|Courtyard|Residence\s+Inn|Four\s+Seasons|Ritz[- ]Carlton|Kimpton|Loews|Fairmont|St\.?\s*Regis|Le\s+Meridien|Moxy|Aloft|Element|Edition|Standard|NoMad|Ace\s+Hotel|Virgin\s+Hotel|Cambria|Conrad|DoubleTree|Embassy\s+Suites|Hyatt\s+Place|Hyatt\s+Regency|Grand\s+Hyatt|Park\s+Hyatt|JW\s+Marriott|Renaissance|Autograph|Tribute|Gaylord|Sofitel|Pullman|Raffles|Fairfield|Home2|TownePlace|SpringHill|Best\s+Western|Quality\s+Inn|Comfort\s+Inn|La\s+Quinta|Days\s+Inn|Super\s+8|Motel\s+6|Wyndham|Radisson|Crowne\s+Plaza|InterContinental|Andaz|Thompson|Tommie|1\s+Hotel|Soho\s+House|Nobu|Pendry|Hoxton|Public|Graduate)\b|\b(?:Hotel|Property|Lodging|Accommodation)\s*[:.]/gi;
+
+  let lastEnd = -1;
+  let m;
+  while ((m = markerRe.exec(text)) !== null) {
+    // Skip markers inside a window we already parsed
+    if (m.index < lastEnd) continue;
+    // Start the window AT the marker (not before). PDFs typically have
+    // travel-agency contact info (name, address, phone) immediately
+    // preceding the hotel block; a back-buffer would slurp that agency's
+    // city/state/zip into our city regex and misattribute it.
+    const start = m.index;
+    const end = Math.min(text.length, m.index + 2500);
+    const window = text.slice(start, end);
+    const hotel = _parseHotelBlock(window);
+    if (hotel && hotel.name) {
+      if (!hotel.date && fallbackDate) hotel.date = fallbackDate;
+      hotels.push(hotel);
+      lastEnd = end;
+    }
   }
+
   // Dedupe by name + check-in date
   const seen = new Set();
   return hotels.filter(h => {
@@ -8245,6 +8376,16 @@ function _extractHotelsFromText(text) {
     seen.add(key);
     return true;
   });
+}
+
+// Walks the entire text and returns the first fully-qualified date
+// (one that has a year). Used as a fallback when individual extracted
+// items couldn't parse a date from their local block — the PDF's
+// reservation date at the top of the document is usually exactly the
+// date the item belongs to. Returns '' if nothing year-anchored found.
+function _findFirstFullDate(text) {
+  if (!text) return '';
+  return _parseDateLoose(text);
 }
 
 function _parseHotelBlock(block) {
@@ -8257,20 +8398,37 @@ function _parseHotelBlock(block) {
 
   const hotel = { name: '', address: '', conf: '', checkIn: '', checkOut: '', phone: '', notes: '', date: '', city: '' };
 
-  // Name: prefer "Hotel:" label, else first line containing chain
+  // Name: prefer "Hotel:" label, else first line containing chain.
+  // For chain matches, fold in 1-2 following lines if they continue
+  // the name (e.g. "MARRIOTT FT" / "LAUDERDALE AIRPORT" → one name).
+  // Stops at parenthetical clarifiers, field labels, addresses, or
+  // any line that doesn't look like a continuation.
   const labelMatch = block.match(/(?:Hotel|Property|Lodging|Accommodation)\s*[:.]\s*(.+)/i);
   if (labelMatch) {
     hotel.name = labelMatch[1].trim().split('\n')[0].slice(0, 100);
   } else {
     const lines = block.split('\n');
-    for (const line of lines) {
-      if (chainRe.test(line)) { hotel.name = line.trim().slice(0, 100); break; }
+    const idx = lines.findIndex(l => chainRe.test(l));
+    if (idx >= 0) {
+      const parts = [lines[idx].trim()];
+      for (let i = idx + 1; i < Math.min(lines.length, idx + 3); i++) {
+        const next = (lines[i] || '').trim();
+        if (!next) break;
+        if (next.startsWith('(')) break;
+        if (/^\d/.test(next)) break;
+        if (/[:#]|\b(?:Phone|Tel|Fax|Address|Room|Confirm|Check|Rate|Cancel|Status|Taxes?|Surcharge|Remarks|Status|Guest|Notes)\b/i.test(next)) break;
+        if (next.length > 60) break;
+        parts.push(next);
+      }
+      hotel.name = parts.join(' ').replace(/\s+/g, ' ').slice(0, 100);
     }
   }
   if (!hotel.name) return null;
 
-  // Address — "123 Main St" or "City, ST 12345" pattern
-  const cityStateZip = block.match(/([A-Z][A-Za-z .'-]+),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)/);
+  // Address — "City, ST 12345" with comma OR "City ST 12345" without
+  // comma (the format Marriott, Hyatt, etc. use in their PDF travel
+  // reservation blocks). Comma is now optional.
+  const cityStateZip = block.match(/([A-Z][A-Za-z .'-]+?)(?:,\s*|\s+)([A-Z]{2})\s+(\d{5}(?:-\d{4})?)/);
   if (cityStateZip) {
     hotel.city = cityStateZip[1].trim();
     // Try to capture the street line preceding city/state
@@ -8283,12 +8441,21 @@ function _parseHotelBlock(block) {
     }
   }
 
-  // Confirmation
-  const confMatch = block.match(/\b(?:Conf(?:irmation)?(?:\s*(?:#|No\.?|Number|Code))?|Reservation(?:\s*#|\s*No\.?)?)\s*[:#]?\s*([A-Z0-9-]{4,20})/i);
+  // Confirmation — require "Confirmation" (or abbrev) specifically, not
+  // just "Reservation". Sabre travel reservations contain the phrase
+  // "RESERVATION CODE EWAMQG" referring to the trip-level PNR, but the
+  // hotel itself has its own "Confirmation: 79964002" line. Matching on
+  // "Reservation" was capturing the literal token "CODE" as the conf
+  // number from the PNR phrase.
+  const confMatch = block.match(/\bConf(?:irm(?:ation)?)?(?:\s*(?:#|No\.?|Number|Code))?\s*[:#]?\s*([A-Z0-9-]{4,20})/i);
   if (confMatch) hotel.conf = confMatch[1];
 
-  // Phone
-  const phoneMatch = block.match(/(?:Phone|Tel|T)[:.\s]*(\+?[\d][\d\s\-().]{8,20})/i);
+  // Phone — match phone-format pattern directly (no label required).
+  // PDF.js often splits "Phone\n\n1-954-802-7543" so the digits appear
+  // on a different line from the "Phone" label. Anchoring on the digit
+  // pattern itself catches it. Excludes runs that look like part of a
+  // zip+4 or a long ID by requiring proper phone grouping.
+  const phoneMatch = block.match(/\b((?:\+?1[-\s.])?\(?\d{3}\)?[-\s.]\d{3}[-\s.]\d{4})\b/);
   if (phoneMatch) hotel.phone = phoneMatch[1].trim();
 
   // Check-in (date + time)
@@ -8307,11 +8474,13 @@ function _parseHotelBlock(block) {
     if (tm) hotel.checkOut = tm[0].trim();
   }
 
-  // If we still have no date, try any date in the block as a fallback
-  if (!hotel.date) {
-    const dt = _parseDateLoose(block);
-    if (dt) hotel.date = dt;
-  }
+  // Intentionally NOT falling back to _parseDateLoose(block) here.
+  // Travel PDFs commonly contain boilerplate dates ("AS OF 07 MAY 2025"
+  // disclaimers, agency creation dates, fare rule footers) that would
+  // poison the hotel's check-in date if we grabbed the first match
+  // anywhere in the window. _extractHotelsFromText already applies a
+  // document-level fallback using _findFirstFullDate, which prefers
+  // ISO/MM-DD-YYYY full dates at the top of the doc.
 
   return hotel;
 }
@@ -8319,8 +8488,18 @@ function _parseHotelBlock(block) {
 function _extractFlightsFromText(text) {
   if (!text) return [];
   const flights = [];
-  // IATA airline codes (2-3 letters) + flight number (1-5 digits)
-  const re = /\b(AA|DL|UA|WN|B6|AS|NK|F9|HA|VX|G4|SY|VG|VS|BA|LH|AC|AF|KL|LX|TK|EK|QF|QR|LY|IB|FI|EI|TP|FR|U2|AY|SK|SN|OS|AZ|JL|NH|KE|OZ|CI|BR|CA|CZ|MU|SQ|CX|NZ|FJ|AM|AV|CM|LA|AR)\s*[-#]?\s*(\d{1,5})\b/g;
+  // Document-level fallback date — same idea as the hotel parser.
+  // A travel reservation PDF says "11 MAY 2026" at the top; the flight
+  // section might just say "12 MAY" with no year. Without a fallback
+  // those flights had date='' and couldn't attach.
+  const fallbackDate = _findFirstFullDate(text);
+  // IATA airline codes (2 letters) + flight number (1-4 digits). Real
+  // IATA flight numbers max out at 4 digits — allowing 5 made the "CA"
+  // (Air China) code match against the trailing "CA 90067" zip code of
+  // a travel-agency address, producing a phantom "CA 90067" flight on
+  // every Sabre/Concur travel reservation. 4-digit cap eliminates that
+  // entire class of false positive without losing any real flight.
+  const re = /\b(AA|DL|UA|WN|B6|AS|NK|F9|HA|VX|G4|SY|VG|VS|BA|LH|AC|AF|KL|LX|TK|EK|QF|QR|LY|IB|FI|EI|TP|FR|U2|AY|SK|SN|OS|AZ|JL|NH|KE|OZ|CI|BR|CA|CZ|MU|SQ|CX|NZ|FJ|AM|AV|CM|LA|AR)\s*[-#]?\s*(\d{1,4})\b/g;
   const seen = new Set();
   let m;
   while ((m = re.exec(text)) !== null) {
@@ -8332,7 +8511,9 @@ function _extractFlightsFromText(text) {
     const start = Math.max(0, m.index - 250);
     const end = Math.min(text.length, m.index + 250);
     const ctx = text.slice(start, end);
-    flights.push(_parseFlightContext(ctx, code, num, m.index, text));
+    const flight = _parseFlightContext(ctx, code, num, m.index, text);
+    if (!flight.date && fallbackDate) flight.date = fallbackDate;
+    flights.push(flight);
   }
   return flights;
 }
@@ -8379,18 +8560,27 @@ function _parseFlightContext(ctx, code, num, absIdx, fullText) {
 
 function _parseDateLoose(text) {
   if (!text) return '';
+  const months = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12 };
   // ISO YYYY-MM-DD
   let m = text.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;
   // MM/DD/YYYY or M/D/YYYY
   m = text.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (m) return `${m[3]}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
-  // "March 4, 2026" / "Mar 4 2026"
-  const months = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12 };
+  // Month-Day-Year — "March 4, 2026" / "Mar 4 2026"
   m = text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2}),?\s*(\d{4})/i);
   if (m) {
     const month = months[m[1].toLowerCase().slice(0,3)];
     return `${m[3]}-${String(month).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
+  }
+  // Day-Month-Year — "11 May 2026" / "11 MAY 2026" / "11-May-2026"
+  // Travel reservation PDFs (Sabre, Concur, Apollo) almost always use
+  // this format. Without this branch we extracted no hotel/flight dates
+  // from those itineraries and they failed to land on the dashboard.
+  m = text.match(/\b(\d{1,2})[-\s]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-\s]+(\d{4})\b/i);
+  if (m) {
+    const month = months[m[2].toLowerCase().slice(0,3)];
+    return `${m[3]}-${String(month).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
   }
   return '';
 }
@@ -9058,7 +9248,34 @@ function mergeImportResults(results) {
       });
     }
   });
-  merged.dates = Object.values(dateMap).filter(d => d.date || d.city);
+  // Keep only entries that look like real tour dates. A bare date with no
+  // city AND no venue is almost always boilerplate text from a PDF
+  // (agency disclaimer "AS OF 07 MAY 2025", fare-rule footers, contract
+  // expiration footers, etc.) — pushing those onto the tour caused
+  // fillDateGapsWithOffDays to generate months of irrelevant off-days
+  // between the boilerplate date and the real show dates.
+  merged.dates = Object.values(dateMap).filter(d => d.date && (d.city || d.venue));
+
+  // Outlier trimming. Once we've sorted by date, drop any entry that
+  // sits more than 60 days away from the median tour date. A real tour
+  // has dates tightly clustered (typically 2-12 weeks); anything sitting
+  // months apart from the cluster is a stray date the parser caught,
+  // not a real show. This protects the dashboard from ballooning out to
+  // include every random "May 2025" footer in the source PDFs.
+  if (merged.dates.length >= 2) {
+    const sorted = [...merged.dates].filter(d => /^\d{4}-\d{2}-\d{2}/.test(d.date))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (sorted.length >= 2) {
+      const median = sorted[Math.floor(sorted.length / 2)].date;
+      const medianMs = new Date(median + 'T00:00:00Z').getTime();
+      const MAX_SPAN_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
+      merged.dates = merged.dates.filter(d => {
+        if (!/^\d{4}-\d{2}-\d{2}/.test(d.date)) return true;
+        const ms = new Date(d.date.slice(0, 10) + 'T00:00:00Z').getTime();
+        return Math.abs(ms - medianMs) <= MAX_SPAN_MS;
+      });
+    }
+  }
 
   // dedupe contacts by email or name
   const cMap = {};
@@ -9303,6 +9520,15 @@ function izApply() {
   // document with "Doors 7:00 PM" in the schedule still shows the
   // dashboard "Doors not set" gap on that date.
   T().dates.forEach(d => _liftScheduleToDashboardFields(d));
+
+  // Pad one travel day on each end of the tour. The first show is
+  // almost always preceded by a travel/load-in day; the last show is
+  // almost always followed by a fly-home/load-out day. Adding these
+  // explicitly (so they're real date rows on the dashboard) prevents
+  // the TM from having to remember to create them, AND it gives the
+  // gap-filler a proper anchor instead of extrapolating from boilerplate
+  // dates buried elsewhere in the source PDFs.
+  _padTourEdgesWithTravelDays();
 
   // Fill calendar gaps between imported dates with empty off-days. The tour
   // dashboard treats each tour day as its own tab, so a 5-day jump between
@@ -10237,6 +10463,107 @@ function printStageCopy() {
 function closeStagePrint() {
   document.body.classList.remove('print-stage-mode');
   document.getElementById('stagePrintArea').innerHTML = '';
+}
+
+/* ---------- guest-list print ----------
+   Generates a clean, high-contrast printable guest list for the venue
+   box office. Two passes: approved guests first (the ones who actually
+   show up at the door), then a smaller pending section in case the rep
+   needs to know what's still in flight. Each row has a signature box so
+   the rep can mark people off as they arrive. Reuses the same
+   #stagePrintArea + body.print-stage-mode infrastructure as the set
+   list stage copy — same paper sheet, same dark control bar at the
+   top with Cancel + Print buttons. */
+function printGuestList() {
+  const ad = getActiveDate();
+  if (!ad) { toast('No active date', 'error'); return; }
+  const guests = (ad.guests || []);
+  if (!guests.length) { toast('No guests to print yet — add some first', 'error'); return; }
+  const approved = guests.filter(g => g.status === 'approved');
+  const pending  = guests.filter(g => g.status === 'pending');
+  const allots   = ad.allotments || T().meta.defaultAllotments || {};
+  const totalApprovedHeads = approved.reduce((n, g) => n + 1 + (g.plus || 0), 0);
+  const totalPendingHeads  = pending.reduce((n, g) => n + 1 + (g.plus || 0), 0);
+  const passUsage = {};
+  approved.forEach(g => {
+    if (!g.passType) return;
+    passUsage[g.passType] = (passUsage[g.passType] || 0) + 1 + (g.plus || 0);
+  });
+
+  const renderRow = (g, n) => `
+    <tr class="gp-row">
+      <td class="gp-n">${String(n).padStart(2,'0')}</td>
+      <td class="gp-name"><b>${esc(g.name || '—')}</b>${g.plus ? `<span class="gp-plus"> +${g.plus}</span>` : ''}</td>
+      <td class="gp-pass">${esc((g.passType || '').toUpperCase())}</td>
+      <td class="gp-by">${esc(g.submittedBy || '')}</td>
+      <td class="gp-sig"></td>
+    </tr>
+  `;
+
+  let n = 0;
+  const html = `
+    <div class="sp-controls">
+      <h3>Guest List · ${esc(ad.venue || ad.city)} · ${fmtMD(ad.date)}</h3>
+      <button type="button" class="cancel" onclick="closeStagePrint()">Cancel</button>
+      <button type="button" class="print" onclick="window.print()">↪ Print</button>
+    </div>
+    <div class="gp-page">
+      <header class="gp-head">
+        <div class="gp-eyebrow">GUEST LIST · BOX OFFICE COPY</div>
+        <div class="gp-artist">${esc((T().meta.artist || T().meta.tourName || 'BAND').toUpperCase())}</div>
+        <div class="gp-meta">
+          ${esc((ad.venue || ad.city).toUpperCase())} · ${fmtMD(ad.date)}${ad.doors ? ' · DOORS ' + esc(ad.doors) : ''}${ad.setTime ? ' · SET ' + esc(ad.setTime) : ''}
+        </div>
+        <div class="gp-summary">
+          ${totalApprovedHeads} APPROVED · ${approved.length} REQUEST${approved.length===1?'':'S'}${totalPendingHeads ? ` · ${totalPendingHeads} PENDING` : ''}${Object.keys(passUsage).length ? ' · ' + Object.entries(passUsage).map(([p,c]) => `${esc(p)}: ${c}`).join(' · ') : ''}
+        </div>
+      </header>
+
+      ${approved.length ? `
+        <table class="gp-table">
+          <thead>
+            <tr><th class="gp-n">#</th><th>Name</th><th>Pass</th><th>From</th><th>Checked in</th></tr>
+          </thead>
+          <tbody>
+            ${approved.map(g => renderRow(g, ++n)).join('')}
+          </tbody>
+        </table>
+      ` : '<div class="gp-empty">No approved guests on this date.</div>'}
+
+      ${pending.length ? `
+        <div class="gp-section-head">PENDING APPROVAL · ${pending.length} request${pending.length===1?'':'s'}</div>
+        <table class="gp-table gp-table-pending">
+          <thead>
+            <tr><th class="gp-n">#</th><th>Name</th><th>Pass</th><th>From</th><th></th></tr>
+          </thead>
+          <tbody>
+            ${pending.map(g => renderRow(g, ++n)).join('')}
+          </tbody>
+        </table>
+      ` : ''}
+
+      <footer class="gp-foot">
+        <div class="gp-sign">
+          <div class="gp-sign-line"></div>
+          <div class="gp-sign-lbl">VENUE REP · SIGNATURE</div>
+        </div>
+        <div class="gp-sign">
+          <div class="gp-sign-line"></div>
+          <div class="gp-sign-lbl">TOUR MANAGER · SIGNATURE</div>
+        </div>
+        <div class="gp-sign">
+          <div class="gp-sign-line"></div>
+          <div class="gp-sign-lbl">DATE / TIME</div>
+        </div>
+      </footer>
+
+      <div class="gp-fineprint">
+        Generated by Bandmate · ${new Date().toLocaleString()} · This is the official venue copy. Approved names only — pending entries are FYI and require TM sign-off before access.
+      </div>
+    </div>
+  `;
+  document.getElementById('stagePrintArea').innerHTML = html;
+  document.body.classList.add('print-stage-mode');
 }
 
 
@@ -13788,6 +14115,10 @@ function _idzMergeNow() {
   });
   if (allDates.length) {
     tour.dates.sort((a, b) => (a.date || 'zz').localeCompare(b.date || 'zz'));
+    // Pad the tour edges with travel days BEFORE gap-filling so the
+    // gap-filler has anchored bounds. Idempotent — _padTourEdgesWithTravelDays
+    // checks whether each pad already exists before adding.
+    _padTourEdgesWithTravelDays();
     fillDateGapsWithOffDays();
     // Lift schedule-item times into dashboard fields on every date that
     // got new schedule data from this merge — same fix as the initial
@@ -14340,6 +14671,54 @@ function rescanTourAnimated(btn) {
   setTimeout(() => { try { openTourScan(); } catch (e) { console.warn('rescan failed:', e); } }, 600);
 }
 
+// Map a date's missing-field list to the most relevant tab to jump to.
+// The TM clicked a gap row in the tour scan — instead of opening the
+// field-by-field date modal, we now route them into the dashboard on
+// the right tab so they can edit in context with the full day visible.
+function _scanGapToTab(missing) {
+  if (!Array.isArray(missing) || !missing.length) return 'dashboard';
+  // Priority order — fix the most critical gap first
+  for (const m of missing) {
+    if (m === 'schedule') return 'schedule';
+    if (m === 'hotel or travel' || m === 'travel items') return 'travel';
+    if (m === 'hotel' || m === 'hotel rooms') return 'hotels';
+  }
+  // Anything else (city / venue / capacity / etc.) lives on the
+  // dashboard — those are header-bar fields, not their own tab.
+  return 'dashboard';
+}
+
+// Tour-wide gap → fixed-tab destination based on keywords in the
+// gap's "what" text. Returns null when no specific tab applies (e.g.
+// the auto-fill placeholder notice spans many dates).
+function _scanGlobalGapToTab(what) {
+  const text = String(what || '').toLowerCase();
+  if (/settlement|settle/.test(text)) return 'acct';
+  if (/contact/.test(text)) return 'contacts';
+  if (/crew member|crew roster|profile|missing email/.test(text)) return 'profiles';
+  if (/group/.test(text)) return 'profiles';
+  return null; // not navigable — falls through to a non-clickable row
+}
+
+// Single navigation entry point used by every tour-scan row. Closes
+// the scan modal, optionally sets the active date, then switches to
+// the target tab — same code path as clicking a tab manually so the
+// dashboard, day strip, gap indicators, and phone preview all stay
+// in sync.
+function _scanGoTo(dateId, tab) {
+  closeModal();
+  if (dateId && dateId !== 'null') {
+    try { T().activeDateId = dateId; saveState(); } catch (e) {}
+  }
+  activeTab = tab || 'dashboard';
+  try { renderAll(); } catch (e) {}
+  try { applyTabFromState(); } catch (e) {}
+  try { renderActivePanel(); } catch (e) {}
+  try { syncPhoneScreenFromTab(); } catch (e) {}
+  try { renderPhone(); } catch (e) {}
+  try { saveUIPrefs(); } catch (e) {}
+}
+
 function openTourScan() {
   const tour = T();
   if (!tour || !tour.dates.length) {
@@ -14369,18 +14748,34 @@ function openTourScan() {
       ${totalGaps > 0 ? `
         <div class="iz-gaps" style="margin-top:18px">
           <h4>⚠ NEEDS YOUR MANUAL ENTRY · ${totalGaps} item${totalGaps===1?'':'s'}</h4>
-          ${scan.globalGaps.map(g => `
-            <div class="iz-gap tw">
-              <span class="gtag tw">tour-wide</span>
-              <span><b style="color:#fdba74">${esc(g.what)}.</b> <span class="muted" style="font-size:11.5px">${esc(g.fix)}</span></span>
-            </div>
-          `).join('')}
-          ${scan.incompleteDates.map(({date, missing}) => `
-            <div class="iz-gap" style="cursor:pointer" onclick="closeModal();setActive('${date.id}');openDateModal('${date.id}')">
-              <span class="gtag">${esc((date.city || 'date').slice(0,18))}</span>
-              <span>${esc(fmtMD(date.date) || '?')} <span class="muted">— needs:</span> ${esc(missing.join(', '))}</span>
-            </div>
-          `).join('')}
+          ${scan.globalGaps.map(g => {
+            // Tour-wide gaps map to a fixed tab based on keywords in the
+            // "what" text. Settlements gap → Settlements tab, etc. If
+            // no tab is matched (e.g. the auto-filled placeholder notice
+            // which has no single destination), the row stays non-clickable.
+            const tab = _scanGlobalGapToTab(g.what);
+            const clickable = !!tab;
+            return `
+              <div class="iz-gap tw" ${clickable ? `style="cursor:pointer" onclick="_scanGoTo(null,'${tab}')"` : ''}>
+                <span class="gtag tw">tour-wide</span>
+                <span><b style="color:#fdba74">${esc(g.what)}.</b> <span class="muted" style="font-size:11.5px">${esc(g.fix)}</span></span>
+              </div>
+            `;
+          }).join('')}
+          ${scan.incompleteDates.map(({date, missing}) => {
+            // Pick the most relevant tab to jump to based on what's
+            // missing first. The TM can then navigate from that tab
+            // rather than getting stuck in the field-by-field date
+            // modal — the dashboard view shows the whole day at once
+            // and is faster for fixing multiple things.
+            const tab = _scanGapToTab(missing);
+            return `
+              <div class="iz-gap" style="cursor:pointer" onclick="_scanGoTo('${date.id}','${tab}')">
+                <span class="gtag">${esc((date.city || 'date').slice(0,18))}</span>
+                <span>${esc(fmtMD(date.date) || '?')} <span class="muted">— needs:</span> ${esc(missing.join(', '))}</span>
+              </div>
+            `;
+          }).join('')}
         </div>
       ` : `
         <div class="iz-tip" style="margin-top:18px;background:rgba(109,207,139,.08);border:1px solid rgba(109,207,139,.4);color:var(--good)">
@@ -14687,11 +15082,12 @@ Object.assign(window, {
   setCrewView, openManageGroupsModal, addGroup, renameGroup, deleteGroup, toggleGroupPick, toggleGroupExpand, toggleCrewInGroup, setAllInGroup,
   approveGuest, denyGuest, approveAllPending, denyAllPending, openGuestModalForViewer,
   _phoneShowTravel, _phoneShowDayTravel,
-  printStageCopy, closeStagePrint,
+  printStageCopy, closeStagePrint, printGuestList,
   toggleSchedPicker, closeSchedPicker, toggleSchedGroup, toggleSchedIndiv, clearSchedAssignments, renderVizPicker,
   setPhoneViewDate, jumpPhoneToToday, togglePhoneDateMenu, closePhoneDateMenu,
   openFeedbackModal, submitFeedback,
   scanTour, openTourScan, rescanTourAnimated, calcLiveDateGaps,
+  _scanGapToTab, _scanGlobalGapToTab, _scanGoTo,
   openImportData, _idzAddFiles, _idzRemove, _idzClear, _idzAnalyze, _idzMergeNow,
   _dateModalApplyStatus, _travelModalApplyType,
   toggleToolsMenu, closeToolsMenu,
@@ -14709,7 +15105,7 @@ Object.assign(window, {
   checkCrewEmailMatch, findUserByEmail, findCrewMatchesByEmail,
   confirmTyped,
   archiveTask, unarchiveTask, archiveAllCompleted, toggleTasksArchive,
-  tourStartDate, tourEndDate, addDaysISO, fillDateGapsWithOffDays,
+  tourStartDate, tourEndDate, addDaysISO, fillDateGapsWithOffDays, _padTourEdgesWithTravelDays,
   toggleExportMenu, closeExportMenu, downloadTourBookPDF, downloadTourBookFromHere, downloadDaySheetPDF, closeTourBook,
   scoutNearVenue,
   openTravelAssistant, closeTravelAssistant, setTaTab, searchHotels, resetHotelFilters, bookHotelToActiveDate, searchFlights, resetFlightFilters, addFlightToTravel,
