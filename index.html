@@ -415,8 +415,49 @@ input,select,textarea{font:inherit;color:inherit}
 .tab.tab-fixed.active .num{color:#b1c8ee}
 
 
+
 .panel{display:none;padding:22px}
 .panel.active{display:block}
+
+/* Day Notes rich-text editor. Yellow accent on the toolbar buttons to
+   match the yellow tab. Editor body uses the same dark panel surface
+   as other content cards so it reads as native, with a generous 220px
+   min-height so even an empty card has presence. */
+.day-notes-wrap{display:flex;flex-direction:column;gap:0;
+  border:1px solid var(--line-2);border-radius:12px;overflow:hidden;
+  background:rgba(20,15,11,.7)}
+.day-notes-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  padding:10px 12px;background:rgba(0,0,0,.32);border-bottom:1px solid var(--line)}
+.dn-btn{padding:6px 10px;background:rgba(0,0,0,.32);
+  border:1px solid var(--line-2);border-radius:6px;color:var(--warm);
+  font-family:'Inter',sans-serif;font-size:13px;cursor:pointer;
+  min-width:30px;line-height:1.2;transition:border-color .12s,background .12s,color .12s}
+.dn-btn:hover{border-color:#f5d76e;color:#f5d76e;background:rgba(245,215,110,.08)}
+.dn-btn:active{transform:translateY(1px)}
+.dn-btn b,.dn-btn i,.dn-btn u,.dn-btn s{font-style:italic}
+.dn-btn b{font-weight:900;font-style:normal}
+.dn-btn u{text-decoration:underline;font-style:normal}
+.dn-btn s{font-style:normal}
+.dn-sep{width:1px;height:22px;background:var(--line);margin:0 3px}
+.dn-color-wrap{display:flex;align-items:center;gap:4px}
+.dn-color-label{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--warm-mute);margin-right:3px}
+.dn-swatch{width:22px;height:22px;border-radius:50%;
+  border:1px solid var(--line-2);cursor:pointer;padding:0;transition:transform .08s,border-color .12s}
+.dn-swatch:hover{border-color:var(--warm);transform:scale(1.1)}
+.dn-clear{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;font-weight:700}
+.day-notes-editor{
+  min-height:240px;padding:16px 18px;
+  color:var(--warm);font-family:'Inter',sans-serif;font-size:14px;line-height:1.65;
+  outline:none;cursor:text;overflow-y:auto;max-height:60vh}
+.day-notes-editor:empty::before{content:attr(data-placeholder);color:var(--warm-mute);pointer-events:none;font-style:italic}
+.day-notes-editor h1,.day-notes-editor h2,.day-notes-editor h3{
+  color:#f5d76e;font-weight:800;letter-spacing:.01em;margin:14px 0 6px}
+.day-notes-editor h3{font-size:18px}
+.day-notes-editor b,.day-notes-editor strong{color:var(--warm);font-weight:800}
+.day-notes-editor ul,.day-notes-editor ol{padding-left:24px;margin:8px 0}
+.day-notes-editor li{margin-bottom:4px}
+.day-notes-editor [contenteditable="false"]{cursor:default}
 
 /* shared */
 .section-title{display:flex;align-items:baseline;gap:10px;margin:0 0 16px;flex-wrap:wrap}
@@ -837,6 +878,22 @@ input,select,textarea{font:inherit;color:inherit}
   font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);
   letter-spacing:.04em;font-weight:600}
 .ph-travel-row .ptr-chev{color:var(--warm-mute);font-size:14px;line-height:1;opacity:.6}
+
+/* Day Notes card on the crew mobile TODAY screen. Yellow eyebrow
+   matches the TM-side tab color. Body renders any HTML the TM saved
+   from the rich-text editor — bold, color, lists, etc. all carry
+   over so crew see the formatting the TM intended. */
+.p-card-notes{border-color:rgba(245,215,110,.3)}
+.p-card-notes .p-notes-body{
+  font-size:13px;line-height:1.6;color:var(--warm);margin-top:4px;
+  word-wrap:break-word;overflow-wrap:anywhere}
+.p-card-notes .p-notes-body h1,
+.p-card-notes .p-notes-body h2,
+.p-card-notes .p-notes-body h3{color:#f5d76e;font-size:14px;margin:8px 0 4px;font-weight:800}
+.p-card-notes .p-notes-body ul,
+.p-card-notes .p-notes-body ol{padding-left:20px;margin:6px 0}
+.p-card-notes .p-notes-body b,
+.p-card-notes .p-notes-body strong{color:var(--warm);font-weight:800}
 .p-row .what{font-size:13px;font-weight:600;color:var(--warm)}
 
 /* ============ MODAL ============ */
@@ -1192,6 +1249,30 @@ input,select,textarea{font:inherit;color:inherit}
   white-space:nowrap;transition:all .15s ease}
 .allday-btn:hover:not(.on){color:var(--warm);border-color:var(--line-glow);background:rgba(232,148,58,.08)}
 .allday-btn.on{background:linear-gradient(135deg,rgba(232,148,58,.22),rgba(232,148,58,.08));color:var(--hi);border-color:rgba(232,148,58,.5);box-shadow:0 0 0 1px rgba(232,148,58,.2) inset}
+
+/* Structured 12-hour time picker for the schedule modal — HH : MM
+   [AM/PM]. Replaces the old single text input so a TM can pick the
+   meridiem explicitly instead of having to remember 24-hour math.
+   Submitted value is converted back to 24-hour HH:MM at save time
+   so all downstream sorting, gap analysis, and dashboard rendering
+   stays the same. */
+.time-12{flex:1 1 auto;display:flex;align-items:center;gap:6px;min-width:0}
+.time-12 .t12-hh,.time-12 .t12-mm{
+  width:56px;text-align:center;padding:0 8px;height:38px;
+  background:rgba(0,0,0,.32);border:1px solid var(--line-2);border-radius:8px;
+  font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--warm);
+  -moz-appearance:textfield}
+.time-12 .t12-hh::-webkit-outer-spin-button,.time-12 .t12-hh::-webkit-inner-spin-button,
+.time-12 .t12-mm::-webkit-outer-spin-button,.time-12 .t12-mm::-webkit-inner-spin-button{
+  -webkit-appearance:none;margin:0}
+.time-12 .t12-hh:focus,.time-12 .t12-mm:focus{border-color:var(--hi);outline:none}
+.time-12 .t12-sep{font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--warm-mute);font-weight:700}
+.time-12 .t12-ampm{
+  height:38px;padding:0 10px;
+  background:rgba(0,0,0,.32);border:1px solid var(--line-2);border-radius:8px;
+  font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.1em;
+  color:var(--warm);font-weight:700;cursor:pointer;margin-left:4px}
+.time-12 .t12-ampm:focus{border-color:var(--hi);outline:none}
 
 /* Tab + field gap indicators */
 .tab-warn{position:relative}
@@ -3083,13 +3164,14 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
         <button type="button" class="tab" data-tab="hotels"><span class="num">04</span> Hotels</button>
         <button type="button" class="tab" data-tab="guest"><span class="num">05</span> Guest List</button>
         <button type="button" class="tab" data-tab="setlist"><span class="num">06</span> Set List</button>
-        <button type="button" class="tab" data-tab="files"><span class="num">07</span> Attachments</button>
-        <button type="button" class="tab tab-fixed" data-tab="acct"><span class="num">08</span> Settlements</button>
-        <button type="button" class="tab tab-fixed" data-tab="venues"><span class="num">09</span> Venues</button>
-        <button type="button" class="tab tab-fixed" data-tab="contacts"><span class="num">10</span> Contacts</button>
-        <button type="button" class="tab tab-fixed" data-tab="tasks"><span class="num">11</span> Tasks</button>
-        <button type="button" class="tab tab-fixed" data-tab="tags"><span class="num">12</span> Local Recs</button>
-        <button type="button" class="tab tab-fixed" data-tab="profiles"><span class="num">13</span> Crew</button>
+        <button type="button" class="tab" data-tab="notes"><span class="num">07</span> Day Notes</button>
+        <button type="button" class="tab" data-tab="files"><span class="num">08</span> Attachments</button>
+        <button type="button" class="tab tab-fixed" data-tab="acct"><span class="num">09</span> Settlements</button>
+        <button type="button" class="tab tab-fixed" data-tab="venues"><span class="num">10</span> Venues</button>
+        <button type="button" class="tab tab-fixed" data-tab="contacts"><span class="num">11</span> Contacts</button>
+        <button type="button" class="tab tab-fixed" data-tab="tasks"><span class="num">12</span> Tasks</button>
+        <button type="button" class="tab tab-fixed" data-tab="tags"><span class="num">13</span> Local Recs</button>
+        <button type="button" class="tab tab-fixed" data-tab="profiles"><span class="num">14</span> Crew</button>
       </nav>
 
       <div class="panel active" data-panel="dashboard" id="p-dashboard"></div>
@@ -3098,6 +3180,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
       <div class="panel" data-panel="hotels" id="p-hotels"></div>
       <div class="panel" data-panel="guest" id="p-guest"></div>
       <div class="panel" data-panel="setlist" id="p-setlist"></div>
+      <div class="panel" data-panel="notes" id="p-notes"></div>
       <div class="panel" data-panel="acct" id="p-acct"></div>
       <div class="panel" data-panel="files" id="p-files"></div>
       <div class="panel" data-panel="venues" id="p-venues"></div>
@@ -4449,9 +4532,17 @@ function saveScheduleAsTemplate() {
 
 function applyScheduleTemplate(tplId) {
   const ad = getActiveDate();
-  if (!ad) return;
+  if (!ad) { toast('No active date to apply to', 'error'); return; }
   const tpl = (T().scheduleTemplates || []).find(t => t.id === tplId);
-  if (!tpl) return;
+  if (!tpl) { toast('Template not found', 'error'); return; }
+  // Defensive: if a template somehow got saved with no items, surface
+  // that loudly instead of silently no-op-ing — the user would think
+  // "I applied a template, why didn't anything happen?" otherwise.
+  if (!Array.isArray(tpl.items) || tpl.items.length === 0) {
+    toast(`Template "${tpl.name}" is empty — nothing to apply`, 'error');
+    closeSchedTemplateMenu();
+    return;
+  }
   const existing = (ad.schedule || []).length;
   let mode = 'append';
   if (existing) {
@@ -4466,8 +4557,12 @@ function applyScheduleTemplate(tplId) {
   }
   if (mode === 'replace') ad.schedule = [];
   if (!ad.schedule) ad.schedule = [];
+  // Deep-clone items so a template applied to multiple dates doesn't
+  // share array references (e.g. `groups`, `individuals`) between
+  // sibling applications. Without this, editing the groups on one
+  // applied item could mutate every other date's copy of that template.
   tpl.items.forEach(it => {
-    ad.schedule.push({ id: uid('s'), ...it });
+    ad.schedule.push({ id: uid('s'), ...JSON.parse(JSON.stringify(it)) });
   });
   // Keep all-day pinned to top, then sort timed items
   ad.schedule.sort((a, b) => {
@@ -4475,15 +4570,23 @@ function applyScheduleTemplate(tplId) {
     if (b.allDay && !a.allDay) return 1;
     return (a.time || '').localeCompare(b.time || '');
   });
+  // Lift Doors / Set time / Load-in / Soundcheck times from the newly-
+  // applied schedule items into the date's top-level dashboard fields,
+  // so the corresponding gap warnings clear immediately. Without this,
+  // a TM who pastes a schedule containing "Doors 7:00 PM" would still
+  // see the "Doors not set" gap on the dashboard.
+  _liftScheduleToDashboardFields(ad);
   saveState();
   closeSchedTemplateMenu();
   toast(`Applied "${tpl.name}" · ${tpl.items.length} item${tpl.items.length===1?'':'s'} ${mode==='replace'?'replaced':'added'}`, 'good');
-  renderSchedule();
-  // Re-evaluate gap indicators since adding schedule items clears the
-  // schedule hard ⚠ on the tab and (when no other hard gaps remain) the
-  // red ⚠ on the day pill.
-  renderDayStrip();
-  applyTabGapIndicators();
+  // Full re-render rather than spot updates — guarantees the dashboard,
+  // day strip, tab indicators, mobile preview, and any visible gap
+  // banners all read the fresh schedule. Then refresh the Tour Scan
+  // modal if it's open so the gap list reflects the change immediately
+  // (was a real reported bug: schedule gap lingered in scan even after
+  // a successful apply because the open modal held its stale snapshot).
+  renderAll();
+  _refreshTourScanIfOpen();
 }
 
 function renameScheduleTemplate(tplId) {
@@ -4557,9 +4660,14 @@ function saveTravelAsTemplate() {
 
 function applyTravelTemplate(tplId) {
   const ad = getActiveDate();
-  if (!ad) return;
+  if (!ad) { toast('No active date to apply to', 'error'); return; }
   const tpl = (T().travelTemplates || []).find(t => t.id === tplId);
-  if (!tpl) return;
+  if (!tpl) { toast('Template not found', 'error'); return; }
+  if (!Array.isArray(tpl.items) || tpl.items.length === 0) {
+    toast(`Template "${tpl.name}" is empty — nothing to apply`, 'error');
+    closeTravelTemplateMenu();
+    return;
+  }
   const existing = (ad.travel || []).length;
   let mode = 'append';
   if (existing) {
@@ -4574,8 +4682,10 @@ function applyTravelTemplate(tplId) {
   }
   if (mode === 'replace') ad.travel = [];
   if (!ad.travel) ad.travel = [];
+  // Deep-clone so re-applying the template doesn't share array refs
+  // (groups / individuals) across multiple dates.
   tpl.items.forEach(it => {
-    ad.travel.push({ id: uid('tv'), ...it });
+    ad.travel.push({ id: uid('tv'), ...JSON.parse(JSON.stringify(it)) });
   });
   // All-day travel pinned to top, then sort by time
   ad.travel.sort((a, b) => {
@@ -4586,12 +4696,54 @@ function applyTravelTemplate(tplId) {
   saveState();
   closeTravelTemplateMenu();
   toast(`Applied "${tpl.name}" · ${tpl.items.length} move${tpl.items.length===1?'':'s'} ${mode==='replace'?'replaced':'added'}`, 'good');
-  renderTravel();
-  // Re-evaluate gap indicators since adding travel items can clear the
-  // "hotel or travel" either-or warning on Travel + Hotels tabs and the
-  // blue ! on the day pill.
-  renderDayStrip();
-  applyTabGapIndicators();
+  // Full re-render so dashboard, day strip, tab indicators, phone, and
+  // scan banners all reflect the new state. Refresh the Tour Scan
+  // modal if it's open so its gap list updates immediately.
+  renderAll();
+  _refreshTourScanIfOpen();
+}
+
+// Lift schedule-item times into the date's top-level dashboard fields.
+// If the imported / pasted / templated schedule contains an item like
+// "Doors 7:00 PM" or "Soundcheck 4:30", the corresponding `doors`,
+// `setTime`, `loadIn`, `soundcheck` field on the parent date should be
+// auto-populated so the dashboard "Doors / Set time" cards (and the
+// gap analysis that checks those fields) stop showing as incomplete.
+// Only fills fields that are currently EMPTY — doesn't overwrite a
+// time the TM already set manually.
+function _liftScheduleToDashboardFields(date) {
+  if (!date || !Array.isArray(date.schedule)) return;
+  for (const item of date.schedule) {
+    const what = (item.what || '').toLowerCase();
+    const time = (item.time || '').trim();
+    if (!time || item.allDay) continue;
+    if (!date.doors && /\bdoors?\b/.test(what)) date.doors = time;
+    if (!date.soundcheck && /\b(?:sound\s*check|soundcheck|sc)\b/.test(what)) date.soundcheck = time;
+    if (!date.loadIn && /\bload[\s-]?in\b/.test(what)) date.loadIn = time;
+    // Set time: matches "set time", "set ___", "show", "headline set",
+    // "main set" etc. — but not "set list", "set sheet", "preset", etc.
+    if (!date.setTime && /\b(?:set\s*time|set|headline|main\s*set|stage\s*call|show\s*time)\b/.test(what)
+        && !/\b(?:set\s*list|set\s*sheet|preset|sunset|offset)\b/.test(what)) {
+      date.setTime = time;
+    }
+  }
+}
+
+// If the Tour Scan modal is currently open, close it and re-open with
+// a fresh scanTour() result. Used by template-apply functions so the
+// open scan reflects the latest data without making the user click
+// "Re-scan tour" manually. No-op if no scan modal is open.
+function _refreshTourScanIfOpen() {
+  const overlay = document.querySelector('.modal-overlay');
+  if (!overlay) return;
+  // Match against the scan modal's distinctive title — every other
+  // modal has a different title, so this is a safe heuristic without
+  // having to add a data-modal-id attribute everywhere.
+  const head = overlay.querySelector('.modal-head h2, .modal-head h3, .modal-head');
+  const isScan = head && /Tour scan/i.test(head.textContent || '');
+  if (!isScan) return;
+  closeModal();
+  setTimeout(() => { try { openTourScan(); } catch (e) {} }, 80);
 }
 
 function renameTravelTemplate(tplId) {
@@ -4621,6 +4773,10 @@ function openScheduleModal(itemId) {
   if (!ad) return;
   const item = itemId ? ad.schedule.find(i => i.id === itemId) : null;
   const i = item || { time: '', what: '', who: '', notes: '', allDay: false };
+  // Split the stored 24-hour HH:MM into 12-hour h + mm + AM/PM so the
+  // form can display a friendly time picker. Storage stays 24-hour for
+  // sort + dashboard consistency — we only convert at the UI layer.
+  const t12 = _to12h(i.time);
   openModal({
     title: item ? 'Edit schedule item' : 'Add schedule item',
     showDelete: !!item,
@@ -4629,8 +4785,16 @@ function openScheduleModal(itemId) {
       <div class="form-grid">
         <div class="field"><label>Time ${i.allDay ? '' : '*'}</label>
           <div class="time-row">
-            <input id="s_time" value="${esc(i.time)}" placeholder="HH:MM" ${i.allDay ? 'disabled style="opacity:.5"' : ''}>
-            <button type="button" id="s_allday_btn" class="allday-btn ${i.allDay ? 'on' : ''}" onclick="toggleAllDay('s_time','s_allday_btn')">All day</button>
+            <div class="time-12" id="s_time_12" ${i.allDay ? 'style="opacity:.5"' : ''}>
+              <input type="number" min="1" max="12" id="s_time_hh" value="${esc(t12.hh)}" placeholder="HH" ${i.allDay ? 'disabled' : ''} class="t12-hh">
+              <span class="t12-sep">:</span>
+              <input type="number" min="0" max="59" id="s_time_mm" value="${esc(t12.mm)}" placeholder="MM" ${i.allDay ? 'disabled' : ''} class="t12-mm">
+              <select id="s_time_ampm" ${i.allDay ? 'disabled' : ''} class="t12-ampm">
+                <option value="AM" ${t12.ampm === 'AM' ? 'selected' : ''}>AM</option>
+                <option value="PM" ${t12.ampm === 'PM' ? 'selected' : ''}>PM</option>
+              </select>
+            </div>
+            <button type="button" id="s_allday_btn" class="allday-btn ${i.allDay ? 'on' : ''}" onclick="_schedToggleAllDay()">All day</button>
           </div>
         </div>
         <div class="field"><label>Who (legacy/free text)</label><input id="s_who" value="${esc(i.who)}" placeholder="e.g. BAND, FOH"></div>
@@ -4650,7 +4814,13 @@ function openScheduleModal(itemId) {
     `,
     onSubmit: () => {
       const allDay = document.getElementById('s_allday_btn')?.classList.contains('on') || false;
-      const time = allDay ? '' : $('#s_time').value.trim();
+      // Read the structured 12-hour inputs and convert back to the
+      // canonical 24-hour HH:MM that we store. _to24h returns '' if
+      // either field is empty/invalid — we treat that as "no time".
+      const hh = $('#s_time_hh')?.value || '';
+      const mm = $('#s_time_mm')?.value || '';
+      const ampm = $('#s_time_ampm')?.value || 'AM';
+      const time = allDay ? '' : _to24h(hh, mm, ampm);
       const what = $('#s_what').value.trim();
       if (!allDay && !time) { toast('Set a time or mark as All day', 'error'); return false; }
       if (!what) { toast('What is required', 'error'); return false; }
@@ -4666,6 +4836,11 @@ function openScheduleModal(itemId) {
         if (b.allDay && !a.allDay) return 1;
         return (a.time || '').localeCompare(b.time || '');
       });
+      // If the new/edited item is a doors/set/load-in/soundcheck entry,
+      // lift its time into the date's top-level dashboard fields so the
+      // corresponding gap clears without the TM having to also fill in
+      // the dashboard form by hand.
+      _liftScheduleToDashboardFields(ad);
       saveState();
     }
   });
@@ -4773,6 +4948,54 @@ function toggleAllDay(timeInputId, btnId) {
   t.disabled = on;
   t.style.opacity = on ? '.5' : '';
   if (on) t.value = '';
+}
+
+// All-day toggle for the schedule modal's structured 12-hour time
+// picker. Disables/clears the HH, MM, and AM/PM inputs together.
+function _schedToggleAllDay() {
+  const b = document.getElementById('s_allday_btn');
+  const wrap = document.getElementById('s_time_12');
+  if (!b || !wrap) return;
+  b.classList.toggle('on');
+  const on = b.classList.contains('on');
+  wrap.style.opacity = on ? '.5' : '';
+  ['s_time_hh','s_time_mm','s_time_ampm'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = on;
+    if (on && el.tagName === 'INPUT') el.value = '';
+  });
+}
+
+// 24-hour "HH:MM" → { hh: '7', mm: '30', ampm: 'PM' } for display in
+// the schedule modal's structured time picker. Returns empty strings
+// for hh/mm when the input is missing or unparseable so the form
+// stays clean for a brand-new item.
+function _to12h(time24) {
+  if (!time24 || typeof time24 !== 'string') return { hh: '', mm: '', ampm: 'AM' };
+  const m = time24.trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return { hh: '', mm: '', ampm: 'AM' };
+  let h = parseInt(m[1], 10);
+  const mm = m[2];
+  if (isNaN(h) || h < 0 || h > 23) return { hh: '', mm: '', ampm: 'AM' };
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  let h12 = h % 12;
+  if (h12 === 0) h12 = 12;
+  return { hh: String(h12), mm, ampm };
+}
+
+// Inverse of _to12h. Converts 12-hour hh / mm / AMorPM back to a
+// canonical zero-padded "HH:MM" 24-hour string. Returns '' if either
+// hh or mm is missing or out of range so the calling form treats it
+// as "no time set".
+function _to24h(hh, mm, ampm) {
+  const h12 = parseInt(hh, 10);
+  const m = parseInt(mm, 10);
+  if (isNaN(h12) || h12 < 1 || h12 > 12) return '';
+  if (isNaN(m) || m < 0 || m > 59) return '';
+  let h24 = h12 % 12;            // 12 AM → 0, 12 PM → 12 (after the +12 below)
+  if (ampm === 'PM') h24 += 12;
+  return String(h24).padStart(2, '0') + ':' + String(m).padStart(2, '0');
 }
 
 /* =====================================================================
@@ -5542,6 +5765,7 @@ function renderActivePanel() {
   const fn = {
     dashboard: renderDashboard, schedule: renderSchedule, travel: renderTravel,
     hotels: renderHotels, guest: renderGuestList, setlist: renderSetList,
+    notes: renderDayNotes,
     acct: renderAccounting, files: renderAttachments, venues: renderVenues,
     contacts: renderContacts, tasks: renderTasks, tags: renderTags,
     profiles: renderCrewProfiles
@@ -5735,8 +5959,8 @@ function renderDashboard() {
         ` : (ad.city ? `<div class="venue">${esc(ad.city)}${ad.state ? ', ' + esc(ad.state) : ''}</div>` : '')}
         ${(ad.status === 'show' || ad.status === 'press') ? `
         <div class="meta" style="margin-bottom:8px">
-          <div class="m${isMissing('doors')?' field-warn':''}"><div class="l">Doors</div><div class="v">${ad.doors ? esc(ad.doors) : '<span style="color:#fdba74">Not set</span>'}</div></div>
-          <div class="m${isMissing('set time')?' field-warn':''}"><div class="l">Set time</div><div class="v">${ad.setTime ? esc(ad.setTime) : '<span style="color:#fdba74">Not set</span>'}</div></div>
+          <div class="m"><div class="l">Doors</div><div class="v">${ad.doors ? esc(ad.doors) : '<span class="muted">Pulled from schedule</span>'}</div></div>
+          <div class="m"><div class="l">Set time</div><div class="v">${ad.setTime ? esc(ad.setTime) : '<span class="muted">Pulled from schedule</span>'}</div></div>
           <div class="m${isMissing('venue')?' field-warn':''}"><div class="l">Venue</div><div class="v">${ad.venue ? esc(ad.venue) : '<span style="color:#fdba74">Not set</span>'}</div></div>
         </div>
         ` : ad.status === 'rehearsal' ? `
@@ -6109,6 +6333,104 @@ function renderGuestList() {
       </div>
     `}
   `;
+}
+
+/* =====================================================================
+   PANEL: DAY NOTES — free-form rich-text notes per date
+   =====================================================================
+   Stored on the date as `dayNotes` (HTML string, sanitized by being
+   editable-only by trusted authors — TMs of this tour). Uses the
+   classic contenteditable + document.execCommand approach; while
+   execCommand is technically deprecated, it's still universally
+   supported and right-sized for an MVP without pulling in a heavy
+   rich-text library. Future migration: ProseMirror or TipTap. */
+function renderDayNotes() {
+  const ad = getActiveDate();
+  const root = $('#p-notes');
+  if (!ad) { root.innerHTML = noDate(); return; }
+  if (typeof ad.dayNotes !== 'string') ad.dayNotes = '';
+  const isTMOwner = (() => {
+    const u = U();
+    return u && u.role === 'tm' && T().ownerId === u.id;
+  })();
+  const stats = _dayNotesStats(ad.dayNotes);
+  root.innerHTML = `
+    <div class="section-title">
+      <h2>Day Notes · ${esc(ad.city || fmtDate(ad.date))}</h2>
+      <span class="crumb">/ ${fmtDate(ad.date).toUpperCase()}</span>
+      <span class="stamp">${stats.label}</span>
+    </div>
+
+    <div class="day-notes-wrap">
+      <div class="day-notes-toolbar" id="dn_toolbar" role="toolbar" aria-label="Formatting">
+        <button type="button" class="dn-btn" title="Bold (⌘B)" onclick="_dnExec('bold')"><b>B</b></button>
+        <button type="button" class="dn-btn" title="Italic (⌘I)" onclick="_dnExec('italic')"><i>I</i></button>
+        <button type="button" class="dn-btn" title="Underline" onclick="_dnExec('underline')"><u>U</u></button>
+        <button type="button" class="dn-btn" title="Strikethrough" onclick="_dnExec('strikeThrough')"><s>S</s></button>
+        <span class="dn-sep"></span>
+        <button type="button" class="dn-btn" title="Heading" onclick="_dnExec('formatBlock','H3')">H</button>
+        <button type="button" class="dn-btn" title="Bulleted list" onclick="_dnExec('insertUnorderedList')">•</button>
+        <button type="button" class="dn-btn" title="Numbered list" onclick="_dnExec('insertOrderedList')">1.</button>
+        <span class="dn-sep"></span>
+        <div class="dn-color-wrap">
+          <span class="dn-color-label">Color:</span>
+          <button type="button" class="dn-swatch" style="background:#f5e9d6" title="Cream" onclick="_dnExec('foreColor','#f5e9d6')"></button>
+          <button type="button" class="dn-swatch" style="background:#e8943a" title="Copper" onclick="_dnExec('foreColor','#e8943a')"></button>
+          <button type="button" class="dn-swatch" style="background:#6dcf8b" title="Green" onclick="_dnExec('foreColor','#6dcf8b')"></button>
+          <button type="button" class="dn-swatch" style="background:#8aa9d8" title="Blue" onclick="_dnExec('foreColor','#8aa9d8')"></button>
+          <button type="button" class="dn-swatch" style="background:#e84545" title="Red" onclick="_dnExec('foreColor','#e84545')"></button>
+          <button type="button" class="dn-swatch" style="background:#f5d76e" title="Yellow" onclick="_dnExec('foreColor','#f5d76e')"></button>
+        </div>
+        <span class="dn-sep"></span>
+        <button type="button" class="dn-btn dn-clear" title="Clear formatting" onclick="_dnExec('removeFormat')">⌫ Clear</button>
+        <span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;color:var(--warm-mute);text-transform:uppercase">${isTMOwner ? 'Editable · auto-saves' : 'Read-only'}</span>
+      </div>
+      <div id="dn_editor" class="day-notes-editor"
+           contenteditable="${isTMOwner ? 'true' : 'false'}"
+           data-placeholder="Add anything important for this day — call sheets, advance notes, crew reminders, anything the day sheet doesn't cover. Use the toolbar above for bold, bullets, color, etc."
+           oninput="_dnPersist()"
+           onblur="_dnPersist(true)">${ad.dayNotes || ''}</div>
+    </div>
+  `;
+}
+
+// Wrap document.execCommand calls + push focus back into the editor
+// so a keyboard shortcut or button hits the right target. execCommand
+// is deprecated but every modern browser still honors it; we accept
+// the tradeoff for MVP.
+function _dnExec(cmd, arg) {
+  const ed = document.getElementById('dn_editor');
+  if (!ed || ed.contentEditable !== 'true') return;
+  ed.focus();
+  try { document.execCommand(cmd, false, arg); } catch (e) {}
+  _dnPersist();
+}
+
+// Save the editor's HTML back onto the active date. We debounce
+// implicitly through React-less direct DOM updates — every keystroke
+// fires this, but the work is tiny (string assign + localStorage write).
+// onBlur calls with `final=true` so the save still happens if the user
+// clicks away without further typing.
+function _dnPersist(final) {
+  const ad = getActiveDate();
+  if (!ad) return;
+  const ed = document.getElementById('dn_editor');
+  if (!ed) return;
+  ad.dayNotes = ed.innerHTML || '';
+  saveState();
+  // Re-render the dashboard's day-card phone preview so the small
+  // "Notes" card there picks up any updates without a full reload.
+  try { renderPhone(); } catch (e) {}
+}
+
+// Quick textual summary for the section header — "EMPTY" / "3 LINES /
+// 24 WORDS". Strips HTML tags first so the count reflects content,
+// not markup characters.
+function _dayNotesStats(html) {
+  const stripped = String(html || '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+  if (!stripped) return { label: 'EMPTY' };
+  const words = stripped.split(/\s+/).filter(Boolean).length;
+  return { label: `${words} ${words === 1 ? 'WORD' : 'WORDS'}` };
 }
 
 /* =====================================================================
@@ -6733,6 +7055,13 @@ function renderPhone() {
             `;
           }).join('')}
         </div>
+      </div>
+    ` : ''}
+
+    ${ad.dayNotes && ad.dayNotes.replace(/<[^>]+>/g, '').trim() ? `
+      <div class="p-card p-card-notes">
+        <div class="lbl" style="color:#f5d76e">DAY NOTES</div>
+        <div class="p-notes-body">${ad.dayNotes}</div>
       </div>
     ` : ''}
 
@@ -8537,6 +8866,13 @@ function izApply() {
     });
   });
   T().dates.sort((a, b) => (a.date || 'zz').localeCompare(b.date || 'zz'));
+
+  // For every imported date, if the parser pulled in a schedule list,
+  // lift any doors / set / load-in / soundcheck times from there into
+  // the matching dashboard fields. Without this, a perfectly parsed
+  // document with "Doors 7:00 PM" in the schedule still shows the
+  // dashboard "Doors not set" gap on that date.
+  T().dates.forEach(d => _liftScheduleToDashboardFields(d));
 
   // Fill calendar gaps between imported dates with empty off-days. The tour
   // dashboard treats each tour day as its own tab, so a 5-day jump between
@@ -12527,11 +12863,14 @@ function calcLiveDateGaps(d) {
     if (!d.schedule || !d.schedule.length) missing.push('schedule');
     return missing;
   }
-  // Show / press days require the full kit
+  // Show / press days require the full kit.
+  // NOTE: doors and set time used to be checked here separately, but the
+  // TM-side feedback was that they're redundant with the schedule check
+  // — a complete schedule always includes a "Doors" and "Set" entry, so
+  // checking them as separate fields produced double-warnings. They've
+  // been removed as gap checks; the schedule check below covers them.
   if (!d.venue) missing.push('venue');
   if (!d.capacity) missing.push('capacity');
-  if (!d.doors) missing.push('doors');
-  if (!d.setTime) missing.push('set time');
   // promoter is optional — never flagged as missing
   // Hotel + Travel are an EITHER-OR pair on show days too (matching the off-day
   // rule). Some shows the band stays in the venue's city overnight (hotel), others
@@ -12559,7 +12898,7 @@ function gapsByTab(d) {
   const m = calcLiveDateGaps(d);
   const map = { dashboard: { hard:[], or:[] }, schedule: { hard:[], or:[] }, travel: { hard:[], or:[] }, hotels: { hard:[], or:[] } };
   m.forEach(g => {
-    if (g === 'date' || g === 'city' || g === 'venue' || g === 'capacity' || g === 'doors' || g === 'set time') map.dashboard.hard.push(g);
+    if (g === 'date' || g === 'city' || g === 'venue' || g === 'capacity') map.dashboard.hard.push(g);
     else if (g === 'schedule') map.schedule.hard.push(g);
     else if (g === 'travel items') map.travel.hard.push(g);
     else if (g === 'hotel or travel') {
@@ -12932,6 +13271,10 @@ function _idzMergeNow() {
   if (allDates.length) {
     tour.dates.sort((a, b) => (a.date || 'zz').localeCompare(b.date || 'zz'));
     fillDateGapsWithOffDays();
+    // Lift schedule-item times into dashboard fields on every date that
+    // got new schedule data from this merge — same fix as the initial
+    // import so re-sync uploads also resolve their door/set gaps.
+    tour.dates.forEach(d => _liftScheduleToDashboardFields(d));
   }
 
   // ── Hotels: attach to a matching date, never overwriting an existing hotel ──
@@ -13771,7 +14114,9 @@ Object.assign(window, {
   saveScheduleAsTemplate, applyScheduleTemplate, renameScheduleTemplate, deleteScheduleTemplate,
   toggleTravelTemplateMenu, closeTravelTemplateMenu,
   saveTravelAsTemplate, applyTravelTemplate, renameTravelTemplate, deleteTravelTemplate,
-  openContactUpload, handleContactUpload, toggleAllDay,
+  openContactUpload, handleContactUpload, toggleAllDay, _schedToggleAllDay,
+  _liftScheduleToDashboardFields, _refreshTourScanIfOpen, _to12h, _to24h,
+  renderDayNotes, _dnExec, _dnPersist, _dayNotesStats,
   checkCrewEmailMatch, findUserByEmail, findCrewMatchesByEmail,
   confirmTyped,
   archiveTask, unarchiveTask, archiveAllCompleted, toggleTasksArchive,
