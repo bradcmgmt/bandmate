@@ -1365,6 +1365,26 @@ input,select,textarea{font:inherit;color:inherit}
 .idz-x:hover{color:var(--red);border-color:rgba(232,69,69,.4);background:rgba(232,69,69,.06)}
 .idz-actions{display:flex;gap:8px;justify-content:flex-end;padding-top:6px;border-top:1px solid var(--line);margin-top:4px;padding-top:14px}
 
+/* Templates section embedded in the Edit Date modal. Lets the TM
+   save the current schedule/travel as a reusable template, or drop a
+   saved template onto this date, without leaving the modal. */
+.dm-tpl-wrap{margin-top:6px;border-top:1px solid var(--line);padding-top:14px;display:flex;flex-direction:column;gap:12px}
+.dm-tpl-section{display:flex;flex-direction:column;gap:6px;background:rgba(232,148,58,.03);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.dm-tpl-head{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--hi);font-weight:700}
+.dm-tpl-save{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  padding:5px 10px;border:1px solid var(--line-2);border-radius:6px;background:rgba(232,148,58,.06);color:var(--warm);cursor:pointer}
+.dm-tpl-save:hover:not([disabled]){border-color:var(--hi);color:var(--hi);background:rgba(232,148,58,.12)}
+.dm-tpl-save[disabled]{opacity:.4;cursor:not-allowed}
+.dm-tpl-list{display:flex;flex-direction:column;gap:4px}
+.dm-tpl-row{display:grid;grid-template-columns:24px 1fr auto;gap:9px;align-items:center;text-align:left;
+  padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:rgba(20,13,7,.4);cursor:pointer;width:100%}
+.dm-tpl-row:hover{border-color:var(--hi);background:rgba(232,148,58,.08)}
+.dm-tpl-ic{color:var(--hi);font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700}
+.dm-tpl-name{color:var(--warm);font-size:13px;font-weight:600}
+.dm-tpl-meta{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.1em;text-transform:uppercase}
+.dm-tpl-empty{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);font-style:italic;line-height:1.5;letter-spacing:.04em}
+
 .travel-share{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .travel-share.muted-share{color:var(--warm-mute);font-family:'JetBrains Mono',monospace;font-size:10px;
   letter-spacing:.06em;font-style:italic}
@@ -4642,6 +4662,7 @@ function openDateModal(id) {
         <div class="field" data-show-day><label>Load-in</label><input id="d_load" value="${esc(d.loadIn)}" placeholder="HH:MM"></div>
         <div class="field" data-show-day><label>Soundcheck</label><input id="d_sc" value="${esc(d.soundcheck)}" placeholder="HH:MM"></div>
         <div class="field full"><label>Notes</label><textarea id="d_notes">${esc(d.notes)}</textarea></div>
+        ${editing ? _dateModalTemplatesHTML(editing) : ''}
       </div>
     `,
     submitLabel: editing ? 'Save changes' : 'Add date',
@@ -4710,6 +4731,88 @@ function deleteDate(id) {
   saveState();
   renderAll();
   toast('Date deleted');
+}
+
+// Embedded inside the Edit Date modal so the TM can save the current
+// schedule/travel as a template, or apply a saved one, without having
+// to close the modal and navigate to the Schedule or Travel tab. This
+// is especially useful for travel days opened from the route panel's
+// "estimate unavailable" warning — the TM lands in the date modal and
+// can drop the saved overnight-bus template in place without leaving.
+function _dateModalTemplatesHTML(d) {
+  const schedTpls = (T().scheduleTemplates || []);
+  const travelTpls = (T().travelTemplates || []);
+  const status = (d.status || 'show').toLowerCase();
+  const hasSchedule = (d.schedule || []).length;
+  const hasTravel = (d.travel || []).length;
+  // Off / travel days emphasize the travel templates first; show /
+  // press / rehearsal days emphasize the schedule templates first.
+  const travelFirst = status === 'travel' || status === 'off';
+  const sched = `
+    <div class="dm-tpl-section">
+      <div class="dm-tpl-head">
+        <span>⌜ Schedule templates · ${schedTpls.length}</span>
+        <button type="button" class="dm-tpl-save" onclick="_dateModalSaveSched('${d.id}')" ${hasSchedule ? '' : 'disabled title="Nothing on this day to save yet"'}>+ Save current (${(d.schedule || []).length})</button>
+      </div>
+      ${schedTpls.length ? `
+        <div class="dm-tpl-list">
+          ${schedTpls.map(t => `
+            <button type="button" class="dm-tpl-row" onclick="_dateModalApplySched('${d.id}','${t.id}')">
+              <span class="dm-tpl-ic">↓</span>
+              <span class="dm-tpl-name">${esc(t.name)}</span>
+              <span class="dm-tpl-meta">${t.items.length} item${t.items.length===1?'':'s'}</span>
+            </button>
+          `).join('')}
+        </div>
+      ` : `<div class="dm-tpl-empty">No saved schedule templates yet. Build a day's schedule on the Schedule tab, then save it as a template — reuse it on every similar day.</div>`}
+    </div>
+  `;
+  const travel = `
+    <div class="dm-tpl-section">
+      <div class="dm-tpl-head">
+        <span>⌜ Travel templates · ${travelTpls.length}</span>
+        <button type="button" class="dm-tpl-save" onclick="_dateModalSaveTravel('${d.id}')" ${hasTravel ? '' : 'disabled title="Nothing on this day to save yet"'}>+ Save current (${(d.travel || []).length})</button>
+      </div>
+      ${travelTpls.length ? `
+        <div class="dm-tpl-list">
+          ${travelTpls.map(t => `
+            <button type="button" class="dm-tpl-row" onclick="_dateModalApplyTravel('${d.id}','${t.id}')">
+              <span class="dm-tpl-ic">↓</span>
+              <span class="dm-tpl-name">${esc(t.name)}</span>
+              <span class="dm-tpl-meta">${t.items.length} item${t.items.length===1?'':'s'}</span>
+            </button>
+          `).join('')}
+        </div>
+      ` : `<div class="dm-tpl-empty">No saved travel templates yet. Add buses / flights / vans on the Travel tab, then save the day as a template — drop it onto every travel day in two clicks.</div>`}
+    </div>
+  `;
+  return `
+    <div class="field full dm-tpl-wrap">
+      <label>Templates <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(apply saved · save current)</span></label>
+      ${travelFirst ? travel + sched : sched + travel}
+    </div>
+  `;
+}
+
+// Make the edited date active before calling the existing template
+// apply/save functions — those operate on getActiveDate(), so without
+// this they'd target whatever date was active when the modal opened
+// (which may be different from the date being edited).
+function _dateModalApplySched(dateId, tplId) {
+  if (T().activeDateId !== dateId) T().activeDateId = dateId;
+  applyScheduleTemplate(tplId);
+}
+function _dateModalApplyTravel(dateId, tplId) {
+  if (T().activeDateId !== dateId) T().activeDateId = dateId;
+  applyTravelTemplate(tplId);
+}
+function _dateModalSaveSched(dateId) {
+  if (T().activeDateId !== dateId) T().activeDateId = dateId;
+  saveScheduleAsTemplate();
+}
+function _dateModalSaveTravel(dateId) {
+  if (T().activeDateId !== dateId) T().activeDateId = dateId;
+  saveTravelAsTemplate();
 }
 
 /* =====================================================================
@@ -15590,6 +15693,7 @@ Object.assign(window, {
   rbReflect, rbReflectReset,
   toggleSchedTemplateMenu, closeSchedTemplateMenu,
   saveScheduleAsTemplate, applyScheduleTemplate, renameScheduleTemplate, deleteScheduleTemplate,
+  _dateModalApplySched, _dateModalApplyTravel, _dateModalSaveSched, _dateModalSaveTravel,
   toggleTravelTemplateMenu, closeTravelTemplateMenu,
   saveTravelAsTemplate, applyTravelTemplate, renameTravelTemplate, deleteTravelTemplate,
   openContactUpload, handleContactUpload, toggleAllDay, _schedToggleAllDay,
