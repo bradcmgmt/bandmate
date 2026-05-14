@@ -5506,6 +5506,15 @@ function openAttachModal(attId) {
             ${hasInline ? `Inline file stored · ${esc(v.size || '')}` : 'No file picked yet — or use the cloud link below'}
           </div>
         </div>
+        <div class="field full" style="background:rgba(232,148,58,.04);border:1px solid rgba(232,148,58,.18);border-radius:8px;padding:10px 12px">
+          <label style="display:flex;align-items:center;gap:9px;cursor:pointer;margin:0">
+            <input type="checkbox" id="at_analyze" checked style="width:16px;height:16px;accent-color:var(--hi);cursor:pointer">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--hi);font-weight:700">⌕ Analyze + auto-fill gaps</span>
+          </label>
+          <div class="muted" style="font-size:11.5px;margin-top:5px;line-height:1.4">
+            Pull tour dates, hotels, flights and contacts out of this file and merge them into the tour — same as the Tour Scan → Import Data flow. The file is still saved as an attachment regardless.
+          </div>
+        </div>
         <div class="field full"><label>File name *</label><input id="at_name" value="${esc(v.name)}" placeholder="e.g. Royale-Performance-Agreement.pdf"></div>
         <div class="field"><label>Type</label>
           <select id="at_type">${ATTACH_TYPES.map(t => `<option ${v.type===t?'selected':''}>${t}</option>`).join('')}</select>
@@ -5516,7 +5525,7 @@ function openAttachModal(attId) {
       </div>
       <div class="help">Pick a file to store it inline (lives in this browser's local storage). For files over 5 MB or shared from elsewhere, paste a cloud URL instead — Drive / Dropbox / S3 / Box.</div>
     `,
-    onSubmit: () => {
+    onSubmit: async () => {
       const name = $('#at_name').value.trim();
       if (!name) { toast('File name required', 'error'); return false; }
       const data = {
@@ -5536,8 +5545,33 @@ function openAttachModal(attId) {
       if (a) Object.assign(a, data);
       else ad.attachments.push({ id: uid('at'), ...data });
       saveState();
+      // If "Analyze + auto-fill gaps" is on AND the TM just picked a
+      // brand-new file, run that file through the import pipeline so
+      // the upload doubles as a gap-fill. The attachment is already
+      // saved above; the analyze step is purely additive — it may
+      // add dates, hotels, travel, contacts, etc. across the tour.
+      const analyzeOn = !!document.getElementById('at_analyze')?.checked;
+      const fileToAnalyze = _attachPickedFile;
       _attachPickedFile = null;
       _attachPickedDataUrl = '';
+      if (analyzeOn && fileToAnalyze) {
+        // Don't block the modal close — kick the analysis off after
+        // the modal has dismissed so the user sees a fast Save with a
+        // followup toast once the parse completes.
+        setTimeout(async () => {
+          try {
+            toast('Analyzing file for tour data…', '');
+            const result = await processImportFile(fileToAnalyze);
+            result._sourceFile = fileToAnalyze;
+            const stats = _applyImportResults([result]);
+            saveState();
+            renderAll();
+            _toastImportStats(stats);
+          } catch (e) {
+            toast('Analyze failed: ' + (e.message || e), 'error');
+          }
+        }, 60);
+      }
     }
   });
 }
@@ -14480,27 +14514,31 @@ async function _idzAnalyze() {
 // Merge whatever's been analyzed into the active tour. Match dates by ISO
 // date string; for hotel matches, prefer date but fall back to city.
 // Only fill EMPTY fields — never overwrite existing data.
-function _idzMergeNow() {
+// Apply one or more processImportFile results to the active tour:
+// merge dates, attach hotels and flights, dedupe contacts/crew, and
+// file each source file under every matching date. Returns a stats
+// object so the caller can show a toast. Used by both the Tour Scan
+// → Import Data merge flow AND the per-attachment "analyze on upload"
+// option in the Attachments tab, so the two flows behave identically.
+function _applyImportResults(results) {
   const tour = T();
-  if (!tour) return;
-  // Aggregate everything
+  if (!tour) return { datesUpdated: 0, datesAdded: 0, hotelsAttached: 0, travelAttached: 0, contactsAdded: 0, crewAdded: 0, fieldsFilled: 0, attachmentsAdded: 0 };
   const allDates = [];
   const allContacts = [];
   const allHotels = [];
   const allCrew = [];
   const allTravel = [];
-  _importStaging.forEach(s => {
-    if (s.status === 'done' && s.result) {
-      const ex = s.result.extracted || {};
-      if (ex.dates) allDates.push(...ex.dates);
-      if (ex.contacts) allContacts.push(...ex.contacts);
-      if (ex.hotels) allHotels.push(...ex.hotels);
-      if (ex.crew) allCrew.push(...ex.crew);
-      if (ex.travel) allTravel.push(...ex.travel);
-    }
+  (results || []).forEach(result => {
+    if (!result) return;
+    const ex = result.extracted || {};
+    if (ex.dates) allDates.push(...ex.dates);
+    if (ex.contacts) allContacts.push(...ex.contacts);
+    if (ex.hotels) allHotels.push(...ex.hotels);
+    if (ex.crew) allCrew.push(...ex.crew);
+    if (ex.travel) allTravel.push(...ex.travel);
   });
 
-  const stats = { datesUpdated: 0, datesAdded: 0, hotelsAttached: 0, travelAttached: 0, contactsAdded: 0, crewAdded: 0, fieldsFilled: 0 };
+  const stats = { datesUpdated: 0, datesAdded: 0, hotelsAttached: 0, travelAttached: 0, contactsAdded: 0, crewAdded: 0, fieldsFilled: 0, attachmentsAdded: 0 };
 
   // ── Dates: match by ISO date, fill missing fields only ───────────────
   allDates.forEach(d => {
@@ -14632,31 +14670,33 @@ function _idzMergeNow() {
     }
   });
 
-  // ── Attachments: for every file uploaded in this re-sync, attach
-  //   it to every date (across every owned tour) that received data
-  //   from it. Deduped per-date, so re-syncing the same file twice
-  //   doesn't double up. We tally across all owned tours since a single
-  //   file can legitimately land on multiple tours. ──
+  // ── Attachments: for every analyzed file, attach it to every date
+  //   (across every owned tour) that received data from it. Deduped
+  //   per-date by filename, so analyzing the same file twice doesn't
+  //   double up. Tally across all owned tours since a single file can
+  //   legitimately land on multiple tours.
   let attachmentsAdded = 0;
   const me = U();
   const ownedTours = me ? Object.values(state.tours).filter(t => t.ownerId === me.id) : [tour];
   const countAttachments = (fileName) => ownedTours.reduce((n, t) =>
     n + (t.dates || []).reduce((m, d) => m + ((d.attachments || []).filter(a => a.name === fileName).length), 0), 0);
-  _importStaging.forEach(s => {
-    if (s.status !== 'done' || !s.result || !s.result.file) return;
-    const fileName = s.result.file.name;
+  (results || []).forEach(result => {
+    if (!result || !result.file) return;
+    const fileName = result.file.name;
     const before = countAttachments(fileName);
-    _attachImportedFileToMatchingDates(s.result);
+    _attachImportedFileToMatchingDates(result);
     const after = countAttachments(fileName);
     attachmentsAdded += (after - before);
   });
   if (attachmentsAdded) stats.attachmentsAdded = attachmentsAdded;
+  return stats;
+}
 
-  saveState();
-  _importStaging = [];
-  closeModal();
-  renderAll();
-
+// Build a short "Merged: x dates · y hotels · …" toast from the stats
+// object returned by _applyImportResults. Pulled out so callers can
+// reuse it (Tour Scan merge, Attachments analyze, future ad-hoc
+// analyze flows) without duplicating the wording.
+function _toastImportStats(stats) {
   const msgBits = [];
   if (stats.datesUpdated) msgBits.push(`${stats.fieldsFilled} field${stats.fieldsFilled===1?'':'s'} filled across ${stats.datesUpdated} date${stats.datesUpdated===1?'':'s'}`);
   if (stats.datesAdded) msgBits.push(`${stats.datesAdded} new date${stats.datesAdded===1?'':'s'}`);
@@ -14666,6 +14706,24 @@ function _idzMergeNow() {
   if (stats.crewAdded) msgBits.push(`${stats.crewAdded} new crew`);
   if (stats.attachmentsAdded) msgBits.push(`${stats.attachmentsAdded} file${stats.attachmentsAdded===1?'':'s'} filed under matching dates`);
   toast(msgBits.length ? `Merged: ${msgBits.join(' · ')}` : 'Nothing new to merge', msgBits.length ? 'good' : '');
+}
+
+// Tour Scan → Import Data → "Merge into tour" entry point. Wraps the
+// reusable _applyImportResults helper with the Import Data modal's
+// UX: clears staging, closes the modal, re-renders the tour, and
+// shows the merged-stats toast.
+function _idzMergeNow() {
+  const tour = T();
+  if (!tour) return;
+  const results = _importStaging
+    .filter(s => s.status === 'done' && s.result)
+    .map(s => s.result);
+  const stats = _applyImportResults(results);
+  saveState();
+  _importStaging = [];
+  closeModal();
+  renderAll();
+  _toastImportStats(stats);
 }
 
 /* =====================================================================
