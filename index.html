@@ -12496,7 +12496,6 @@ function renderTourSwitcher() {
     ${u && u.role === 'tm' ? `<button class="ts-action" type="button" onclick="newTourFlow()"><span style="text-align:center">+</span><span>New tour</span></button>` : ''}
     ${u && T().ownerId === u.id ? `<button class="ts-action" type="button" onclick="renameCurrentTour()"><span style="text-align:center">✎</span><span>Rename current</span></button>` : ''}
     ${u && T().ownerId === u.id ? `<button class="ts-action" type="button" onclick="deleteCurrentTour()" style="color:var(--red);border-color:rgba(232,69,69,.35)"><span style="text-align:center">×</span><span>Delete current</span></button>` : ''}
-    <button class="ts-action" type="button" onclick="closeTourSwitcher();resetTour()" style="color:var(--red);border-color:rgba(232,69,69,.35)"><span style="text-align:center">⟲</span><span>Reset everything</span></button>
   `;
 }
 
