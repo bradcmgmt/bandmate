@@ -684,6 +684,16 @@ input,select,textarea{font:inherit;color:inherit}
 .setlist li .sl-actions button{width:22px;height:22px;display:grid;place-items:center;border:1px solid rgba(232,148,58,.2);border-radius:4px;color:var(--warm-mute);font-size:10px;background:rgba(232,148,58,.04)}
 .setlist li .sl-actions button:hover{color:var(--hi);border-color:var(--hi)}
 .setlist li .sl-actions button.del:hover{color:var(--red);border-color:var(--red)}
+/* Set list totals footer — replaces the section-title stamp. Sits at
+   the bottom of the printed setlist so the song count and runtime
+   live where the eye naturally lands after reading the list. */
+.setlist .sl-totals{display:flex;justify-content:flex-end;align-items:baseline;gap:8px;
+  margin-top:14px;padding-top:12px;border-top:1px solid rgba(232,148,58,.2);
+  font-family:'JetBrains Mono',monospace;letter-spacing:.22em;text-transform:uppercase;
+  position:relative;z-index:1}
+.setlist .sl-totals-songs{font-size:11px;color:var(--warm-mute);font-weight:700}
+.setlist .sl-totals-sep{color:var(--warm-mute);opacity:.5}
+.setlist .sl-totals-time{font-size:13.5px;color:var(--hi);font-weight:800;letter-spacing:.18em}
 
 /* settlement table */
 .settle-row{grid-template-columns:90px 1.4fr 110px 130px 1fr 100px 90px}
@@ -5102,6 +5112,113 @@ function deleteTravelTemplate(tplId) {
   renderTravel();
 }
 
+/* =====================================================================
+   SET LIST TEMPLATES — save a set list as a reusable template that can
+   be applied to other show dates. Lets a TM lock in the standard set
+   order (e.g. "Headline 75-min" or "Festival 45-min") and reapply it
+   each night without retyping every song. Stored on the tour at
+   T().setListTemplates so the templates travel with the artist, not
+   the user account — moves cleanly when ownership transfers.
+   ===================================================================== */
+let _setListTemplateMenuOpen = false;
+function toggleSetListTemplateMenu() {
+  _setListTemplateMenuOpen = !_setListTemplateMenuOpen;
+  const menu = document.getElementById('setListTemplateMenu');
+  if (menu) menu.hidden = !_setListTemplateMenuOpen;
+}
+function closeSetListTemplateMenu() {
+  _setListTemplateMenuOpen = false;
+  const menu = document.getElementById('setListTemplateMenu');
+  if (menu) menu.hidden = true;
+}
+
+function saveSetListAsTemplate() {
+  const ad = getActiveDate();
+  if (!ad) return;
+  if (!ad.setList || !ad.setList.length) {
+    toast('No set list on this day to save', 'error');
+    closeSetListTemplateMenu();
+    return;
+  }
+  const defaultName = `${ad.city || 'Untitled'} set`;
+  const name = prompt('Set list template name:', defaultName);
+  if (!name || !name.trim()) { closeSetListTemplateMenu(); return; }
+  if (!T().setListTemplates) T().setListTemplates = [];
+  // Strip ids so applying creates fresh ones; preserve everything else
+  // (kind, title, length, feat).
+  const items = ad.setList.map(s => {
+    const { id, ...rest } = s;
+    return rest;
+  });
+  T().setListTemplates.push({
+    id: uid('sltpl'),
+    name: name.trim(),
+    items,
+    note: `${items.filter(x => x.kind === 'song').length} songs · saved ${new Date().toLocaleDateString()}`,
+    createdAt: Date.now(),
+  });
+  saveState();
+  closeSetListTemplateMenu();
+  renderSetList();
+  toast(`Saved set list template "${name.trim()}"`, 'good');
+}
+
+function applySetListTemplate(tplId) {
+  const ad = getActiveDate();
+  if (!ad) { toast('No active date to apply to', 'error'); return; }
+  const tpl = (T().setListTemplates || []).find(t => t.id === tplId);
+  if (!tpl) { toast('Template not found', 'error'); return; }
+  if (!Array.isArray(tpl.items) || tpl.items.length === 0) {
+    toast(`Template "${tpl.name}" is empty — nothing to apply`, 'error');
+    closeSetListTemplateMenu();
+    return;
+  }
+  const existing = (ad.setList || []).length;
+  let mode = 'append';
+  if (existing) {
+    const choice = prompt(
+      `This day already has ${existing} set list item${existing===1?'':'s'}.\n\n` +
+      `Type "REPLACE" to clear and load the template,\n` +
+      `or press OK to append the template's ${tpl.items.length} item${tpl.items.length===1?'':'s'}.`,
+      'append'
+    );
+    if (choice === null) { closeSetListTemplateMenu(); return; }
+    if (choice.trim().toUpperCase() === 'REPLACE') mode = 'replace';
+  }
+  if (mode === 'replace') ad.setList = [];
+  if (!ad.setList) ad.setList = [];
+  // Deep-clone so multiple applications don't share references.
+  tpl.items.forEach(it => {
+    ad.setList.push({ id: uid('sl'), ...JSON.parse(JSON.stringify(it)) });
+  });
+  saveState();
+  closeSetListTemplateMenu();
+  toast(`Applied "${tpl.name}" · ${tpl.items.length} item${tpl.items.length===1?'':'s'} ${mode==='replace'?'replaced':'added'}`, 'good');
+  renderAll();
+}
+
+function renameSetListTemplate(tplId) {
+  const tpl = (T().setListTemplates || []).find(t => t.id === tplId);
+  if (!tpl) return;
+  const next = prompt('Rename set list template:', tpl.name);
+  if (next == null) return;
+  const trimmed = next.trim();
+  if (!trimmed) return;
+  tpl.name = trimmed;
+  saveState();
+  renderSetList();
+}
+
+function deleteSetListTemplate(tplId) {
+  const tpl = (T().setListTemplates || []).find(t => t.id === tplId);
+  if (!tpl) return;
+  if (!confirm(`Delete set list template "${tpl.name}"? This can't be undone.`)) return;
+  T().setListTemplates = (T().setListTemplates || []).filter(t => t.id !== tplId);
+  saveState();
+  toast('Set list template deleted');
+  renderSetList();
+}
+
 function openScheduleModal(itemId) {
   const ad = getActiveDate();
   if (!ad) return;
@@ -7029,13 +7146,36 @@ function renderSetList() {
   if (!ad) { root.innerHTML = noDate(); return; }
 
   const list = ad.setList || [];
+  const songCount = list.filter(x => x.kind === 'song').length;
   const totalLen = list.filter(x => x.kind === 'song').reduce((n, x) => n + parseLength(x.length), 0);
+  const setListTpls = (T().setListTemplates || []);
 
   root.innerHTML = `
     <div class="section-title">
       <h2>Set list · ${esc(ad.city)}</h2>
       <span class="crumb">/ ${fmtDate(ad.date).toUpperCase()}</span>
-      <span class="stamp">${list.filter(x=>x.kind==='song').length} SONGS · ${formatMin(totalLen)}</span>
+      <div class="sched-template-wrap" id="setListTemplateWrap" style="position:relative;margin-left:auto">
+        <button type="button" class="add-btn" onclick="toggleSetListTemplateMenu()">⌜ Templates ${setListTpls.length ? `· ${setListTpls.length}` : ''} ▾</button>
+        <div class="sched-template-menu" id="setListTemplateMenu" hidden>
+          <button type="button" class="stm-item" onclick="saveSetListAsTemplate()">
+            <span class="stm-ic">+</span>
+            <span><div class="stm-h">Save current as template</div><div class="stm-s">${list.length} item${list.length===1?'':'s'} on this day${songCount ? ' · ' + songCount + ' song' + (songCount===1?'':'s') : ''}</div></span>
+          </button>
+          ${setListTpls.length ? `
+            <div class="stm-divider">Saved set list templates</div>
+            ${setListTpls.map(t => `
+              <div class="stm-row">
+                <button type="button" class="stm-item stm-apply" onclick="applySetListTemplate('${t.id}')">
+                  <span class="stm-ic">↓</span>
+                  <span><div class="stm-h">${esc(t.name)}</div><div class="stm-s">${t.items.length} item${t.items.length===1?'':'s'}${t.note ? ' · '+esc(t.note) : ''}</div></span>
+                </button>
+                <button type="button" class="stm-mini" title="Rename" onclick="event.stopPropagation();renameSetListTemplate('${t.id}')">✎</button>
+                <button type="button" class="stm-mini stm-del" title="Delete" onclick="event.stopPropagation();deleteSetListTemplate('${t.id}')">×</button>
+              </div>
+            `).join('')}
+          ` : `<div class="stm-empty">No saved set list templates yet — build a set on this day and save it to reuse on every show</div>`}
+        </div>
+      </div>
       <button type="button" class="tb-btn" onclick="printStageCopy()">↪ Stage Copy</button>
       <button type="button" class="tb-btn primary" onclick="openSetItemModal()">+ Add to list</button>
     </div>
@@ -7066,6 +7206,11 @@ function renderSetList() {
               </li>
             `).join('')}
           </ol>
+          <div class="sl-totals">
+            <span class="sl-totals-songs">${songCount} SONG${songCount===1?'':'S'}</span>
+            <span class="sl-totals-sep">·</span>
+            <span class="sl-totals-time">${formatMin(totalLen)}</span>
+          </div>
         `}
       </div>
 
@@ -15694,6 +15839,7 @@ Object.assign(window, {
   toggleSchedTemplateMenu, closeSchedTemplateMenu,
   saveScheduleAsTemplate, applyScheduleTemplate, renameScheduleTemplate, deleteScheduleTemplate,
   _dateModalApplySched, _dateModalApplyTravel, _dateModalSaveSched, _dateModalSaveTravel,
+  toggleSetListTemplateMenu, closeSetListTemplateMenu, saveSetListAsTemplate, applySetListTemplate, renameSetListTemplate, deleteSetListTemplate,
   toggleTravelTemplateMenu, closeTravelTemplateMenu,
   saveTravelAsTemplate, applyTravelTemplate, renameTravelTemplate, deleteTravelTemplate,
   openContactUpload, handleContactUpload, toggleAllDay, _schedToggleAllDay,
