@@ -3649,6 +3649,79 @@ const db = {
       this._syncInFlight = false;
     }
   },
+
+  // Realtime · postgres_changes feed for tours + dates. RLS filters server-side
+  // so the client only receives events for rows it can read. Events from this
+  // client's own writes also come back through here — we apply them
+  // idempotently (no-op if state already matches the incoming row).
+  _channel: null,
+  subscribeRealtime(userId) {
+    if (!sb || !userId) return;
+    this.unsubscribeRealtime();
+    this._channel = sb.channel(`bandmate:${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tours' },
+        payload => this._onTourChange(payload))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dates' },
+        payload => this._onDateChange(payload))
+      .subscribe(status => {
+        if (status === 'SUBSCRIBED') console.log('[realtime] connected');
+        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') console.warn('[realtime]', status);
+      });
+  },
+  unsubscribeRealtime() {
+    if (!sb || !this._channel) return;
+    try { sb.removeChannel(this._channel); } catch (e) { /* non-fatal */ }
+    this._channel = null;
+  },
+  _onTourChange(payload) {
+    const { eventType, new: row, old } = payload;
+    if (!state) return;
+    if (eventType === 'DELETE') {
+      const id = old?.id;
+      if (id && state.tours[id]) {
+        delete state.tours[id];
+        if (state.currentTourId === id) {
+          state.currentTourId = Object.keys(state.tours)[0] || null;
+        }
+        try { renderAll(); } catch (e) {}
+      }
+      return;
+    }
+    if (!row || !row.id) return;
+    // Preserve existing local dates array on update — date changes flow
+    // through _onDateChange separately. Insert seeds an empty dates array.
+    const existing = state.tours[row.id];
+    const existingDates = existing?.dates || [];
+    state.tours[row.id] = dbMap.rowToTour(row, existingDates);
+    if (!state.currentTourId) state.currentTourId = row.id;
+    try { renderAll(); } catch (e) {}
+  },
+  _onDateChange(payload) {
+    const { eventType, new: row, old } = payload;
+    if (!state) return;
+    if (eventType === 'DELETE') {
+      const id = old?.id;
+      const tourId = old?.tour_id;
+      if (id && tourId && state.tours[tourId]) {
+        state.tours[tourId].dates = (state.tours[tourId].dates || []).filter(d => d.id !== id);
+        if (state.tours[tourId].activeDateId === id) {
+          state.tours[tourId].activeDateId = state.tours[tourId].dates[0]?.id || null;
+        }
+        try { renderAll(); } catch (e) {}
+      }
+      return;
+    }
+    if (!row || !row.id || !row.tour_id) return;
+    const tour = state.tours[row.tour_id];
+    if (!tour) return;
+    const newDate = dbMap.rowToDate(row);
+    // Preserve any local-only fields not yet synced (attachments today)
+    const existing = (tour.dates || []).find(d => d.id === row.id);
+    if (existing && existing.attachments?.length) newDate.attachments = existing.attachments;
+    tour.dates = (tour.dates || []).filter(d => d.id !== row.id).concat(newDate);
+    tour.dates.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    try { renderAll(); } catch (e) {}
+  },
   // Pull this user's tours + dates from Supabase and rebuild state.tours.
   // Called after successful signup or sign-in. Replaces state.tours entirely
   // for tours owned by the current user; non-owned local tours stay untouched
@@ -14162,6 +14235,7 @@ async function loginWithEmail() {
   // Pull the user's tours + dates from Supabase so this device shows their
   // real cloud data, regardless of what was in localStorage on this browser.
   await db.hydrateUserData(userId);
+  db.subscribeRealtime(userId);
   postLoginRouting();
   toast(`Welcome back, ${state.users[userId].name.split(' ')[0]}`, 'good');
 }
@@ -14308,6 +14382,7 @@ async function signUp() {
   // Pull the seeded demo tour + dates the signup trigger created so the
   // new account lands on real cloud data, not an empty local state.
   await db.hydrateUserData(userId);
+  db.subscribeRealtime(userId);
   postLoginRouting();
   const firstName = name.split(' ')[0];
   if (pending && role === 'tm') {
@@ -14366,7 +14441,10 @@ function _copyCrewEmail(email) {
 async function logout() {
   closeAccountMenu();
   if (!confirm('Sign out? Your tour data stays on this device.')) return;
-  if (sb) { try { await sb.auth.signOut(); } catch (e) { /* non-fatal */ } }
+  if (sb) {
+    try { db.unsubscribeRealtime(); } catch (e) { /* non-fatal */ }
+    try { await sb.auth.signOut(); } catch (e) { /* non-fatal */ }
+  }
   state.currentUserId = null;
   saveState();
   // Hide the crew block screen explicitly — without this, signing out
@@ -16237,6 +16315,7 @@ try { init(); } catch (e) { console.error("init failed:", e); }
     if (result.tours > 0) {
       try { renderAll(); } catch (e) { console.error('post-hydrate render:', e); }
     }
+    db.subscribeRealtime(userId);
   } catch (e) {
     console.warn('boot cloud sync skipped:', e);
   }
