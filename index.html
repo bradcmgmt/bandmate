@@ -124,9 +124,18 @@ input,select,textarea{font:inherit;color:inherit}
    .sticky-header that handles the sticky positioning. The children
    stay in normal flow inside it, so their actual computed heights
    don't matter — the whole block sticks together. Each child keeps
-   its own backgrounds, borders, and shadows. */
+   its own backgrounds, borders, and shadows.
+
+   Stacking inside the wrapper: the topbar needs to sit ABOVE its
+   sticky-header siblings because it hosts dropdowns (Export, Tools,
+   Account, Tour Switcher) whose menus drop down past the bottom of
+   the topbar and over the tape strip / day strip. The topbar's own
+   backdrop-filter creates a stacking context that traps those
+   menus' z-index inside the topbar, so an explicit z-index on the
+   topbar itself is required to lift them above the day strip. */
 .sticky-header{position:sticky;top:0;z-index:30;background:var(--ink)}
 .topbar{
+  position:relative;z-index:3;
   display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:18px;
   padding:14px 22px 12px;
   background:linear-gradient(180deg,var(--ink) 0%,#0c0805 100%);
