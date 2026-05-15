@@ -120,8 +120,13 @@ input,select,textarea{font:inherit;color:inherit}
 .hidden{display:none!important}
 
 /* ============ TOPBAR ============ */
+/* The topbar, tape strip, and day strip are wrapped in a single
+   .sticky-header that handles the sticky positioning. The children
+   stay in normal flow inside it, so their actual computed heights
+   don't matter — the whole block sticks together. Each child keeps
+   its own backgrounds, borders, and shadows. */
+.sticky-header{position:sticky;top:0;z-index:30;background:var(--ink)}
 .topbar{
-  position:sticky;top:0;z-index:30;
   display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:18px;
   padding:14px 22px 12px;
   background:linear-gradient(180deg,var(--ink) 0%,#0c0805 100%);
@@ -200,13 +205,12 @@ input,select,textarea{font:inherit;color:inherit}
 .icon-btn:hover{color:var(--hi);border-color:var(--hi);box-shadow:0 0 12px rgba(232,148,58,.25)}
 
 /* ============ TAPE STRIP ============
-   Sticky band below the topbar. Holds the active date's context
-   (day count, city, venue, date, status, doors). Stays put with the
-   day strip below it so the TM never loses orientation while
-   scrolling deep into a tab. */
+   Holds the active date's context (day count, city, venue, date,
+   status, doors). Static positioning — the .sticky-header parent
+   does the sticking for the whole header band. */
 .tape-strip{height:38px;
   background:linear-gradient(180deg,rgba(232,148,58,.10),rgba(232,148,58,.04)),#0f0a06;
-  border-bottom:1px solid var(--line);position:sticky;top:69px;z-index:29;overflow:hidden}
+  border-bottom:1px solid var(--line);overflow:hidden}
 .tape-strip::before{content:"";position:absolute;inset:0;pointer-events:none;
   background:radial-gradient(ellipse 600px 60px at 50% 100%,rgba(232,148,58,.18),transparent 60%)}
 .tape-strip .label{display:flex;align-items:center;gap:14px;height:100%;padding:0 22px;
@@ -217,13 +221,9 @@ input,select,textarea{font:inherit;color:inherit}
 
 /* ============ DAY STRIP ============ */
 .day-strip-wrap{
-  /* Docks immediately below the sticky tape strip (~107px from top:
-     69px topbar + 38px tape strip). Both stay pinned together as a
-     unified header band so the TM keeps the active date's context
-     AND can swap dates from anywhere on the page. Extra bottom
-     padding (14px instead of 10px) gives the active pill's amber
-     glow room to render fully inside the wrap. */
-  position:sticky;top:107px;z-index:28;
+  /* Static positioning — rides along inside the .sticky-header wrap
+     above. Extra bottom padding (14px instead of 10px) gives the
+     active pill's amber glow room to render fully inside the wrap. */
   background:linear-gradient(180deg,#0c0805 0%,#100a06 100%);
   border-bottom:1px solid var(--line);
   box-shadow:0 8px 16px -8px rgba(0,0,0,.5);
@@ -3309,6 +3309,12 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 <!-- ============ MAIN APP ============ -->
 <div id="app" hidden>
 
+  <!-- Unified sticky header: topbar + tape strip + day strip. Wrapped
+       together so they move as one block — eliminates the pixel-math
+       drift that came from each having its own sticky top offset
+       relative to the assumed topbar height. -->
+  <div class="sticky-header">
+
   <header class="topbar">
     <div class="laminate-wrap">
       <div class="laminate">
@@ -3368,6 +3374,8 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
       <button type="button" class="day-add-btn" onclick="openAddDateChooser()">+ Add Date</button>
     </div>
   </div>
+
+  </div><!-- /sticky-header -->
 
   <div class="crew-mode-banner">📱 <b>Crew view</b> — TM dashboard hidden. Tap your phone\'s <b>More</b> tab to switch tours or sign out.</div>
   <main class="stage">
