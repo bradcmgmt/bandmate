@@ -3223,6 +3223,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
       <div class="login-field"><label>Password</label><input id="li_pw" type="password" autocomplete="current-password"></div>
       <button type="button" class="login-btn primary" onclick="loginWithEmail()">Sign in</button>
       <div class="login-toggle">No account? <a onclick="showSignupForm()">Create one →</a></div>
+      <div class="login-toggle"><a onclick="showForgotPassword()" style="color:var(--warm-mute);font-size:11px">Forgot your password?</a></div>
     </div>
 
     <div id="signupForm" hidden>
@@ -3468,6 +3469,21 @@ const sb = (window.supabase && window.supabase.createClient)
     })
   : null;
 if (!sb) console.warn('Supabase SDK failed to load — check the network tab. Auth will not work until this is resolved.');
+
+// Listener for special auth events. PASSWORD_RECOVERY fires when the user
+// clicks the recovery link in their email and lands back on the site —
+// Supabase JS auto-processes the URL hash token and signs them into a
+// short-lived recovery session, then fires this event. We defer the modal
+// open so init() and the modal helpers are guaranteed to be ready.
+if (sb) {
+  sb.auth.onAuthStateChange((event) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      setTimeout(() => {
+        try { _handlePasswordRecovery(); } catch (e) { console.error('recovery handler:', e); }
+      }, 200);
+    }
+  });
+}
 
 /* ---------- DB layer · tours + dates (slice 2) ---------- */
 /* Mapping between the JS state shape (camelCase, meta nested, dates inline)
@@ -14436,6 +14452,118 @@ function _copyCrewEmail(email) {
     navigator.clipboard.writeText(email);
     toast('Email copied — paste it in your message to the TM', 'good');
   } catch(e) { toast('Copy failed — copy manually: ' + email, 'error'); }
+}
+
+/* ---------- Password reset flow ---------- */
+// Opens a modal asking for the user's email. On submit, asks Supabase to
+// email them a recovery link. The link points back at this site with a
+// recovery token in the URL hash; sb.auth.onAuthStateChange catches it
+// and fires PASSWORD_RECOVERY, which our listener routes to the
+// _handlePasswordRecovery modal below.
+function showForgotPassword() {
+  openModal({
+    title: 'Reset your password',
+    hideFooter: true,
+    body: `
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <p style="color:var(--warm-mute);font-size:13px;line-height:1.5;margin:0">Enter your account email — we'll send you a link to set a new password. The link expires in 1 hour.</p>
+        <div class="login-field"><label>Email</label><input id="fp_email" type="email" autocomplete="email"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+          <button type="button" class="btn primary" id="fp_send_btn" onclick="sendPasswordReset()">Send reset link</button>
+        </div>
+      </div>
+    `,
+  });
+  setTimeout(() => document.getElementById('fp_email')?.focus(), 60);
+}
+
+async function sendPasswordReset() {
+  const email = (document.getElementById('fp_email')?.value || '').trim().toLowerCase();
+  if (!email) { toast('Enter your email', 'error'); return; }
+  if (!sb) { toast('Auth service not loaded — refresh the page', 'error'); return; }
+  const btn = document.getElementById('fp_send_btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin
+  });
+  if (btn) { btn.disabled = false; btn.textContent = 'Send reset link'; }
+  if (error) {
+    // Supabase returns a generic success even when the email doesn't exist
+    // (to avoid leaking whether an account is registered). Any error here
+    // is usually rate-limiting or a network issue — surface it directly.
+    toast(error.message || 'Could not send reset email', 'error');
+    return;
+  }
+  closeModal();
+  toast('Check your inbox — reset link sent', 'good');
+}
+
+// Triggered when the user clicks the recovery link in their email and
+// lands back here. Supabase JS has already processed the hash token and
+// fired PASSWORD_RECOVERY by the time we get here.
+function _handlePasswordRecovery() {
+  // Make sure the landing/login screens are hidden so the modal isn't
+  // competing with the marketing surface.
+  try { document.getElementById('landingScreen').hidden = true; } catch (e) {}
+  try { document.getElementById('loginScreen').hidden = true; } catch (e) {}
+  openModal({
+    title: 'Set a new password',
+    hideFooter: true,
+    body: `
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <p style="color:var(--warm-mute);font-size:13px;line-height:1.5;margin:0">You're signed in via the recovery link. Choose a new password to finish.</p>
+        <div class="login-field"><label>New password</label><input id="rp_pw" type="password" autocomplete="new-password"></div>
+        <div class="login-field"><label>Confirm new password</label><input id="rp_pw2" type="password" autocomplete="new-password"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button type="button" class="btn primary" id="rp_save_btn" onclick="completePasswordReset()">Save password</button>
+        </div>
+      </div>
+    `,
+  });
+  setTimeout(() => document.getElementById('rp_pw')?.focus(), 60);
+}
+
+async function completePasswordReset() {
+  const pw = document.getElementById('rp_pw')?.value || '';
+  const pw2 = document.getElementById('rp_pw2')?.value || '';
+  if (pw.length < 6) { toast('Password must be at least 6 characters', 'error'); return; }
+  if (pw !== pw2) { toast(`Passwords don't match`, 'error'); return; }
+  if (!sb) { toast('Auth service not loaded — refresh the page', 'error'); return; }
+  const btn = document.getElementById('rp_save_btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  const { data, error } = await sb.auth.updateUser({ password: pw });
+  if (btn) { btn.disabled = false; btn.textContent = 'Save password'; }
+  if (error) { toast(error.message || 'Password update failed', 'error'); return; }
+  closeModal();
+  toast('Password updated', 'good');
+  // The user is now signed in (recovery token == active session). Hydrate
+  // and route them straight into the app, same as a normal sign-in.
+  const userId = data.user?.id;
+  if (userId) {
+    if (!state) state = newEmptyState();
+    if (!state.users[userId]) {
+      let displayName = data.user.user_metadata?.display_name || data.user.email.split('@')[0];
+      let role = data.user.user_metadata?.role || 'tm';
+      try {
+        const { data: profile } = await sb.from('profiles').select('display_name,role,avatar').eq('id', userId).maybeSingle();
+        if (profile) {
+          if (profile.display_name) displayName = profile.display_name;
+          if (profile.role) role = profile.role;
+        }
+      } catch (e) {}
+      state.users[userId] = {
+        id: userId, name: displayName, email: data.user.email, role,
+        avatar: displayName.split(' ').filter(Boolean).map(s=>s[0]).join('').slice(0,2).toUpperCase() || '??',
+        createdAt: Date.now(), lastLoginAt: Date.now(), claimed: true,
+      };
+    }
+    state.currentUserId = userId;
+    saveState();
+    await db.hydrateUserData(userId);
+    db.subscribeRealtime(userId);
+    postLoginRouting();
+  }
 }
 
 async function logout() {
