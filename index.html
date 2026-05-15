@@ -675,13 +675,23 @@ input,select,textarea{font:inherit;color:inherit}
 .gl-allot.over .bar > i{background:linear-gradient(90deg,var(--red),#ff6b35);box-shadow:0 0 8px rgba(232,69,69,.5)}
 .gl-allot .frac{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);margin-top:6px;letter-spacing:.04em}
 .gl-allot.over .frac{color:var(--red)}
+/* Color key for guest list pass types. GA + Guest are general
+   public-facing, AAA + M&G are all-access tiers (red / hot orange),
+   Media gets the cool blue (press), Working is muted (crew/runners),
+   Aftershow is warm violet (post-show invite). */
 .passchip{display:inline-block;padding:4px 8px;border-radius:5px;
   font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
   border:1px solid var(--line)}
+.passchip.ga{background:rgba(122,220,151,.10);color:#7adc97;border-color:rgba(122,220,151,.32)}
 .passchip.guest{background:rgba(232,148,58,.12);color:var(--hi);border-color:rgba(232,148,58,.35)}
 .passchip.aaa{background:rgba(232,69,69,.12);color:var(--red);border-color:rgba(232,69,69,.3)}
-.passchip.photo{background:rgba(138,169,216,.12);color:var(--cool);border-color:rgba(138,169,216,.3)}
+.passchip.media{background:rgba(138,169,216,.12);color:var(--cool);border-color:rgba(138,169,216,.3)}
 .passchip.mg{background:rgba(255,122,31,.14);color:var(--hot);border-color:rgba(255,122,31,.35)}
+.passchip.working{background:rgba(232,148,58,.06);color:var(--warm-mute);border-color:var(--line-2)}
+.passchip.aftershow{background:rgba(184,154,216,.12);color:#b89ad8;border-color:rgba(184,154,216,.35)}
+/* Legacy color classes — kept as aliases so any old templates / PDFs
+   referencing .passchip.photo or .passchip.crew still style. */
+.passchip.photo{background:rgba(138,169,216,.12);color:var(--cool);border-color:rgba(138,169,216,.3)}
 .passchip.crew{background:rgba(232,148,58,.06);color:var(--warm-mute);border-color:var(--line-2)}
 
 /* setlist (dark with glow) */
@@ -722,6 +732,42 @@ input,select,textarea{font:inherit;color:inherit}
 .setlist .sl-totals-songs{font-size:11px;color:var(--warm-mute);font-weight:700}
 .setlist .sl-totals-sep{color:var(--warm-mute);opacity:.5}
 .setlist .sl-totals-time{font-size:13.5px;color:var(--hi);font-weight:800;letter-spacing:.18em}
+
+/* ============ ADVANCE TAB ============
+   Day-of-show production advance form. Two-column grid for the
+   short text fields plus full-width subsections for hands times
+   and wifi info. Tech pack slot mirrors the Attachments tab's
+   file picker UX. */
+.advance-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.advance-field{display:flex;flex-direction:column;gap:5px}
+.advance-field label{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--hi);font-weight:700}
+.advance-field input[type="text"],
+.advance-field input[type="number"]{padding:10px 12px;background:rgba(20,13,7,.7);border:1px solid var(--line);border-radius:8px;
+  color:var(--warm);font-size:13.5px;font-family:'Inter',sans-serif;transition:border-color .15s,background .15s}
+.advance-field input:focus{outline:none;border-color:var(--hi);background:rgba(20,13,7,.9)}
+.advance-full{grid-column:1 / -1}
+.advance-subsection{grid-column:1 / -1;margin-top:6px;padding:14px;background:rgba(232,148,58,.03);border:1px solid var(--line);border-radius:10px}
+.advance-sub-h{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--hi);font-weight:700;margin-bottom:10px}
+.advance-sub-grid{display:grid;grid-template-columns:1fr 1fr auto auto;gap:12px;align-items:end}
+@media (max-width: 900px){.advance-sub-grid{grid-template-columns:1fr 1fr;gap:10px}}
+
+.adv-money{display:flex;align-items:center;background:rgba(20,13,7,.7);border:1px solid var(--line);border-radius:8px;padding-left:10px;transition:border-color .15s}
+.adv-money:focus-within{border-color:var(--hi)}
+.adv-money-sym{font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--hi);font-weight:700;padding-right:6px}
+.adv-money input{flex:1;padding:10px 12px 10px 0;background:transparent;border:none;color:var(--warm);font-size:13.5px;font-family:'JetBrains Mono',monospace}
+.adv-money input:focus{outline:none}
+
+.adv-techpack{display:flex;flex-direction:column;gap:6px}
+.adv-techpack-cta{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  padding:18px;border:1px dashed var(--line-2);border-radius:8px;background:rgba(232,148,58,.03);
+  color:var(--hi);font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;cursor:pointer;transition:all .15s}
+.adv-techpack-cta:hover{border-color:var(--hi);background:rgba(232,148,58,.08)}
+.adv-techpack-hint{font-size:10px;letter-spacing:.1em;color:var(--warm-mute);text-transform:none;font-weight:500}
+.adv-techpack-row{display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(20,13,7,.6);border:1px solid var(--line);border-radius:8px}
+.adv-techpack-info{flex:1;min-width:0}
+.adv-techpack-name{font-weight:700;font-size:13.5px;color:var(--warm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adv-techpack-meta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);letter-spacing:.06em;margin-top:2px}
+.adv-techpack-actions{display:flex;gap:4px;flex:none}
 
 /* settlement table */
 .settle-row{grid-template-columns:90px 1.4fr 110px 130px 1fr 100px 90px}
@@ -949,6 +995,31 @@ input,select,textarea{font:inherit;color:inherit}
 .p-card-notes .p-notes-body b,
 .p-card-notes .p-notes-body strong{color:var(--warm);font-weight:800}
 .p-row .what{font-size:13px;font-weight:600;color:var(--warm)}
+
+/* Advance card on the crew mobile Today screen. Two-column layout
+   inside — label left, value right — gives a quick scannable list
+   of day-of-show info. Tech pack and wifi sit in their own visual
+   subgroups so the phone view never feels like a wall of text. */
+.p-card-advance{border-color:rgba(232,148,58,.32)}
+.p-card-advance .ph-adv-rows{display:flex;flex-direction:column;gap:4px}
+.p-card-advance .ph-adv-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  padding:5px 0;border-bottom:1px dashed rgba(232,148,58,.08)}
+.p-card-advance .ph-adv-row:last-child{border-bottom:0}
+.p-card-advance .ph-adv-k{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--warm-mute);font-weight:700;flex:none}
+.p-card-advance .ph-adv-v{font-size:12.5px;color:var(--warm);text-align:right;line-height:1.35;flex:1;word-break:break-word}
+.p-card-advance .ph-adv-v.ph-adv-mono{font-family:'JetBrains Mono',monospace;font-size:11.5px;letter-spacing:.04em}
+.p-card-advance .ph-adv-techpack{margin-top:10px;padding:10px 12px;background:rgba(232,148,58,.04);border:1px solid rgba(232,148,58,.18);border-radius:8px;
+  display:flex;align-items:center;justify-content:space-between;gap:10px}
+.p-card-advance .ph-adv-techpack-info{flex:1;min-width:0}
+.p-card-advance .ph-adv-techpack-lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--hi);font-weight:700}
+.p-card-advance .ph-adv-techpack-name{font-size:12.5px;color:var(--warm);font-weight:600;margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.p-card-advance .ph-adv-techpack-actions{display:flex;gap:5px;flex:none}
+.p-card-advance .ph-adv-tp-btn{padding:5px 10px;border:1px solid rgba(232,148,58,.35);border-radius:5px;
+  background:rgba(232,148,58,.08);color:var(--hi);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;cursor:pointer}
+.p-card-advance .ph-adv-tp-btn:hover{background:rgba(232,148,58,.15);border-color:var(--hi)}
+.p-card-advance .ph-adv-wifi{margin-top:10px;padding:8px 12px;background:rgba(20,13,7,.5);border:1px solid var(--line);border-radius:8px}
+.p-card-advance .ph-adv-wifi-h{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--hi);font-weight:700;margin-bottom:4px}
 
 /* ============ MODAL ============ */
 .modal-overlay{
@@ -3406,13 +3477,14 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
         <button type="button" class="tab" data-tab="hotels"><span class="num">05</span> Hotels</button>
         <button type="button" class="tab" data-tab="guest"><span class="num">06</span> Guest List</button>
         <button type="button" class="tab" data-tab="setlist"><span class="num">07</span> Set List</button>
-        <button type="button" class="tab" data-tab="files"><span class="num">08</span> Attachments</button>
-        <button type="button" class="tab tab-fixed" data-tab="acct"><span class="num">09</span> Settlements</button>
-        <button type="button" class="tab tab-fixed" data-tab="venues"><span class="num">10</span> Venues</button>
-        <button type="button" class="tab tab-fixed" data-tab="contacts"><span class="num">11</span> Contacts</button>
-        <button type="button" class="tab tab-fixed" data-tab="tasks"><span class="num">12</span> Tasks</button>
-        <button type="button" class="tab tab-fixed" data-tab="tags"><span class="num">13</span> Local Recs</button>
-        <button type="button" class="tab tab-fixed" data-tab="profiles"><span class="num">14</span> Crew</button>
+        <button type="button" class="tab" data-tab="advance"><span class="num">08</span> Advance</button>
+        <button type="button" class="tab" data-tab="files"><span class="num">09</span> Attachments</button>
+        <button type="button" class="tab tab-fixed" data-tab="acct"><span class="num">10</span> Settlements</button>
+        <button type="button" class="tab tab-fixed" data-tab="venues"><span class="num">11</span> Venues</button>
+        <button type="button" class="tab tab-fixed" data-tab="contacts"><span class="num">12</span> Contacts</button>
+        <button type="button" class="tab tab-fixed" data-tab="tasks"><span class="num">13</span> Tasks</button>
+        <button type="button" class="tab tab-fixed" data-tab="tags"><span class="num">14</span> Local Recs</button>
+        <button type="button" class="tab tab-fixed" data-tab="profiles"><span class="num">15</span> Crew</button>
       </nav>
 
       <div class="panel active" data-panel="dashboard" id="p-dashboard"></div>
@@ -3422,6 +3494,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
       <div class="panel" data-panel="hotels" id="p-hotels"></div>
       <div class="panel" data-panel="guest" id="p-guest"></div>
       <div class="panel" data-panel="setlist" id="p-setlist"></div>
+      <div class="panel" data-panel="advance" id="p-advance"></div>
       <div class="panel" data-panel="acct" id="p-acct"></div>
       <div class="panel" data-panel="files" id="p-files"></div>
       <div class="panel" data-panel="venues" id="p-venues"></div>
@@ -3581,7 +3654,7 @@ const dbMap = {
       artist: t.meta?.artist || '',
       presenter: t.meta?.presenter || '',
       currency: t.meta?.currency || 'USD',
-      default_allotments: t.meta?.defaultAllotments || { '+1':30, AAA:10, Photo:6, 'M&G':12 },
+      default_allotments: t.meta?.defaultAllotments || { Guest:30, AAA:10, Media:6, 'M&G':12, Working:8, Aftershow:15, GA:0 },
       active_date_id: t.activeDateId || null,
       crew: t.crew || [],
       contacts: t.contacts || [],
@@ -3599,7 +3672,7 @@ const dbMap = {
         artist: row.artist || '',
         presenter: row.presenter || '',
         currency: row.currency || 'USD',
-        defaultAllotments: row.default_allotments || { '+1':30, AAA:10, Photo:6, 'M&G':12 },
+        defaultAllotments: row.default_allotments || { Guest:30, AAA:10, Media:6, 'M&G':12, Working:8, Aftershow:15, GA:0 },
         createdAt: row.created_at ? Date.parse(row.created_at) : Date.now(),
       },
       dates: dates || [],
@@ -4050,7 +4123,7 @@ function newEmptyTour(name, ownerId) {
   return {
     id: dbId(),
     name: name || '',
-    meta: { tourName: name || '', artist: '', presenter: '', currency: 'USD', defaultAllotments: { '+1':30, AAA:10, Photo:6, 'M&G':12 }, createdAt: Date.now() },
+    meta: { tourName: name || '', artist: '', presenter: '', currency: 'USD', defaultAllotments: { Guest:30, AAA:10, Media:6, 'M&G':12, Working:8, Aftershow:15, GA:0 }, createdAt: Date.now() },
     dates: [], crew: [], contacts: [], tasks: [], tags: [],
     activeDateId: null,
     ownerId: ownerId || '',
@@ -4164,7 +4237,7 @@ function migrateV1ToMultiTour(old) {
   const tour = {
     id: dbId(),
     name: (old.meta && old.meta.tourName) || 'My Tour',
-    meta: old.meta || { tourName: '', artist: '', presenter: '', currency: 'USD', defaultAllotments: { '+1':30, AAA:10, Photo:6, 'M&G':12 } },
+    meta: old.meta || { tourName: '', artist: '', presenter: '', currency: 'USD', defaultAllotments: { Guest:30, AAA:10, Media:6, 'M&G':12, Working:8, Aftershow:15, GA:0 } },
     dates: old.dates || [],
     crew: old.crew || [],
     contacts: old.contacts || [],
@@ -5819,7 +5892,7 @@ function openScheduleModal(itemId) {
   const ad = getActiveDate();
   if (!ad) return;
   const item = itemId ? ad.schedule.find(i => i.id === itemId) : null;
-  const i = item || { time: '', what: '', who: '', notes: '', allDay: false };
+  const i = item || { time: '', endTime: '', what: '', who: '', notes: '', allDay: false };
   // Split the stored 24-hour HH:MM into 12-hour h + mm + AM/PM so the
   // form can display a friendly time picker. Storage stays 24-hour for
   // sort + dashboard consistency — we only convert at the UI layer.
@@ -5830,7 +5903,7 @@ function openScheduleModal(itemId) {
     onDelete: item ? () => { ad.schedule = ad.schedule.filter(x => x.id !== item.id); saveState(); } : null,
     body: `
       <div class="form-grid">
-        <div class="field"><label>Time ${i.allDay ? '' : '*'}</label>
+        <div class="field"><label>Start time ${i.allDay ? '' : '*'}</label>
           <div class="time-row">
             <div class="time-12" id="s_time_12" ${i.allDay ? 'style="opacity:.5"' : ''}>
               <input type="number" min="1" max="12" id="s_time_hh" value="${esc(t12.hh)}" placeholder="HH" ${i.allDay ? 'disabled' : ''} class="t12-hh">
@@ -5843,6 +5916,10 @@ function openScheduleModal(itemId) {
             </div>
             <button type="button" id="s_allday_btn" class="allday-btn ${i.allDay ? 'on' : ''}" onclick="_schedToggleAllDay()">All day</button>
           </div>
+        </div>
+        <div class="field">
+          <label>End time <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional)</span></label>
+          ${renderTime12Picker('s_end', i.endTime || '', { disabled: !!i.allDay })}
         </div>
         <div class="field full"><label>What *</label><input id="s_what" value="${esc(i.what)}" placeholder="e.g. Soundcheck, Lobby call, Doors"></div>
         <div class="field full"><label>Visible to groups <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span></label>
@@ -5867,8 +5944,17 @@ function openScheduleModal(itemId) {
       const mm = $('#s_time_mm')?.value || '';
       const ampm = $('#s_time_ampm')?.value || 'AM';
       const time = allDay ? '' : _to24h(hh, mm, ampm);
+      // End time is optional and only meaningful for timed items.
+      // Validate that it falls AFTER the start so a soundcheck can't
+      // be saved as 4:30 PM → 3:00 PM. We compare 24-hour strings
+      // lexically — that works because both are zero-padded HH:MM.
+      const endTime = allDay ? '' : readTime12Picker('s_end');
+      if (endTime && time && endTime <= time) {
+        toast('End time must be after the start time', 'error');
+        return false;
+      }
       const what = $('#s_what').value.trim();
-      if (!allDay && !time) { toast('Set a time or mark as All day', 'error'); return false; }
+      if (!allDay && !time) { toast('Set a start time or mark as All day', 'error'); return false; }
       if (!what) { toast('What is required', 'error'); return false; }
       const groups = readGroupPicker('s_grp');
       const indivPicker = document.getElementById('s_ind_picker');
@@ -5878,7 +5964,7 @@ function openScheduleModal(itemId) {
       // _scheduleItemDisplayLabel(). When editing an item that still
       // has a who value (older tour data), we preserve it so it can
       // still serve as a fallback label until the TM picks audience.
-      const baseData = { time, allDay, what, notes: $('#s_notes').value.trim(), groups, individuals };
+      const baseData = { time, endTime, allDay, what, notes: $('#s_notes').value.trim(), groups, individuals };
       if (item && item.who && !groups.length && !individuals.length) baseData.who = item.who;
       if (item) Object.assign(item, baseData);
       else ad.schedule.push({ id: uid('s'), ...baseData });
@@ -6040,9 +6126,22 @@ function _scheduleItemDisplayLabel(s) {
 }
 
 // All-day toggle for the schedule modal's structured 12-hour time
-// picker. Disables/clears the HH, MM, and AM/PM inputs together.
+// pickers. Disables/clears BOTH start (s_time) and end (s_end)
+// pickers so an all-day item can't accidentally retain a stale
+// end time after the toggle.
 function _schedToggleAllDay() {
   _toggleTime12AllDay('s_allday_btn', 's_time');
+  // Mirror the state onto the end-time picker without flipping its
+  // own toggle — we just need its inputs disabled/cleared in sync.
+  const on = document.getElementById('s_allday_btn')?.classList.contains('on');
+  const endWrap = document.getElementById('s_end_12');
+  if (endWrap) endWrap.style.opacity = on ? '.5' : '';
+  ['s_end_hh','s_end_mm','s_end_ampm'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = !!on;
+    if (on && el.tagName === 'INPUT') el.value = '';
+  });
 }
 
 // Same toggle for the travel modal — different prefix, same logic.
@@ -6221,12 +6320,12 @@ function openRoomModal(roomId) {
 /* =====================================================================
    GUEST LIST CRUD
    ===================================================================== */
-const PASS_TYPES = ['+1', 'AAA', 'Photo', 'M&G', 'Crew'];
+const PASS_TYPES = ['GA', 'Guest', 'AAA', 'Media', 'M&G', 'Working', 'Aftershow'];
 function openGuestModal(guestId) {
   const ad = getActiveDate();
   if (!ad) return;
   const g = guestId ? ad.guests.find(x => x.id === guestId) : null;
-  const v = g || { name: '', plus: 0, submittedBy: '', passType: '+1', status: 'approved', email: '', notes: '' };
+  const v = g || { name: '', plus: 0, submittedBy: '', passType: 'Guest', status: 'approved', email: '', notes: '' };
   openModal({
     title: g ? 'Edit guest' : 'Add guest',
     showDelete: !!g,
@@ -7121,7 +7220,7 @@ function renderActivePanel() {
   const fn = {
     dashboard: renderDashboard, schedule: renderSchedule, travel: renderTravel,
     hotels: renderHotels, guest: renderGuestList, setlist: renderSetList,
-    notes: renderDayNotes,
+    notes: renderDayNotes, advance: renderAdvance,
     acct: renderAccounting, files: renderAttachments, venues: renderVenues,
     contacts: renderContacts, tasks: renderTasks, tags: renderTags,
     profiles: renderCrewProfiles
@@ -7408,6 +7507,24 @@ function renderTodayFlags(ad) {
 // flag so the render can route Edit clicks back to the travel modal
 // instead of the schedule modal. Used by both the TM dashboard
 // Schedule tab and the crew mobile Today view.
+// Format a schedule item's time column. When the item has both
+// start and end, render "7:00 PM – 8:30 PM"; when only start,
+// render "7:00 PM"; when allDay, "ALL DAY". 24-hour values are
+// flipped to 12-hour for display since that's what's on stage.
+function _scheduleTimeDisplay(item) {
+  if (!item) return '';
+  if (item.allDay) return 'ALL DAY';
+  const to12 = (t) => {
+    const c = _to12h(t || '');
+    if (!c.hh) return '';
+    return `${c.hh}:${c.mm} ${c.ampm}`;
+  };
+  const start = to12(item.time);
+  const end = to12(item.endTime);
+  if (start && end) return `${start} – ${end}`;
+  return start || '—';
+}
+
 function _mergedDaySchedule(ad) {
   if (!ad) return [];
   const sched = (ad.schedule || []).slice();
@@ -7426,6 +7543,7 @@ function _mergedDaySchedule(ad) {
     return {
       id: '_tv_' + t.id,
       time: t.time || '',
+      endTime: '', // travel items don't carry a separate end time
       allDay: !!t.allDay,
       what: travelLabel(t),
       who: t.person || '',
@@ -7507,8 +7625,8 @@ function renderSchedule() {
           const editFn = isTravel ? `openTravelModal('${s._travelId}')` : `openScheduleModal('${s.id}')`;
           const labelBadge = isTravel ? `<span class="who" style="color:var(--hi);font-size:10px;letter-spacing:.16em;margin-left:6px">↗ TRAVEL</span>` : '';
           return `
-          <div class="item-row" style="grid-template-columns:80px 1fr 280px 80px;align-items:flex-start">
-            <span class="t" style="padding-top:8px">${s.allDay ? 'ALL DAY' : esc(s.time || '—')}</span>
+          <div class="item-row" style="grid-template-columns:170px 1fr 280px 80px;align-items:flex-start">
+            <span class="t" style="padding-top:8px">${esc(_scheduleTimeDisplay(s))}</span>
             <span class="what" style="padding-top:6px">${esc(s.what)}${labelBadge}${s.notes ? `<span class="note">${esc(s.notes)}</span>` : ''}</span>
             ${isTravel ? '<span></span>' : renderVizPicker(s)}
             <div class="tbl-actions" style="padding-top:6px"><button type="button" onclick="${editFn}">Edit</button></div>
@@ -7702,6 +7820,8 @@ function renderGuestList() {
       <span class="stamp">${approvedCount} ✓ · ${pendingCount} ⌛ · ${deniedCount} ✗</span>
       <button type="button" class="tb-btn primary" onclick="openGuestModal()">+ Add guest</button>
       <button type="button" class="tb-btn" onclick="openAllotmentModal()">Allotments</button>
+      <button type="button" class="tb-btn" onclick="exportGuestListCSV()">↓ Excel</button>
+      <button type="button" class="tb-btn" onclick="exportGuestListPDF()">↓ PDF</button>
       <button type="button" class="tb-btn" onclick="printGuestList()">↪ Print for venue</button>
     </div>
 
@@ -7740,7 +7860,16 @@ function renderGuestList() {
           <div class="c">Status</div><div class="c">Notes</div><div class="c"></div>
         </div>
         ${guests.map(g => {
-          const passClass = ({'+1':'guest','AAA':'aaa','Photo':'photo','M&G':'mg','Crew':'crew'})[g.passType] || 'guest';
+          // Map each pass type to its CSS chip class. Includes legacy
+          // tour data values (+1 / Photo / Crew) routed to the new
+          // equivalents so old tours still render in the right colors.
+          const passClass = ({
+            'GA':'ga', 'Guest':'guest', 'AAA':'aaa',
+            'Media':'media', 'M&G':'mg', 'Working':'working',
+            'Aftershow':'aftershow',
+            // legacy aliases
+            '+1':'guest', 'Photo':'media', 'Crew':'working'
+          })[g.passType] || 'guest';
           const isPending = g.status === 'pending';
           const isApproved = g.status === 'approved';
           const isDenied = g.status === 'denied';
@@ -8032,6 +8161,392 @@ function renderAccounting() {
 /* =====================================================================
    PANEL: ATTACHMENTS
    ===================================================================== */
+/* =====================================================================
+   PANEL: ADVANCE — day-of-show production details that get advanced
+   ahead of arrival. Dressing room counts, production office, rider,
+   buyout amount, catering, showers, laundry, runners, parking,
+   tech pack file, forklift availability + operator, in/out times for
+   stagehands, venue wifi. All fields optional; whatever's filled in
+   surfaces on the crew mobile Today view in a dedicated section
+   below the tasks list.
+   ===================================================================== */
+function renderAdvance() {
+  const ad = getActiveDate();
+  const root = $('#p-advance');
+  if (!ad) { root.innerHTML = noDate(); return; }
+  if (!ad.advance) ad.advance = {};
+  const a = ad.advance;
+
+  // 12-hour pickers for in / out. The structured component reads
+  // 24-hour storage and renders the friendly hh : mm AM|PM trio —
+  // same component the schedule modal uses. All Day toggle disables
+  // both pickers in sync.
+  const handsAllDay = !!a.handsAllDay;
+
+  // Currency symbol comes from the tour's currency setting so an
+  // EUR tour shows €, GBP shows £, etc. Defaults to $ when missing.
+  const cur = T().meta?.currency || 'USD';
+  const curSym = ({ USD:'$', CAD:'$', EUR:'€', GBP:'£', AUD:'$', JPY:'¥' })[cur] || '$';
+
+  root.innerHTML = `
+    <div class="section-title">
+      <h2>Advance · ${esc(ad.city || fmtDate(ad.date))}</h2>
+      <span class="crumb">/ ${fmtDate(ad.date).toUpperCase()}</span>
+      <span class="stamp">DAY-OF-SHOW DETAILS</span>
+    </div>
+
+    <div class="advance-grid">
+      <div class="advance-field">
+        <label>Dressing rooms</label>
+        <input type="text" id="adv_dressingRooms" value="${esc(a.dressingRooms || '')}" placeholder="e.g. 2 rooms, stage left" onchange="_advanceSave('dressingRooms', this.value)">
+      </div>
+      <div class="advance-field">
+        <label>Production office</label>
+        <input type="text" id="adv_productionOffice" value="${esc(a.productionOffice || '')}" placeholder="e.g. Upstairs lobby" onchange="_advanceSave('productionOffice', this.value)">
+      </div>
+      <div class="advance-field">
+        <label>Rider</label>
+        <input type="text" id="adv_rider" value="${esc(a.rider || '')}" placeholder="e.g. Standard rider OK" onchange="_advanceSave('rider', this.value)">
+      </div>
+      <div class="advance-field">
+        <label>Buyout <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(${esc(cur)})</span></label>
+        <div class="adv-money">
+          <span class="adv-money-sym">${esc(curSym)}</span>
+          <input type="number" min="0" step="1" id="adv_buyout" value="${esc(a.buyout || '')}" placeholder="0" onchange="_advanceSave('buyout', this.value === '' ? '' : parseFloat(this.value))">
+        </div>
+      </div>
+      <div class="advance-field">
+        <label>Catering</label>
+        <input type="text" id="adv_catering" value="${esc(a.catering || '')}" placeholder="e.g. Hot meals 5pm" onchange="_advanceSave('catering', this.value)">
+      </div>
+      <div class="advance-field">
+        <label>Showers</label>
+        <input type="text" id="adv_showers" value="${esc(a.showers || '')}" placeholder="e.g. Yes · backstage" onchange="_advanceSave('showers', this.value)">
+      </div>
+      <div class="advance-field">
+        <label>Laundry</label>
+        <input type="text" id="adv_laundry" value="${esc(a.laundry || '')}" placeholder="e.g. On-site" onchange="_advanceSave('laundry', this.value)">
+      </div>
+      <div class="advance-field">
+        <label>Runners</label>
+        <input type="text" id="adv_runners" value="${esc(a.runners || '')}" placeholder="e.g. 2 confirmed" onchange="_advanceSave('runners', this.value)">
+      </div>
+      <div class="advance-field">
+        <label>Parking</label>
+        <input type="text" id="adv_parking" value="${esc(a.parking || '')}" placeholder="e.g. Lot B · 6 spaces" onchange="_advanceSave('parking', this.value)">
+      </div>
+      <div class="advance-field">
+        <label>Forklift</label>
+        <input type="text" id="adv_forklift" value="${esc(a.forklift || '')}" placeholder="e.g. Yes · 5,000 lb" onchange="_advanceSave('forklift', this.value)">
+      </div>
+      <div class="advance-field">
+        <label>Fork operator</label>
+        <input type="text" id="adv_forkOpp" value="${esc(a.forkOpp || '')}" placeholder="e.g. Provided" onchange="_advanceSave('forkOpp', this.value)">
+      </div>
+
+      <div class="advance-field advance-full">
+        <label>Tech pack</label>
+        <div class="adv-techpack" id="adv_techpack_slot">${_advanceTechPackRowHTML(a.techPack)}</div>
+        <input type="file" id="adv_techpack_file" style="display:none" onchange="_advanceTechPackPicked(this)">
+      </div>
+
+      <div class="advance-subsection">
+        <div class="advance-sub-h">Hands confirmed</div>
+        <div class="advance-sub-grid">
+          <div class="advance-field">
+            <label>In time</label>
+            ${renderTime12Picker('adv_in', a.handsIn || '', { disabled: handsAllDay })}
+          </div>
+          <div class="advance-field">
+            <label>Out time</label>
+            ${renderTime12Picker('adv_out', a.handsOut || '', { disabled: handsAllDay })}
+          </div>
+          <div class="advance-field">
+            <label>&nbsp;</label>
+            <button type="button" id="adv_hands_allday_btn" class="allday-btn ${handsAllDay ? 'on' : ''}" onclick="_advanceHandsAllDayToggle()">All day</button>
+          </div>
+          <div class="advance-field">
+            <label>&nbsp;</label>
+            <button type="button" class="allday-btn" onclick="_advanceHandsSave()">Save times</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="advance-subsection">
+        <div class="advance-sub-h">Wifi information</div>
+        <div class="advance-sub-grid">
+          <div class="advance-field">
+            <label>Network</label>
+            <input type="text" id="adv_wifiNetwork" value="${esc(a.wifiNetwork || '')}" placeholder="e.g. Venue-Guest" onchange="_advanceSave('wifiNetwork', this.value)">
+          </div>
+          <div class="advance-field">
+            <label>Password</label>
+            <input type="text" id="adv_wifiPassword" value="${esc(a.wifiPassword || '')}" placeholder="e.g. amplifier123" onchange="_advanceSave('wifiPassword', this.value)">
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Persist a single advance field to the active date and save state.
+// All fields here are optional — empty strings clear the field rather
+// than removing the key, which keeps the data shape stable.
+function _advanceSave(key, value) {
+  const ad = getActiveDate();
+  if (!ad) return;
+  if (!ad.advance) ad.advance = {};
+  ad.advance[key] = value;
+  saveState();
+}
+
+// Save in/out hands times in one go. Reads both structured time
+// pickers, plus the all-day flag. Stores 24-hour HH:MM strings.
+function _advanceHandsSave() {
+  const ad = getActiveDate();
+  if (!ad) return;
+  if (!ad.advance) ad.advance = {};
+  const on = document.getElementById('adv_hands_allday_btn')?.classList.contains('on');
+  if (on) {
+    ad.advance.handsAllDay = true;
+    ad.advance.handsIn = '';
+    ad.advance.handsOut = '';
+  } else {
+    ad.advance.handsAllDay = false;
+    ad.advance.handsIn = readTime12Picker('adv_in') || '';
+    ad.advance.handsOut = readTime12Picker('adv_out') || '';
+    if (ad.advance.handsIn && ad.advance.handsOut && ad.advance.handsOut <= ad.advance.handsIn) {
+      toast('Out time must be after In time', 'error');
+      return;
+    }
+  }
+  saveState();
+  toast('Hands times saved', 'good');
+}
+
+// All-day toggle for the hands in/out pair. Mirrors the schedule
+// modal's behavior — disables and clears both pickers when on.
+function _advanceHandsAllDayToggle() {
+  const btn = document.getElementById('adv_hands_allday_btn');
+  if (!btn) return;
+  btn.classList.toggle('on');
+  const on = btn.classList.contains('on');
+  ['adv_in_12','adv_out_12'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.opacity = on ? '.5' : '';
+  });
+  ['adv_in_hh','adv_in_mm','adv_in_ampm','adv_out_hh','adv_out_mm','adv_out_ampm'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = on;
+    if (on && el.tagName === 'INPUT') el.value = '';
+  });
+}
+
+// Render the tech pack file slot. If a file is already stored we
+// show its name, size, and View / Download / Replace / Remove
+// actions; if nothing's there yet, just a single "Pick file" CTA.
+function _advanceTechPackRowHTML(tp) {
+  if (!tp || !tp.name) {
+    return `
+      <button type="button" class="adv-techpack-cta" onclick="document.getElementById('adv_techpack_file').click()">
+        ↑ Pick tech pack file
+        <span class="adv-techpack-hint">PDF · DOCX · up to 5 MB · stored inline</span>
+      </button>
+    `;
+  }
+  return `
+    <div class="adv-techpack-row">
+      <div class="adv-techpack-info">
+        <div class="adv-techpack-name">${esc(tp.name)}</div>
+        <div class="adv-techpack-meta">${esc(tp.size || '')}${tp.dataUrl ? '' : ' · metadata only'}</div>
+      </div>
+      <div class="adv-techpack-actions">
+        ${tp.dataUrl ? `<button type="button" class="at-view-btn" onclick="_advanceTechPackView()">View</button>` : ''}
+        ${tp.dataUrl ? `<button type="button" class="at-dl-btn" onclick="_advanceTechPackDownload()">Download</button>` : ''}
+        <button type="button" class="at-dl-btn" onclick="document.getElementById('adv_techpack_file').click()">Replace</button>
+        <button type="button" class="at-dl-btn" onclick="_advanceTechPackClear()">×</button>
+      </div>
+    </div>
+  `;
+}
+
+// File picker handler for the tech pack slot. Same 5 MB inline-cap
+// rule as the Attachments tab so we don't overflow localStorage.
+async function _advanceTechPackPicked(input) {
+  const file = input && input.files && input.files[0];
+  if (!file) return;
+  const INLINE_LIMIT = 5 * 1024 * 1024;
+  if (file.size > INLINE_LIMIT) {
+    toast(`File ${(file.size/1024/1024).toFixed(1)} MB — too large to store inline (5 MB cap).`, 'error');
+    input.value = '';
+    return;
+  }
+  try {
+    const dataUrl = await _fileToDataURL(file);
+    const ad = getActiveDate();
+    if (!ad) return;
+    if (!ad.advance) ad.advance = {};
+    ad.advance.techPack = {
+      name: file.name,
+      size: formatSize(file.size),
+      mime: file.type || _guessMimeFromName(file.name),
+      dataUrl,
+      addedAt: Date.now(),
+    };
+    saveState();
+    // Re-render the slot rather than the whole tab so the TM
+    // doesn't lose scroll position / focus elsewhere on the page.
+    const slot = document.getElementById('adv_techpack_slot');
+    if (slot) slot.innerHTML = _advanceTechPackRowHTML(ad.advance.techPack);
+    toast('Tech pack saved', 'good');
+  } catch (e) {
+    toast('Could not read file: ' + (e.message || e), 'error');
+  }
+}
+
+function _advanceTechPackView() {
+  const ad = getActiveDate();
+  const tp = ad?.advance?.techPack;
+  if (!tp || !tp.dataUrl) return;
+  try {
+    const url = _dataUrlToBlobUrl(tp.dataUrl, tp.mime);
+    const w = window.open(url, '_blank', 'noopener,noreferrer');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    if (!w) toast('Allow pop-ups to view inline files', 'error');
+  } catch (e) {
+    toast('Could not open file: ' + (e.message || e), 'error');
+  }
+}
+
+function _advanceTechPackDownload() {
+  const ad = getActiveDate();
+  const tp = ad?.advance?.techPack;
+  if (!tp || !tp.dataUrl) return;
+  try {
+    const url = _dataUrlToBlobUrl(tp.dataUrl, tp.mime);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = tp.name || 'tech-pack';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (e) {
+    toast('Could not download: ' + (e.message || e), 'error');
+  }
+}
+
+function _advanceTechPackClear() {
+  const ad = getActiveDate();
+  if (!ad || !ad.advance || !ad.advance.techPack) return;
+  if (!confirm('Remove tech pack file?')) return;
+  ad.advance.techPack = null;
+  saveState();
+  const slot = document.getElementById('adv_techpack_slot');
+  if (slot) slot.innerHTML = _advanceTechPackRowHTML(null);
+}
+
+// True when the date has any advance info worth showing on the crew
+// phone view. Used by the Today render to decide whether to add the
+// Advance card at all.
+function _hasAdvanceInfo(advance) {
+  if (!advance) return false;
+  const textFields = ['dressingRooms','productionOffice','rider','catering','showers','laundry','runners','parking','forklift','forkOpp','wifiNetwork','wifiPassword'];
+  if (textFields.some(k => (advance[k] || '').toString().trim())) return true;
+  if (advance.buyout && parseFloat(advance.buyout) > 0) return true;
+  if (advance.handsAllDay) return true;
+  if (advance.handsIn || advance.handsOut) return true;
+  if (advance.techPack && advance.techPack.name) return true;
+  return false;
+}
+
+// Render the Advance card for the crew mobile Today view. Only
+// includes fields that are actually filled in — empty fields stay
+// hidden so the card never looks cluttered. The tech pack file
+// appears as a single tappable row with View / Download buttons
+// (same affordance the Attachments tab uses), so it doesn't compete
+// with the text rows.
+function _phoneAdvanceCardHTML(a) {
+  if (!a) return '';
+  const cur = T().meta?.currency || 'USD';
+  const curSym = ({ USD:'$', CAD:'$', EUR:'€', GBP:'£', AUD:'$', JPY:'¥' })[cur] || '$';
+  const labelMap = {
+    dressingRooms: 'Dressing rooms',
+    productionOffice: 'Production office',
+    rider: 'Rider',
+    catering: 'Catering',
+    showers: 'Showers',
+    laundry: 'Laundry',
+    runners: 'Runners',
+    parking: 'Parking',
+    forklift: 'Forklift',
+    forkOpp: 'Fork operator',
+  };
+  const rows = [];
+  Object.keys(labelMap).forEach(k => {
+    const v = (a[k] || '').toString().trim();
+    if (v) rows.push({ label: labelMap[k], value: v });
+  });
+  if (a.buyout && parseFloat(a.buyout) > 0) {
+    rows.push({ label: 'Buyout', value: `${curSym}${parseFloat(a.buyout).toLocaleString()}` });
+  }
+  // Hands in/out condense into one row when both present, otherwise
+  // separate. "All day" gets its own clean value rather than two
+  // empty time rows.
+  if (a.handsAllDay) {
+    rows.push({ label: 'Hands', value: 'All day' });
+  } else if (a.handsIn || a.handsOut) {
+    const to12 = (t) => {
+      const c = _to12h(t || '');
+      return c.hh ? `${c.hh}:${c.mm} ${c.ampm}` : '';
+    };
+    const inT = to12(a.handsIn);
+    const outT = to12(a.handsOut);
+    if (inT && outT) rows.push({ label: 'Hands', value: `${inT} – ${outT}` });
+    else if (inT) rows.push({ label: 'Hands in', value: inT });
+    else if (outT) rows.push({ label: 'Hands out', value: outT });
+  }
+  // Wifi gets its own visual subgroup so the crew can spot it fast
+  // when they're trying to get their phone on the venue network.
+  const wifiBlock = (a.wifiNetwork || a.wifiPassword) ? `
+    <div class="ph-adv-wifi">
+      <div class="ph-adv-wifi-h">⌜ Wifi</div>
+      ${a.wifiNetwork ? `<div class="ph-adv-row"><span class="ph-adv-k">Network</span><span class="ph-adv-v ph-adv-mono">${esc(a.wifiNetwork)}</span></div>` : ''}
+      ${a.wifiPassword ? `<div class="ph-adv-row"><span class="ph-adv-k">Password</span><span class="ph-adv-v ph-adv-mono">${esc(a.wifiPassword)}</span></div>` : ''}
+    </div>
+  ` : '';
+  const techPackBlock = (a.techPack && a.techPack.name) ? `
+    <div class="ph-adv-techpack">
+      <div class="ph-adv-techpack-info">
+        <div class="ph-adv-techpack-lbl">⌜ Tech pack</div>
+        <div class="ph-adv-techpack-name">${esc(a.techPack.name)}</div>
+      </div>
+      ${a.techPack.dataUrl ? `
+        <div class="ph-adv-techpack-actions">
+          <button type="button" class="ph-adv-tp-btn" onclick="_advanceTechPackView()">View</button>
+          <button type="button" class="ph-adv-tp-btn" onclick="_advanceTechPackDownload()">↓</button>
+        </div>
+      ` : ''}
+    </div>
+  ` : '';
+  return `
+    <div class="p-card p-card-advance">
+      <div class="lbl">ADVANCE · DAY-OF DETAILS</div>
+      <div class="ph-adv-rows" style="margin-top:8px">
+        ${rows.map(r => `
+          <div class="ph-adv-row">
+            <span class="ph-adv-k">${esc(r.label)}</span>
+            <span class="ph-adv-v">${esc(r.value)}</span>
+          </div>
+        `).join('')}
+      </div>
+      ${techPackBlock}
+      ${wifiBlock}
+    </div>
+  `;
+}
+
 function renderAttachments() {
   const ad = getActiveDate();
   const root = $('#p-files');
@@ -8508,7 +9023,7 @@ function renderPhone() {
       <div style="margin-top:8px">
         ${myItems.length ? myItems.slice(0, 8).map(s => `
           <div class="p-row">
-            <span class="t">${s.allDay ? 'ALL' : esc(s.time)}</span>
+            <span class="t">${esc(_scheduleTimeDisplay(s))}</span>
             <span class="what">${esc(s.what)}</span>
             <span class="lbl">${esc(_scheduleItemDisplayLabel(s))}</span>
           </div>
@@ -8648,6 +9163,8 @@ function renderPhone() {
         `;
       })()}
     </div>
+
+    ${_hasAdvanceInfo(ad.advance) ? _phoneAdvanceCardHTML(ad.advance) : ''}
   `;
 
   // SCHEDULE
@@ -11474,6 +11991,43 @@ function migrateGroups() {
       }
     });
   });
+
+  // Migrate guest list pass types: the old set was '+1, AAA, Photo,
+  // M&G, Crew'. The new set is 'GA, Guest, AAA, Media, M&G, Working,
+  // Aftershow'. Rename the legacy values in place so old tour data
+  // still renders with the right chip color and matches the new
+  // dropdown. Idempotent — won't touch already-migrated values.
+  const PASS_MIGRATE = { '+1': 'Guest', 'Photo': 'Media', 'Crew': 'Working' };
+  T().dates.forEach(d => {
+    (d.guests || []).forEach(g => {
+      if (g && g.passType && PASS_MIGRATE[g.passType]) {
+        g.passType = PASS_MIGRATE[g.passType];
+      }
+    });
+  });
+  // Same migration on the default allotments dictionary so the
+  // "Edit allotments" modal pre-populates with the new keys.
+  T().dates.forEach(d => {
+    if (d.allotments && typeof d.allotments === 'object') {
+      Object.keys(PASS_MIGRATE).forEach(oldKey => {
+        if (oldKey in d.allotments) {
+          const newKey = PASS_MIGRATE[oldKey];
+          d.allotments[newKey] = (d.allotments[newKey] || 0) + d.allotments[oldKey];
+          delete d.allotments[oldKey];
+        }
+      });
+    }
+  });
+  if (T().meta && T().meta.defaultAllotments) {
+    const da = T().meta.defaultAllotments;
+    Object.keys(PASS_MIGRATE).forEach(oldKey => {
+      if (oldKey in da) {
+        const newKey = PASS_MIGRATE[oldKey];
+        da[newKey] = (da[newKey] || 0) + da[oldKey];
+        delete da[oldKey];
+      }
+    });
+  }
 }
 
 function isItemVisibleToViewer(item, viewer, isTM) {
@@ -11813,7 +12367,7 @@ function openGuestModalForViewer() {
         <div class="field"><label>Name *</label><input id="gv_name"></div>
         <div class="field"><label>+N</label><input type="number" id="gv_plus" value="0" min="0" max="9"></div>
         <div class="field"><label>Pass type</label>
-          <select id="gv_pass">${PASS_TYPES.map(p => `<option ${p==='+1'?'selected':''}>${p}</option>`).join('')}</select>
+          <select id="gv_pass">${PASS_TYPES.map(p => `<option ${p==='Guest'?'selected':''}>${p}</option>`).join('')}</select>
         </div>
         <div class="field"><label>Their email / phone</label><input id="gv_email"></div>
         <div class="field full"><label>Notes for the TM</label><input id="gv_notes" placeholder="e.g. Family · Press · Label"></div>
@@ -11899,6 +12453,66 @@ function closeStagePrint() {
    #stagePrintArea + body.print-stage-mode infrastructure as the set
    list stage copy — same paper sheet, same dark control bar at the
    top with Cancel + Print buttons. */
+// Export the active date's guest list as a CSV file. Opens in Excel,
+// Numbers, Google Sheets, and any other spreadsheet app. Includes a
+// header row, status column, plus headcount and notes. Filenames are
+// scoped to tour + city + date so a TM exporting multiple nights ends
+// up with self-describing files instead of "guests.csv" overwrites.
+function exportGuestListCSV() {
+  const ad = getActiveDate();
+  if (!ad) { toast('No active date', 'error'); return; }
+  const guests = (ad.guests || []);
+  if (!guests.length) { toast('No guests to export yet — add some first', 'error'); return; }
+  const headers = ['Status', 'Name', 'Plus', 'Total heads', 'Pass type', 'Submitted by', 'Email / phone', 'Notes'];
+  const rows = [headers];
+  // Approved first, then pending, then denied — same order the TM
+  // sees on the tab, and matches what they'd hand to a box-office rep.
+  const order = ['approved', 'pending', 'denied'];
+  order.forEach(st => {
+    guests.filter(g => g.status === st).forEach(g => {
+      rows.push([
+        (g.status || '').toUpperCase(),
+        g.name || '',
+        g.plus || 0,
+        1 + (g.plus || 0),
+        g.passType || '',
+        g.submittedBy || '',
+        g.email || '',
+        g.notes || '',
+      ]);
+    });
+  });
+  const csv = rows.map(r => r.map(v => {
+    const s = String(v == null ? '' : v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  }).join(',')).join('\n');
+  const tour = (T().meta.tourName || 'tour').replace(/[^a-z0-9]+/gi,'-').toLowerCase();
+  const city = (ad.city || 'date').replace(/[^a-z0-9]+/gi,'-').toLowerCase();
+  downloadFile(`bandmate-${tour}-guestlist-${city}-${ad.date || todayISO()}.csv`, csv, 'text/csv');
+  toast(`Guest list exported · ${guests.length} ${guests.length===1?'guest':'guests'}`, 'good');
+}
+
+// Export the active date's guest list as a printable PDF. Reuses the
+// stage-print pipeline that the existing "Print for venue" button
+// triggers — same layout, same branded header, same signature block —
+// but auto-opens the browser's "Save as PDF" sheet so the TM gets a
+// digital file they can email to the box office or archive.
+function exportGuestListPDF() {
+  const ad = getActiveDate();
+  if (!ad) { toast('No active date', 'error'); return; }
+  if (!(ad.guests || []).length) { toast('No guests to export yet — add some first', 'error'); return; }
+  // Open the existing stage-print overlay (same layout the venue copy
+  // uses), then immediately invoke window.print(). Modern browsers
+  // offer "Save as PDF" as a destination, so this gives the TM a real
+  // PDF on disk without a separate code path. The overlay's manual
+  // ↪ Print button still works for actual paper printing.
+  printGuestList();
+  setTimeout(() => {
+    try { window.print(); } catch (_) {}
+  }, 250);
+  toast('Pick "Save as PDF" in the print dialog', '');
+}
+
 function printGuestList() {
   const ad = getActiveDate();
   if (!ad) { toast('No active date', 'error'); return; }
@@ -13328,15 +13942,21 @@ function newTourManualFlow() {
       const name = document.getElementById('nt_name').value.trim();
       const artist = document.getElementById('nt_artist').value.trim();
       if (!name || !artist) { toast('Name and artist required', 'error'); return false; }
-      const startISO = document.getElementById('nt_start').value;
-      const endISO = document.getElementById('nt_end').value;
-      // Validate the range upfront if either field is set — we don't
-      // want to silently swallow a "May → February" typo by creating
-      // a tour with zero dates.
-      if ((startISO && !endISO) || (!startISO && endISO)) {
-        toast('Set both start and end date, or leave both blank', 'error');
-        return false;
-      }
+      // Read the date inputs defensively. type="date" values come
+      // back as "YYYY-MM-DD" or "" — anything else (a stale picker
+      // value mid-commit, a browser that didn't validate the typed
+      // entry) gets normalized to '' so we don't scaffold from junk.
+      const rawStart = (document.getElementById('nt_start')?.value || '').trim();
+      const rawEnd = (document.getElementById('nt_end')?.value || '').trim();
+      const isoRe = /^\d{4}-\d{2}-\d{2}$/;
+      const startISO = isoRe.test(rawStart) ? rawStart : '';
+      const endISO = isoRe.test(rawEnd) ? rawEnd : '';
+      // Only flag an error when BOTH dates are entered AND the range
+      // is invalid. A half-filled range (only start, only end) just
+      // skips the calendar scaffolding silently — the TM can add
+      // dates later from the dashboard. This is friendlier than the
+      // earlier XOR error which fired on perfectly fine inputs that
+      // browsers occasionally returned mid-commit.
       if (startISO && endISO && endISO < startISO) {
         toast('End date must be on or after start', 'error');
         return false;
@@ -16766,10 +17386,10 @@ const SAMPLE_TOUR = {
       ],
       guests: [
         { id: 'g1', name: 'Lena Greco', plus: 1, submittedBy: 'Sam Ortega · BAND', passType: 'AAA', status: 'approved', email: 'lena.greco@warner.com', notes: 'Label A&R' },
-        { id: 'g2', name: 'Aaron Whitfield', plus: 1, submittedBy: 'Maren Holloway · BAND', passType: '+1', status: 'approved', email: '+1 313-555-0188', notes: 'Cousin' },
-        { id: 'g3', name: 'Priya Iyer', plus: 0, submittedBy: 'Press · PR', passType: 'Photo', status: 'approved', email: 'priya@pitchfork.com', notes: 'First 3 songs only' },
+        { id: 'g2', name: 'Aaron Whitfield', plus: 1, submittedBy: 'Maren Holloway · BAND', passType: 'Guest', status: 'approved', email: '+1 313-555-0188', notes: 'Cousin' },
+        { id: 'g3', name: 'Priya Iyer', plus: 0, submittedBy: 'Press · PR', passType: 'Media', status: 'approved', email: 'priya@pitchfork.com', notes: 'First 3 songs only' },
         { id: 'g4', name: 'Marcus Bell', plus: 2, submittedBy: 'Eden Park · PROD', passType: 'AAA', status: 'pending', email: 'marcusb@iheart.com', notes: 'Over allotment — TM approval' },
-        { id: 'g5', name: 'Hannah Yu', plus: 0, submittedBy: 'Riley Park · BAND', passType: '+1', status: 'approved', email: 'hannah.yu@gmail.com', notes: 'Kal Sound founder' },
+        { id: 'g5', name: 'Hannah Yu', plus: 0, submittedBy: 'Riley Park · BAND', passType: 'Aftershow', status: 'approved', email: 'hannah.yu@gmail.com', notes: 'Kal Sound founder' },
       ],
       setList: [
         { id: 'sl1', kind: 'tag', title: 'Open / lights to half', length: '', feat: '' },
@@ -16958,7 +17578,9 @@ Object.assign(window, {
   setCrewView, openManageGroupsModal, addGroup, renameGroup, deleteGroup, toggleGroupPick, toggleGroupExpand, toggleCrewInGroup, setAllInGroup,
   approveGuest, denyGuest, approveAllPending, denyAllPending, openGuestModalForViewer,
   _phoneShowTravel, _phoneShowDayTravel,
-  printStageCopy, closeStagePrint, printGuestList,
+  printStageCopy, closeStagePrint, printGuestList, exportGuestListCSV, exportGuestListPDF,
+  renderAdvance, _advanceSave, _advanceHandsSave, _advanceHandsAllDayToggle,
+  _advanceTechPackPicked, _advanceTechPackView, _advanceTechPackDownload, _advanceTechPackClear,
   toggleSchedPicker, closeSchedPicker, toggleSchedGroup, toggleSchedIndiv, clearSchedAssignments, renderVizPicker,
   setPhoneViewDate, jumpPhoneToToday, togglePhoneDateMenu, closePhoneDateMenu,
   openFeedbackModal, submitFeedback,
