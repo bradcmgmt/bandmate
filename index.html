@@ -3469,6 +3469,163 @@ const sb = (window.supabase && window.supabase.createClient)
   : null;
 if (!sb) console.warn('Supabase SDK failed to load — check the network tab. Auth will not work until this is resolved.');
 
+/* ---------- DB layer · tours + dates (slice 2) ---------- */
+/* Mapping between the JS state shape (camelCase, meta nested, dates inline)
+   and the Postgres row shape (snake_case, flat columns). Slice 2 covers
+   tours + dates only; schedule/travel/crew/etc stay in localStorage until
+   slice 3 extends this layer. */
+const dbMap = {
+  tourToRow(t, ownerId) {
+    return {
+      id: t.id,
+      owner_id: ownerId || t.ownerId,
+      name: t.name || t.meta?.tourName || '',
+      artist: t.meta?.artist || '',
+      presenter: t.meta?.presenter || '',
+      currency: t.meta?.currency || 'USD',
+      default_allotments: t.meta?.defaultAllotments || { '+1':30, AAA:10, Photo:6, 'M&G':12 },
+      active_date_id: t.activeDateId || null,
+    };
+  },
+  rowToTour(row, dates) {
+    return {
+      id: row.id,
+      name: row.name || '',
+      meta: {
+        tourName: row.name || '',
+        artist: row.artist || '',
+        presenter: row.presenter || '',
+        currency: row.currency || 'USD',
+        defaultAllotments: row.default_allotments || { '+1':30, AAA:10, Photo:6, 'M&G':12 },
+        createdAt: row.created_at ? Date.parse(row.created_at) : Date.now(),
+      },
+      dates: dates || [],
+      crew: [], contacts: [], tasks: [], tags: [],
+      activeDateId: row.active_date_id || (dates && dates[0]?.id) || null,
+      ownerId: row.owner_id,
+      memberIds: [],
+    };
+  },
+  dateToRow(tourId, d, position) {
+    return {
+      id: d.id,
+      tour_id: tourId,
+      date: d.date,
+      city: d.city || '',
+      venue: d.venue || '',
+      state: d.state || '',
+      country: d.country || '',
+      status: d.status || 'show',
+      load_in: d.loadIn || '',
+      soundcheck: d.soundcheck || '',
+      doors: d.doors || '',
+      showtime: d.setTime || '',
+      curfew: d.curfew || '',
+      capacity: d.capacity || '',
+      promoter: d.promoter || '',
+      notes: d.notes || '',
+      position: position || 0,
+    };
+  },
+  rowToDate(row) {
+    // Preserve any localStorage-only nested arrays (schedule, travel, etc.)
+    // by initializing them empty here — slice 3 will hydrate them too.
+    return {
+      id: row.id,
+      date: row.date,
+      city: row.city || '',
+      venue: row.venue || '',
+      state: row.state || '',
+      country: row.country || '',
+      status: row.status || 'show',
+      loadIn: row.load_in || '',
+      soundcheck: row.soundcheck || '',
+      doors: row.doors || '',
+      setTime: row.showtime || '',
+      curfew: row.curfew || '',
+      capacity: row.capacity || '',
+      promoter: row.promoter || '',
+      notes: row.notes || '',
+      schedule: [], travel: [], guests: [], setList: [], attachments: [],
+      hotel: null,
+      settlement: { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' },
+    };
+  },
+};
+
+const db = {
+  _err(op, error) {
+    const msg = error?.message || String(error);
+    console.error(`[db.${op}]`, error);
+    toast(`Cloud save failed (${op}): ${msg}`, 'error');
+  },
+  async upsertTour(tour) {
+    if (!sb || !state?.currentUserId) return;
+    const row = dbMap.tourToRow(tour, state.currentUserId);
+    const { error } = await sb.from('tours').upsert(row, { onConflict: 'id' });
+    if (error) this._err('upsertTour', error);
+  },
+  async deleteTour(tourId) {
+    if (!sb) return;
+    const { error } = await sb.from('tours').delete().eq('id', tourId);
+    if (error) this._err('deleteTour', error);
+  },
+  async upsertDate(tourId, d, position) {
+    if (!sb) return;
+    const row = dbMap.dateToRow(tourId, d, position);
+    const { error } = await sb.from('dates').upsert(row, { onConflict: 'id' });
+    if (error) this._err('upsertDate', error);
+  },
+  async deleteDate(dateId) {
+    if (!sb) return;
+    const { error } = await sb.from('dates').delete().eq('id', dateId);
+    if (error) this._err('deleteDate', error);
+  },
+  // Pull this user's tours + dates from Supabase and rebuild state.tours.
+  // Called after successful signup or sign-in. Replaces state.tours entirely
+  // for tours owned by the current user; non-owned local tours stay untouched
+  // until slice 3 brings crew-shared tours in via tour_members.
+  async hydrateUserData(userId) {
+    if (!sb || !userId) return { tours: 0, dates: 0 };
+    try {
+      const { data: tourRows, error: tourErr } = await sb
+        .from('tours').select('*').eq('owner_id', userId).order('created_at');
+      if (tourErr) { this._err('hydrate.tours', tourErr); return { tours: 0, dates: 0 }; }
+      if (!tourRows || !tourRows.length) return { tours: 0, dates: 0 };
+
+      const tourIds = tourRows.map(t => t.id);
+      const { data: dateRows, error: dateErr } = await sb
+        .from('dates').select('*').in('tour_id', tourIds).order('date');
+      if (dateErr) { this._err('hydrate.dates', dateErr); }
+
+      const datesByTour = {};
+      (dateRows || []).forEach(r => {
+        (datesByTour[r.tour_id] = datesByTour[r.tour_id] || []).push(dbMap.rowToDate(r));
+      });
+
+      if (!state) state = newEmptyState();
+      // Drop any previously-hydrated tours for this user so we don't accumulate
+      // stale rows on re-login. Keeps tours owned by other users (stubs) intact.
+      Object.keys(state.tours).forEach(tid => {
+        if (state.tours[tid]?.ownerId === userId) delete state.tours[tid];
+      });
+      tourRows.forEach(row => {
+        const tour = dbMap.rowToTour(row, datesByTour[row.id] || []);
+        state.tours[tour.id] = tour;
+      });
+      // Pick a current tour if none set, or if current is gone
+      if (!state.currentTourId || !state.tours[state.currentTourId]) {
+        state.currentTourId = tourRows[0].id;
+      }
+      saveState();
+      return { tours: tourRows.length, dates: (dateRows || []).length };
+    } catch (e) {
+      this._err('hydrate', e);
+      return { tours: 0, dates: 0 };
+    }
+  },
+};
+
 const STORAGE_KEY = 'bandmate.tour.v1';
 let state = null;
 
@@ -3485,7 +3642,7 @@ function U() {
 }
 function newEmptyTour(name, ownerId) {
   return {
-    id: uid('t'),
+    id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : uid('t'),
     name: name || '',
     meta: { tourName: name || '', artist: '', presenter: '', currency: 'USD', defaultAllotments: { '+1':30, AAA:10, Photo:6, 'M&G':12 }, createdAt: Date.now() },
     dates: [], crew: [], contacts: [], tasks: [], tags: [],
@@ -4731,7 +4888,7 @@ function openDateModal(id) {
         if (editing._autoFilled) delete editing._autoFilled;
       } else {
         const newDate = {
-          id: uid('dt'), ...data,
+          id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : uid('dt'), ...data,
           schedule: [], travel: [], guests: [], setList: [], attachments: [],
           hotel: null,
           settlement: { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' },
@@ -4741,6 +4898,14 @@ function openDateModal(id) {
       }
       T().dates.sort((a, b) => a.date.localeCompare(b.date));
       saveState();
+      // Sync to Supabase. For edits, `editing.id` still points to the row
+      // we just mutated in place. For new dates, we set activeDateId to the
+      // new id just above. Fire-and-forget — errors surface as toasts.
+      const _tour = T();
+      const _id = editing ? editing.id : _tour.activeDateId;
+      const _date = _tour.dates.find(x => x.id === _id);
+      const _pos = _tour.dates.findIndex(x => x.id === _id);
+      if (_date) db.upsertDate(_tour.id, _date, _pos);
     }
   });
   // Apply field visibility based on the (possibly-existing) status as soon
@@ -4752,6 +4917,7 @@ function deleteDate(id) {
   T().dates = T().dates.filter(d => d.id !== id);
   if (T().activeDateId === id) T().activeDateId = T().dates[0]?.id || null;
   saveState();
+  db.deleteDate(id);
   renderAll();
   toast('Date deleted');
 }
@@ -12593,6 +12759,7 @@ function newTourManualFlow() {
       state.tours[tour.id] = tour;
       state.currentTourId = tour.id;
       saveState();
+      db.upsertTour(tour);
       renderAll();
       toast(`Tour "${name}" created`, 'good');
     }
@@ -12615,6 +12782,7 @@ function renameCurrentTour() {
   t.name = newName.trim();
   t.meta.tourName = newName.trim();
   saveState();
+  db.upsertTour(t);
   renderAll();
   toast('Tour renamed', 'good');
 }
@@ -12635,9 +12803,11 @@ function deleteCurrentTour() {
     confirmLabel: 'Delete tour',
     danger: true,
     onConfirm: () => {
-      delete state.tours[t.id];
+      const _deletedId = t.id;
+      delete state.tours[_deletedId];
       state.currentTourId = others[0].id;
       saveState();
+      db.deleteTour(_deletedId);
       renderAll();
       toast('Tour deleted');
     }
@@ -13913,6 +14083,9 @@ async function loginWithEmail() {
     setTimeout(() => toast(`Subscription attached to your account`, 'good'), 200);
   }
   saveState();
+  // Pull the user's tours + dates from Supabase so this device shows their
+  // real cloud data, regardless of what was in localStorage on this browser.
+  await db.hydrateUserData(userId);
   postLoginRouting();
   toast(`Welcome back, ${state.users[userId].name.split(' ')[0]}`, 'good');
 }
@@ -14056,6 +14229,9 @@ async function signUp() {
     _clearPendingSubscription();
   }
   saveState();
+  // Pull the seeded demo tour + dates the signup trigger created so the
+  // new account lands on real cloud data, not an empty local state.
+  await db.hydrateUserData(userId);
   postLoginRouting();
   const firstName = name.split(' ')[0];
   if (pending && role === 'tm') {
@@ -15967,6 +16143,28 @@ Object.assign(window, {
 });
 
 try { init(); } catch (e) { console.error("init failed:", e); }
+
+// Cloud sync on boot. The Supabase session is persisted in localStorage by
+// the SDK, so the user stays "signed in" across reloads. But the JS state
+// loaded from localStorage may be stale (changes made on another device);
+// pull fresh tours + dates from Supabase and re-render once the response is
+// in. Fire-and-forget — local renders first for fast first paint, then this
+// updates the UI in place when the cloud data arrives.
+(async function _bootCloudSync() {
+  if (!sb || !state || !state.currentUserId) return;
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) return;
+    const userId = session.user?.id;
+    if (!userId || userId !== state.currentUserId) return;
+    const result = await db.hydrateUserData(userId);
+    if (result.tours > 0) {
+      try { renderAll(); } catch (e) { console.error('post-hydrate render:', e); }
+    }
+  } catch (e) {
+    console.warn('boot cloud sync skipped:', e);
+  }
+})();
 
 // ─────────────────────────────────────────────────────────────────────
 // AMBIENT BACKGROUND PARTICLES
