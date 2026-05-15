@@ -3679,6 +3679,8 @@ const db = {
         payload => this._onTourChange(payload))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'dates' },
         payload => this._onDateChange(payload))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attachments' },
+        payload => this._onAttachmentChange(payload))
       .subscribe(status => {
         if (status === 'SUBSCRIBED') console.log('[realtime] connected');
         else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') console.warn('[realtime]', status);
@@ -3712,6 +3714,61 @@ const db = {
     if (!state.currentTourId) state.currentTourId = row.id;
     try { renderAll(); } catch (e) {}
   },
+  // --- Attachments · binary in Storage, metadata in public.attachments ---
+  async uploadAttachment(tourId, dateId, file, meta) {
+    if (!sb || !state?.currentUserId) return null;
+    if (!_isUuid(tourId)) { toast('Cannot upload to a local-only tour', 'error'); return null; }
+    const attachId = dbId();
+    const ext = (file.name.split('.').pop() || '').toLowerCase().slice(0, 8);
+    const storagePath = `${tourId}/${attachId}${ext ? '.' + ext : ''}`;
+    const contentType = file.type || meta.mime || 'application/octet-stream';
+    const { error: upErr } = await sb.storage.from('attachments').upload(storagePath, file, {
+      cacheControl: '3600',
+      contentType,
+      upsert: false,
+    });
+    if (upErr) { this._err('uploadAttachment.storage', upErr); return null; }
+    const row = {
+      id: attachId,
+      tour_id: tourId,
+      date_id: _isUuid(dateId) ? dateId : null,
+      name: meta.name || file.name,
+      type: meta.type || '',
+      storage_path: storagePath,
+      mime: contentType,
+      size_bytes: file.size,
+      link: meta.link || '',
+      tags: meta.tags || '',
+    };
+    const { error: insErr } = await sb.from('attachments').insert(row);
+    if (insErr) {
+      // Roll back Storage if metadata insert fails so we don't orphan blobs
+      try { await sb.storage.from('attachments').remove([storagePath]); } catch (e) {}
+      this._err('uploadAttachment.insert', insErr);
+      return null;
+    }
+    return {
+      id: attachId,
+      name: row.name, type: row.type, size: formatSize(file.size), mime: row.mime,
+      link: row.link, tags: row.tags, storagePath, addedAt: Date.now(),
+    };
+  },
+  async deleteAttachment(attachmentId, storagePath) {
+    if (!sb || !_isUuid(attachmentId)) return;
+    if (storagePath) {
+      try { await sb.storage.from('attachments').remove([storagePath]); } catch (e) { /* non-fatal — metadata delete is the source of truth */ }
+    }
+    const { error } = await sb.from('attachments').delete().eq('id', attachmentId);
+    if (error) this._err('deleteAttachment', error);
+  },
+  async getSignedAttachmentUrl(storagePath, opts = {}) {
+    if (!sb || !storagePath) return null;
+    const ttl = 60 * 5; // 5 minutes
+    const { data, error } = await sb.storage.from('attachments').createSignedUrl(storagePath, ttl, opts);
+    if (error) { this._err('getSignedAttachmentUrl', error); return null; }
+    return data?.signedUrl || null;
+  },
+
   _onDateChange(payload) {
     const { eventType, new: row, old } = payload;
     if (!state) return;
@@ -3731,11 +3788,44 @@ const db = {
     const tour = state.tours[row.tour_id];
     if (!tour) return;
     const newDate = dbMap.rowToDate(row);
-    // Preserve any local-only fields not yet synced (attachments today)
+    // Preserve attachments — they live in their own table and sync via
+    // _onAttachmentChange. Without this, every dates UPDATE would wipe the
+    // local attachments array until the next full re-hydrate.
     const existing = (tour.dates || []).find(d => d.id === row.id);
-    if (existing && existing.attachments?.length) newDate.attachments = existing.attachments;
+    if (existing) newDate.attachments = existing.attachments || [];
     tour.dates = (tour.dates || []).filter(d => d.id !== row.id).concat(newDate);
     tour.dates.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    try { renderAll(); } catch (e) {}
+  },
+
+  _onAttachmentChange(payload) {
+    const { eventType, new: row, old } = payload;
+    if (!state) return;
+    const rowOrOld = row || old;
+    if (!rowOrOld) return;
+    const tour = state.tours[rowOrOld.tour_id];
+    if (!tour) return;
+    const date = (tour.dates || []).find(d => d.id === rowOrOld.date_id);
+    if (!date) return;
+    if (!date.attachments) date.attachments = [];
+
+    if (eventType === 'DELETE') {
+      date.attachments = date.attachments.filter(x => x.id !== rowOrOld.id);
+      try { renderAll(); } catch (e) {}
+      return;
+    }
+    const mapped = {
+      id: row.id,
+      name: row.name || '',
+      type: row.type || '',
+      size: row.size_bytes ? formatSize(row.size_bytes) : '',
+      mime: row.mime || '',
+      link: row.link || '',
+      tags: row.tags || '',
+      storagePath: row.storage_path || '',
+      addedAt: row.added_at ? Date.parse(row.added_at) : Date.now(),
+    };
+    date.attachments = date.attachments.filter(x => x.id !== row.id).concat(mapped);
     try { renderAll(); } catch (e) {}
   },
   // Pull this user's tours + dates from Supabase and rebuild state.tours.
@@ -3755,9 +3845,30 @@ const db = {
         .from('dates').select('*').in('tour_id', tourIds).order('date');
       if (dateErr) { this._err('hydrate.dates', dateErr); }
 
+      // Attachment metadata for every accessible tour. Binaries live in
+      // Storage; we only need the rows for in-app display + signed-URL fetch.
+      const { data: attachRows, error: attachErr } = await sb
+        .from('attachments').select('*').in('tour_id', tourIds);
+      if (attachErr) { this._err('hydrate.attachments', attachErr); }
+
       const datesByTour = {};
       (dateRows || []).forEach(r => {
         (datesByTour[r.tour_id] = datesByTour[r.tour_id] || []).push(dbMap.rowToDate(r));
+      });
+      const attachByDate = {};
+      (attachRows || []).forEach(r => {
+        if (!r.date_id) return;
+        (attachByDate[r.date_id] = attachByDate[r.date_id] || []).push({
+          id: r.id,
+          name: r.name || '',
+          type: r.type || '',
+          size: r.size_bytes ? formatSize(r.size_bytes) : '',
+          mime: r.mime || '',
+          link: r.link || '',
+          tags: r.tags || '',
+          storagePath: r.storage_path || '',
+          addedAt: r.added_at ? Date.parse(r.added_at) : Date.now(),
+        });
       });
 
       if (!state) state = newEmptyState();
@@ -3767,7 +3878,11 @@ const db = {
         if (state.tours[tid]?.ownerId === userId) delete state.tours[tid];
       });
       tourRows.forEach(row => {
-        const tour = dbMap.rowToTour(row, datesByTour[row.id] || []);
+        const dates = (datesByTour[row.id] || []).map(d => {
+          d.attachments = attachByDate[d.id] || [];
+          return d;
+        });
+        const tour = dbMap.rowToTour(row, dates);
         state.tours[tour.id] = tour;
       });
       // Pick a current tour if none set, or if current is gone
@@ -6053,21 +6168,25 @@ function openAttachModal(attId) {
   const ad = getActiveDate();
   if (!ad) return;
   const a = attId ? ad.attachments.find(x => x.id === attId) : null;
-  const v = a || { name: '', type: 'Contract', size: '', link: '', tags: '', dataUrl: '', mime: '' };
+  const v = a || { name: '', type: 'Contract', size: '', link: '', tags: '', storagePath: '', mime: '' };
   _attachPickedFile = null;
   _attachPickedDataUrl = '';
-  const hasInline = !!(a && a.dataUrl);
+  const hasStored = !!(a && a.storagePath);
   openModal({
     title: a ? 'Edit attachment' : 'Add attachment',
     showDelete: !!a,
-    onDelete: a ? () => { ad.attachments = ad.attachments.filter(x => x.id !== a.id); saveState(); } : null,
+    onDelete: a ? async () => {
+      ad.attachments = ad.attachments.filter(x => x.id !== a.id);
+      saveState();
+      await db.deleteAttachment(a.id, a.storagePath);
+    } : null,
     body: `
       <div class="form-grid">
         <div class="field full">
-          <label>Pick a file <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(stored inline · up to 5 MB)</span></label>
+          <label>Pick a file <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(stored in the cloud · up to 50 MB)</span></label>
           <input type="file" id="at_file" onchange="_attachFilePicked(this)">
           <div id="at_file_status" class="muted mono" style="font-size:10.5px;margin-top:4px;letter-spacing:.06em">
-            ${hasInline ? `Inline file stored · ${esc(v.size || '')}` : 'No file picked yet — or use the cloud link below'}
+            ${hasStored ? `Cloud file stored · ${esc(v.size || '')}` : 'No file picked yet — or use the cloud link below'}
           </div>
         </div>
         <div class="field full" style="background:rgba(232,148,58,.04);border:1px solid rgba(232,148,58,.18);border-radius:8px;padding:10px 12px">
@@ -6084,30 +6203,71 @@ function openAttachModal(attId) {
           <select id="at_type">${ATTACH_TYPES.map(t => `<option ${v.type===t?'selected':''}>${t}</option>`).join('')}</select>
         </div>
         <div class="field"><label>Size</label><input id="at_size" value="${esc(v.size)}" placeholder="1.2 MB"></div>
-        <div class="field full"><label>Link / cloud URL <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional · used when no inline file)</span></label><input id="at_link" value="${esc(v.link)}" placeholder="https://drive.google.com/..."></div>
+        <div class="field full"><label>Link / cloud URL <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional · used when no file uploaded)</span></label><input id="at_link" value="${esc(v.link)}" placeholder="https://drive.google.com/..."></div>
         <div class="field full"><label>Tags (comma sep)</label><input id="at_tags" value="${esc(v.tags)}" placeholder="Legal, Tech, Hospitality"></div>
       </div>
-      <div class="help">Pick a file to store it inline (lives in this browser's local storage). For files over 5 MB or shared from elsewhere, paste a cloud URL instead — Drive / Dropbox / S3 / Box.</div>
+      <div class="help">Pick a file to upload it to Bandmate's secure cloud — every device with access to this tour can then view/download it. Files over 50 MB should use an external cloud link (Drive / Dropbox / S3 / Box).</div>
     `,
     onSubmit: async () => {
       const name = $('#at_name').value.trim();
       if (!name) { toast('File name required', 'error'); return false; }
-      const data = {
+      const baseMeta = {
         name, type: $('#at_type').value, size: $('#at_size').value.trim(),
         link: $('#at_link').value.trim(), tags: $('#at_tags').value.trim(),
-        addedAt: a?.addedAt || Date.now(),
       };
-      // Inline a freshly picked file. Editing an existing attachment
-      // without picking a new file keeps the previous dataUrl/mime.
-      if (_attachPickedDataUrl) {
-        data.dataUrl = _attachPickedDataUrl;
-        data.mime = (_attachPickedFile && _attachPickedFile.type) || _guessMimeFromName(name);
+
+      // Case 1 — fresh file picked: upload to Storage, replace any previous file.
+      if (_attachPickedFile) {
+        // Remove the previous Storage object before uploading the new one so
+        // we don't orphan the old binary when the user replaces a file.
+        if (a && a.storagePath) {
+          try { await sb.storage.from('attachments').remove([a.storagePath]); } catch (e) {}
+        }
+        const result = await db.uploadAttachment(T().id, ad.id, _attachPickedFile, baseMeta);
+        if (!result) { _attachPickedFile = null; _attachPickedDataUrl = ''; return false; }
+        if (a) {
+          // Replace the metadata row (delete old, keep new in state via result)
+          await db.deleteAttachment(a.id, null); // storage already removed above
+          ad.attachments = ad.attachments.filter(x => x.id !== a.id);
+          ad.attachments.push(result);
+        } else {
+          ad.attachments.push(result);
+        }
       } else if (a) {
-        data.dataUrl = a.dataUrl || '';
-        data.mime = a.mime || '';
+        // Case 2 — editing metadata only (no new file picked): update fields on
+        // both the local object and the cloud row.
+        Object.assign(a, baseMeta);
+        if (_isUuid(a.id)) {
+          const { error } = await sb.from('attachments').update({
+            name: baseMeta.name, type: baseMeta.type, link: baseMeta.link, tags: baseMeta.tags,
+          }).eq('id', a.id);
+          if (error) db._err('updateAttachmentMeta', error);
+        }
+      } else {
+        // Case 3 — link-only attachment (no file picked, just a cloud URL).
+        // Insert a metadata row with no storage_path; view/download just
+        // uses the cloud URL field.
+        if (!baseMeta.link) {
+          toast('Pick a file or paste a cloud URL', 'error');
+          return false;
+        }
+        const newId = dbId();
+        const row = {
+          id: newId, tour_id: T().id, date_id: ad.id,
+          name: baseMeta.name, type: baseMeta.type, storage_path: '', mime: '',
+          size_bytes: null, link: baseMeta.link, tags: baseMeta.tags,
+        };
+        if (_isUuid(T().id)) {
+          const { error } = await sb.from('attachments').insert(row);
+          if (error) { db._err('insertLinkAttachment', error); return false; }
+        }
+        ad.attachments.push({
+          id: newId, name: baseMeta.name, type: baseMeta.type, size: baseMeta.size,
+          link: baseMeta.link, tags: baseMeta.tags, storagePath: '', mime: '',
+          addedAt: Date.now(),
+        });
       }
-      if (a) Object.assign(a, data);
-      else ad.attachments.push({ id: uid('at'), ...data });
+
       saveState();
       // If "Analyze + auto-fill gaps" is on AND the TM just picked a
       // brand-new file, run that file through the import pipeline so
@@ -6140,36 +6300,30 @@ function openAttachModal(attId) {
   });
 }
 
-// File-input change handler for openAttachModal. Reads small files as
-// data URLs and auto-fills the Name / Size fields. Refuses files over
-// 5 MB (would risk filling localStorage) — those are surfaced as a
-// toast so the TM can paste a cloud link instead.
+// File-input change handler for openAttachModal. Holds the file ready for
+// upload-to-Storage on Save. 50 MB ceiling — anything larger should use a
+// cloud link instead (Drive / Dropbox / S3 / Box).
 async function _attachFilePicked(input) {
   const file = input && input.files && input.files[0];
   const status = document.getElementById('at_file_status');
   if (!file) { _attachPickedFile = null; _attachPickedDataUrl = ''; return; }
-  const INLINE_LIMIT = 5 * 1024 * 1024;
-  if (file.size > INLINE_LIMIT) {
-    toast(`File ${(file.size/1024/1024).toFixed(1)} MB — too large to store inline. Add a cloud link instead.`, 'error');
+  const UPLOAD_LIMIT = 50 * 1024 * 1024;
+  if (file.size > UPLOAD_LIMIT) {
+    toast(`File ${(file.size/1024/1024).toFixed(1)} MB — too large to upload. Add a cloud link instead.`, 'error');
     input.value = '';
     _attachPickedFile = null;
     _attachPickedDataUrl = '';
-    if (status) status.textContent = 'No file picked — over 5 MB; paste a cloud URL below.';
+    if (status) status.textContent = 'No file picked — over 50 MB; paste a cloud URL below.';
     return;
   }
-  try {
-    const dataUrl = await _fileToDataURL(file);
-    _attachPickedFile = file;
-    _attachPickedDataUrl = dataUrl;
-    // Auto-fill name + size if not already set
-    const nameInp = document.getElementById('at_name');
-    const sizeInp = document.getElementById('at_size');
-    if (nameInp && !nameInp.value.trim()) nameInp.value = file.name;
-    if (sizeInp && !sizeInp.value.trim()) sizeInp.value = formatSize(file.size);
-    if (status) status.textContent = `Ready to save · ${formatSize(file.size)} · ${file.name}`;
-  } catch (e) {
-    toast('Could not read file: ' + (e.message || e), 'error');
-  }
+  _attachPickedFile = file;
+  _attachPickedDataUrl = ''; // no longer used — kept for backward compat in any callers
+  // Auto-fill name + size if not already set
+  const nameInp = document.getElementById('at_name');
+  const sizeInp = document.getElementById('at_size');
+  if (nameInp && !nameInp.value.trim()) nameInp.value = file.name;
+  if (sizeInp && !sizeInp.value.trim()) sizeInp.value = formatSize(file.size);
+  if (status) status.textContent = `Ready to upload · ${formatSize(file.size)} · ${file.name}`;
 }
 
 // Walk every owned tour for the attachment id. We don't restrict to
@@ -6186,46 +6340,43 @@ function _findAttachmentById(attId) {
   return null;
 }
 
-// Open an inline-stored attachment for viewing. PDFs and images render
-// natively in a new tab; other types (Word, Excel, etc.) the browser
-// will offer to download — that's the standard data-URL behavior and
-// matches user expectations for "view it now".
-function _viewAttachment(attId) {
+// Open a cloud-stored attachment for viewing. Fetches a short-lived signed
+// URL from Supabase Storage and opens it in a new tab. PDFs and images
+// render natively; Word/Excel/etc the browser will offer to download.
+async function _viewAttachment(attId) {
   const a = _findAttachmentById(attId);
-  if (!a || !a.dataUrl) { toast('No inline file stored for this attachment', 'error'); return; }
-  // Convert the data URL to a Blob URL — Chrome/Edge block direct
-  // navigation to large data: URLs, but Blob URLs always work and
-  // honor the original MIME type.
-  try {
-    const url = _dataUrlToBlobUrl(a.dataUrl, a.mime);
-    const w = window.open(url, '_blank', 'noopener,noreferrer');
-    // Revoke the blob URL after a delay — the new tab needs time to
-    // grab it, but we don't want to leak memory. 60s is conservative.
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-    if (!w) toast('Allow pop-ups to view inline attachments', 'error');
-  } catch (e) {
-    toast('Could not open attachment: ' + (e.message || e), 'error');
+  if (!a) { toast('Attachment not found', 'error'); return; }
+  // No stored file but we have a cloud link the TM pasted — just open that.
+  if (!a.storagePath && a.link) {
+    window.open(a.link, '_blank', 'noopener,noreferrer');
+    return;
   }
+  if (!a.storagePath) { toast('No file stored for this attachment', 'error'); return; }
+  const url = await db.getSignedAttachmentUrl(a.storagePath);
+  if (!url) { toast('Could not generate view link', 'error'); return; }
+  const w = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!w) toast('Allow pop-ups to view this attachment', 'error');
 }
 
-// Trigger a file download with the original filename. Uses an anchor
-// click trick — every browser respects download="filename" when the
-// href is a Blob URL.
-function _downloadAttachment(attId) {
+// Trigger a file download with the original filename. Asks Storage for a
+// signed URL with `download` set so the browser saves rather than displays.
+async function _downloadAttachment(attId) {
   const a = _findAttachmentById(attId);
-  if (!a || !a.dataUrl) { toast('No inline file stored for this attachment', 'error'); return; }
-  try {
-    const url = _dataUrlToBlobUrl(a.dataUrl, a.mime);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = a.name || 'attachment';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-  } catch (e) {
-    toast('Could not download attachment: ' + (e.message || e), 'error');
+  if (!a) { toast('Attachment not found', 'error'); return; }
+  if (!a.storagePath && a.link) {
+    // External cloud link — can't force download, just open it.
+    window.open(a.link, '_blank', 'noopener,noreferrer');
+    return;
   }
+  if (!a.storagePath) { toast('No file stored for this attachment', 'error'); return; }
+  const url = await db.getSignedAttachmentUrl(a.storagePath, { download: a.name || true });
+  if (!url) { toast('Could not generate download link', 'error'); return; }
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = a.name || 'attachment';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 // Convert a "data:<mime>;base64,<...>" string to a Blob URL. Browsers
