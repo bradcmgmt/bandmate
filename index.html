@@ -199,10 +199,18 @@ input,select,textarea{font:inherit;color:inherit}
   background:linear-gradient(135deg,rgba(232,148,58,.06),rgba(232,148,58,.02))}
 .icon-btn:hover{color:var(--hi);border-color:var(--hi);box-shadow:0 0 12px rgba(232,148,58,.25)}
 
-/* ============ TAPE STRIP ============ */
+/* ============ TAPE STRIP ============
+   Sits below the topbar in the normal document flow (not sticky).
+   Earlier versions tried to stack it below the topbar with the day
+   strip below it — that left the tape visibly squeezed between two
+   sticky surfaces as the user scrolled, which looked clipped. The
+   info on the tape (day count, city, venue, date, show night, doors)
+   is already echoed by the dashboard hero card immediately below,
+   so letting it scroll off cleanly removes the visual conflict and
+   leaves only the day strip stuck to the top for navigation. */
 .tape-strip{height:38px;
   background:linear-gradient(180deg,rgba(232,148,58,.10),rgba(232,148,58,.04)),#0f0a06;
-  border-bottom:1px solid var(--line);position:sticky;top:69px;z-index:29;overflow:hidden}
+  border-bottom:1px solid var(--line);overflow:hidden}
 .tape-strip::before{content:"";position:absolute;inset:0;pointer-events:none;
   background:radial-gradient(ellipse 600px 60px at 50% 100%,rgba(232,148,58,.18),transparent 60%)}
 .tape-strip .label{display:flex;align-items:center;gap:14px;height:100%;padding:0 22px;
@@ -213,7 +221,11 @@ input,select,textarea{font:inherit;color:inherit}
 
 /* ============ DAY STRIP ============ */
 .day-strip-wrap{
-  position:sticky;top:107px;z-index:28;
+  /* Docks at the topbar's bottom edge (~69px). The tape strip above
+     now scrolls away with the page, so the day strip is the only
+     thing in the sticky stack below the topbar — anything the TM
+     scrolls past will keep its day pills + Add Date button visible. */
+  position:sticky;top:69px;z-index:28;
   background:linear-gradient(180deg,#0c0805 0%,#100a06 100%);
   border-bottom:1px solid var(--line);
   box-shadow:0 8px 16px -8px rgba(0,0,0,.5);
