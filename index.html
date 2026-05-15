@@ -224,14 +224,17 @@ input,select,textarea{font:inherit;color:inherit}
   /* Docks at the topbar's bottom edge (~69px). The tape strip above
      now scrolls away with the page, so the day strip is the only
      thing in the sticky stack below the topbar — anything the TM
-     scrolls past will keep its day pills + Add Date button visible. */
+     scrolls past will keep its day pills + Add Date button visible.
+     Extra bottom padding (14px instead of 10px) gives the active
+     pill's amber glow room to render fully inside the wrap, instead
+     of getting clipped by the wrap's drop shadow. */
   position:sticky;top:69px;z-index:28;
   background:linear-gradient(180deg,#0c0805 0%,#100a06 100%);
   border-bottom:1px solid var(--line);
   box-shadow:0 8px 16px -8px rgba(0,0,0,.5);
-  display:flex;align-items:stretch;gap:10px;padding:10px 22px;
+  display:flex;align-items:stretch;gap:10px;padding:10px 22px 14px;
 }
-.day-strip{display:flex;gap:6px;overflow-x:auto;flex:1;scroll-behavior:smooth;padding:0 18px 2px 0;min-width:0;
+.day-strip{display:flex;gap:6px;overflow-x:auto;flex:1;scroll-behavior:smooth;padding:4px 18px 8px 0;min-width:0;scrollbar-width:none;
   /* Edge-aware fade mask: the strip is fully visible by default. The left
      fade kicks in once .fade-l is set (user has scrolled right at all); the
      right fade kicks in when .fade-r is set (more content lives off-screen
