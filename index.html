@@ -3485,6 +3485,11 @@ const dbMap = {
       currency: t.meta?.currency || 'USD',
       default_allotments: t.meta?.defaultAllotments || { '+1':30, AAA:10, Photo:6, 'M&G':12 },
       active_date_id: t.activeDateId || null,
+      crew: t.crew || [],
+      contacts: t.contacts || [],
+      tasks: t.tasks || [],
+      tags: t.tags || [],
+      member_ids: t.memberIds || [],
     };
   },
   rowToTour(row, dates) {
@@ -3500,10 +3505,13 @@ const dbMap = {
         createdAt: row.created_at ? Date.parse(row.created_at) : Date.now(),
       },
       dates: dates || [],
-      crew: [], contacts: [], tasks: [], tags: [],
+      crew: row.crew || [],
+      contacts: row.contacts || [],
+      tasks: row.tasks || [],
+      tags: row.tags || [],
       activeDateId: row.active_date_id || (dates && dates[0]?.id) || null,
       ownerId: row.owner_id,
-      memberIds: [],
+      memberIds: row.member_ids || [],
     };
   },
   dateToRow(tourId, d, position) {
@@ -3525,11 +3533,18 @@ const dbMap = {
       promoter: d.promoter || '',
       notes: d.notes || '',
       position: position || 0,
+      // Nested arrays stored as JSONB on the date row (slice 3). Attachments
+      // are intentionally excluded here — their dataUrl binary stays local
+      // until slice 4 moves binaries to Supabase Storage.
+      schedule:   d.schedule   || [],
+      travel:     d.travel     || [],
+      guests:     d.guests     || [],
+      set_list:   d.setList    || [],
+      hotel:      d.hotel      || null,
+      settlement: d.settlement || { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' },
     };
   },
   rowToDate(row) {
-    // Preserve any localStorage-only nested arrays (schedule, travel, etc.)
-    // by initializing them empty here — slice 3 will hydrate them too.
     return {
       id: row.id,
       date: row.date,
@@ -3546,9 +3561,13 @@ const dbMap = {
       capacity: row.capacity || '',
       promoter: row.promoter || '',
       notes: row.notes || '',
-      schedule: [], travel: [], guests: [], setList: [], attachments: [],
-      hotel: null,
-      settlement: { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' },
+      schedule: row.schedule || [],
+      travel:   row.travel   || [],
+      guests:   row.guests   || [],
+      setList:  row.set_list || [],
+      attachments: [], // local-only this slice
+      hotel: row.hotel || null,
+      settlement: row.settlement || { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' },
     };
   },
 };
@@ -3590,6 +3609,45 @@ const db = {
     if (!_isUuid(dateId)) return;
     const { error } = await sb.from('dates').delete().eq('id', dateId);
     if (error) this._err('deleteDate', error);
+  },
+
+  // Sync the entire active tour (tour row + all date rows) to Supabase.
+  // Called debounced from saveState() — every local save schedules one of
+  // these. Nested arrays (schedule, travel, crew, contacts, tasks) ride
+  // along as JSONB columns, so this single function handles slice-3
+  // mutation paths without us needing to wire each one individually.
+  _syncTimer: null,
+  _syncInFlight: false,
+  scheduleActiveTourSync() {
+    if (!sb || !state?.currentUserId) return;
+    if (this._syncTimer) clearTimeout(this._syncTimer);
+    this._syncTimer = setTimeout(() => this._runActiveTourSync(), 600);
+  },
+  async _runActiveTourSync() {
+    if (!sb || !state?.currentUserId) return;
+    if (this._syncInFlight) {
+      // Another save came in mid-flight — reschedule once the current one settles.
+      this._syncTimer = setTimeout(() => this._runActiveTourSync(), 600);
+      return;
+    }
+    const tour = state.tours[state.currentTourId];
+    if (!tour || tour.id === '_empty' || !_isUuid(tour.id)) return;
+    if (tour.ownerId && tour.ownerId !== state.currentUserId) return; // not ours to write
+    this._syncInFlight = true;
+    try {
+      const tourRow = dbMap.tourToRow(tour, state.currentUserId);
+      const { error: tErr } = await sb.from('tours').upsert(tourRow, { onConflict: 'id' });
+      if (tErr) { this._err('syncTour', tErr); return; }
+      const dateRows = (tour.dates || [])
+        .filter(d => _isUuid(d.id))
+        .map((d, i) => dbMap.dateToRow(tour.id, d, i));
+      if (dateRows.length) {
+        const { error: dErr } = await sb.from('dates').upsert(dateRows, { onConflict: 'id' });
+        if (dErr) { this._err('syncDates', dErr); return; }
+      }
+    } finally {
+      this._syncInFlight = false;
+    }
   },
   // Pull this user's tours + dates from Supabase and rebuild state.tours.
   // Called after successful signup or sign-in. Replaces state.tours entirely
@@ -3701,6 +3759,11 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp
 function saveState() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
   catch (e) { toast('Save failed: ' + e.message, 'error'); }
+  // Every local save schedules a debounced cloud sync of the active tour.
+  // Nested arrays (schedule, travel, crew, contacts, tasks) ride along as
+  // JSONB columns, so most slice-3 mutation paths get cross-device sync
+  // for free without us wiring each one individually.
+  try { db.scheduleActiveTourSync(); } catch (e) { console.warn('schedule sync:', e); }
 }
 function loadState() {
   try { state = JSON.parse(localStorage.getItem(STORAGE_KEY)); }
