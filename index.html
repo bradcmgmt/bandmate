@@ -3661,6 +3661,8 @@ const dbMap = {
       tasks: t.tasks || [],
       tags: t.tags || [],
       member_ids: t.memberIds || [],
+      notifications: t.notifications || [],
+      notification_templates: t.notificationTemplates || [],
     };
   },
   rowToTour(row, dates) {
@@ -3680,6 +3682,8 @@ const dbMap = {
       contacts: row.contacts || [],
       tasks: row.tasks || [],
       tags: row.tags || [],
+      notifications: row.notifications || [],
+      notificationTemplates: row.notification_templates || [],
       activeDateId: row.active_date_id || (dates && dates[0]?.id) || null,
       ownerId: row.owner_id,
       memberIds: row.member_ids || [],
