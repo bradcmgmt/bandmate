@@ -3553,6 +3553,9 @@ const dbMap = {
   },
 };
 
+const _UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const _isUuid = id => typeof id === 'string' && _UUID_RE.test(id);
+
 const db = {
   _err(op, error) {
     const msg = error?.message || String(error);
@@ -3561,23 +3564,30 @@ const db = {
   },
   async upsertTour(tour) {
     if (!sb || !state?.currentUserId) return;
+    // Leftover local-only tour from the prototype era — id isn't a UUID, so
+    // Postgres will reject it. Skip silently; this tour lives in localStorage
+    // until the user re-creates it (or until a future migration helper).
+    if (!_isUuid(tour.id)) { console.warn('[db] skip upsertTour (non-UUID id):', tour.id); return; }
     const row = dbMap.tourToRow(tour, state.currentUserId);
     const { error } = await sb.from('tours').upsert(row, { onConflict: 'id' });
     if (error) this._err('upsertTour', error);
   },
   async deleteTour(tourId) {
     if (!sb) return;
+    if (!_isUuid(tourId)) return; // local-only, nothing to delete in cloud
     const { error } = await sb.from('tours').delete().eq('id', tourId);
     if (error) this._err('deleteTour', error);
   },
   async upsertDate(tourId, d, position) {
     if (!sb) return;
+    if (!_isUuid(tourId) || !_isUuid(d.id)) { console.warn('[db] skip upsertDate (non-UUID id):', tourId, d.id); return; }
     const row = dbMap.dateToRow(tourId, d, position);
     const { error } = await sb.from('dates').upsert(row, { onConflict: 'id' });
     if (error) this._err('upsertDate', error);
   },
   async deleteDate(dateId) {
     if (!sb) return;
+    if (!_isUuid(dateId)) return;
     const { error } = await sb.from('dates').delete().eq('id', dateId);
     if (error) this._err('deleteDate', error);
   },
