@@ -1384,6 +1384,15 @@ input,select,textarea{font:inherit;color:inherit}
 .idz-x:hover{color:var(--red);border-color:rgba(232,69,69,.4);background:rgba(232,69,69,.06)}
 .idz-actions{display:flex;gap:8px;justify-content:flex-end;padding-top:6px;border-top:1px solid var(--line);margin-top:4px;padding-top:14px}
 
+/* Date range subsection on the New Tour basics modal. Visually
+   grouped from the artist/name fields so the optional nature is
+   clear, but tight enough that the modal doesn't feel padded out. */
+.nt-range{margin-top:14px;padding:14px;background:rgba(232,148,58,.04);border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;gap:10px}
+.nt-range-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--hi);font-weight:700}
+.nt-range-h .nt-range-sub{font-weight:500;color:var(--warm-mute);letter-spacing:.04em;text-transform:none;font-size:11.5px}
+.nt-range-preview{font-size:12px;color:var(--warm-mute);line-height:1.5;font-family:'JetBrains Mono',monospace;letter-spacing:.04em;padding-top:4px}
+
 /* Templates section embedded in the Edit Date modal. Lets the TM
    save the current schedule/travel as a reusable template, or drop a
    saved template onto this date, without leaving the modal. */
@@ -6374,7 +6383,7 @@ function openAttachModal(attId) {
         </div>
         <div class="field full" style="background:rgba(232,148,58,.04);border:1px solid rgba(232,148,58,.18);border-radius:8px;padding:10px 12px">
           <label style="display:flex;align-items:center;gap:9px;cursor:pointer;margin:0">
-            <input type="checkbox" id="at_analyze" checked style="width:16px;height:16px;accent-color:var(--hi);cursor:pointer">
+            <input type="checkbox" id="at_analyze" style="width:16px;height:16px;accent-color:var(--hi);cursor:pointer">
             <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--hi);font-weight:700">⌕ Analyze + auto-fill gaps</span>
           </label>
           <div class="muted" style="font-size:11.5px;margin-top:5px;line-height:1.4">
@@ -13243,8 +13252,10 @@ function newTourFlow() {
 }
 
 function newTourManualFlow() {
+  const today = todayISO();
   openModal({
     title: 'New tour — basics',
+    size: 'lg',
     body: `
       <div class="form-grid one">
         <div class="field"><label>Tour name *</label><input id="nt_name" placeholder="e.g. Wayfinder North America Tour"></div>
@@ -13256,26 +13267,116 @@ function newTourManualFlow() {
           </select>
         </div>
       </div>
-      <div class="help">After creating, you'll add dates one at a time inside the tour.</div>
+      <div class="nt-range">
+        <div class="nt-range-h">
+          <span>⌜ Tour dates · optional</span>
+          <span class="nt-range-sub">Scaffold the calendar now; edit each day later.</span>
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Start date</label>
+            <input type="date" id="nt_start">
+          </div>
+          <div class="field">
+            <label>End date</label>
+            <input type="date" id="nt_end">
+          </div>
+          <div class="field full">
+            <label>Default day type <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(applied to every day in the range)</span></label>
+            <select id="nt_default_type">
+              <option value="show">Show day</option>
+              <option value="travel">Travel day</option>
+              <option value="off">Day off</option>
+              <option value="press">Press day</option>
+              <option value="rehearsal">Rehearsal day</option>
+            </select>
+          </div>
+        </div>
+        <div id="nt_range_preview" class="nt-range-preview"></div>
+      </div>
+      <div class="help">After creating, you can fine-tune each day's status, add cities/venues, and drop in shows individually.</div>
     `,
     submitLabel: 'Create tour',
     onSubmit: () => {
       const name = document.getElementById('nt_name').value.trim();
       const artist = document.getElementById('nt_artist').value.trim();
       if (!name || !artist) { toast('Name and artist required', 'error'); return false; }
+      const startISO = document.getElementById('nt_start').value;
+      const endISO = document.getElementById('nt_end').value;
+      // Validate the range upfront if either field is set — we don't
+      // want to silently swallow a "May → February" typo by creating
+      // a tour with zero dates.
+      if ((startISO && !endISO) || (!startISO && endISO)) {
+        toast('Set both start and end date, or leave both blank', 'error');
+        return false;
+      }
+      if (startISO && endISO && endISO < startISO) {
+        toast('End date must be on or after start', 'error');
+        return false;
+      }
       const tour = newEmptyTour(name, state.currentUserId);
       tour.meta.tourName = name;
       tour.meta.artist = artist;
       tour.meta.presenter = document.getElementById('nt_pres').value.trim();
       tour.meta.currency = document.getElementById('nt_cur').value;
+      // Pre-populate the calendar with empty dates of the chosen
+      // default type. Each day is a real, editable date entry — the
+      // TM can pop any one open to set city/venue/time/etc.
+      let dateCount = 0;
+      if (startISO && endISO) {
+        const defaultType = document.getElementById('nt_default_type').value || 'show';
+        const days = _daysBetween(startISO, endISO);
+        if (days > 90) {
+          toast(`${days} days exceeds the 90-day cap — pick a shorter range or add more dates after creating`, 'error');
+          return false;
+        }
+        for (let i = 0; i < days; i++) {
+          const dt = addDaysISO(startISO, i);
+          tour.dates.push({
+            id: uid('dt'),
+            date: dt, city: '', state: '', country: '',
+            venue: '', capacity: '', status: defaultType,
+            doors: '', setTime: '', loadIn: '', soundcheck: '',
+            promoter: '', notes: '',
+            schedule: [], travel: [], guests: [], setList: [], attachments: [],
+            hotel: null,
+            settlement: { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' },
+          });
+          dateCount++;
+        }
+        tour.dates.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+        if (dateCount) tour.activeDateId = tour.dates[0].id;
+      }
       state.tours[tour.id] = tour;
       state.currentTourId = tour.id;
       saveState();
       db.upsertTour(tour);
       renderAll();
-      toast(`Tour "${name}" created`, 'good');
+      toast(dateCount
+        ? `Tour "${name}" created · ${dateCount} ${dateCount === 1 ? 'date' : 'dates'} scaffolded`
+        : `Tour "${name}" created`,
+        'good');
     }
   });
+  // Live "N days will be added" preview, same UX as the dashboard's
+  // Add Date Range modal. Doesn't fire until both inputs have values.
+  setTimeout(() => {
+    const update = () => {
+      const s = document.getElementById('nt_start')?.value;
+      const e = document.getElementById('nt_end')?.value;
+      const out = document.getElementById('nt_range_preview');
+      if (!out) return;
+      if (!s && !e) { out.textContent = 'Tip: leave the date range blank if you\'d rather add dates individually later.'; return; }
+      if (!s || !e) { out.innerHTML = `<span style="color:var(--hi)">Pick both a start and end date to scaffold the calendar.</span>`; return; }
+      if (e < s) { out.innerHTML = `<span style="color:var(--red)">End date must be on or after start.</span>`; return; }
+      const days = _daysBetween(s, e);
+      if (days > 90) { out.innerHTML = `<span style="color:var(--red)">${days} days exceeds the 90-day cap — pick a shorter range or add more after creating.</span>`; return; }
+      out.innerHTML = `<span style="color:var(--good)">${days} ${days === 1 ? 'day' : 'days'} will be scaffolded as the default type below.</span>`;
+    };
+    document.getElementById('nt_start')?.addEventListener('input', update);
+    document.getElementById('nt_end')?.addEventListener('input', update);
+    update();
+  }, 30);
 }
 
 function newTourImportFlow() {
@@ -14481,17 +14582,23 @@ function userIsSubscribed(user) {
 function landingChoose(role) {
   hideLandingScreen();
   hidePricingScreen();
-  showLoginScreen();
-  // Default the signup form to the role they picked, even if they're a
-  // returning user landing on the sign-in form (the role select is only
-  // visible inside the signup variant, but we set both so it sticks).
+  // The two landing buttons that route through landingChoose are
+  // labeled "Sign in →" (one for Tour Managers, one for Band & Crew),
+  // so the user's intent is unambiguous. The "Sign up →" CTA on
+  // landing routes through showPricingScreen instead and never reaches
+  // here. Pass intent: 'signin' so showLoginScreen honors it even when
+  // no users are claimed locally (which would otherwise default to
+  // showing the signup form for fresh-browser visitors / teammates).
+  showLoginScreen({ intent: 'signin' });
+  // Pre-fill the role on the signup form so if the user toggles over
+  // to "New here? Sign up →" they don't have to pick again.
   setTimeout(() => {
     const sel = document.getElementById('su_role');
     if (sel) sel.value = role === 'crew' ? 'crew' : 'tm';
   }, 30);
 }
 
-function showLoginScreen() {
+function showLoginScreen(opts) {
   document.getElementById('app').hidden = true;
   document.getElementById('onboarding').classList.add('hidden');
   document.getElementById('landingScreen').hidden = true;
@@ -14507,8 +14614,17 @@ function showLoginScreen() {
   // too so the transition from landing → sign-in feels continuous.
   document.body.classList.add('bg-video-on');
   renderLoginAccounts();
-  // First-time visitor (no claimed accounts) → default to signup form
-  // Returning visitor (has accounts) → default to sign-in form
+  // Explicit intent (from landingChoose) wins over the default. The
+  // landing "Sign in for Tour Managers" / "Sign in for Band & Crew"
+  // buttons pass intent: 'signin' so they always land on the sign-in
+  // form even when the visitor has no claimed accounts in this browser
+  // — fresh teammates, incognito sessions, post-clear-data states all
+  // see the form their click promised.
+  if (opts && opts.intent === 'signin') { showLoginForm(); return; }
+  if (opts && opts.intent === 'signup') { showSignupForm(); return; }
+  // No explicit intent → fall back to historical default:
+  //   First-time visitor (no claimed accounts) → signup form
+  //   Returning visitor (has accounts)         → sign-in form
   const claimedCount = state && state.users
     ? Object.values(state.users).filter(u => u.claimed).length
     : 0;
