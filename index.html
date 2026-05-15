@@ -3663,6 +3663,9 @@ const dbMap = {
       member_ids: t.memberIds || [],
       notifications: t.notifications || [],
       notification_templates: t.notificationTemplates || [],
+      schedule_templates: t.scheduleTemplates || [],
+      travel_templates: t.travelTemplates || [],
+      setlist_templates: t.setListTemplates || [],
     };
   },
   rowToTour(row, dates) {
@@ -3684,6 +3687,9 @@ const dbMap = {
       tags: row.tags || [],
       notifications: row.notifications || [],
       notificationTemplates: row.notification_templates || [],
+      scheduleTemplates: row.schedule_templates || [],
+      travelTemplates: row.travel_templates || [],
+      setListTemplates: row.setlist_templates || [],
       activeDateId: row.active_date_id || (dates && dates[0]?.id) || null,
       ownerId: row.owner_id,
       memberIds: row.member_ids || [],
@@ -3717,6 +3723,9 @@ const dbMap = {
       set_list:   d.setList    || [],
       hotel:      d.hotel      || null,
       settlement: d.settlement || { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' },
+      advance:    d.advance    || {},
+      allotments: d.allotments || {},
+      day_notes:  typeof d.dayNotes === 'string' ? d.dayNotes : '',
     };
   },
   rowToDate(row) {
@@ -3743,6 +3752,9 @@ const dbMap = {
       attachments: [], // local-only this slice
       hotel: row.hotel || null,
       settlement: row.settlement || { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' },
+      advance: row.advance || {},
+      allotments: row.allotments || {},
+      dayNotes: typeof row.day_notes === 'string' ? row.day_notes : '',
     };
   },
 };
