@@ -6224,7 +6224,10 @@ function openAttachModal(attId) {
           try { await sb.storage.from('attachments').remove([a.storagePath]); } catch (e) {}
         }
         const result = await db.uploadAttachment(T().id, ad.id, _attachPickedFile, baseMeta);
-        if (!result) { _attachPickedFile = null; _attachPickedDataUrl = ''; return false; }
+        // Keep _attachPickedFile set on failure so the user can fix the
+        // underlying issue (e.g. bucket missing, RLS) and retry by clicking
+        // Save again — no need to re-pick the file from disk.
+        if (!result) return false;
         if (a) {
           // Replace the metadata row (delete old, keep new in state via result)
           await db.deleteAttachment(a.id, null); // storage already removed above
