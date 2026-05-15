@@ -6808,6 +6808,14 @@ function openTagModal(id) {
    RENDER
    ===================================================================== */
 function renderAll() {
+  // Subscription gate · same check as postLoginRouting. Without this, any
+  // realtime event (tour created by signup trigger, date upsert, etc.)
+  // that calls renderAll would pop the onboarding overlay on top of the
+  // pricing screen for unsubscribed TMs.
+  const _u = U();
+  if (_u && _u.role === 'tm' && !userIsSubscribed(_u)) {
+    return;
+  }
   if (!state || !state.onboarded) {
     $('#onboarding').classList.remove('hidden');
     $('#app').hidden = true;
