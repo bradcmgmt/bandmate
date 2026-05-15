@@ -11,7 +11,7 @@
   "theme_color": "#0a0705",
   "categories": ["business", "productivity", "music"],
   "icons": [
-    { "src": "/logo.png", "sizes": "any", "type": "image/png", "purpose": "any" },
-    { "src": "/logo.png", "sizes": "any", "type": "image/png", "purpose": "maskable" }
+    { "src": "/avatar.png?v=2", "sizes": "any", "type": "image/png", "purpose": "any" },
+    { "src": "/avatar.png?v=2", "sizes": "any", "type": "image/png", "purpose": "maskable" }
   ]
 }
