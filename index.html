@@ -3220,7 +3220,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
     <div id="loginForm">
       <h3>Sign in with email</h3>
       <div class="login-field"><label>Email</label><input id="li_email" type="email" autocomplete="email"></div>
-      <div class="login-field"><label>Password <span class="muted mono">(prototype — any password works)</span></label><input id="li_pw" type="password" autocomplete="current-password"></div>
+      <div class="login-field"><label>Password</label><input id="li_pw" type="password" autocomplete="current-password"></div>
       <button type="button" class="login-btn primary" onclick="loginWithEmail()">Sign in</button>
       <div class="login-toggle">No account? <a onclick="showSignupForm()">Create one →</a></div>
     </div>
@@ -3240,7 +3240,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
       <div class="login-toggle">Already have one? <a onclick="showLoginForm()">Sign in →</a></div>
     </div>
 
-    <div class="login-foot">Prototype — accounts and passwords are stored locally in this browser only. No real authentication.</div>
+    <div class="login-foot">Secure email + password sign-in. Your account works on every device.</div>
   </div>
 </div>
 
@@ -3450,11 +3450,24 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 <!-- ============ TOAST ROOT ============ -->
 <div class="toast-container" id="toastRoot"></div>
 
+<!-- Supabase JS client (CDN) — auth + database. anon key is public-by-design, gated by RLS. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+
 <script>
 /* =====================================================================
    BANDMATE · functional app
    State + persistence + CRUD + rendering for the tour management app
    ===================================================================== */
+
+/* ---------- Supabase client (auth source of truth; data layer to follow) ---------- */
+const SUPABASE_URL = 'https://xyzmxzawqmjsccxecmts.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5em14emF3cW1qc2NjeGVjbXRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4MTI2MTUsImV4cCI6MjA5NDM4ODYxNX0.SyFRvQMNmmX-vE0Ofh_6OKadhotaI1gs2JOeRglF4IM';
+const sb = (window.supabase && window.supabase.createClient)
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'bandmate.sb.session' }
+    })
+  : null;
+if (!sb) console.warn('Supabase SDK failed to load — check the network tab. Auth will not work until this is resolved.');
 
 const STORAGE_KEY = 'bandmate.tour.v1';
 let state = null;
@@ -13829,27 +13842,79 @@ function showSignupForm() {
   document.getElementById('signupForm').hidden = false;
 }
 
-function loginWithEmail() {
+async function loginWithEmail() {
   const email = (document.getElementById('li_email').value || '').trim().toLowerCase();
+  const pw = (document.getElementById('li_pw').value || '').trim();
   if (!email) { toast('Enter your email', 'error'); return; }
-  const switchToSignup = (msg) => {
-    toast(msg, 'error');
-    showSignupForm();
-    const su = document.getElementById('su_email');
-    if (su) su.value = email;
-    setTimeout(() => document.getElementById('su_name')?.focus(), 100);
-  };
-  if (!state || !state.users) {
-    return switchToSignup("No accounts on this device yet — let's create yours");
+  if (!pw) { toast('Enter your password', 'error'); return; }
+  if (!sb) { toast('Auth service not loaded — refresh the page', 'error'); return; }
+
+  const btn = document.querySelector('#loginForm .login-btn.primary');
+  const setBtn = (label, dis) => { if (btn) { btn.textContent = label; btn.disabled = !!dis; } };
+  setBtn('Signing in…', true);
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+  setBtn('Sign in', false);
+
+  if (error) {
+    const msg = error.message || 'Sign-in failed';
+    if (/invalid login credentials/i.test(msg)) {
+      toast('Wrong email or password', 'error');
+    } else if (/email not confirmed/i.test(msg)) {
+      toast('Confirm your email first — check your inbox for the link', 'error');
+    } else {
+      toast(msg, 'error');
+    }
+    return;
   }
-  const user = Object.values(state.users).find(u => (u.email || '').toLowerCase() === email);
-  if (!user) {
-    return switchToSignup('No account with that email — create one below');
+
+  const supaUser = data.user;
+  const userId = supaUser.id;
+
+  if (!state) state = newEmptyState();
+  // Re-key any stub local user that matches by email but has a different id.
+  const stub = Object.values(state.users).find(u => (u.email||'').toLowerCase() === email && u.id !== userId);
+  if (stub) {
+    const oldId = stub.id;
+    state.users[userId] = { ...stub, id: userId };
+    delete state.users[oldId];
+    Object.values(state.tours).forEach(tour => {
+      (tour.crew || []).forEach(c => { if (c.userId === oldId) c.userId = userId; });
+      if (tour.memberIds) tour.memberIds = tour.memberIds.map(id => id === oldId ? userId : id);
+    });
   }
-  if (!user.claimed) {
-    return switchToSignup('That email is referenced in a tour but the account hasn\'t been claimed — create yours below');
+  // Hydrate the local user record from the Supabase profile if we don't have one yet.
+  if (!state.users[userId]) {
+    let displayName = supaUser.user_metadata?.display_name || email.split('@')[0];
+    let role = supaUser.user_metadata?.role || 'tm';
+    try {
+      const { data: profile } = await sb.from('profiles').select('display_name,role,avatar').eq('id', userId).maybeSingle();
+      if (profile) {
+        if (profile.display_name) displayName = profile.display_name;
+        if (profile.role) role = profile.role;
+      }
+    } catch (e) { /* non-fatal — fall back to metadata */ }
+    state.users[userId] = {
+      id: userId, name: displayName, email, role,
+      avatar: displayName.split(' ').filter(Boolean).map(s=>s[0]).join('').slice(0,2).toUpperCase() || '??',
+      createdAt: Date.now(), lastLoginAt: Date.now(), claimed: true,
+    };
+  } else {
+    state.users[userId].lastLoginAt = Date.now();
   }
-  loginAsExisting(user.id);
+
+  state.currentUserId = userId;
+  // Pending Stripe subscription? Attach it now so the existing account
+  // gets billing flipped on. Only TMs are billed, so skip for crew.
+  const pending = _readPendingSubscription();
+  if (pending && state.users[userId].role === 'tm') {
+    _attachSubscriptionToCurrentUser(pending);
+    _clearPendingSubscription();
+    setTimeout(() => toast(`Subscription attached to your account`, 'good'), 200);
+  }
+  saveState();
+  postLoginRouting();
+  toast(`Welcome back, ${state.users[userId].name.split(' ')[0]}`, 'good');
 }
 
 function loginAsExisting(userId) {
@@ -13898,40 +13963,72 @@ function findCrewMatchesByEmail(email) {
   return matches;
 }
 
-function signUp() {
+async function signUp() {
   const name = (document.getElementById('su_name').value || '').trim();
   const email = (document.getElementById('su_email').value || '').trim().toLowerCase();
   const pw = (document.getElementById('su_pw').value || '').trim();
   const role = document.getElementById('su_role').value;
   if (!name || !email || !pw) { toast('All fields required', 'error'); return; }
+  if (pw.length < 6) { toast('Password must be at least 6 characters', 'error'); return; }
+  if (!sb) { toast('Auth service not loaded — refresh the page', 'error'); return; }
   if (!state) state = newEmptyState();
 
-  // Check if email matches an existing user
-  const existing = Object.values(state.users).find(u => (u.email||'').toLowerCase() === email);
-  if (existing && existing.claimed) {
-    toast('Email already registered — sign in instead', 'error');
+  const btn = document.querySelector('#signupForm .login-btn.primary');
+  const setBtn = (label, dis) => { if (btn) { btn.textContent = label; btn.disabled = !!dis; } };
+  setBtn('Creating account…', true);
+
+  const { data, error } = await sb.auth.signUp({
+    email, password: pw,
+    options: { data: { display_name: name, role } }
+  });
+  setBtn('Create account', false);
+
+  if (error) {
+    const msg = error.message || 'Sign-up failed';
+    if (/already.*registered|user.*exists/i.test(msg)) {
+      toast('Email already registered — sign in instead', 'error');
+      showLoginForm();
+      const li = document.getElementById('li_email'); if (li) li.value = email;
+    } else {
+      toast(msg, 'error');
+    }
     return;
   }
-  let userId;
-  if (existing && !existing.claimed) {
-    // Claim the existing seeded user (the one auto-created when a TM added
-    // them to a crew roster). Same id so all crew.userId references stay valid.
-    existing.name = name;
-    existing.role = role;
-    existing.avatar = name.split(' ').filter(Boolean).map(s=>s[0]).join('').slice(0,2).toUpperCase() || existing.avatar;
-    existing.claimed = true;
-    existing.lastLoginAt = Date.now();
-    userId = existing.id;
-  } else {
-    // Brand-new user
-    userId = 'u_' + (email.replace(/[^a-z0-9]/g,'') || ('user'+Date.now())).slice(0,30);
+
+  const userId = data.user?.id;
+  // If email confirmation is enabled, data.session is null until the user clicks the email link.
+  if (!userId || !data.session) {
+    toast('Account created — check your email to confirm, then sign in', 'good');
+    showLoginForm();
+    const li = document.getElementById('li_email'); if (li) li.value = email;
+    return;
+  }
+
+  // Authenticated immediately. Bridge Supabase identity into local state.users.
+  // If a stub local user already exists for this email (seeded via crew roster),
+  // re-key it to the Supabase UUID so all crew.userId references stay valid.
+  const existingLocal = Object.values(state.users).find(u => (u.email||'').toLowerCase() === email);
+  if (existingLocal && existingLocal.id !== userId) {
+    const oldId = existingLocal.id;
+    state.users[userId] = { ...existingLocal, id: userId };
+    delete state.users[oldId];
+    Object.values(state.tours).forEach(tour => {
+      (tour.crew || []).forEach(c => { if (c.userId === oldId) c.userId = userId; });
+      if (tour.memberIds) tour.memberIds = tour.memberIds.map(id => id === oldId ? userId : id);
+    });
+  }
+  if (!state.users[userId]) {
     state.users[userId] = {
       id: userId, name, email, role,
       avatar: name.split(' ').filter(Boolean).map(s=>s[0]).join('').slice(0,2).toUpperCase() || '??',
-      createdAt: Date.now(),
-      lastLoginAt: Date.now(),
-      claimed: true,
+      createdAt: Date.now(), lastLoginAt: Date.now(), claimed: true,
     };
+  } else {
+    const u = state.users[userId];
+    u.name = name; u.role = role; u.email = email;
+    u.avatar = name.split(' ').filter(Boolean).map(s=>s[0]).join('').slice(0,2).toUpperCase() || u.avatar;
+    u.claimed = true;
+    u.lastLoginAt = Date.now();
   }
 
   // Match this email against EVERY crew record on EVERY tour and bind them
@@ -14014,9 +14111,10 @@ function _copyCrewEmail(email) {
   } catch(e) { toast('Copy failed — copy manually: ' + email, 'error'); }
 }
 
-function logout() {
+async function logout() {
   closeAccountMenu();
   if (!confirm('Sign out? Your tour data stays on this device.')) return;
+  if (sb) { try { await sb.auth.signOut(); } catch (e) { /* non-fatal */ } }
   state.currentUserId = null;
   saveState();
   // Hide the crew block screen explicitly — without this, signing out
