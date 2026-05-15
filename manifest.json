@@ -1,0 +1,17 @@
+{
+  "name": "Bandmate · Tour Operations",
+  "short_name": "Bandmate",
+  "description": "Tour management for the road. Schedules, hotels, guest lists, set lists, settlements — synced to your crew's phones.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0705",
+  "theme_color": "#0a0705",
+  "categories": ["business", "productivity", "music"],
+  "icons": [
+    { "src": "/logo.png", "sizes": "any", "type": "image/png", "purpose": "any" },
+    { "src": "/logo.png", "sizes": "any", "type": "image/png", "purpose": "maskable" }
+  ]
+}

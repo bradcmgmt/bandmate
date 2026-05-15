@@ -7,6 +7,15 @@
 <meta name="description" content="Tour management for the road. Schedules, hotels, guest lists, set lists, settlements — synced to your crew's phones. A modern alternative to Master Tour.">
 <meta name="theme-color" content="#0a0705">
 
+<!-- PWA manifest + Apple home-screen meta. Installs as a real-feeling app
+     on iOS/Android without going through the app stores. -->
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bandmate">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="/logo.png">
+
 <!-- Open Graph -->
 <meta property="og:type" content="website">
 <meta property="og:title" content="Bandmate — Tour Operations">
@@ -3454,6 +3463,11 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 <!-- Supabase JS client (CDN) — auth + database. anon key is public-by-design, gated by RLS. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 
+<!-- Sentry browser SDK — error monitoring. Loads non-blocking so a Sentry
+     outage can't break the app. The init block below no-ops cleanly when
+     the DSN isn't configured yet. -->
+<script src="https://browser.sentry-cdn.com/8.47.0/bundle.tracing.min.js" crossorigin="anonymous"></script>
+
 <script>
 /* =====================================================================
    BANDMATE · functional app
@@ -3469,6 +3483,38 @@ const sb = (window.supabase && window.supabase.createClient)
     })
   : null;
 if (!sb) console.warn('Supabase SDK failed to load — check the network tab. Auth will not work until this is resolved.');
+
+/* ---------- Sentry error monitoring ---------- */
+// Paste your Sentry DSN below to enable error monitoring. Leaving it empty
+// is fine — the init block no-ops cleanly and the app keeps working. Get
+// the DSN at sentry.io → Settings → Projects → bandmate → Client Keys (DSN).
+const SENTRY_DSN = 'https://113d8d929bf1344ba867717fc14e0dde@o4511392236634112.ingest.us.sentry.io/4511392247644160';
+if (SENTRY_DSN && window.Sentry && window.Sentry.init) {
+  try {
+    window.Sentry.init({
+      dsn: SENTRY_DSN,
+      environment: location.hostname === 'bandmate.art' || location.hostname === 'www.bandmate.art' ? 'production' : 'development',
+      release: 'bandmate@0.3',
+      // Browser-tracing keeps a low sample so cost stays small while we
+      // still catch slow paths. Errors are always captured at 100%.
+      tracesSampleRate: 0.05,
+      // Don't capture the anon key from URL hashes or local references —
+      // it's public-by-design but no need to spray it across breadcrumbs.
+      beforeBreadcrumb(b) {
+        if (b?.data?.url && b.data.url.includes('apikey=')) return null;
+        return b;
+      },
+    });
+  } catch (e) { console.warn('Sentry init failed:', e); }
+}
+// Helper used from auth flows to tag captured events with the current user.
+function _sentrySetUser(user) {
+  if (!SENTRY_DSN || !window.Sentry) return;
+  try {
+    if (user) window.Sentry.setUser({ id: user.id, email: user.email });
+    else window.Sentry.setUser(null);
+  } catch (e) {}
+}
 
 // Listener for special auth events. PASSWORD_RECOVERY fires when the user
 // clicks the recovery link in their email and lands back on the site —
@@ -14404,6 +14450,7 @@ async function loginWithEmail() {
     setTimeout(() => toast(`Subscription attached to your account`, 'good'), 200);
   }
   saveState();
+  _sentrySetUser({ id: userId, email });
   // Pull the user's tours + dates from Supabase so this device shows their
   // real cloud data, regardless of what was in localStorage on this browser.
   await db.hydrateUserData(userId);
@@ -14551,6 +14598,7 @@ async function signUp() {
     _clearPendingSubscription();
   }
   saveState();
+  _sentrySetUser({ id: userId, email });
   // Pull the seeded demo tour + dates the signup trigger created so the
   // new account lands on real cloud data, not an empty local state.
   await db.hydrateUserData(userId);
@@ -14729,6 +14777,7 @@ async function logout() {
     try { db.unsubscribeRealtime(); } catch (e) { /* non-fatal */ }
     try { await sb.auth.signOut(); } catch (e) { /* non-fatal */ }
   }
+  _sentrySetUser(null);
   state.currentUserId = null;
   saveState();
   // Hide the crew block screen explicitly — without this, signing out
@@ -14839,10 +14888,46 @@ function renderAccountMenu() {
         <div class="am-meta">${esc(me?.email || '')} · ${me?.role === 'tm' ? 'Tour Manager' : 'Crew'}</div>
       </div>
     </div>
+    <button class="am-item" type="button" onclick="closeAccountMenu();window.bandmateInstallPrompt()">
+      <span class="am-ic">↧</span><span>Install Bandmate</span>
+    </button>
     <button class="am-item danger" type="button" onclick="logout()">
       <span class="am-ic" style="color:var(--red);border-color:rgba(232,69,69,.3)">×</span><span>Sign out</span>
     </button>
+    <button class="am-item danger" type="button" onclick="deleteAccount()">
+      <span class="am-ic" style="color:var(--red);border-color:rgba(232,69,69,.3)">⨯</span><span>Delete account</span>
+    </button>
   `;
+}
+
+// Permanently delete the signed-in user's account and every tour, date,
+// schedule item, travel item, crew/contact/task, attachment metadata row,
+// and attachment binary they own. Calls the SECURITY DEFINER RPC from
+// patch-006 — the RPC verifies the caller is the user before deleting
+// from auth.users (which cascades through everything via FK).
+async function deleteAccount() {
+  closeAccountMenu();
+  const me = U();
+  if (!sb || !me) { toast('Not signed in', 'error'); return; }
+  confirmTyped({
+    title: 'Delete your Bandmate account?',
+    message: `This <b>permanently removes everything</b> tied to <b>${esc(me.email || me.name)}</b> — every tour you own, every date, schedule, travel item, crew row, contact, task, attachment, and the account itself. Crew you've shared tours with will lose access. <b>This cannot be undone.</b>`,
+    magic: 'DELETE',
+    confirmLabel: 'Delete account forever',
+    danger: true,
+    onConfirm: async () => {
+      const { error } = await sb.rpc('delete_my_account');
+      if (error) { toast(error.message || 'Deletion failed', 'error'); return; }
+      // Tear down local state so a stale auth session can't keep firing
+      try { db.unsubscribeRealtime(); } catch (e) {}
+      try { await sb.auth.signOut(); } catch (e) {}
+      try { localStorage.removeItem('bandmate.sb.session'); } catch (e) {}
+      try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+      state = null;
+      toast('Account deleted', 'good');
+      setTimeout(() => location.reload(), 800);
+    },
+  });
 }
 
 
@@ -16581,6 +16666,45 @@ Object.assign(window, {
 });
 
 try { init(); } catch (e) { console.error("init failed:", e); }
+
+// PWA service worker · register once on boot. Cache strategy lives in
+// sw.js — see that file for the network-first vs cache-first split.
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(err => console.warn('SW registration:', err));
+  });
+}
+
+// Capture the beforeinstallprompt event so we can offer an in-app
+// "Install Bandmate" button later. iOS Safari doesn't fire this — there
+// the install flow is share-sheet → Add to Home Screen, and we don't
+// gate it behind a button. window.bandmateInstallPrompt() shows the
+// prompt when an event is available; callable from the account menu
+// or any other place we want to surface install.
+let _pwaInstallEvent = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  _pwaInstallEvent = e;
+});
+window.addEventListener('appinstalled', () => {
+  _pwaInstallEvent = null;
+  try { toast('Bandmate installed — open it from your home screen', 'good'); } catch (e) {}
+});
+window.bandmateInstallPrompt = async function() {
+  if (!_pwaInstallEvent) {
+    // iOS Safari — guide the user to the manual flow.
+    const ua = navigator.userAgent || '';
+    if (/iPhone|iPad|iPod/i.test(ua)) {
+      try { toast('Tap Share → "Add to Home Screen" to install', 'good'); } catch (e) {}
+      return;
+    }
+    try { toast('Already installed — or your browser does not support install', 'good'); } catch (e) {}
+    return;
+  }
+  _pwaInstallEvent.prompt();
+  try { await _pwaInstallEvent.userChoice; } catch (e) {}
+  _pwaInstallEvent = null;
+};
 
 // Cloud sync on boot. The Supabase session is persisted in localStorage by
 // the SDK, so the user stays "signed in" across reloads. But the JS state
