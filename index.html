@@ -7829,16 +7829,18 @@ function renderAttachments() {
       <div class="tile-grid">
         ${items.map(a => {
           // Three viewing options based on what's stored:
-          //   1. Inline file (dataUrl)  → View + Download both wired
-          //      to the data URL with proper filename
-          //   2. Cloud link only        → Open in new tab
-          //   3. Metadata only          → Edit only
-          const hasInline = !!a.dataUrl;
+          //   1. Cloud file (storagePath) → View + Download via signed URL.
+          //      Legacy localStorage attachments with dataUrl still work
+          //      via the same handlers — _viewAttachment/_downloadAttachment
+          //      branch on which field is present.
+          //   2. External link only       → Open in new tab
+          //   3. Metadata only            → Edit only
+          const hasFile = !!(a.storagePath || a.dataUrl);
           const hasLink = !!a.link;
-          const viewBtn = hasInline
+          const viewBtn = hasFile
             ? `<button type="button" class="at-view-btn" onclick="_viewAttachment('${a.id}')">View</button>`
             : (hasLink ? `<a class="at-view-btn" href="${esc(a.link)}" target="_blank" rel="noopener noreferrer">Open ↗</a>` : '');
-          const downloadBtn = hasInline
+          const downloadBtn = hasFile
             ? `<button type="button" class="at-dl-btn" onclick="_downloadAttachment('${a.id}')">Download</button>`
             : '';
           return `
