@@ -3642,7 +3642,7 @@ function U() {
 }
 function newEmptyTour(name, ownerId) {
   return {
-    id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : uid('t'),
+    id: dbId(),
     name: name || '',
     meta: { tourName: name || '', artist: '', presenter: '', currency: 'USD', defaultAllotments: { '+1':30, AAA:10, Photo:6, 'M&G':12 }, createdAt: Date.now() },
     dates: [], crew: [], contacts: [], tasks: [], tags: [],
@@ -3680,6 +3680,9 @@ let phoneScreen = 'today';
 let viewerKey = 'tm';
 let _idc = 1;
 const uid = (p='id') => `${p}_${Date.now().toString(36)}_${(_idc++).toString(36)}`;
+// IDs for any entity that gets synced to Supabase (UUID columns). All other
+// transient IDs (DOM nodes, picker keys, toast ids) keep using uid().
+const dbId = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : uid('id');
 const $ = sel => document.querySelector(sel);
 const $$ = sel => document.querySelectorAll(sel);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -3748,7 +3751,7 @@ function migrateV1ToMultiTour(old) {
   const tmUser = newDefaultTM();
   const users = { [tmUser.id]: tmUser };
   const tour = {
-    id: uid('t'),
+    id: dbId(),
     name: (old.meta && old.meta.tourName) || 'My Tour',
     meta: old.meta || { tourName: '', artist: '', presenter: '', currency: 'USD', defaultAllotments: { '+1':30, AAA:10, Photo:6, 'M&G':12 } },
     dates: old.dates || [],
@@ -4045,7 +4048,7 @@ function fillDateGapsWithOffDays() {
     while (probe && probe < nxt) {
       if (!have.has(probe)) {
         tour.dates.push({
-          id: uid('dt'),
+          id: dbId(),
           date: probe,
           city: '',
           state: '',
@@ -4105,7 +4108,7 @@ function _padTourEdgesWithTravelDays() {
   const have = new Set(sortedAll.map(d => d.date.slice(0, 10)));
   let added = 0;
   const mkTravel = (iso, label) => ({
-    id: uid('dt'),
+    id: dbId(),
     date: iso,
     city: '', state: '', country: '',
     venue: '', capacity: '',
@@ -4203,7 +4206,7 @@ function onbChooseSample() {
     const tmUser = ensureLoggedInState();
     const sample = JSON.parse(JSON.stringify(SAMPLE_TOUR));
     const tour = {
-      id: uid('t'),
+      id: dbId(),
       name: sample.meta.tourName,
       meta: sample.meta,
       dates: sample.dates || [],
@@ -4239,9 +4242,9 @@ function onbChooseSample() {
     tour2.meta.presenter = sample.meta.presenter;
     tour2.meta.currency = sample.meta.currency;
     tour2.dates = [
-      { id: uid('dt'), date: '2026-07-10', city: 'Toronto', state: 'ON', venue: 'Budweiser Stage', capacity:'16000', status:'show', doors:'18:00', setTime:'21:30', loadIn:'13:00', soundcheck:'16:00', promoter:'Live Nation Canada', schedule:[], travel:[], guests:[], setList:[], attachments:[], hotel:null, settlement:{settled:false,guarantee:65000,finalAmount:0,deductions:'',notes:''}, notes:'Co-headline w/ The Stripes' },
-      { id: uid('dt'), date: '2026-07-12', city: 'Boston', state: 'MA', venue: 'Boston Calling Festival', capacity:'30000', status:'show', doors:'12:00', setTime:'17:00', loadIn:'08:00', soundcheck:'13:00', promoter:'Crash Line Productions', schedule:[], travel:[], guests:[], setList:[], attachments:[], hotel:null, settlement:{settled:false,guarantee:85000,finalAmount:0,deductions:'',notes:'Festival slot · 60 min set'}, notes:'' },
-      { id: uid('dt'), date: '2026-07-15', city: 'Chicago', state: 'IL', venue: 'Pitchfork Music Festival', capacity:'19000', status:'show', doors:'12:00', setTime:'19:00', loadIn:'09:00', soundcheck:'14:00', promoter:'Pitchfork', schedule:[], travel:[], guests:[], setList:[], attachments:[], hotel:null, settlement:{settled:false,guarantee:55000,finalAmount:0,deductions:'',notes:'Red Stage'}, notes:'' },
+      { id: dbId(), date: '2026-07-10', city: 'Toronto', state: 'ON', venue: 'Budweiser Stage', capacity:'16000', status:'show', doors:'18:00', setTime:'21:30', loadIn:'13:00', soundcheck:'16:00', promoter:'Live Nation Canada', schedule:[], travel:[], guests:[], setList:[], attachments:[], hotel:null, settlement:{settled:false,guarantee:65000,finalAmount:0,deductions:'',notes:''}, notes:'Co-headline w/ The Stripes' },
+      { id: dbId(), date: '2026-07-12', city: 'Boston', state: 'MA', venue: 'Boston Calling Festival', capacity:'30000', status:'show', doors:'12:00', setTime:'17:00', loadIn:'08:00', soundcheck:'13:00', promoter:'Crash Line Productions', schedule:[], travel:[], guests:[], setList:[], attachments:[], hotel:null, settlement:{settled:false,guarantee:85000,finalAmount:0,deductions:'',notes:'Festival slot · 60 min set'}, notes:'' },
+      { id: dbId(), date: '2026-07-15', city: 'Chicago', state: 'IL', venue: 'Pitchfork Music Festival', capacity:'19000', status:'show', doors:'12:00', setTime:'19:00', loadIn:'09:00', soundcheck:'14:00', promoter:'Pitchfork', schedule:[], travel:[], guests:[], setList:[], attachments:[], hotel:null, settlement:{settled:false,guarantee:55000,finalAmount:0,deductions:'',notes:'Red Stage'}, notes:'' },
     ];
     tour2.activeDateId = tour2.dates[0].id;
     // Cross-tour band: include the four band members so they appear on multiple tours
@@ -4780,7 +4783,7 @@ function _commitDateRange(startDate, endDate) {
     const typeSel = document.querySelector(`.adr-type[data-idx="${i}"]`);
     const status = typeSel ? typeSel.value : 'show';
     const newDate = {
-      id: uid('dt'),
+      id: dbId(),
       date: dt, city: '', state: '', country: '',
       venue: '', capacity: '', status,
       doors: '', setTime: '', loadIn: '', soundcheck: '',
@@ -4888,7 +4891,7 @@ function openDateModal(id) {
         if (editing._autoFilled) delete editing._autoFilled;
       } else {
         const newDate = {
-          id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : uid('dt'), ...data,
+          id: dbId(), ...data,
           schedule: [], travel: [], guests: [], setList: [], attachments: [],
           hotel: null,
           settlement: { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' },
@@ -10351,7 +10354,7 @@ function izApply() {
 
   const dateIdMap = {};
   s.merged.dates.forEach(d => {
-    const id = uid('dt');
+    const id = dbId();
     dateIdMap[`${d.date}|${(d.city || '').toLowerCase()}`] = id;
     T().dates.push({
       id,
@@ -15084,7 +15087,7 @@ function _applyImportResults(results) {
       }
     } else {
       tour.dates.push({
-        id: uid('dt'),
+        id: dbId(),
         date: d.date,
         city: d.city || '', state: d.state || '', country: d.country || '',
         venue: d.venue || '', capacity: d.capacity || '',
