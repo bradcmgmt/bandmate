@@ -3727,6 +3727,8 @@ const db = {
         payload => this._onDateChange(payload))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'attachments' },
         payload => this._onAttachmentChange(payload))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions' },
+        payload => this._onSubscriptionChange(payload))
       .subscribe(status => {
         if (status === 'SUBSCRIBED') console.log('[realtime] connected');
         else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') console.warn('[realtime]', status);
@@ -3815,6 +3817,21 @@ const db = {
     return data?.signedUrl || null;
   },
 
+  // Subscriptions · pulls the signed-in user's current Stripe subscription
+  // (if any). RLS on public.subscriptions scopes the query to "their own
+  // row" via user_id or email match against the JWT, so there's no risk
+  // of leaking someone else's billing data.
+  async fetchSubscription() {
+    if (!sb) return null;
+    const { data, error } = await sb.from('subscriptions')
+      .select('status, current_period_end, trial_end, plan, cancel_at_period_end, stripe_customer_id')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) { console.warn('[db.fetchSubscription]', error); return null; }
+    return data;
+  },
+
   _onDateChange(payload) {
     const { eventType, new: row, old } = payload;
     if (!state) return;
@@ -3842,6 +3859,41 @@ const db = {
     tour.dates = (tour.dates || []).filter(d => d.id !== row.id).concat(newDate);
     tour.dates.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
     try { renderAll(); } catch (e) {}
+  },
+
+  _onSubscriptionChange(payload) {
+    const u = U();
+    if (!u) return;
+    const row = payload.new || payload.old;
+    if (!row) return;
+    // Only react to changes that touch the current user.
+    const matchesUser = row.user_id === u.id
+      || (row.email && row.email.toLowerCase() === (u.email || '').toLowerCase());
+    if (!matchesUser) return;
+    const wasSubscribed = userIsSubscribed(u);
+    if (payload.eventType === 'DELETE') {
+      u.subscriptionStatus = 'canceled';
+      u.subscriptionPeriodEnd = null;
+      u.trialEnd = null;
+    } else if (payload.new) {
+      u.subscriptionStatus = payload.new.status;
+      u.subscriptionPeriodEnd = payload.new.current_period_end;
+      u.trialEnd = payload.new.trial_end;
+      u.subscriptionCancelAtPeriodEnd = !!payload.new.cancel_at_period_end;
+    }
+    saveState();
+    const nowSubscribed = userIsSubscribed(u);
+    // Flip the gate the instant the webhook lands the upsert. If they just
+    // became subscribed, drop the pricing screen and route into the app.
+    // If they just LOST access (canceled past period end, etc.), kick back
+    // to the pricing screen on next render.
+    if (!wasSubscribed && nowSubscribed) {
+      try { hidePricingScreen(); } catch (e) {}
+      try { postLoginRouting(); } catch (e) {}
+      try { toast('Subscription active — welcome aboard', 'good'); } catch (e) {}
+    } else if (wasSubscribed && !nowSubscribed) {
+      try { showPricingScreen(); } catch (e) {}
+    }
   },
 
   _onAttachmentChange(payload) {
@@ -14040,7 +14092,7 @@ function _computeNextCycleEnd(startedAt) {
 // to live mode and recreate the product + payment link there, paste the
 // live URL here. Live URLs do NOT have "test_" in them.
 const STRIPE_LINKS = {
-  subscription: 'https://buy.stripe.com/test_aFafZh71dfJt8J73QV2sM00',
+  subscription: 'https://buy.stripe.com/eVq00j0L13CU2Hy9BF38401',
 };
 const BUSINESS_INQUIRY_EMAIL = 'info@bandmate.art';
 
@@ -14277,16 +14329,56 @@ function _welcomeContinueAsExisting() {
 
 // Persist subscription details onto a user record. Called from signUp()
 // for new accounts and from _welcomeContinue() for already-logged-in
-// users.
+// users. This is now a no-op-ish optimistic update — the real source of
+// truth is the public.subscriptions table in Supabase, written by the
+// Stripe webhook. We stash a best-guess here so the UI feels instant;
+// hydrateSubscription() will overwrite with the real status moments later.
 function _attachSubscriptionToCurrentUser(pending) {
   if (!pending || !state || !state.currentUserId) return;
   const u = state.users[state.currentUserId];
   if (!u) return;
-  u.subscriptionStatus = 'active';
-  u.subscriptionPlan = pending.plan || 'solo';
+  u.subscriptionStatus = u.subscriptionStatus || 'active';
+  u.subscriptionPlan = pending.plan || 'standard';
   u.subscriptionStartedAt = pending.capturedAt || Date.now();
   if (pending.sessionId) u.stripeSessionId = pending.sessionId;
   saveState();
+}
+
+// Pull the user's subscription row from Supabase and stamp it onto the
+// local user record. The webhook is the writer; we just read. Called after
+// every auth-success (signup, signin, boot cloud sync) so the gate has
+// real data to decide on.
+async function hydrateSubscription() {
+  const u = U();
+  if (!u || u.role !== 'tm') return;
+  const sub = await db.fetchSubscription();
+  if (!sub) {
+    // No subscription row at all — leave any locally-stashed pending sub
+    // alone (it'll get a real row when the webhook lands). If there's no
+    // pending either, mark as none so the gate shows pricing.
+    if (!u.subscriptionStatus) u.subscriptionStatus = 'none';
+  } else {
+    u.subscriptionStatus = sub.status;
+    u.subscriptionPlan = sub.plan || 'standard';
+    u.subscriptionPeriodEnd = sub.current_period_end;
+    u.trialEnd = sub.trial_end;
+    u.subscriptionCancelAtPeriodEnd = !!sub.cancel_at_period_end;
+    u.stripeCustomerId = sub.stripe_customer_id || u.stripeCustomerId;
+  }
+  saveState();
+}
+
+// Subscription gate. Crew accounts are always free; TM accounts need an
+// active or trialing subscription with a non-expired period_end (or no
+// period_end, which Stripe sometimes emits during trials).
+function userIsSubscribed(user) {
+  if (!user) return false;
+  if (user.role !== 'tm') return true;
+  const status = user.subscriptionStatus;
+  if (status !== 'active' && status !== 'trialing') return false;
+  const end = user.subscriptionPeriodEnd || user.trialEnd;
+  if (end && new Date(end).getTime() < Date.now()) return false;
+  return true;
 }
 
 // Pricing is a single flat tier ($49.99/mo, unlimited tours) — no
@@ -14454,6 +14546,7 @@ async function loginWithEmail() {
   // Pull the user's tours + dates from Supabase so this device shows their
   // real cloud data, regardless of what was in localStorage on this browser.
   await db.hydrateUserData(userId);
+  await hydrateSubscription();
   db.subscribeRealtime(userId);
   postLoginRouting();
   toast(`Welcome back, ${state.users[userId].name.split(' ')[0]}`, 'good');
@@ -14602,6 +14695,7 @@ async function signUp() {
   // Pull the seeded demo tour + dates the signup trigger created so the
   // new account lands on real cloud data, not an empty local state.
   await db.hydrateUserData(userId);
+  await hydrateSubscription();
   db.subscribeRealtime(userId);
   postLoginRouting();
   const firstName = name.split(' ')[0];
@@ -14803,6 +14897,15 @@ function postLoginRouting() {
   // of routing into the tour preview. They can sign out from there.
   if (u.role === 'crew') {
     showCrewBlockScreen();
+    return;
+  }
+
+  // Hard subscription gate. TMs must have an active or trialing
+  // subscription before they can use the app. The webhook flips this
+  // status via realtime; the moment they pay (or their trial starts),
+  // _onSubscriptionChange unblocks them and re-routes here.
+  if (u.role === 'tm' && !userIsSubscribed(u)) {
+    showPricingScreen();
     return;
   }
 
@@ -16722,6 +16825,14 @@ window.bandmateInstallPrompt = async function() {
     const result = await db.hydrateUserData(userId);
     if (result.tours > 0) {
       try { renderAll(); } catch (e) { console.error('post-hydrate render:', e); }
+    }
+    await hydrateSubscription();
+    // If the user is a TM whose subscription lapsed between sessions,
+    // bounce them to the pricing screen instead of dropping them into a
+    // dashboard they're not entitled to use.
+    const u = U();
+    if (u && u.role === 'tm' && !userIsSubscribed(u)) {
+      try { showPricingScreen(); } catch (e) {}
     }
     db.subscribeRealtime(userId);
   } catch (e) {
