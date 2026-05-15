@@ -5215,10 +5215,10 @@ function openDateModal(id) {
         <div class="field full" data-show-day data-press-day><label id="d_venue_lbl">Venue</label><input id="d_venue" value="${esc(d.venue)}"></div>
         <div class="field" data-show-day><label>Capacity</label><input type="number" id="d_cap" value="${esc(d.capacity)}"></div>
         <div class="field" data-show-day><label>Promoter</label><input id="d_prom" value="${esc(d.promoter)}"></div>
-        <div class="field" data-show-day><label>Doors</label><input id="d_doors" value="${esc(d.doors)}" placeholder="HH:MM"></div>
-        <div class="field" data-show-day><label>Set time</label><input id="d_set" value="${esc(d.setTime)}" placeholder="HH:MM"></div>
-        <div class="field" data-show-day><label>Load-in</label><input id="d_load" value="${esc(d.loadIn)}" placeholder="HH:MM"></div>
-        <div class="field" data-show-day><label>Soundcheck</label><input id="d_sc" value="${esc(d.soundcheck)}" placeholder="HH:MM"></div>
+        <div class="field" data-show-day><label>Doors</label>${renderTime12Picker('d_doors', d.doors)}</div>
+        <div class="field" data-show-day><label>Set time</label>${renderTime12Picker('d_set', d.setTime)}</div>
+        <div class="field" data-show-day><label>Load-in</label>${renderTime12Picker('d_load', d.loadIn)}</div>
+        <div class="field" data-show-day><label>Soundcheck</label>${renderTime12Picker('d_sc', d.soundcheck)}</div>
         <div class="field full"><label>Notes</label><textarea id="d_notes">${esc(d.notes)}</textarea></div>
         ${editing ? _dateModalTemplatesHTML(editing) : ''}
       </div>
@@ -5237,16 +5237,19 @@ function openDateModal(id) {
       // but never carry capacity / doors / set time / promoter — those
       // belong to actual ticketed shows.
       const get = (sel) => { const el = $(sel); return el ? el.value.trim() : ''; };
+      // Read the structured 12-hour pickers for each time field. Each
+      // returns '' when blank/invalid, which we treat as "no time
+      // set" — matches the existing behavior of the old text inputs.
       const data = {
         date: $('#d_date').value, city: $('#d_city').value.trim(), state: $('#d_state').value.trim(),
         venue: showsVenue ? get('#d_venue') : (editing ? editing.venue : ''),
         capacity: isShow ? get('#d_cap') : (editing ? editing.capacity : ''),
         status,
         promoter: isShow ? get('#d_prom') : (editing ? editing.promoter : ''),
-        doors: isShow ? get('#d_doors') : (editing ? editing.doors : ''),
-        setTime: isShow ? get('#d_set') : (editing ? editing.setTime : ''),
-        loadIn: isShow ? get('#d_load') : (editing ? editing.loadIn : ''),
-        soundcheck: isShow ? get('#d_sc') : (editing ? editing.soundcheck : ''),
+        doors: isShow ? readTime12Picker('d_doors') : (editing ? editing.doors : ''),
+        setTime: isShow ? readTime12Picker('d_set') : (editing ? editing.setTime : ''),
+        loadIn: isShow ? readTime12Picker('d_load') : (editing ? editing.loadIn : ''),
+        soundcheck: isShow ? readTime12Picker('d_sc') : (editing ? editing.soundcheck : ''),
         notes: $('#d_notes').value.trim(),
       };
       // Date is always required; city is required for surfaces that
@@ -5805,7 +5808,6 @@ function openScheduleModal(itemId) {
             <button type="button" id="s_allday_btn" class="allday-btn ${i.allDay ? 'on' : ''}" onclick="_schedToggleAllDay()">All day</button>
           </div>
         </div>
-        <div class="field"><label>Who (legacy/free text)</label><input id="s_who" value="${esc(i.who)}" placeholder="e.g. BAND, FOH"></div>
         <div class="field full"><label>What *</label><input id="s_what" value="${esc(i.what)}" placeholder="e.g. Soundcheck, Lobby call, Doors"></div>
         <div class="field full"><label>Visible to groups <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span></label>
           ${renderGroupPicker('s_grp', i.groups && i.groups.length ? i.groups : ['All'], true)}
@@ -5835,7 +5837,13 @@ function openScheduleModal(itemId) {
       const groups = readGroupPicker('s_grp');
       const indivPicker = document.getElementById('s_ind_picker');
       const individuals = indivPicker ? [...indivPicker.querySelectorAll('.group-pick.on')].map(b => b.dataset.cid) : [];
-      const baseData = { time, allDay, what, who: $('#s_who').value.trim().toUpperCase(), notes: $('#s_notes').value.trim(), groups, individuals };
+      // The legacy `who` free-text field has been removed — the
+      // display label is now derived from individuals/groups in
+      // _scheduleItemDisplayLabel(). When editing an item that still
+      // has a who value (older tour data), we preserve it so it can
+      // still serve as a fallback label until the TM picks audience.
+      const baseData = { time, allDay, what, notes: $('#s_notes').value.trim(), groups, individuals };
+      if (item && item.who && !groups.length && !individuals.length) baseData.who = item.who;
       if (item) Object.assign(item, baseData);
       else ad.schedule.push({ id: uid('s'), ...baseData });
       // All-day items sort first, then by time
@@ -5877,10 +5885,10 @@ function openTravelModal(itemId) {
             <option value="train" ${i.type==='train'?'selected':''}>Train</option>
           </select>
         </div>
-        <div class="field"><label>Time</label>
+        <div class="field"><label>Time ${i.allDay ? '' : '*'}</label>
           <div class="time-row">
-            <input id="tv_time" value="${esc(i.time)}" placeholder="HH:MM" ${i.allDay ? 'disabled style="opacity:.5"' : ''}>
-            <button type="button" id="tv_allday_btn" class="allday-btn ${i.allDay ? 'on' : ''}" onclick="toggleAllDay('tv_time','tv_allday_btn')">All day</button>
+            ${renderTime12Picker('tv_time', i.time, { disabled: !!i.allDay })}
+            <button type="button" id="tv_allday_btn" class="allday-btn ${i.allDay ? 'on' : ''}" onclick="_travelToggleAllDay()">All day</button>
           </div>
         </div>
         <div class="field full"><label>Description *</label><input id="tv_desc" value="${esc(i.description)}" placeholder="e.g. Sleeper bus → Chicago"></div>
@@ -5916,8 +5924,12 @@ function openTravelModal(itemId) {
       // away from Flight and saving wipes the value, so a future bus/van
       // doesn't carry a stale flight # in its data.
       const flightNumber = type === 'flight' ? ($('#tv_flight')?.value.trim() || '') : '';
+      // Read the structured 12-hour picker; '' when the TM left both
+      // hh and mm blank, which we accept only when All Day is on.
+      const time = allDay ? '' : readTime12Picker('tv_time');
+      if (!allDay && !time) { toast('Set a time or mark as All day', 'error'); return false; }
       const data = {
-        type, description, time: allDay ? '' : $('#tv_time').value.trim(), allDay,
+        type, description, time, allDay,
         person: $('#tv_person').value.trim(), conf: $('#tv_conf').value.trim(), notes: $('#tv_notes').value.trim(),
         groups, individuals, flightNumber,
       };
@@ -5963,16 +5975,56 @@ function toggleAllDay(timeInputId, btnId) {
   if (on) t.value = '';
 }
 
+// Derive a display label for a schedule item now that the legacy
+// `who` free-text field has been removed. Order of preference:
+//   1. Specific individuals → first names joined "Devon · Lila"
+//      (capped at 3 to avoid the row blowing out; "+N" for the rest)
+//   2. Groups (excluding the all-encompassing "All") → uppercased
+//      "BAND · CREW"
+//   3. Legacy `who` value still on the item → use as-is
+//   4. Empty
+function _scheduleItemDisplayLabel(s) {
+  if (!s) return '';
+  const indivs = s.individuals || [];
+  if (indivs.length) {
+    const crew = T().crew || [];
+    const names = indivs.map(id => {
+      const c = crew.find(x => x.id === id);
+      return c ? (c.name || '').split(' ')[0] : '';
+    }).filter(Boolean);
+    if (names.length) {
+      if (names.length <= 3) return names.join(' · ');
+      return `${names.slice(0, 3).join(' · ')} · +${names.length - 3}`;
+    }
+  }
+  const groups = (s.groups || []).filter(g => g && g !== 'All');
+  if (groups.length) return groups.map(g => g.toUpperCase()).join(' · ');
+  if (s.who) return s.who;
+  return '';
+}
+
 // All-day toggle for the schedule modal's structured 12-hour time
 // picker. Disables/clears the HH, MM, and AM/PM inputs together.
 function _schedToggleAllDay() {
-  const b = document.getElementById('s_allday_btn');
-  const wrap = document.getElementById('s_time_12');
+  _toggleTime12AllDay('s_allday_btn', 's_time');
+}
+
+// Same toggle for the travel modal — different prefix, same logic.
+function _travelToggleAllDay() {
+  _toggleTime12AllDay('tv_allday_btn', 'tv_time');
+}
+
+// Shared helper. The picker's hh/mm/ampm ids follow the `${prefix}_hh`
+// pattern that renderTime12Picker emits; we re-use that here so this
+// works for any future structured time picker too.
+function _toggleTime12AllDay(btnId, prefix) {
+  const b = document.getElementById(btnId);
+  const wrap = document.getElementById(`${prefix}_12`);
   if (!b || !wrap) return;
   b.classList.toggle('on');
   const on = b.classList.contains('on');
   wrap.style.opacity = on ? '.5' : '';
-  ['s_time_hh','s_time_mm','s_time_ampm'].forEach(id => {
+  [`${prefix}_hh`, `${prefix}_mm`, `${prefix}_ampm`].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     el.disabled = on;
@@ -6009,6 +6061,39 @@ function _to24h(hh, mm, ampm) {
   let h24 = h12 % 12;            // 12 AM → 0, 12 PM → 12 (after the +12 below)
   if (ampm === 'PM') h24 += 12;
   return String(h24).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+}
+
+// Reusable 12-hour time picker HTML. Same shape as the schedule modal
+// (`HH : MM AM|PM`). Used wherever the TM enters a time so we never
+// have to ask "is 6:00 morning or evening?" — the date modal, travel
+// modal, and any future time inputs. `prefix` becomes the element id
+// prefix so multiple pickers can live in one modal.
+function renderTime12Picker(prefix, value24, opts) {
+  const o = opts || {};
+  const t12 = _to12h(value24 || '');
+  const dis = o.disabled ? 'disabled' : '';
+  const op = o.disabled ? ' style="opacity:.5"' : '';
+  return `
+    <div class="time-12" id="${prefix}_12"${op}>
+      <input type="number" min="1" max="12" id="${prefix}_hh" value="${esc(t12.hh)}" placeholder="HH" ${dis} class="t12-hh">
+      <span class="t12-sep">:</span>
+      <input type="number" min="0" max="59" id="${prefix}_mm" value="${esc(t12.mm)}" placeholder="MM" ${dis} class="t12-mm">
+      <select id="${prefix}_ampm" ${dis} class="t12-ampm">
+        <option value="AM" ${t12.ampm === 'AM' ? 'selected' : ''}>AM</option>
+        <option value="PM" ${t12.ampm === 'PM' ? 'selected' : ''}>PM</option>
+      </select>
+    </div>
+  `;
+}
+
+// Inverse of renderTime12Picker. Reads the three sub-inputs and
+// returns the canonical 24-hour HH:MM string, or '' if either hh or
+// mm is blank/invalid. Callers should treat '' as "no time set".
+function readTime12Picker(prefix) {
+  const hh = document.getElementById(`${prefix}_hh`)?.value || '';
+  const mm = document.getElementById(`${prefix}_mm`)?.value || '';
+  const ampm = document.getElementById(`${prefix}_ampm`)?.value || 'AM';
+  return _to24h(hh, mm, ampm);
 }
 
 /* =====================================================================
@@ -7057,7 +7142,7 @@ function renderDashboard() {
         <div class="row">
           <span class="t">${s.allDay ? 'ALL DAY' : esc(s.time)}</span>
           <span class="what">${esc(s.what)}</span>
-          <span class="who">${esc(s.who)}</span>
+          <span class="who">${esc(_scheduleItemDisplayLabel(s))}</span>
         </div>
       `).join('')
     : `<div class="row"><span class="what muted" style="grid-column:1/-1">No schedule yet for this day. <a onclick="activeTab='schedule';bindTabs();$$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab==='schedule'));$$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel==='schedule'));renderSchedule()" style="color:var(--hi);cursor:pointer">Add an item →</a></span></div>`;
@@ -8389,7 +8474,7 @@ function renderPhone() {
           <div class="p-row">
             <span class="t">${s.allDay ? 'ALL' : esc(s.time)}</span>
             <span class="what">${esc(s.what)}</span>
-            <span class="lbl">${esc(s.who || '')}</span>
+            <span class="lbl">${esc(_scheduleItemDisplayLabel(s))}</span>
           </div>
         `).join('') : `<div class="p-row"><span class="what muted" style="grid-column:1/-1">${ad.status === 'travel' ? 'Travel day — no schedule items.' : ad.status === 'off' ? 'Day off — nothing scheduled.' : isTM ? 'No schedule items on this day yet.' : 'Nothing scheduled for you on this day.'}</span></div>`}
       </div>
@@ -12290,7 +12375,7 @@ function renderTourBook(opts) {
           <div class="tb-section">
             <h4>Schedule · ${sched.length} items</h4>
             ${sched.map(s => {
-              const groupLabel = (s.groups && s.groups.length) ? s.groups.join(', ') : (s.who || '');
+              const groupLabel = _scheduleItemDisplayLabel(s);
               return `
                 <div class="tb-sched-row">
                   <span class="tb-t">${esc(s.time)}</span>
@@ -16749,7 +16834,7 @@ Object.assign(window, {
   toggleSetListTemplateMenu, closeSetListTemplateMenu, saveSetListAsTemplate, applySetListTemplate, renameSetListTemplate, deleteSetListTemplate,
   toggleTravelTemplateMenu, closeTravelTemplateMenu,
   saveTravelAsTemplate, applyTravelTemplate, renameTravelTemplate, deleteTravelTemplate,
-  openContactUpload, handleContactUpload, toggleAllDay, _schedToggleAllDay,
+  openContactUpload, handleContactUpload, toggleAllDay, _schedToggleAllDay, _travelToggleAllDay,
   _liftScheduleToDashboardFields, _refreshTourScanIfOpen, _to12h, _to24h,
   renderDayNotes, _dnExec, _dnPersist, _dayNotesStats,
   checkCrewEmailMatch, findUserByEmail, findCrewMatchesByEmail,
