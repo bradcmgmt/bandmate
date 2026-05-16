@@ -3818,6 +3818,7 @@ const dbMap = {
       schedule_templates: t.scheduleTemplates || [],
       travel_templates: t.travelTemplates || [],
       setlist_templates: t.setListTemplates || [],
+      artist_logo: t.artistLogo || null,
     };
   },
   rowToTour(row, dates) {
@@ -3842,6 +3843,7 @@ const dbMap = {
       scheduleTemplates: row.schedule_templates || [],
       travelTemplates: row.travel_templates || [],
       setListTemplates: row.setlist_templates || [],
+      artistLogo: row.artist_logo || null,
       activeDateId: row.active_date_id || (dates && dates[0]?.id) || null,
       ownerId: row.owner_id,
       memberIds: row.member_ids || [],
@@ -4132,6 +4134,62 @@ const db = {
     const { data, error } = await sb.storage.from('attachments').createSignedUrl(storagePath, ttl, opts);
     if (error) { this._err('getSignedAttachmentUrl', error); return null; }
     return data?.signedUrl || null;
+  },
+
+  // Cached signed-URL fetcher. Re-renders of the tour header would otherwise
+  // hit createSignedUrl on every tab switch — memoize by path for ~4 min
+  // (1 min buffer before the 5-min signed TTL expires).
+  _signedUrlCache: {},
+  async getCachedSignedAttachmentUrl(storagePath) {
+    if (!storagePath) return null;
+    const hit = this._signedUrlCache[storagePath];
+    const now = Date.now();
+    if (hit && hit.expires > now) return hit.url;
+    const url = await this.getSignedAttachmentUrl(storagePath);
+    if (url) this._signedUrlCache[storagePath] = { url, expires: now + 4 * 60 * 1000 };
+    return url;
+  },
+
+  // Artist-logo specific upload. Validates file (png + 2MB cap), uploads to
+  // the existing 'attachments' bucket at {tour_id}/_artist-logo-{ts}.png,
+  // then stamps the tour record with the metadata. Returns true on success.
+  async uploadArtistLogo(file) {
+    if (!sb || !state?.currentUserId) { toast('Sign in first', 'error'); return false; }
+    const tour = state.tours[state.currentTourId];
+    if (!tour || !_isUuid(tour.id)) { toast('Pick a tour first', 'error'); return false; }
+    if (tour.ownerId !== state.currentUserId) { toast('Only the tour owner can upload', 'error'); return false; }
+    if (file.type !== 'image/png') { toast('PNG files only', 'error'); return false; }
+    const LIMIT = 2 * 1024 * 1024;
+    if (file.size > LIMIT) { toast(`Logo must be 2 MB or smaller (yours is ${(file.size/1024/1024).toFixed(1)} MB)`, 'error'); return false; }
+    const ts = Date.now();
+    const storagePath = `${tour.id}/_artist-logo-${ts}.png`;
+    // Remove any previously-uploaded logo blob so we don't orphan files
+    if (tour.artistLogo?.storagePath) {
+      try { await sb.storage.from('attachments').remove([tour.artistLogo.storagePath]); } catch (e) {}
+    }
+    const { error: upErr } = await sb.storage.from('attachments').upload(storagePath, file, {
+      cacheControl: '3600', contentType: 'image/png', upsert: false,
+    });
+    if (upErr) { this._err('uploadArtistLogo.storage', upErr); return false; }
+    // Update the tour's local + cloud record
+    tour.artistLogo = { storagePath, mime: 'image/png', sizeBytes: file.size, addedAt: ts };
+    // Clear stale signed-URL cache for any prior path
+    this._signedUrlCache = {};
+    saveState();
+    return true;
+  },
+
+  async removeArtistLogo() {
+    if (!sb || !state?.currentUserId) return;
+    const tour = state.tours[state.currentTourId];
+    if (!tour) return;
+    const prevPath = tour.artistLogo?.storagePath;
+    if (prevPath) {
+      try { await sb.storage.from('attachments').remove([prevPath]); } catch (e) {}
+    }
+    tour.artistLogo = null;
+    this._signedUrlCache = {};
+    saveState();
   },
 
   // Subscriptions · pulls the signed-in user's current Stripe subscription
@@ -7285,14 +7343,29 @@ function applyTabGapIndicators() {
 function renderTopBar() {
   $('#tourName').textContent = (T().meta.tourName || 'Untitled tour') + (T().meta.artist ? ' · ' + T().meta.artist : '');
   $('#tourStats').textContent = `${T().dates.length} DATES`;
-  if (T().dates.length) {
+  const rangeEl = $('#tourRange');
+  const logo = T().artistLogo;
+  // The date-range slot doubles as the artist-logo slot. Click anywhere
+  // in this area to open the upload modal (replace existing or add new).
+  rangeEl.style.cursor = 'pointer';
+  rangeEl.title = logo ? 'Click to replace artist logo' : 'Click to upload artist logo';
+  rangeEl.onclick = () => openArtistLogoModal();
+  if (logo?.storagePath) {
+    // Render the logo image. We use a cached signed URL so flipping between
+    // tabs / re-renders doesn't slam the storage API.
+    rangeEl.innerHTML = `<img id="tourLogoImg" alt="Artist logo" style="max-height:22px;max-width:160px;object-fit:contain;display:inline-block;vertical-align:middle;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))">`;
+    db.getCachedSignedAttachmentUrl(logo.storagePath).then(url => {
+      const img = document.getElementById('tourLogoImg');
+      if (img && url) img.src = url;
+    });
+  } else if (T().dates.length) {
     const first = tourStartDate(T()), last = tourEndDate(T());
-    if (first || last) {
-      $('#tourRange').textContent = `${fmtDate(first).toUpperCase()} → ${fmtDate(last).toUpperCase()}`;
-    } else {
-      $('#tourRange').textContent = '— DATES NOT YET RESOLVED —';
-    }
-  } else $('#tourRange').textContent = '— NO DATES YET —';
+    rangeEl.textContent = (first || last)
+      ? `${fmtDate(first).toUpperCase()} → ${fmtDate(last).toUpperCase()}`
+      : '— DATES NOT YET RESOLVED —';
+  } else {
+    rangeEl.textContent = '— NO DATES YET —';
+  }
   $('#tourPresenter').textContent = (T().meta.presenter || 'BANDMATE TOUR').toUpperCase();
 }
 
@@ -12825,11 +12898,18 @@ function openGuestModalForViewer() {
 
 
 /* ---------- stage-copy print ---------- */
-function printStageCopy() {
+async function printStageCopy() {
   const ad = getActiveDate();
   if (!ad) { toast('No active date', 'error'); return; }
   const setList = ad.setList || [];
   if (!setList.length) { toast('Add some songs to the set list first', 'error'); return; }
+
+  // Resolve artist logo for the stage-copy header (replaces the big text
+  // artist name when uploaded). Cached signed URL keeps repeated prints fast.
+  let artistLogoUrl = '';
+  if (T().artistLogo?.storagePath) {
+    try { artistLogoUrl = (await db.getCachedSignedAttachmentUrl(T().artistLogo.storagePath)) || ''; } catch (e) {}
+  }
 
   let songCounter = 0;
   const html = `
@@ -12840,7 +12920,9 @@ function printStageCopy() {
     </div>
     <div class="stage-print-page">
       <header class="stage-print-head">
-        <div class="sp-artist">${esc((T().meta.artist || 'BAND').toUpperCase())}</div>
+        ${artistLogoUrl
+          ? `<img class="sp-artist-logo" src="${esc(artistLogoUrl)}" alt="${esc(T().meta.artist || 'Artist')}" style="max-height:70px;max-width:340px;object-fit:contain;display:block;margin:0 auto 6px">`
+          : `<div class="sp-artist">${esc((T().meta.artist || 'BAND').toUpperCase())}</div>`}
         <div class="sp-meta">${esc((ad.venue || ad.city).toUpperCase())} · ${fmtMD(ad.date)}${ad.setTime ? ' · ' + esc(ad.setTime) : ''}</div>
       </header>
       <ol class="stage-print-list">
@@ -12941,11 +13023,16 @@ function exportGuestListPDF() {
   toast('Pick "Save as PDF" in the print dialog', '');
 }
 
-function printGuestList() {
+async function printGuestList() {
   const ad = getActiveDate();
   if (!ad) { toast('No active date', 'error'); return; }
   const guests = (ad.guests || []);
   if (!guests.length) { toast('No guests to print yet — add some first', 'error'); return; }
+  // Resolve artist logo (replaces the big artist-name text in the header)
+  let artistLogoUrl = '';
+  if (T().artistLogo?.storagePath) {
+    try { artistLogoUrl = (await db.getCachedSignedAttachmentUrl(T().artistLogo.storagePath)) || ''; } catch (e) {}
+  }
   const approved = guests.filter(g => g.status === 'approved');
   const pending  = guests.filter(g => g.status === 'pending');
   const allots   = ad.allotments || T().meta.defaultAllotments || {};
@@ -12977,7 +13064,9 @@ function printGuestList() {
     <div class="gp-page">
       <header class="gp-head">
         <div class="gp-eyebrow">GUEST LIST · BOX OFFICE COPY</div>
-        <div class="gp-artist">${esc((T().meta.artist || T().meta.tourName || 'BAND').toUpperCase())}</div>
+        ${artistLogoUrl
+          ? `<img class="gp-artist-logo" src="${esc(artistLogoUrl)}" alt="${esc(T().meta.artist || 'Artist')}" style="max-height:64px;max-width:320px;object-fit:contain;display:block;margin:0 auto 4px">`
+          : `<div class="gp-artist">${esc((T().meta.artist || T().meta.tourName || 'BAND').toUpperCase())}</div>`}
         <div class="gp-meta">
           ${esc((ad.venue || ad.city).toUpperCase())} · ${fmtMD(ad.date)}${ad.doors ? ' · DOORS ' + esc(ad.doors) : ''}${ad.setTime ? ' · SET ' + esc(ad.setTime) : ''}
         </div>
@@ -14473,6 +14562,99 @@ function renameCurrentTour() {
   db.upsertTour(t);
   renderAll();
   toast('Tour renamed', 'good');
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// ARTIST LOGO
+// Lets the TM upload their client's logo (PNG, ≤2 MB). Once uploaded,
+// the logo replaces the date range strip in the tour banner and rides
+// along on every printed surface (day sheet PDF, stage-copy set list,
+// guest list PDF). Binary lives in the existing 'attachments' Storage
+// bucket; metadata on tour.artistLogo.
+// ─────────────────────────────────────────────────────────────────────
+let _logoPickedFile = null;
+async function openArtistLogoModal() {
+  const t = T();
+  if (!t || t.id === '_empty') { toast('Pick a tour first', 'error'); return; }
+  _logoPickedFile = null;
+  const existing = t.artistLogo;
+  let signedUrl = '';
+  if (existing?.storagePath) {
+    try { signedUrl = (await db.getCachedSignedAttachmentUrl(existing.storagePath)) || ''; } catch (e) {}
+  }
+  openModal({
+    title: existing ? 'Replace artist logo' : 'Upload artist logo',
+    hideFooter: true,
+    body: `
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="font-size:13px;line-height:1.5;color:var(--warm-mute)">
+          PNG only · 2 MB max. Once uploaded, the logo replaces the date range in the header and appears on every printed surface (day sheet PDF, set list stage copy, guest list export).
+        </div>
+        ${existing && signedUrl ? `
+          <div style="display:flex;align-items:center;justify-content:center;padding:14px;background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:8px">
+            <img src="${esc(signedUrl)}" alt="Current logo" style="max-height:90px;max-width:260px;object-fit:contain;display:block">
+          </div>
+          <div class="muted mono" style="font-size:10px;letter-spacing:.1em;text-align:center">${(existing.sizeBytes/1024).toFixed(1)} KB · uploaded ${new Date(existing.addedAt).toLocaleDateString()}</div>
+        ` : ''}
+        <div class="login-field">
+          <label>Pick a new PNG</label>
+          <input type="file" id="alg_file" accept="image/png" onchange="_artistLogoPicked(this)">
+          <div id="alg_status" class="muted mono" style="font-size:10.5px;margin-top:4px;letter-spacing:.06em">No file picked yet</div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--line);padding-top:14px">
+          ${existing ? '<button type="button" class="btn danger" onclick="_artistLogoRemove()">Remove logo</button>' : ''}
+          <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+          <button type="button" class="btn primary" id="alg_save_btn" onclick="_artistLogoSave()" disabled>${existing ? 'Replace' : 'Upload'}</button>
+        </div>
+      </div>
+    `,
+  });
+}
+
+function _artistLogoPicked(input) {
+  const file = input && input.files && input.files[0];
+  const status = document.getElementById('alg_status');
+  const btn = document.getElementById('alg_save_btn');
+  if (!file) { _logoPickedFile = null; if (btn) btn.disabled = true; return; }
+  if (file.type !== 'image/png') {
+    toast('PNG files only', 'error');
+    input.value = ''; _logoPickedFile = null;
+    if (status) status.textContent = 'Not a PNG — pick a different file.';
+    if (btn) btn.disabled = true;
+    return;
+  }
+  const LIMIT = 2 * 1024 * 1024;
+  if (file.size > LIMIT) {
+    toast(`Logo must be 2 MB or smaller`, 'error');
+    input.value = ''; _logoPickedFile = null;
+    if (status) status.textContent = `Too large (${(file.size/1024/1024).toFixed(1)} MB) — max 2 MB.`;
+    if (btn) btn.disabled = true;
+    return;
+  }
+  _logoPickedFile = file;
+  if (status) status.textContent = `Ready · ${file.name} · ${(file.size/1024).toFixed(1)} KB`;
+  if (btn) btn.disabled = false;
+}
+
+async function _artistLogoSave() {
+  if (!_logoPickedFile) return;
+  const btn = document.getElementById('alg_save_btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Uploading…'; }
+  const ok = await db.uploadArtistLogo(_logoPickedFile);
+  if (btn) { btn.disabled = false; btn.textContent = 'Upload'; }
+  if (!ok) return;
+  _logoPickedFile = null;
+  closeModal();
+  try { renderTopBar(); } catch (e) {}
+  toast('Artist logo uploaded', 'good');
+}
+
+async function _artistLogoRemove() {
+  if (!confirm('Remove the uploaded artist logo? The date range will reappear in the header.')) return;
+  await db.removeArtistLogo();
+  closeModal();
+  try { renderTopBar(); } catch (e) {}
+  toast('Artist logo removed', 'good');
 }
 
 function deleteCurrentTour() {
@@ -17571,7 +17753,7 @@ function _pnSend() {
 // info block, schedule table next to a notes column, 7-day footer strip
 // showing the upcoming week. Black BANDMATE rabbit at top-left for brand.
 // ─────────────────────────────────────────────────────────────────────
-function downloadDaySheetPDF() {
+async function downloadDaySheetPDF() {
   const ad = getActiveDate();
   const tour = T();
   if (!ad || !tour || tour.id === '_empty') {
@@ -17687,6 +17869,13 @@ function downloadDaySheetPDF() {
   const titleSafe = `${ad.venue || ad.city || 'Day Sheet'} · ${fmtDate(ad.date)}`;
   const tourName = tour.meta?.tourName || tour.name || '';
   const artistName = tour.meta?.artist || '';
+  // Resolve the artist logo to a signed URL up-front (the new window can't
+  // access our caches, and signed URLs work cross-window). If no logo or
+  // resolution fails, the top-right block falls back to tour-name text.
+  let artistLogoUrl = '';
+  if (tour.artistLogo?.storagePath) {
+    try { artistLogoUrl = (await db.getCachedSignedAttachmentUrl(tour.artistLogo.storagePath)) || ''; } catch (e) {}
+  }
 
   const html = `<!doctype html>
 <html lang="en">
@@ -17759,8 +17948,9 @@ function downloadDaySheetPDF() {
   <div class="ds-head">
     <img src="/avatar-blk.png" alt="Bandmate">
     <div class="ds-tour">
-      <div class="t-name">${esc(tourName)}</div>
-      ${artistName ? `<div class="t-artist">${esc(artistName)}</div>` : ''}
+      ${artistLogoUrl
+        ? `<img class="ds-artist-logo" src="${esc(artistLogoUrl)}" alt="${esc(artistName || tourName)}" style="max-height:64px;max-width:200px;object-fit:contain;display:block;margin-left:auto">`
+        : `<div class="t-name">${esc(tourName)}</div>${artistName ? `<div class="t-artist">${esc(artistName)}</div>` : ''}`}
     </div>
   </div>
   <div class="ds-title">
