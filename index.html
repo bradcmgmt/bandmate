@@ -3825,7 +3825,11 @@ const db = {
     }
     const tour = state.tours[state.currentTourId];
     if (!tour || tour.id === '_empty' || !_isUuid(tour.id)) return;
-    if (tour.ownerId && tour.ownerId !== state.currentUserId) return; // not ours to write
+    // Only sync tours we explicitly own. Empty or mismatched ownerId means
+    // the tour might exist in Supabase under a different user — attempting
+    // an upsert would fail RLS. Better to silently skip than to surface a
+    // misleading "cloud save failed" toast on every login.
+    if (tour.ownerId !== state.currentUserId) return;
     this._syncInFlight = true;
     try {
       const tourRow = dbMap.tourToRow(tour, state.currentUserId);
