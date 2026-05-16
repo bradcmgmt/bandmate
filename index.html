@@ -17153,6 +17153,245 @@ function _pnSend() {
   _renderPushNotificationsModal();
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// DAY SHEET · PDF EXPORT
+//
+// Renders the active date as a clean, print-ready HTML page in a new
+// browser window, then auto-triggers the system print dialog. The TM
+// picks "Save as PDF" in the destination dropdown to download.
+//
+// Layout mirrors the industry-standard day-sheet format (the Master Tour
+// export style): black header bar with date title, two-column HOTEL/VENUE
+// info block, schedule table next to a notes column, 7-day footer strip
+// showing the upcoming week. Black BANDMATE rabbit at top-left for brand.
+// ─────────────────────────────────────────────────────────────────────
+function downloadDaySheetPDF() {
+  const ad = getActiveDate();
+  const tour = T();
+  if (!ad || !tour || tour.id === '_empty') {
+    toast('Pick a date first', 'error');
+    return;
+  }
+
+  const win = window.open('', '_blank');
+  if (!win) {
+    toast('Allow pop-ups to export the day sheet', 'error');
+    return;
+  }
+
+  const venueLine = [ad.city, ad.state, ad.country].filter(Boolean).join(', ');
+  const headerTitle = [ad.venue, venueLine, fmtDate(ad.date)].filter(Boolean).join(' · ');
+  const statusBadge = (ad.status || 'show').toUpperCase();
+
+  // Hotel + venue blocks
+  const hotel = ad.hotel;
+  const hotelHtml = hotel && hotel.name ? `
+    <div class="b-name">${esc(hotel.name)}</div>
+    ${hotel.address ? `<div class="b-line">${esc(hotel.address)}</div>` : ''}
+    ${hotel.city ? `<div class="b-line">${esc([hotel.city, hotel.state, hotel.zip].filter(Boolean).join(', '))}</div>` : ''}
+    ${hotel.phone ? `<div class="b-line"><span class="b-lbl">Main Number:</span> ${esc(hotel.phone)}</div>` : ''}
+    ${hotel.checkIn ? `<div class="b-line"><span class="b-lbl">Check-in:</span> ${esc(hotel.checkIn)}</div>` : ''}
+    ${hotel.checkOut ? `<div class="b-line"><span class="b-lbl">Check-out:</span> ${esc(hotel.checkOut)}</div>` : ''}
+  ` : '<div class="b-empty">No hotel set</div>';
+
+  const venueHtml = ad.venue ? `
+    <div class="b-name">${esc(ad.venue)}</div>
+    ${venueLine ? `<div class="b-line">${esc(venueLine)}</div>` : ''}
+    ${ad.promoter ? `<div class="b-line"><span class="b-lbl">Promoter:</span> ${esc(ad.promoter)}</div>` : ''}
+    ${ad.capacity ? `<div class="b-line"><span class="b-lbl">Capacity:</span> ${esc(ad.capacity)}</div>` : ''}
+  ` : '<div class="b-empty">No venue set</div>';
+
+  // Schedule rows · alternating background, time on the right
+  const sched = (ad.schedule || []).slice().sort((a, b) => {
+    if (a.allDay && !b.allDay) return -1;
+    if (b.allDay && !a.allDay) return 1;
+    return (a.time || '').localeCompare(b.time || '');
+  });
+  const fmt12 = t => {
+    if (!t) return 'All Day';
+    const m = /^(\d{1,2}):(\d{2})/.exec(t);
+    if (!m) return t;
+    let h = parseInt(m[1], 10), mm = m[2];
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12; if (h === 0) h = 12;
+    return `${h}:${mm} ${ap}`;
+  };
+  const schedRowsHtml = sched.length ? sched.map((s, i) => `
+    <tr class="${i % 2 ? 'alt' : ''}">
+      <td class="s-what">${esc(s.what || '')}</td>
+      <td class="s-time">${esc(s.allDay ? 'All Day' : (s.endTime ? `${fmt12(s.time)} - ${fmt12(s.endTime)}` : fmt12(s.time)))}</td>
+    </tr>
+  `).join('') : `<tr><td colspan="2" class="s-empty">No schedule items</td></tr>`;
+
+  // Advance details · render the structured fields as a labeled list
+  const adv = ad.advance || {};
+  const advLines = [];
+  if (adv.dressingRooms)    advLines.push(`DRESSING ROOMS: ${adv.dressingRooms}`);
+  if (adv.productionOffice) advLines.push(`PRODUCTION OFFICE: ${adv.productionOffice}`);
+  if (adv.rider)            advLines.push(`RIDER: ${adv.rider}`);
+  if (adv.buyout)           advLines.push(`BUYOUT: ${adv.buyout}`);
+  if (adv.catering)         advLines.push(`CATERING: ${adv.catering}`);
+  if (adv.showers)          advLines.push(`SHOWERS: ${adv.showers}`);
+  if (adv.laundry)          advLines.push(`LAUNDRY: ${adv.laundry}`);
+  if (adv.runners)          advLines.push(`RUNNERS: ${adv.runners}`);
+  if (adv.parking)          advLines.push(`PARKING: ${adv.parking}`);
+  if (adv.forklift)         advLines.push(`FORKLIFT: ${adv.forklift}`);
+  if (adv.forkOpp)          advLines.push(`FORK OPERATOR: ${adv.forkOpp}`);
+  if (adv.handsIn || adv.handsOut || adv.handsAllDay) {
+    advLines.push(`HANDS (IN/OUT/ALLDAY): ${adv.handsIn || '—'} / ${adv.handsOut || '—'} / ${adv.handsAllDay || '—'}`);
+  }
+  const advHtml = advLines.length
+    ? `<ul class="n-list">${advLines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>`
+    : '';
+
+  // Day notes · rich text (HTML) OR plain text from the older notes field
+  const dayNotesHtml = (typeof ad.dayNotes === 'string' && ad.dayNotes.trim())
+    ? `<div class="n-rich">${ad.dayNotes}</div>`
+    : (ad.notes ? `<div class="n-plain">${esc(ad.notes)}</div>` : '');
+
+  // Travel notes · the date's travel items rendered as labeled lines
+  const travelItems = ad.travel || [];
+  const travelHtml = travelItems.length ? `
+    <ul class="n-list">
+      ${travelItems.map(t => `<li>${esc(((t.type || 'Travel').toUpperCase()))}: ${esc(t.description || '')} ${t.time ? '· ' + fmt12(t.time) : ''} ${t.person ? '· ' + t.person : ''}</li>`).join('')}
+    </ul>
+  ` : '';
+
+  // 7-day footer strip · active date + next 6 sorted dates
+  const allDates = (tour.dates || []).slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  const startIdx = Math.max(0, allDates.findIndex(d => d.id === ad.id));
+  const strip = allDates.slice(startIdx, startIdx + 7);
+  const stripHtml = strip.map(d => {
+    const dt = d.date ? new Date(d.date + 'T12:00:00') : null;
+    const dow = dt ? dt.toLocaleDateString('en-US', { weekday: 'short' }) : '';
+    const dn = dt ? dt.getDate() : '';
+    const isOff = (d.status || '').toLowerCase() === 'off';
+    const isTravel = (d.status || '').toLowerCase() === 'travel';
+    const label = isOff ? 'Day Off' : isTravel ? 'Travel' : (d.venue || '');
+    const loc = [d.city, d.state, d.country].filter(Boolean).join(', ');
+    return `
+      <td class="fc">
+        <div class="fc-head"><b>${esc(dow)}</b><span class="fc-day">${esc(String(dn))}</span></div>
+        ${label ? `<div class="fc-label">${esc(label)}</div>` : ''}
+        ${loc ? `<div class="fc-loc">${esc(loc)}</div>` : ''}
+      </td>
+    `;
+  }).join('') + Array.from({ length: Math.max(0, 7 - strip.length) }, () => '<td class="fc fc-empty"></td>').join('');
+
+  const titleSafe = `${ad.venue || ad.city || 'Day Sheet'} · ${fmtDate(ad.date)}`;
+  const tourName = tour.meta?.tourName || tour.name || '';
+  const artistName = tour.meta?.artist || '';
+
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${esc(titleSafe)}</title>
+<style>
+  @page { size: letter portrait; margin: 0.5in; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; color: #111;
+    font-family: Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.35; }
+  .sheet { padding: 0 0 16px; }
+  .ds-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .ds-head img { width: 56px; height: 56px; display: block; }
+  .ds-tour { text-align: right; }
+  .ds-tour .t-name { font-weight: 700; font-size: 13px; letter-spacing: .02em; }
+  .ds-tour .t-artist { font-size: 11px; color: #555; margin-top: 2px; }
+  .ds-title { background: #000; color: #fff; text-align: center;
+    padding: 9px 12px; font-weight: 700; font-size: 13px; letter-spacing: .04em; }
+  .ds-status { display: inline-block; margin-left: 10px; padding: 2px 7px;
+    font-size: 9px; letter-spacing: .14em; border: 1px solid #fff; border-radius: 3px; vertical-align: middle; }
+  .ds-two { display: grid; grid-template-columns: 1fr 1fr; }
+  .ds-two .hdr { background: #2a2a2a; color: #fff; padding: 6px 10px; text-align: center;
+    font-weight: 700; font-size: 11px; letter-spacing: .14em; }
+  .ds-two .body { border: 1px solid #c8c8c8; border-top: 0; padding: 10px 12px; min-height: 78px; }
+  .ds-two .body.left { border-right: 0; }
+  .b-name { font-weight: 700; font-size: 12px; margin-bottom: 4px; }
+  .b-line { font-size: 11px; color: #333; }
+  .b-lbl { color: #666; font-size: 10px; letter-spacing: .04em; }
+  .b-empty { color: #999; font-style: italic; }
+  .ds-grid { display: grid; grid-template-columns: 1.4fr 1fr; margin-top: 14px;
+    border: 1px solid #c8c8c8; }
+  .s-tbl { width: 100%; border-collapse: collapse; }
+  .s-tbl td { padding: 7px 10px; font-size: 11px; vertical-align: top; }
+  .s-tbl tr.alt td { background: #f3f3f3; }
+  .s-tbl .s-what { color: #111; }
+  .s-tbl .s-time { text-align: right; white-space: nowrap; color: #111; }
+  .s-tbl .s-empty { color: #999; font-style: italic; text-align: center; padding: 24px; }
+  .notes { border-left: 1px solid #c8c8c8; padding: 10px 12px; }
+  .notes .n-h { font-weight: 700; font-size: 11px; letter-spacing: .14em; text-align: center;
+    background: #2a2a2a; color: #fff; padding: 6px 10px; margin: -10px -12px 10px; }
+  .notes .n-sub { font-weight: 700; font-size: 11px; margin: 10px 0 4px; }
+  .n-list { list-style: none; padding: 0; margin: 0 0 8px; }
+  .n-list li { padding: 1px 0; font-size: 10.5px; color: #222; }
+  .n-rich { font-size: 10.5px; color: #222; }
+  .n-rich p { margin: 0 0 6px; }
+  .n-plain { font-size: 10.5px; color: #222; white-space: pre-wrap; }
+  .ds-foot { width: 100%; border-collapse: collapse; margin-top: 14px;
+    border: 1px solid #c8c8c8; }
+  .ds-foot td.fc { border-right: 1px solid #c8c8c8; padding: 7px 8px; vertical-align: top;
+    width: 14.28%; font-size: 10px; }
+  .ds-foot td.fc:last-child { border-right: 0; }
+  .fc-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 10px; }
+  .fc-head b { letter-spacing: .04em; }
+  .fc-head .fc-day { font-weight: 700; font-size: 13px; }
+  .fc-label { color: #111; margin-top: 4px; font-size: 10px; }
+  .fc-loc { color: #555; margin-top: 2px; font-size: 9.5px; }
+  .fc-empty { background: #fafafa; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .no-print { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="ds-head">
+    <img src="/avatar-blk.png" alt="Bandmate">
+    <div class="ds-tour">
+      <div class="t-name">${esc(tourName)}</div>
+      ${artistName ? `<div class="t-artist">${esc(artistName)}</div>` : ''}
+    </div>
+  </div>
+  <div class="ds-title">
+    ${esc(headerTitle)}
+    <span class="ds-status">${esc(statusBadge)}</span>
+  </div>
+  <div class="ds-two">
+    <div class="hdr">HOTEL</div>
+    <div class="hdr">VENUE</div>
+    <div class="body left">${hotelHtml}</div>
+    <div class="body">${venueHtml}</div>
+  </div>
+  <div class="ds-grid">
+    <table class="s-tbl">${schedRowsHtml}</table>
+    <div class="notes">
+      <div class="n-h">NOTES</div>
+      ${advLines.length ? '<div class="n-sub">Advance</div>' + advHtml : ''}
+      ${dayNotesHtml ? '<div class="n-sub">Day Notes</div>' + dayNotesHtml : ''}
+      ${travelHtml ? '<div class="n-sub">Travel Notes</div>' + travelHtml : ''}
+      ${!advLines.length && !dayNotesHtml && !travelHtml ? '<div class="b-empty">No notes</div>' : ''}
+    </div>
+  </div>
+  <table class="ds-foot"><tr>${stripHtml}</tr></table>
+</div>
+<script>
+  // Wait for the rabbit image to load (or fail) before triggering print
+  // so it actually appears in the printed PDF.
+  function _go() { try { window.focus(); window.print(); } catch (e) {} }
+  const img = document.querySelector('.ds-head img');
+  if (img && !img.complete) { img.addEventListener('load', _go); img.addEventListener('error', _go); setTimeout(_go, 1500); }
+  else { setTimeout(_go, 100); }
+</script>
+</body>
+</html>`;
+
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+}
+
 // Stub so the Tools dropdown's "Day sheet · PDF" item works without a separate function.
 function openDaySheetPDF() {
   if (typeof downloadDaySheetPDF === 'function') return downloadDaySheetPDF();
