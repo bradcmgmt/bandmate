@@ -1404,6 +1404,27 @@ input,select,textarea{font:inherit;color:inherit}
 .day-pill.needs-or .pcity::after{content:" !";color:#8aa9d8;font-family:'JetBrains Mono',monospace;font-weight:900}
 
 /* dashboard top banner for review */
+/* Tour-header artist-logo upload CTA — sits in the date-range slot when
+   no logo has been uploaded yet. Styled to match the rest of the gap-
+   analysis warning treatment (orange bang, soft glow, hover lift). */
+.logo-upload-cta{display:inline-flex;align-items:center;gap:8px;
+  padding:5px 12px 5px 9px;border:1px solid rgba(253,186,116,.5);border-radius:6px;
+  background:rgba(253,186,116,.08);color:#fdba74;
+  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
+  transition:background .15s,border-color .15s,box-shadow .15s;
+  animation:logoCtaPulse 2.4s ease-in-out infinite}
+.logo-upload-cta:hover{background:rgba(253,186,116,.16);border-color:#fdba74;
+  box-shadow:0 0 14px -3px rgba(253,186,116,.5)}
+.logo-upload-cta .lu-bang{display:inline-flex;align-items:center;justify-content:center;
+  width:16px;height:16px;border:1px solid #fdba74;border-radius:50%;
+  font-family:'JetBrains Mono',monospace;font-weight:900;font-size:11px;color:#fdba74;line-height:1;
+  text-shadow:0 0 5px rgba(253,186,116,.6)}
+.logo-upload-cta .lu-label{position:relative;top:1px}
+@keyframes logoCtaPulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(253,186,116,0)}
+  50%{box-shadow:0 0 12px -2px rgba(253,186,116,.35)}
+}
+
 .review-banner{padding:12px 16px;border-radius:10px;
   background:linear-gradient(135deg,rgba(232,148,58,.08),rgba(232,69,69,.04));
   border:1px solid var(--line-glow);margin-bottom:14px;
@@ -7348,23 +7369,24 @@ function renderTopBar() {
   // The date-range slot doubles as the artist-logo slot. Click anywhere
   // in this area to open the upload modal (replace existing or add new).
   rangeEl.style.cursor = 'pointer';
-  rangeEl.title = logo ? 'Click to replace artist logo' : 'Click to upload artist logo';
   rangeEl.onclick = () => openArtistLogoModal();
   if (logo?.storagePath) {
-    // Render the logo image. We use a cached signed URL so flipping between
-    // tabs / re-renders doesn't slam the storage API.
+    // Render the logo image. Cached signed URL so flipping between tabs /
+    // re-renders doesn't slam the storage API. Tiny "✎ Replace" pill on
+    // hover signals it's still clickable to swap.
+    rangeEl.title = 'Click to replace artist logo';
     rangeEl.innerHTML = `<img id="tourLogoImg" alt="Artist logo" style="max-height:22px;max-width:160px;object-fit:contain;display:inline-block;vertical-align:middle;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))">`;
     db.getCachedSignedAttachmentUrl(logo.storagePath).then(url => {
       const img = document.getElementById('tourLogoImg');
       if (img && url) img.src = url;
     });
-  } else if (T().dates.length) {
-    const first = tourStartDate(T()), last = tourEndDate(T());
-    rangeEl.textContent = (first || last)
-      ? `${fmtDate(first).toUpperCase()} → ${fmtDate(last).toUpperCase()}`
-      : '— DATES NOT YET RESOLVED —';
   } else {
-    rangeEl.textContent = '— NO DATES YET —';
+    // No logo yet — show an explicit "! Upload artist logo" CTA in the
+    // same orange-warning style the rest of the gap-analysis UI uses.
+    // The date range is already redundant (dashboard hero + route pills),
+    // so the slot is more valuable as a discoverable upload affordance.
+    rangeEl.title = 'Click to upload artist logo';
+    rangeEl.innerHTML = `<span class="logo-upload-cta"><span class="lu-bang">!</span><span class="lu-label">Upload artist logo</span></span>`;
   }
   $('#tourPresenter').textContent = (T().meta.presenter || 'BANDMATE TOUR').toUpperCase();
 }
@@ -11726,8 +11748,15 @@ function calcDateGaps(d) {
   const venueU = String(d.venue || '').toUpperCase().trim();
   if (['OFF','DAY OFF','OFF DAY'].includes(cityU) || ['OFF','DAY OFF','OFF DAY'].includes(venueU)) status = 'off';
   if (!d.date) missing.push('date');
-  // Off days only need a date — no venue/capacity/doors/setTime/promoter required
-  if (status === 'off') return missing;
+  const hasHotel = !!d.hotel;
+  const hasTravel = !!(d.travel && d.travel.length);
+  // Off days: need EITHER a hotel (band is staying somewhere) OR a travel
+  // item (overnight bus / repositioning day). Surface as the soft "(either)"
+  // either-or pair, same treatment the live gap analysis uses.
+  if (status === 'off') {
+    if (!hasHotel && !hasTravel) missing.push('hotel or travel');
+    return missing;
+  }
   if (!d.city || cityU === 'OFF') missing.push('city');
   // Travel days need a destination city but not show-day fields
   if (status === 'travel') return missing;
@@ -11736,6 +11765,9 @@ function calcDateGaps(d) {
   if (!d.capacity) missing.push('capacity');
   if (!d.doors) missing.push('doors');
   if (!d.setTime) missing.push('set time');
+  // Hotel/travel either-or also applies to show days — band is either
+  // sleeping in town (hotel) or rolling out overnight (travel).
+  if (!hasHotel && !hasTravel) missing.push('hotel or travel');
   // promoter is optional — never flagged as a gap
   return missing;
 }
@@ -11753,6 +11785,12 @@ function calcGapSummary(merged) {
   if (!merged.contacts.length) summary.global.push('No contacts found — add promoter, venue, hotel contacts.');
   if (!merged.hotels.length && merged.dates.some(d => d.status === 'show' || !d.status)) summary.global.push('No hotels extracted — add hotel + room block per date.');
   if (!merged.crew.length) summary.global.push('No crew roster extracted — add band + crew via "Crew Roster" button.');
+  // Artist logo isn't something we can extract from documents, but it
+  // belongs in the post-import gap list as a reminder — it lifts every
+  // printable surface (day sheet PDF, set list, guest list) the moment
+  // it's uploaded. The "tour header" CTA is the date-range strip, which
+  // we made clickable for exactly this upload flow.
+  if (!T() || !T().artistLogo) summary.global.push('No artist logo uploaded — click the date range in the tour header to upload one.');
   summary.totalGaps += summary.global.length;
   return summary;
 }
@@ -16847,6 +16885,15 @@ function scanTour(tour) {
     scan.completeGlobal.push(`Contacts · ${tour.contacts.length} entries`);
   }
 
+  // ARTIST LOGO: gap clears the moment a PNG is uploaded. Replaces the
+  // date-range strip in the tour header and rides along on every PDF
+  // (day sheet, set list, guest list). Optional but high-leverage.
+  if (!tour.artistLogo || !tour.artistLogo.storagePath) {
+    scan.globalGaps.push({ what: 'No artist logo uploaded', fix: 'Click the date range in the tour header → upload a PNG (≤2 MB). Will appear on every printed surface.' });
+  } else {
+    scan.completeGlobal.push('Artist logo uploaded');
+  }
+
   // CREW: gap stays open until every invited crew member has submitted their profile.
   // - 0 crew added → "No crew roster"
   // - N crew added but profiles still pending → "Awaiting M of N profile submissions"
@@ -18540,16 +18587,26 @@ window.bandmateInstallPrompt = async function() {
 (async function _bootCloudSync() {
   if (!sb || !state || !state.currentUserId) return;
   try {
-    const { data: { session } } = await sb.auth.getSession();
-    // Local state thinks we're signed in but Supabase has no session.
-    // Wipe the stale local flag and bounce to landing — the user re-
-    // signs-in cleanly. Without this they'd land on a half-logged-in
-    // dashboard where every cloud write fails RLS.
+    // The Supabase SDK can return a null session momentarily on page boot
+    // while it's still rehydrating the persisted JWT from localStorage.
+    // Retry once after a short pause before declaring the session truly
+    // gone — without this, every refresh fires a false "session expired"
+    // toast even though the user is signed in.
+    let resp = await sb.auth.getSession();
+    let session = resp?.data?.session;
     if (!session) {
+      await new Promise(r => setTimeout(r, 400));
+      resp = await sb.auth.getSession();
+      session = resp?.data?.session;
+    }
+    if (!session) {
+      // Truly no session. Bounce to landing silently — the landing
+      // surface is itself a clear "you're signed out" signal, so an
+      // extra toast on top is noise. The active SIGNED_OUT listener
+      // (used for mid-session expiry) still toasts when appropriate.
       state.currentUserId = null;
       try { saveState(); } catch (e) {}
       try { showLandingScreen(); } catch (e) {}
-      try { toast('Session expired — please sign in again', 'error'); } catch (e) {}
       return;
     }
     const userId = session.user?.id;
