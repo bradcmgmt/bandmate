@@ -3767,11 +3767,25 @@ function _sentrySetUser(user) {
 // short-lived recovery session, then fires this event. We defer the modal
 // open so init() and the modal helpers are guaranteed to be ready.
 if (sb) {
-  sb.auth.onAuthStateChange((event) => {
+  sb.auth.onAuthStateChange((event, session) => {
     if (event === 'PASSWORD_RECOVERY') {
       setTimeout(() => {
         try { _handlePasswordRecovery(); } catch (e) { console.error('recovery handler:', e); }
       }, 200);
+    } else if ((event === 'SIGNED_OUT' || event === 'USER_DELETED') && state && state.currentUserId) {
+      // Supabase session ended (expired, signed out from elsewhere, JWT
+      // refresh failed, etc.) but our local state still thinks we're
+      // signed in. Clear the half-logged-in state and bounce them to the
+      // landing screen so they can sign in fresh and re-establish a
+      // working JWT. Without this they'd see "Cloud save failed (RLS)"
+      // on every edit and not understand why.
+      try { db.unsubscribeRealtime(); } catch (e) {}
+      try { _sentrySetUser(null); } catch (e) {}
+      state.currentUserId = null;
+      try { saveState(); } catch (e) {}
+      try { hideCrewBlockScreen(); } catch (e) {}
+      try { showLandingScreen(); } catch (e) {}
+      try { toast('Session expired — please sign in again', 'error'); } catch (e) {}
     }
   });
 }
@@ -3971,13 +3985,33 @@ const db = {
     try {
       const tourRow = dbMap.tourToRow(tour, state.currentUserId);
       const { error: tErr } = await sb.from('tours').upsert(tourRow, { onConflict: 'id' });
-      if (tErr) { this._err('syncTour', tErr); return; }
+      if (tErr) {
+        // RLS rejection means the tour row in Supabase is owned by a
+        // different account than the one we're signed in as — most
+        // commonly stale local data left over from a previous login.
+        // The user can't fix this by retrying, so silently skip instead
+        // of toasting "cloud save failed" on every edit. Console keeps
+        // a breadcrumb for debugging.
+        if (/row-level security|row level security/i.test(tErr.message || '')) {
+          console.warn('[db.syncTour] RLS rejection — local tour ownership disagrees with cloud, skipping:', tErr.message);
+          return;
+        }
+        this._err('syncTour', tErr);
+        return;
+      }
       const dateRows = (tour.dates || [])
         .filter(d => _isUuid(d.id))
         .map((d, i) => dbMap.dateToRow(tour.id, d, i));
       if (dateRows.length) {
         const { error: dErr } = await sb.from('dates').upsert(dateRows, { onConflict: 'id' });
-        if (dErr) { this._err('syncDates', dErr); return; }
+        if (dErr) {
+          if (/row-level security|row level security/i.test(dErr.message || '')) {
+            console.warn('[db.syncDates] RLS rejection — skipping:', dErr.message);
+            return;
+          }
+          this._err('syncDates', dErr);
+          return;
+        }
       }
     } finally {
       this._syncInFlight = false;
@@ -18306,9 +18340,26 @@ window.bandmateInstallPrompt = async function() {
   if (!sb || !state || !state.currentUserId) return;
   try {
     const { data: { session } } = await sb.auth.getSession();
-    if (!session) return;
+    // Local state thinks we're signed in but Supabase has no session.
+    // Wipe the stale local flag and bounce to landing — the user re-
+    // signs-in cleanly. Without this they'd land on a half-logged-in
+    // dashboard where every cloud write fails RLS.
+    if (!session) {
+      state.currentUserId = null;
+      try { saveState(); } catch (e) {}
+      try { showLandingScreen(); } catch (e) {}
+      try { toast('Session expired — please sign in again', 'error'); } catch (e) {}
+      return;
+    }
     const userId = session.user?.id;
-    if (!userId || userId !== state.currentUserId) return;
+    // Session belongs to a different user than the one our local state
+    // claims — same stale-state problem with a slightly different shape.
+    if (!userId || userId !== state.currentUserId) {
+      state.currentUserId = null;
+      try { saveState(); } catch (e) {}
+      try { showLandingScreen(); } catch (e) {}
+      return;
+    }
     const result = await db.hydrateUserData(userId);
     if (result.tours > 0) {
       try { renderAll(); } catch (e) { console.error('post-hydrate render:', e); }
