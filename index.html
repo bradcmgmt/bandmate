@@ -593,6 +593,136 @@ input,select,textarea{font:inherit;color:inherit}
 .alert-item .body .s{font-size:11.5px;color:var(--warm-mute);font-family:'JetBrains Mono',monospace;letter-spacing:.06em}
 .alert-item .body .s b{color:var(--hi)}
 
+/* =====================================================================
+   DASHBOARD · v2 card layout (.bm-dash family)
+   Cleaner Master-Tour-style organization: hero strip up top with the
+   key time-pressure info (status, doors/set, capacity), then a 3-column
+   card grid below where each card owns one slice of the day. Replaces
+   the old two-column dash-hero + snapshot when renderDashboard runs.
+   ===================================================================== */
+.bm-dash{display:flex;flex-direction:column;gap:16px;margin-bottom:18px}
+.bm-dash-head{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap}
+.bm-dash-head .h-left{flex:1;min-width:0}
+.bm-dash-head .h-city{font-weight:900;font-size:38px;letter-spacing:.005em;line-height:1;margin:0 0 6px;
+  background:linear-gradient(180deg,#fff2dc,#e8943a);-webkit-background-clip:text;background-clip:text;color:transparent}
+.bm-dash-head .h-loc{font-size:13px;color:var(--warm-mute);font-weight:500;letter-spacing:.02em}
+.bm-dash-head .h-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px;min-width:160px}
+.bm-dash-head .h-date{font-size:13.5px;color:var(--warm);font-weight:600}
+.bm-dash-head .h-status{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:5px;
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;
+  background:rgba(232,148,58,.14);border:1px solid rgba(232,148,58,.45);color:var(--hi)}
+.bm-dash-head .h-status.off{background:rgba(138,169,216,.12);border-color:rgba(138,169,216,.42);color:#b1c8ee}
+.bm-dash-head .h-status.travel{background:rgba(122,220,151,.10);border-color:rgba(122,220,151,.42);color:#7adc97}
+.bm-dash-head .h-status.press,.bm-dash-head .h-status.rehearsal{background:rgba(232,180,58,.10);border-color:rgba(232,180,58,.4);color:#f5d76e}
+
+.bm-hero-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;
+  padding:14px 16px;border:1px solid var(--line);border-radius:10px;
+  background:linear-gradient(180deg,rgba(232,148,58,.06),rgba(20,13,7,.5))}
+.bm-hero-tile{display:flex;flex-direction:column;gap:3px;padding:0 8px;border-right:1px solid var(--line)}
+.bm-hero-tile:last-child{border-right:0}
+.bm-hero-tile .lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm-mute)}
+.bm-hero-tile .val{font-size:18px;font-weight:800;color:var(--warm);letter-spacing:-.01em}
+.bm-hero-tile .val.mono{font-family:'JetBrains Mono',monospace;font-size:16px}
+.bm-hero-tile .sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.08em}
+.bm-hero-tile .val.muted{color:var(--warm-mute);font-style:italic;font-size:13px;font-weight:500}
+
+.bm-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media (max-width:1200px){.bm-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:760px){.bm-cards{grid-template-columns:1fr}}
+.bm-card{background:linear-gradient(180deg,rgba(24,17,11,.9),rgba(17,12,8,.9));
+  border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;
+  min-height:140px;position:relative;overflow:hidden;
+  box-shadow:inset 0 1px 0 rgba(232,148,58,.04)}
+.bm-card::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(400px 80px at 50% -10%,rgba(232,148,58,.06),transparent 70%)}
+.bm-card.span-2{grid-column:span 2}
+@media (max-width:760px){.bm-card.span-2{grid-column:span 1}}
+.bm-card .card-h{display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line);position:relative;z-index:1}
+.bm-card .card-h .ic{color:var(--hi);font-family:'JetBrains Mono',monospace;font-size:12px}
+.bm-card .card-h .h{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--hi);font-weight:700;flex:1}
+.bm-card .card-h .count{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.1em}
+.bm-card .card-h .card-link{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);
+  letter-spacing:.12em;text-transform:uppercase;cursor:pointer;text-decoration:none;border:1px solid var(--line-2);
+  padding:3px 7px;border-radius:4px;transition:color .15s,border-color .15s}
+.bm-card .card-h .card-link:hover{color:var(--hi);border-color:var(--hi)}
+.bm-card .card-body{flex:1;display:flex;flex-direction:column;gap:6px;position:relative;z-index:1}
+.bm-card .card-empty{color:var(--warm-mute);font-style:italic;font-size:12.5px;padding:8px 0}
+.bm-card .card-empty a{color:var(--hi);cursor:pointer;text-decoration:none}
+.bm-card .card-empty a:hover{text-decoration:underline}
+
+/* Schedule rows · time on left, what + who on right */
+.bm-sched-row{display:grid;grid-template-columns:88px 1fr;gap:10px;align-items:start;
+  padding:7px 0;border-bottom:1px dashed rgba(232,148,58,.08)}
+.bm-sched-row:last-child{border-bottom:0}
+.bm-sched-row .time{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:11.5px;color:var(--hi);letter-spacing:.04em;padding-top:1px}
+.bm-sched-row .what{font-size:13px;color:var(--warm);font-weight:600;line-height:1.3;min-width:0;overflow-wrap:anywhere}
+.bm-sched-row .who{display:block;font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--warm-mute);letter-spacing:.14em;text-transform:uppercase;margin-top:2px}
+
+/* Generic info block · venue, hotel, etc. */
+.bm-info .name{font-size:14.5px;font-weight:700;color:var(--warm);margin-bottom:4px;line-height:1.25}
+.bm-info .line{font-size:12px;color:var(--warm-mute);line-height:1.45}
+.bm-info .pair{display:grid;grid-template-columns:90px 1fr;gap:8px;font-size:11.5px;padding:3px 0;align-items:baseline}
+.bm-info .pair .lbl{color:var(--warm-mute);font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase}
+.bm-info .pair .val{color:var(--warm);font-weight:600}
+.bm-info .pair .val.warn{color:#fdba74}
+.bm-info .pair .val a{color:var(--hi);text-decoration:none}
+.bm-info .pair .val a:hover{text-decoration:underline}
+
+/* Contact rows in the Key Contacts card */
+.bm-contact-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px dashed rgba(232,148,58,.06)}
+.bm-contact-row:last-child{border-bottom:0}
+.bm-contact-row .ct-name{font-size:12.5px;color:var(--warm);font-weight:600;line-height:1.3}
+.bm-contact-row .ct-role{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--warm-mute);letter-spacing:.14em;text-transform:uppercase}
+.bm-contact-row .ct-meta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);letter-spacing:.04em;white-space:nowrap}
+
+/* Today's tasks card · checkbox rows */
+.bm-task-row{display:grid;grid-template-columns:14px 1fr auto;gap:10px;align-items:start;padding:5px 0;cursor:pointer}
+.bm-task-row .box{width:13px;height:13px;border:1px solid var(--line-2);border-radius:3px;margin-top:2px;flex:none;
+  background:rgba(20,13,7,.4);transition:background .15s,border-color .15s}
+.bm-task-row:hover .box{border-color:var(--hi)}
+.bm-task-row.done .box{background:var(--hi);border-color:var(--hi)}
+.bm-task-row.done .lbl{color:var(--warm-mute);text-decoration:line-through}
+.bm-task-row .lbl{font-size:12.5px;color:var(--warm);line-height:1.3}
+.bm-task-row .due{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--warm-mute);letter-spacing:.1em}
+.bm-task-row .due.overdue{color:var(--red)}
+
+/* Flag rows · same look-and-feel as the existing alert-item but tighter */
+.bm-flag-row{display:flex;gap:9px;align-items:flex-start;padding:5px 0;border-bottom:1px dashed rgba(232,148,58,.06)}
+.bm-flag-row:last-child{border-bottom:0}
+.bm-flag-row .pin{width:7px;height:7px;border-radius:50%;flex:none;margin-top:6px}
+.bm-flag-row .pin.amb{background:#fdba74;box-shadow:0 0 5px rgba(253,186,116,.5)}
+.bm-flag-row .pin.cool{background:#8aa9d8;box-shadow:0 0 5px rgba(138,169,216,.5)}
+.bm-flag-row .pin.good{background:#7adc97;box-shadow:0 0 5px rgba(122,220,151,.5)}
+.bm-flag-row .body{flex:1;min-width:0}
+.bm-flag-row .h{font-size:12.5px;color:var(--warm);font-weight:600;line-height:1.3}
+.bm-flag-row .s{font-size:11px;color:var(--warm-mute);margin-top:1px;line-height:1.35}
+.bm-flag-row .s b{color:var(--hi)}
+
+/* Tomorrow / drive tile · highlight when something needs attention */
+.bm-hop{display:flex;flex-direction:column;gap:4px}
+.bm-hop .h-city{font-size:14px;font-weight:700;color:var(--warm)}
+.bm-hop .h-meta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);letter-spacing:.06em}
+.bm-hop .h-drive{display:flex;gap:14px;align-items:baseline;margin-top:4px;font-family:'JetBrains Mono',monospace;font-size:10.5px}
+.bm-hop .h-drive .num{font-size:16px;font-weight:800;color:var(--warm);letter-spacing:-.01em;font-family:inherit}
+.bm-hop .h-drive .num-unit{font-size:10px;color:var(--warm-mute);margin-left:2px}
+.bm-hop .h-drive .dur{color:var(--warm-mute)}
+.bm-hop .h-drive .dur b{color:var(--warm);font-weight:700}
+
+/* Compact route list — drops below the cards, scrollable horizontal pills */
+.bm-route{display:flex;gap:6px;overflow-x:auto;padding:2px 0 6px;margin:0 -2px;scrollbar-width:thin}
+.bm-route::-webkit-scrollbar{height:6px}
+.bm-route::-webkit-scrollbar-thumb{background:rgba(232,148,58,.2);border-radius:3px}
+.bm-route .rr{flex:none;min-width:106px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;cursor:pointer;
+  background:rgba(20,13,7,.4);transition:border-color .15s,background .15s;display:flex;flex-direction:column;gap:2px}
+.bm-route .rr:hover{border-color:var(--hi);background:rgba(232,148,58,.05)}
+.bm-route .rr.current{border-color:var(--hi);background:rgba(232,148,58,.1);box-shadow:0 0 10px -2px rgba(232,148,58,.3)}
+.bm-route .rr.past{opacity:.45}
+.bm-route .rr.today{box-shadow:inset 0 0 0 1px rgba(232,148,58,.3)}
+.bm-route .rr.off{border-style:dashed}
+.bm-route .rr .rr-date{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.1em;text-transform:uppercase}
+.bm-route .rr .rr-city{font-size:12.5px;font-weight:700;color:var(--warm);line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bm-route .rr .rr-venue{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--warm-mute);letter-spacing:.04em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 .k-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
 .kpi{background:linear-gradient(180deg,rgba(24,17,11,.9),rgba(17,12,8,.9));border:1px solid var(--line);border-radius:12px;padding:16px;
   display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden;
@@ -7426,73 +7556,258 @@ function renderDashboard() {
     `;
   }
 
+  // Day-of-tour progress (1-indexed)
+  const dayIdx = T().dates.findIndex(d => d.id === ad.id) + 1;
+  const dayOfTotal = `${String(dayIdx).padStart(2,'0')} / ${String(T().dates.length).padStart(2,'0')}`;
+  // Status pill class — colors by status
+  const statusClass = effectiveStatus === 'off' ? 'off'
+    : effectiveStatus === 'travel' ? 'travel'
+    : (effectiveStatus === 'press' || effectiveStatus === 'rehearsal') ? 'press'
+    : '';
+
+  // SCHEDULE CARD content
+  const sched = (ad.schedule || []).slice().sort((a, b) => {
+    if (a.allDay && !b.allDay) return -1;
+    if (b.allDay && !a.allDay) return 1;
+    return (a.time || '').localeCompare(b.time || '');
+  });
+  const schedCardHtml = sched.length
+    ? sched.map(s => `
+        <div class="bm-sched-row">
+          <div class="time">${s.allDay ? 'ALL DAY' : esc(_scheduleTimeDisplay(s))}</div>
+          <div>
+            <div class="what">${esc(s.what)}</div>
+            ${s.who ? `<div class="who">${esc(s.who)}</div>` : ''}
+          </div>
+        </div>
+      `).join('')
+    : `<div class="card-empty">No schedule yet. <a onclick="_dashGoTab('schedule')">Add an item →</a></div>`;
+
+  // VENUE CARD content
+  const venueCardHtml = (ad.venue || ad.city) ? `
+    <div class="bm-info">
+      ${ad.venue ? `<div class="name">${esc(ad.venue)}</div>` : ''}
+      ${(ad.city || ad.state || ad.country) ? `<div class="line">${esc([ad.city, ad.state, ad.country].filter(Boolean).join(', '))}</div>` : ''}
+      <div style="margin-top:8px">
+        ${ad.capacity ? `<div class="pair"><span class="lbl">Capacity</span><span class="val">${esc(ad.capacity)}</span></div>` : (isMissing('capacity') ? '<div class="pair"><span class="lbl">Capacity</span><span class="val warn">Not set ⚠</span></div>' : '')}
+        ${ad.doors ? `<div class="pair"><span class="lbl">Doors</span><span class="val">${esc(ad.doors)}</span></div>` : ''}
+        ${ad.setTime ? `<div class="pair"><span class="lbl">Set time</span><span class="val">${esc(ad.setTime)}</span></div>` : ''}
+        ${ad.promoter ? `<div class="pair"><span class="lbl">Promoter</span><span class="val">${esc(ad.promoter)}</span></div>` : ''}
+        ${ad.curfew ? `<div class="pair"><span class="lbl">Curfew</span><span class="val">${esc(ad.curfew)}</span></div>` : ''}
+      </div>
+    </div>
+  ` : `<div class="card-empty">No venue set. <a onclick="openDateModal('${ad.id}')">Edit date →</a></div>`;
+
+  // HOTEL CARD content
+  const hotelCardHtml = hotel ? `
+    <div class="bm-info">
+      <div class="name">${esc(hotel.name || 'Hotel')}</div>
+      ${hotel.address ? `<div class="line">${esc(hotel.address)}</div>` : ''}
+      ${hotel.city ? `<div class="line">${esc([hotel.city, hotel.state, hotel.zip].filter(Boolean).join(', '))}</div>` : ''}
+      <div style="margin-top:8px">
+        ${hotel.phone ? `<div class="pair"><span class="lbl">Phone</span><span class="val">${esc(hotel.phone)}</span></div>` : ''}
+        ${hotel.checkIn ? `<div class="pair"><span class="lbl">Check-in</span><span class="val">${esc(hotel.checkIn)}</span></div>` : ''}
+        ${hotel.checkOut ? `<div class="pair"><span class="lbl">Check-out</span><span class="val">${esc(hotel.checkOut)}</span></div>` : ''}
+        ${(hotel.rooms && hotel.rooms.length) ? `<div class="pair"><span class="lbl">Rooms</span><span class="val">${hotel.rooms.length}</span></div>` : ''}
+      </div>
+    </div>
+  ` : `<div class="card-empty">No hotel set${isOrGap('hotel or travel') ? ' (or travel)' : ''}. <a onclick="_dashGoTab('hotels')">Add hotel →</a></div>`;
+
+  // KEY CONTACTS CARD — pulled from T().contacts (tour-level address book)
+  const contacts = (T().contacts || []).slice(0, 5);
+  const contactsCardHtml = contacts.length ? contacts.map(c => `
+    <div class="bm-contact-row" onclick="openContactModal('${c.id}')" style="cursor:pointer">
+      <div>
+        <div class="ct-name">${esc(c.name || 'Unnamed')}</div>
+        ${c.role || c.company ? `<div class="ct-role">${esc([c.role, c.company].filter(Boolean).join(' · '))}</div>` : ''}
+      </div>
+      <div class="ct-meta">${esc(c.phone || c.email || '')}</div>
+    </div>
+  `).join('') : `<div class="card-empty">No contacts yet. <a onclick="_dashGoTab('contacts')">Add contacts →</a></div>`;
+
+  // ADVANCE CARD — only renders if at least one advance field is filled
+  const adv = ad.advance || {};
+  const advHasContent = Object.keys(adv).some(k => adv[k] !== '' && adv[k] != null && adv[k] !== false);
+  const advCardHtml = advHasContent ? `
+    <div class="bm-info">
+      ${adv.dressingRooms ? `<div class="pair"><span class="lbl">Dressing</span><span class="val">${esc(adv.dressingRooms)}</span></div>` : ''}
+      ${adv.productionOffice ? `<div class="pair"><span class="lbl">Prod office</span><span class="val">${esc(adv.productionOffice)}</span></div>` : ''}
+      ${adv.rider ? `<div class="pair"><span class="lbl">Rider</span><span class="val">${esc(adv.rider)}</span></div>` : ''}
+      ${adv.buyout ? `<div class="pair"><span class="lbl">Buyout</span><span class="val">${esc(adv.buyout)}</span></div>` : ''}
+      ${adv.catering ? `<div class="pair"><span class="lbl">Catering</span><span class="val">${esc(adv.catering)}</span></div>` : ''}
+      ${adv.showers ? `<div class="pair"><span class="lbl">Showers</span><span class="val">${esc(adv.showers)}</span></div>` : ''}
+      ${adv.runners ? `<div class="pair"><span class="lbl">Runners</span><span class="val">${esc(adv.runners)}</span></div>` : ''}
+      ${adv.parking ? `<div class="pair"><span class="lbl">Parking</span><span class="val">${esc(adv.parking)}</span></div>` : ''}
+      ${adv.handsIn || adv.handsOut ? `<div class="pair"><span class="lbl">Hands</span><span class="val">${esc(adv.handsIn || '—')} → ${esc(adv.handsOut || '—')}${adv.handsAllDay ? ' · ' + esc(adv.handsAllDay) + ' all-day' : ''}</span></div>` : ''}
+    </div>
+  ` : '';
+
+  // TODAY'S TASKS CARD — open tasks tied to this date OR due today
+  const todayTasks = (T().tasks || []).filter(t => !t.done && !t.archived && (t.dateId === ad.id || t.due === todayISO()));
+  const taskCardHtml = todayTasks.length ? todayTasks.slice(0, 8).map(t => {
+    const isOver = t.due && t.due < todayISO();
+    return `
+    <div class="bm-task-row" onclick="toggleTaskDone && toggleTaskDone('${t.id}')">
+      <span class="box"></span>
+      <span class="lbl">${esc(t.label || t.title || '')}</span>
+      <span class="due${isOver ? ' overdue' : ''}">${t.due ? fmtMD(t.due) : ''}</span>
+    </div>`;
+  }).join('') : `<div class="card-empty">No tasks for today. <a onclick="_dashGoTab('tasks')">View all →</a></div>`;
+
+  // TOMORROW / DRIVE TIME CARD
+  let hopCardHtml;
+  if (!nextDate) {
+    hopCardHtml = `<div class="card-empty">End of tour</div>`;
+  } else {
+    const cityBit = nextDate.city ? esc(nextDate.city) + (nextDate.state ? ', ' + esc(nextDate.state) : '') : '<span style="color:#fdba74">City not set ⚠</span>';
+    const venueBit = nextDate.venue ? esc(nextDate.venue) : '';
+    const status = (nextDate.status || 'show').toLowerCase();
+    const subStatus = status === 'off' ? 'Day off' : status === 'travel' ? 'Travel day' : status === 'rehearsal' ? 'Rehearsal' : (nextDate.doors ? 'Doors ' + esc(nextDate.doors) : '');
+    hopCardHtml = `
+      <div class="bm-hop" ${nextDate.id ? `onclick="setActive('${nextDate.id}')" style="cursor:pointer"` : ''}>
+        <div class="h-meta">${fmtMD(nextDate.date)} · ${dow(nextDate.date).toUpperCase()}</div>
+        <div class="h-city">${cityBit}</div>
+        ${venueBit ? `<div class="h-meta">${venueBit}</div>` : ''}
+        ${subStatus ? `<div class="h-meta">${esc(subStatus)}</div>` : ''}
+        ${hop.miles != null ? `
+          <div class="h-drive">
+            <span><span class="num">${hop.miles.toLocaleString()}</span><span class="num-unit">mi</span></span>
+            <span class="dur"><span class="hop-dot good"></span>Clear <b>${_fmtDuration(hop.driveClear)}</b></span>
+            <span class="dur"><span class="hop-dot warn"></span>Traffic <b>${_fmtDuration(hop.driveTraffic)}</b></span>
+          </div>
+        ` : (hop.prompt && hop.prompt !== 'End of tour' ? `<div class="h-meta" style="color:#fdba74;margin-top:4px">${esc(hop.prompt)}</div>` : '')}
+      </div>
+    `;
+  }
+
+  // TODAY'S FLAGS — reuse the existing helper but wrap in our row style
+  const todayFlagsHtml = renderTodayFlagRows(ad);
+
+  // DAY NOTES — rich text falls back to plain notes
+  const dayNotesHtml = (typeof ad.dayNotes === 'string' && ad.dayNotes.trim())
+    ? `<div style="font-size:12.5px;line-height:1.5;color:var(--warm)">${ad.dayNotes}</div>`
+    : (ad.notes ? `<div style="font-size:12.5px;line-height:1.5;color:var(--warm);white-space:pre-wrap">${esc(ad.notes)}</div>`
+                : `<div class="card-empty">No notes for today. <a onclick="openDateModal('${ad.id}')">Add notes →</a></div>`);
+
+  // Hero strip · 4 tiles that summarize the most time-pressure info
+  const heroTilesHtml = `
+    <div class="bm-hero-tile">
+      <div class="lbl">Tour day</div>
+      <div class="val mono">${dayOfTotal}</div>
+      <div class="sub">${fmtDate(ad.date).toUpperCase()}</div>
+    </div>
+    ${(effectiveStatus === 'show' || effectiveStatus === 'press') ? `
+      <div class="bm-hero-tile">
+        <div class="lbl">Doors</div>
+        <div class="val mono">${ad.doors ? esc(ad.doors) : '—'}</div>
+        ${ad.setTime ? `<div class="sub">Set ${esc(ad.setTime)}</div>` : ''}
+      </div>
+      <div class="bm-hero-tile">
+        <div class="lbl">Capacity</div>
+        <div class="val mono">${ad.capacity ? esc(String(ad.capacity)) : '—'}</div>
+        ${ad.promoter ? `<div class="sub">${esc(ad.promoter)}</div>` : ''}
+      </div>
+    ` : effectiveStatus === 'rehearsal' ? `
+      <div class="bm-hero-tile">
+        <div class="lbl">Rehearsal</div>
+        <div class="val muted">${ad.venue ? esc(ad.venue) : 'Location not set'}</div>
+      </div>
+    ` : effectiveStatus === 'travel' ? `
+      <div class="bm-hero-tile">
+        <div class="lbl">Travel</div>
+        <div class="val muted">${(ad.travel || []).length} item${(ad.travel || []).length === 1 ? '' : 's'} logged</div>
+      </div>
+    ` : ''}
+    <div class="bm-hero-tile">
+      <div class="lbl">Open tasks</div>
+      <div class="val mono" ${dueToday ? 'style="color:var(--red)"' : ''}>${openTasks}</div>
+      <div class="sub">${dueToday} due today</div>
+    </div>
+  `;
+
   root.innerHTML = `
     ${reviewBanner}
-    <div class="section-title">
-      <h2>${esc(ad.city)}</h2>
-      <span class="crumb">/ DASHBOARD / ${fmtDate(ad.date).toUpperCase()}</span>
-      <span class="stamp">${status}</span>
-      <button type="button" class="tb-btn" onclick="openImportData()" style="margin-left:auto">↑ Import data</button>
-      <button type="button" class="tb-btn primary" onclick="openTourScan()">⌕ Scan tour</button>
-    </div>
-
-    <div class="dash-hero">
-      <div class="day-sheet">
-        ${effectiveStatus === 'show' ? `<div class="ribbon ribbon-show" onmousemove="rbReflect(event,this)" onmouseleave="rbReflectReset(this)"><span class="rb-text">Show Day</span><span class="rb-shine"></span></div>` : ''}
-        <h3>${esc((ad.status === 'off' ? 'DAY OFF' : ad.status === 'travel' ? 'TRAVEL' : ad.status === 'press' ? 'PRESS' : ad.status === 'rehearsal' ? 'REHEARSAL' : (ad.city || 'SHOW')).toUpperCase())} · DAY ${(T().dates.findIndex(d=>d.id===ad.id)+1).toString().padStart(2,'0')} / ${T().dates.length.toString().padStart(2,'0')}</h3>
-        <div class="city">${ad.status === 'off' ? 'Day off' : ad.status === 'travel' ? 'Travel day' : esc(ad.venue || ad.city)}</div>
-        ${ad.status === 'show' || ad.status === 'press' ? `
-          <div class="venue">${ad.venue ? esc(ad.city) + (ad.state ? ', ' + esc(ad.state) : '') : ''}${ad.capacity ? ' · Capacity ' + esc(ad.capacity) : (isMissing('capacity') ? ' · <span style="color:#fdba74">Capacity ⚠</span>' : '')}</div>
-        ` : ad.status === 'rehearsal' ? `
-          <div class="venue">${ad.city ? esc(ad.city) + (ad.state ? ', ' + esc(ad.state) : '') : ''}</div>
-        ` : (ad.city ? `<div class="venue">${esc(ad.city)}${ad.state ? ', ' + esc(ad.state) : ''}</div>` : '')}
-        ${(ad.status === 'show' || ad.status === 'press') ? `
-        <div class="meta" style="margin-bottom:8px">
-          <div class="m"><div class="l">Doors</div><div class="v">${ad.doors ? esc(ad.doors) : '<span class="muted">Pulled from schedule</span>'}</div></div>
-          <div class="m"><div class="l">Set time</div><div class="v">${ad.setTime ? esc(ad.setTime) : '<span class="muted">Pulled from schedule</span>'}</div></div>
-          <div class="m${isMissing('venue')?' field-warn':''}"><div class="l">Venue</div><div class="v">${ad.venue ? esc(ad.venue) : '<span style="color:#fdba74">Not set</span>'}</div></div>
+    <div class="bm-dash">
+      <div class="bm-dash-head">
+        <div class="h-left">
+          <h2 class="h-city">${esc((ad.status === 'off') ? 'Day off' : (ad.status === 'travel') ? 'Travel day' : (ad.city || ad.venue || 'Untitled'))}</h2>
+          <div class="h-loc">${esc([ad.venue, ad.city, ad.state, ad.country].filter(Boolean).join(' · ')) || '—'}</div>
         </div>
-        ` : ad.status === 'rehearsal' ? `
-        <div class="meta" style="margin-bottom:8px">
-          <div class="m${isMissing('venue')?' field-warn':''}"><div class="l">Rehearsal location</div><div class="v">${ad.venue ? esc(ad.venue) : '<span style="color:#fdba74">Not set</span>'}</div></div>
-        </div>
-        ` : ''}
-        <div class="gridrun">${scheduleHtml}</div>
-        <div class="meta">
-          ${(ad.status === 'show' || ad.status === 'press') ? `<div class="m"><div class="l">Promoter</div><div class="v">${esc(promoter)}</div></div>` : ''}
-          <div class="m${isOrGap('hotel or travel') ? ' field-warn-or' : (isMissing('hotel')||isMissing('hotel rooms') ? ' field-warn' : '')}"><div class="l">Hotel${isOrGap('hotel or travel') ? ' <span class="muted mono" style="font-size:10px;color:#8aa9d8">(or travel)</span>' : ''}</div><div class="v">${esc(hotelMeta)}</div></div>
-          ${nextPreviewMeta}
-          ${mileageMeta}
+        <div class="h-right">
+          <div class="h-date">${esc(fmtDate(ad.date))}</div>
+          <span class="h-status ${statusClass}">${status}</span>
+          <div style="display:flex;gap:6px;margin-top:4px">
+            <button type="button" class="tb-btn" onclick="openImportData()">↑ Import</button>
+            <button type="button" class="tb-btn primary" onclick="openTourScan()">⌕ Scan</button>
+          </div>
         </div>
       </div>
 
-      <div class="snapshot">
-        <div class="alerts">
-          <h4>Today's flags</h4>
-          ${renderTodayFlags(ad)}
+      <div class="bm-hero-strip">
+        ${heroTilesHtml}
+      </div>
+
+      <div class="bm-cards">
+        <div class="bm-card span-2">
+          <div class="card-h"><span class="ic">⌚</span><span class="h">Schedule</span><span class="count">${sched.length} ${sched.length === 1 ? 'item' : 'items'}</span><a class="card-link" onclick="_dashGoTab('schedule')">Edit →</a></div>
+          <div class="card-body">${schedCardHtml}</div>
         </div>
-        <div class="route">
-          <h4>Route · ${T().dates.length} dates</h4>
-          <div class="route-rows">
-            ${T().dates.map(d => {
-              const isCurrent = d.id===ad.id;
-              const isPast = d.date && d.date<todayISO();
-              const isToday = d.date===todayISO();
-              const hasContent = (d.date || d.city || d.venue);
-              if (!hasContent) return '';
-              const isOff = d.status === 'off' || (d.city || '').toUpperCase() === 'OFF';
-              const cityLabel = isOff ? 'Day off' : (esc(d.city) || '—');
-              const venueLabel = isOff ? '' : esc(d.venue || '').slice(0,22);
-              return `
-                <div class="route-row${isCurrent?' current':''}${isPast?' past':''}${isToday?' today':''}${isOff?' off':''}" onclick="setActive('${d.id}')">
-                  <span class="rr-date">${fmtMD(d.date)}</span>
-                  <span class="rr-city">${cityLabel}</span>
-                  <span class="rr-venue">${venueLabel}</span>
-                </div>
-              `;
-            }).join('')}
+        <div class="bm-card">
+          <div class="card-h"><span class="ic">⌖</span><span class="h">Venue</span><a class="card-link" onclick="openDateModal('${ad.id}')">Edit →</a></div>
+          <div class="card-body">${venueCardHtml}</div>
+        </div>
+
+        <div class="bm-card">
+          <div class="card-h"><span class="ic">⏿</span><span class="h">Hotel</span><a class="card-link" onclick="_dashGoTab('hotels')">Edit →</a></div>
+          <div class="card-body">${hotelCardHtml}</div>
+        </div>
+        <div class="bm-card">
+          <div class="card-h"><span class="ic">→</span><span class="h">Tomorrow</span></div>
+          <div class="card-body">${hopCardHtml}</div>
+        </div>
+        <div class="bm-card">
+          <div class="card-h"><span class="ic">✎</span><span class="h">Today's tasks</span><span class="count">${todayTasks.length}</span><a class="card-link" onclick="_dashGoTab('tasks')">All →</a></div>
+          <div class="card-body">${taskCardHtml}</div>
+        </div>
+
+        <div class="bm-card">
+          <div class="card-h"><span class="ic">☎</span><span class="h">Key contacts</span><span class="count">${(T().contacts || []).length}</span><a class="card-link" onclick="_dashGoTab('contacts')">All →</a></div>
+          <div class="card-body">${contactsCardHtml}</div>
+        </div>
+        ${advHasContent ? `
+          <div class="bm-card">
+            <div class="card-h"><span class="ic">⊕</span><span class="h">Advance</span><a class="card-link" onclick="_dashGoTab('advance')">Edit →</a></div>
+            <div class="card-body">${advCardHtml}</div>
           </div>
+        ` : ''}
+        <div class="bm-card">
+          <div class="card-h"><span class="ic">⚑</span><span class="h">Today's flags</span></div>
+          <div class="card-body">${todayFlagsHtml}</div>
         </div>
+        <div class="bm-card${advHasContent ? '' : ' span-2'}">
+          <div class="card-h"><span class="ic">✎</span><span class="h">Day notes</span><a class="card-link" onclick="openDateModal('${ad.id}')">Edit →</a></div>
+          <div class="card-body">${dayNotesHtml}</div>
+        </div>
+      </div>
+
+      <div class="bm-route">
+        ${T().dates.map(d => {
+          const isCurrent = d.id === ad.id;
+          const isPast = d.date && d.date < todayISO();
+          const isToday = d.date === todayISO();
+          const hasContent = (d.date || d.city || d.venue);
+          if (!hasContent) return '';
+          const isOff = d.status === 'off';
+          const cityLabel = isOff ? 'Day off' : (esc(d.city) || '—');
+          const venueLabel = isOff ? '' : esc(d.venue || '').slice(0, 22);
+          return `
+            <div class="rr${isCurrent ? ' current' : ''}${isPast ? ' past' : ''}${isToday ? ' today' : ''}${isOff ? ' off' : ''}" onclick="setActive('${d.id}')">
+              <div class="rr-date">${fmtMD(d.date)} · ${dow(d.date).slice(0, 3)}</div>
+              <div class="rr-city">${cityLabel}</div>
+              ${venueLabel ? `<div class="rr-venue">${venueLabel}</div>` : ''}
+            </div>
+          `;
+        }).join('')}
       </div>
     </div>
 
@@ -7503,6 +7818,42 @@ function renderDashboard() {
       <div class="kpi"><div class="label">Guest list · today</div><div class="value mono">${todayGuests}</div><div class="delta">${ad.guests.filter(g=>g.status==='pending').length} pending</div></div>
     </div>
   `;
+}
+
+// Helper · switch to a tab from a dashboard card link
+function _dashGoTab(tabName) {
+  activeTab = tabName;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.dataset.panel === tabName));
+  try {
+    const fn = window['render' + tabName.charAt(0).toUpperCase() + tabName.slice(1)];
+    if (typeof fn === 'function') fn();
+  } catch (e) { /* non-fatal */ }
+}
+
+// Variant of renderTodayFlags that emits the new .bm-flag-row markup
+function renderTodayFlagRows(ad) {
+  const flags = [];
+  if (!ad.hotel) flags.push({ kind: 'amb', h: 'No hotel set', s: 'Add hotel + room block in <b>Hotels</b>.' });
+  if (!ad.schedule.length) flags.push({ kind: 'amb', h: 'No schedule yet', s: 'Build your day in <b>Schedule</b>.' });
+  ad.guests.forEach(g => {
+    if (g.status === 'pending') flags.push({ kind: 'amb', h: `Pending: ${esc(g.name)}`, s: `${esc(g.passType)} · submitted by ${esc(g.submittedBy || '—')}` });
+  });
+  const allots = ad.allotments || T().meta.defaultAllotments;
+  PASS_TYPES.forEach(p => {
+    const used = ad.guests.filter(g => g.passType === p).reduce((n, g) => n + 1 + (g.plus || 0), 0);
+    if (allots[p] && used > allots[p]) flags.push({ kind: 'amb', h: `${p} over allotment`, s: `${used} / ${allots[p]} — review in <b>Guest List</b>` });
+  });
+  T().tasks.forEach(t => {
+    if (!t.done && !t.archived && t.dateId === ad.id) flags.push({ kind: 'cool', h: esc(t.label || t.title), s: `Task — ${t.due ? 'due ' + fmtDate(t.due) : 'no due date'}` });
+  });
+  if (!flags.length) return `<div class="bm-flag-row"><span class="pin good"></span><div class="body"><div class="h">All clear</div><div class="s">Nothing flagged for this date.</div></div></div>`;
+  return flags.slice(0, 6).map(f => `
+    <div class="bm-flag-row">
+      <span class="pin ${f.kind}"></span>
+      <div class="body"><div class="h">${f.h}</div><div class="s">${f.s}</div></div>
+    </div>
+  `).join('');
 }
 
 function renderTodayFlags(ad) {
