@@ -7734,7 +7734,6 @@ function renderDashboard() {
           <div class="h-loc">${esc([ad.venue, ad.city, ad.state, ad.country].filter(Boolean).join(' · ')) || '—'}</div>
         </div>
         <div class="h-right">
-          <div class="h-date">${esc(fmtDate(ad.date))}</div>
           <span class="h-status ${statusClass}">${status}</span>
           <div style="display:flex;gap:6px;margin-top:4px">
             <button type="button" class="tb-btn" onclick="openImportData()">↑ Import</button>
