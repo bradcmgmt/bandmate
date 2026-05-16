@@ -1417,7 +1417,12 @@ input,select,textarea{font:inherit;color:inherit}
   box-shadow:0 0 14px -3px rgba(253,186,116,.5)}
 .logo-upload-cta .lu-bang{display:inline-flex;align-items:center;justify-content:center;
   width:16px;height:16px;border:1px solid #fdba74;border-radius:50%;
-  font-family:'JetBrains Mono',monospace;font-weight:900;font-size:11px;color:#fdba74;line-height:1;
+  font-family:'Inter',sans-serif;font-weight:900;font-size:12px;color:#fdba74;line-height:1;
+  /* The ! glyph in most fonts sits slightly low because the dot drops
+     below the baseline — bump the box's padding-bottom by 1px so the
+     bar of the ! visually centers in the circle instead of falling
+     a hair below center. */
+  padding-bottom:1px;
   text-shadow:0 0 5px rgba(253,186,116,.6)}
 .logo-upload-cta .lu-label{position:relative;top:1px}
 @keyframes logoCtaPulse{
@@ -18490,6 +18495,7 @@ Object.assign(window, {
   approveGuest, denyGuest, approveAllPending, denyAllPending, openGuestModalForViewer,
   _phoneShowTravel, _phoneShowDayTravel,
   printStageCopy, closeStagePrint, printGuestList, exportGuestListCSV, exportGuestListPDF,
+  openArtistLogoModal, _artistLogoPicked, _artistLogoSave, _artistLogoRemove,
   renderAdvance, _advanceSave, _advanceHandsSave, _advanceHandsAllDayToggle,
   _advanceTechPackPicked, _advanceTechPackView, _advanceTechPackDownload, _advanceTechPackClear,
   toggleSchedPicker, closeSchedPicker, toggleSchedGroup, toggleSchedIndiv, clearSchedAssignments, renderVizPicker,
