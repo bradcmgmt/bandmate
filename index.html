@@ -3825,11 +3825,18 @@ const db = {
     }
     const tour = state.tours[state.currentTourId];
     if (!tour || tour.id === '_empty' || !_isUuid(tour.id)) return;
-    // Only sync tours we explicitly own. Empty or mismatched ownerId means
-    // the tour might exist in Supabase under a different user — attempting
-    // an upsert would fail RLS. Better to silently skip than to surface a
-    // misleading "cloud save failed" toast on every login.
-    if (tour.ownerId !== state.currentUserId) return;
+    // Require a live Supabase session AND matching ownership — both client-
+    // and server-side. Without a session, auth.uid() is null in the DB and
+    // every upsert is rejected by RLS. Without local ownership match, the
+    // tour belongs to someone else and the upsert would hit a stale row.
+    let _sessionUserId = null;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      _sessionUserId = session?.user?.id || null;
+    } catch (e) { /* fall through to bail */ }
+    if (!_sessionUserId) return;
+    if (tour.ownerId !== _sessionUserId) return;
+    if (state.currentUserId !== _sessionUserId) return;
     this._syncInFlight = true;
     try {
       const tourRow = dbMap.tourToRow(tour, state.currentUserId);
