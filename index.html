@@ -17376,19 +17376,23 @@ function downloadDaySheetPDF() {
   </div>
   <table class="ds-foot"><tr>${stripHtml}</tr></table>
 </div>
-<script>
+<scr` + `ipt>
   // Wait for the rabbit image to load (or fail) before triggering print
   // so it actually appears in the printed PDF.
   function _go() { try { window.focus(); window.print(); } catch (e) {} }
   const img = document.querySelector('.ds-head img');
   if (img && !img.complete) { img.addEventListener('load', _go); img.addEventListener('error', _go); setTimeout(_go, 1500); }
   else { setTimeout(_go, 100); }
-</script>
+<\/scr` + `ipt>
 </body>
 </html>`;
 
+  // Escape any closing-script sequences inside the document before
+  // writing — the literal byte sequence would otherwise terminate the
+  // surrounding script element regardless of string quoting. Inserting
+  // a backslash before the slash keeps the bytes valid as HTML output.
   win.document.open();
-  win.document.write(html);
+  win.document.write(html.replace(/<\/script>/g, '<\\/script>'));
   win.document.close();
 }
 
