@@ -3915,6 +3915,15 @@ const _isUuid = id => typeof id === 'string' && _UUID_RE.test(id);
 const db = {
   _err(op, error) {
     const msg = error?.message || String(error);
+    // RLS rejections almost always mean the local state thinks we own
+    // a row that Supabase says we don't (stale session, leftover local
+    // tour from a previous account, etc.). The user can't fix this by
+    // retrying — surfacing it as a red toast is noise. Downgrade to a
+    // console warning so debugging still works.
+    if (/row-level security|row level security/i.test(msg)) {
+      console.warn(`[db.${op}] RLS rejection — skipping:`, msg);
+      return;
+    }
     console.error(`[db.${op}]`, error);
     toast(`Cloud save failed (${op}): ${msg}`, 'error');
   },
