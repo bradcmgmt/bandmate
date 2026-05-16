@@ -3800,20 +3800,15 @@ if (sb) {
       setTimeout(() => {
         try { _handlePasswordRecovery(); } catch (e) { console.error('recovery handler:', e); }
       }, 200);
-    } else if ((event === 'SIGNED_OUT' || event === 'USER_DELETED') && state && state.currentUserId) {
-      // Supabase session ended (expired, signed out from elsewhere, JWT
-      // refresh failed, etc.) but our local state still thinks we're
-      // signed in. Clear the half-logged-in state and bounce them to the
-      // landing screen so they can sign in fresh and re-establish a
-      // working JWT. Without this they'd see "Cloud save failed (RLS)"
-      // on every edit and not understand why.
+    } else if ((event === 'SIGNED_OUT' || event === 'USER_DELETED')) {
+      // Supabase fired a sign-out event. We used to clear local state +
+      // bounce to landing here, but that was firing falsely on every
+      // page refresh (likely the SDK emitting SIGNED_OUT during JWT
+      // refresh races). Just log it and unsubscribe realtime; let the
+      // user notice via failing cloud writes and sign out manually if
+      // they want a fresh session.
+      console.warn('[auth] Supabase fired', event, '— ignoring (was causing false logouts on refresh).');
       try { db.unsubscribeRealtime(); } catch (e) {}
-      try { _sentrySetUser(null); } catch (e) {}
-      state.currentUserId = null;
-      try { saveState(); } catch (e) {}
-      try { hideCrewBlockScreen(); } catch (e) {}
-      try { showLandingScreen(); } catch (e) {}
-      try { toast('Session expired — please sign in again', 'error'); } catch (e) {}
     }
   });
 }
@@ -4180,13 +4175,16 @@ const db = {
   // the existing 'attachments' bucket at {tour_id}/_artist-logo-{ts}.png,
   // then stamps the tour record with the metadata. Returns true on success.
   async uploadArtistLogo(file) {
+    console.log('[logo.upload] entered. sb=', !!sb, 'currentUserId=', state?.currentUserId);
     if (!sb || !state?.currentUserId) { toast('Sign in first', 'error'); return false; }
     const tour = state.tours[state.currentTourId];
-    if (!tour || !_isUuid(tour.id)) { toast('Pick a tour first', 'error'); return false; }
-    if (tour.ownerId !== state.currentUserId) { toast('Only the tour owner can upload', 'error'); return false; }
+    console.log('[logo.upload] tour=', tour?.id, 'name=', tour?.name, 'ownerId=', tour?.ownerId);
+    if (!tour || !_isUuid(tour.id)) { toast('Pick a tour first (current tour ID is not a UUID — try creating a new tour)', 'error'); return false; }
+    if (tour.ownerId !== state.currentUserId) { toast(`Only the tour owner can upload (tour owner: ${tour.ownerId?.slice(0,8)}..., you: ${state.currentUserId?.slice(0,8)}...)`, 'error'); return false; }
     if (file.type !== 'image/png') { toast('PNG files only', 'error'); return false; }
     const LIMIT = 2 * 1024 * 1024;
     if (file.size > LIMIT) { toast(`Logo must be 2 MB or smaller (yours is ${(file.size/1024/1024).toFixed(1)} MB)`, 'error'); return false; }
+    console.log('[logo.upload] guards passed; uploading to Storage');
     const ts = Date.now();
     const storagePath = `${tour.id}/_artist-logo-${ts}.png`;
     // Remove any previously-uploaded logo blob so we don't orphan files
@@ -14680,10 +14678,24 @@ function _artistLogoPicked(input) {
 }
 
 async function _artistLogoSave() {
-  if (!_logoPickedFile) return;
+  console.log('[logo] _artistLogoSave clicked, _logoPickedFile =', _logoPickedFile);
+  if (!_logoPickedFile) {
+    toast('No file staged — pick a PNG and try again', 'error');
+    return;
+  }
   const btn = document.getElementById('alg_save_btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Uploading…'; }
-  const ok = await db.uploadArtistLogo(_logoPickedFile);
+  console.log('[logo] calling db.uploadArtistLogo with', _logoPickedFile.name, _logoPickedFile.size, 'bytes');
+  let ok;
+  try {
+    ok = await db.uploadArtistLogo(_logoPickedFile);
+  } catch (e) {
+    console.error('[logo] upload threw:', e);
+    toast('Upload error: ' + (e.message || e), 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Upload'; }
+    return;
+  }
+  console.log('[logo] upload result:', ok);
   if (btn) { btn.disabled = false; btn.textContent = 'Upload'; }
   if (!ok) return;
   _logoPickedFile = null;
@@ -18593,11 +18605,8 @@ window.bandmateInstallPrompt = async function() {
 (async function _bootCloudSync() {
   if (!sb || !state || !state.currentUserId) return;
   try {
-    // The Supabase SDK can return a null session momentarily on page boot
-    // while it's still rehydrating the persisted JWT from localStorage.
-    // Retry once after a short pause before declaring the session truly
-    // gone — without this, every refresh fires a false "session expired"
-    // toast even though the user is signed in.
+    // Retry once after a short pause — the SDK can return a null session
+    // momentarily while it's still rehydrating the persisted JWT.
     let resp = await sb.auth.getSession();
     let session = resp?.data?.session;
     if (!session) {
@@ -18606,13 +18615,13 @@ window.bandmateInstallPrompt = async function() {
       session = resp?.data?.session;
     }
     if (!session) {
-      // Truly no session. Bounce to landing silently — the landing
-      // surface is itself a clear "you're signed out" signal, so an
-      // extra toast on top is noise. The active SIGNED_OUT listener
-      // (used for mid-session expiry) still toasts when appropriate.
-      state.currentUserId = null;
-      try { saveState(); } catch (e) {}
-      try { showLandingScreen(); } catch (e) {}
+      // No session after retry. Don't auto-bounce — that's been firing
+      // false positives where the user is still validly signed in (just
+      // the SDK hadn't fully rehydrated yet). Just skip cloud hydration
+      // and let local state continue to render. If the session truly is
+      // gone, cloud writes will fail RLS and be silently swallowed; the
+      // user can manually sign out when they notice things aren't syncing.
+      console.warn('[boot] No Supabase session found after retry; continuing on local state. Local user:', state.currentUserId);
       return;
     }
     const userId = session.user?.id;
