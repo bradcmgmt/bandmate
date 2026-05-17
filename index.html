@@ -16098,16 +16098,26 @@ async function loginWithEmail() {
   const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
   setBtn('Sign in', false);
 
-  // Diagnostic — give the SDK a moment, then check whether the session
-  // was actually persisted to localStorage. Logs visible in DevTools.
-  setTimeout(() => {
-    const keys = Object.keys(localStorage).filter(k => /sb-|supabase|bandmate\.sb/i.test(k));
-    if (keys.length === 0) {
-      console.error('[auth] SDK did not persist session to localStorage after sign-in! Browser may be blocking storage, or SDK config is wrong.');
-    } else {
-      console.log('[auth] Session persisted to localStorage under key(s):', keys);
+  // Belt-and-suspenders: if signin succeeded but the SDK didn't write
+  // the session to localStorage (a real issue we're chasing), write it
+  // ourselves to the default Supabase key. The SDK will read this on
+  // next page load and treat it as a valid session.
+  if (!error && data?.session) {
+    try {
+      const projectRef = SUPABASE_URL.split('//')[1]?.split('.')[0];
+      const defaultKey = `sb-${projectRef}-auth-token`;
+      // Only write if no Supabase keys exist (i.e., SDK didn't write itself)
+      const existing = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      if (!existing) {
+        console.warn('[auth] SDK did not write session — manually persisting to', defaultKey);
+        localStorage.setItem(defaultKey, JSON.stringify(data.session));
+      } else {
+        console.log('[auth] Session persisted by SDK under key:', existing);
+      }
+    } catch (e) {
+      console.error('[auth] Manual persist failed:', e);
     }
-  }, 250);
+  }
 
   if (error) {
     const msg = error.message || 'Sign-in failed';
