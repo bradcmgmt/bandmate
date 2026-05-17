@@ -3748,7 +3748,16 @@ const SUPABASE_URL = 'https://xyzmxzawqmjsccxecmts.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5em14emF3cW1qc2NjeGVjbXRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4MTI2MTUsImV4cCI6MjA5NDM4ODYxNX0.SyFRvQMNmmX-vE0Ofh_6OKadhotaI1gs2JOeRglF4IM';
 const sb = (window.supabase && window.supabase.createClient)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'bandmate.sb.session' }
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        // Use Supabase's default storage key (`sb-<project-ref>-auth-token`)
+        // instead of a custom one — diagnostics showed the custom key
+        // wasn't getting written to localStorage at all. Default key works
+        // reliably across SDK versions.
+        storage: (typeof window !== 'undefined' && window.localStorage) ? window.localStorage : undefined,
+      }
     })
   : null;
 if (!sb) console.warn('Supabase SDK failed to load — check the network tab. Auth will not work until this is resolved.');
@@ -4198,14 +4207,23 @@ const db = {
   async uploadArtistLogo(file) {
     if (!sb) { toast('Auth service not loaded — refresh the page', 'error'); return false; }
     // Verify the Supabase session is live BEFORE attempting the upload.
-    // Without this we'd fall through to a Storage RLS rejection that has
-    // no actionable advice for the user. Auth-mismatch surfaces here as
-    // a clear "session expired — sign out and back in" message instead.
+    // If getSession returns null, try a refreshSession() as a recovery
+    // step — the refresh token in storage often still works even when
+    // the access token has gone missing or expired. This dramatically
+    // reduces the "session missing" false-positive rate.
     let sessionUserId = null;
     try {
-      const { data: { session } } = await sb.auth.getSession();
+      let { data: { session } } = await sb.auth.getSession();
+      if (!session) {
+        console.log('[logo.upload] no session from getSession, trying refreshSession()...');
+        const refresh = await sb.auth.refreshSession();
+        session = refresh?.data?.session || null;
+        if (session) console.log('[logo.upload] refreshSession recovered the session');
+      }
       sessionUserId = session?.user?.id || null;
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[logo.upload] session lookup threw:', e);
+    }
     if (!sessionUserId) {
       toast('Your Supabase session is missing or expired. Sign out and sign back in, then try again.', 'error');
       return false;
@@ -16079,6 +16097,17 @@ async function loginWithEmail() {
 
   const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
   setBtn('Sign in', false);
+
+  // Diagnostic — give the SDK a moment, then check whether the session
+  // was actually persisted to localStorage. Logs visible in DevTools.
+  setTimeout(() => {
+    const keys = Object.keys(localStorage).filter(k => /sb-|supabase|bandmate\.sb/i.test(k));
+    if (keys.length === 0) {
+      console.error('[auth] SDK did not persist session to localStorage after sign-in! Browser may be blocking storage, or SDK config is wrong.');
+    } else {
+      console.log('[auth] Session persisted to localStorage under key(s):', keys);
+    }
+  }, 250);
 
   if (error) {
     const msg = error.message || 'Sign-in failed';
