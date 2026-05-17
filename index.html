@@ -7364,12 +7364,14 @@ function openTagModal(id) {
    RENDER
    ===================================================================== */
 function renderAll() {
-  // Subscription gate · same check as postLoginRouting. Without this, any
-  // realtime event (tour created by signup trigger, date upsert, etc.)
-  // that calls renderAll would pop the onboarding overlay on top of the
-  // pricing screen for unsubscribed TMs.
+  // Subscription gate · same check as postLoginRouting. When a TM isn't
+  // subscribed, route them to the pricing screen instead of bailing
+  // silently (which would leave the dashboard blank — confusing UX).
+  // The gate itself is optimistic now: only fires when subscription
+  // status is definitively unsubscribed, not for unknown/auth blips.
   const _u = U();
   if (_u && _u.role === 'tm' && !userIsSubscribed(_u)) {
+    try { showPricingScreen(); } catch (e) {}
     return;
   }
   if (!state || !state.onboarded) {
@@ -15898,17 +15900,34 @@ function _attachSubscriptionToCurrentUser(pending) {
 
 // Pull the user's subscription row from Supabase and stamp it onto the
 // local user record. The webhook is the writer; we just read. Called after
-// every auth-success (signup, signin, boot cloud sync) so the gate has
-// real data to decide on.
+// every auth-success (signup, signin, boot cloud sync). Defensive about
+// failure: if the session isn't live we leave any prior status alone
+// rather than downgrade it to 'none' — that downgrade was the source of
+// "wants me to pay" misfires every time the session briefly hiccuped.
 async function hydrateSubscription() {
   const u = U();
   if (!u || u.role !== 'tm') return;
+  // Without a live Supabase session, RLS hides all rows including our
+  // own — fetchSubscription would return null and we'd misread that
+  // as "no subscription". Leave the previously-known status intact in
+  // that case.
+  let hasSession = false;
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    hasSession = !!session?.user?.id;
+  } catch (e) {}
+  if (!hasSession) {
+    console.warn('[hydrateSubscription] No live session — leaving subscriptionStatus unchanged.');
+    return;
+  }
   const sub = await db.fetchSubscription();
   if (!sub) {
-    // No subscription row at all — leave any locally-stashed pending sub
-    // alone (it'll get a real row when the webhook lands). If there's no
-    // pending either, mark as none so the gate shows pricing.
-    if (!u.subscriptionStatus) u.subscriptionStatus = 'none';
+    // Definitive empty result (session was live and query succeeded with
+    // no rows) — user genuinely has no subscription. Only set 'none' if
+    // status wasn't already a positive one we're trying to preserve.
+    if (!['active', 'trialing'].includes(u.subscriptionStatus)) {
+      u.subscriptionStatus = 'none';
+    }
   } else {
     u.subscriptionStatus = sub.status;
     u.subscriptionPlan = sub.plan || 'standard';
@@ -15921,15 +15940,24 @@ async function hydrateSubscription() {
 }
 
 // Subscription gate. Crew accounts are always free; TM accounts need an
-// active or trialing subscription with a non-expired period_end (or no
-// period_end, which Stripe sometimes emits during trials).
+// active or trialing subscription. Optimistic: only blocks when we have
+// a definitive "you're not subscribed" answer. Unknown status (undefined,
+// null, empty string) is treated as subscribed to avoid false-positive
+// lock-outs during auth blips — the webhook + hydrate will eventually
+// stamp the real status and re-evaluate.
 function userIsSubscribed(user) {
   if (!user) return false;
-  if (user.role !== 'tm') return true;
+  if (user.role !== 'tm') return true; // crew is always free
   const status = user.subscriptionStatus;
-  if (status !== 'active' && status !== 'trialing') return false;
-  const end = user.subscriptionPeriodEnd || user.trialEnd;
-  if (end && new Date(end).getTime() < Date.now()) return false;
+  // Definitively unsubscribed → block
+  if (['none', 'canceled', 'past_due', 'unpaid', 'incomplete_expired'].includes(status)) return false;
+  // Active / trialing → confirm period hasn't expired
+  if (status === 'active' || status === 'trialing') {
+    const end = user.subscriptionPeriodEnd || user.trialEnd;
+    if (end && new Date(end).getTime() < Date.now()) return false;
+    return true;
+  }
+  // Unknown status (undefined / null / empty / anything else) → optimistic
   return true;
 }
 
