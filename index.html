@@ -1405,29 +1405,25 @@ input,select,textarea{font:inherit;color:inherit}
 
 /* dashboard top banner for review */
 /* Tour-header artist-logo upload CTA — sits in the date-range slot when
-   no logo has been uploaded yet. Styled to match the rest of the gap-
-   analysis warning treatment (orange bang, soft glow, hover lift). */
+   no logo has been uploaded yet. Red gap-flag styling so it visually
+   parallels the other "needs attention" indicators across the app. */
 .logo-upload-cta{display:inline-flex;align-items:center;gap:8px;
-  padding:5px 12px 5px 9px;border:1px solid rgba(253,186,116,.5);border-radius:6px;
-  background:rgba(253,186,116,.08);color:#fdba74;
+  padding:5px 12px 5px 9px;border:1px solid rgba(232,69,69,.55);border-radius:6px;
+  background:rgba(232,69,69,.08);color:#fda4a4;
   font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
   transition:background .15s,border-color .15s,box-shadow .15s;
   animation:logoCtaPulse 2.4s ease-in-out infinite}
-.logo-upload-cta:hover{background:rgba(253,186,116,.16);border-color:#fdba74;
-  box-shadow:0 0 14px -3px rgba(253,186,116,.5)}
+.logo-upload-cta:hover{background:rgba(232,69,69,.18);border-color:#e84545;color:#fff;
+  box-shadow:0 0 14px -3px rgba(232,69,69,.55)}
+/* Red warning triangle — matches the .tab-warn / gap-flag treatment used
+   elsewhere. No outer circle: the triangle IS the shape. */
 .logo-upload-cta .lu-bang{display:inline-flex;align-items:center;justify-content:center;
-  width:16px;height:16px;border:1px solid #fdba74;border-radius:50%;
-  font-family:'Inter',sans-serif;font-weight:900;font-size:12px;color:#fdba74;line-height:1;
-  /* The ! glyph in most fonts sits slightly low because the dot drops
-     below the baseline — bump the box's padding-bottom by 1px so the
-     bar of the ! visually centers in the circle instead of falling
-     a hair below center. */
-  padding-bottom:1px;
-  text-shadow:0 0 5px rgba(253,186,116,.6)}
+  font-family:'Inter',sans-serif;font-size:15px;line-height:1;color:#e84545;
+  text-shadow:0 0 6px rgba(232,69,69,.6)}
 .logo-upload-cta .lu-label{position:relative;top:1px}
 @keyframes logoCtaPulse{
-  0%,100%{box-shadow:0 0 0 0 rgba(253,186,116,0)}
-  50%{box-shadow:0 0 12px -2px rgba(253,186,116,.35)}
+  0%,100%{box-shadow:0 0 0 0 rgba(232,69,69,0)}
+  50%{box-shadow:0 0 12px -2px rgba(232,69,69,.4)}
 }
 
 .review-banner{padding:12px 16px;border-radius:10px;
@@ -3794,21 +3790,46 @@ function _sentrySetUser(user) {
 // Supabase JS auto-processes the URL hash token and signs them into a
 // short-lived recovery session, then fires this event. We defer the modal
 // open so init() and the modal helpers are guaranteed to be ready.
+// Track whether the SDK has fired its initial session resolution. SIGNED_OUT
+// events BEFORE this point are not "real" sign-outs — they're false positives
+// the SDK emits during page-load JWT refresh races and would falsely bounce
+// the user to landing on every refresh. Only act on SIGNED_OUT events that
+// fire AFTER initial resolution, which is a genuine mid-session expiry.
+let _initialAuthResolved = false;
 if (sb) {
   sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'INITIAL_SESSION') {
+      _initialAuthResolved = true;
+      return;
+    }
     if (event === 'PASSWORD_RECOVERY') {
       setTimeout(() => {
         try { _handlePasswordRecovery(); } catch (e) { console.error('recovery handler:', e); }
       }, 200);
-    } else if ((event === 'SIGNED_OUT' || event === 'USER_DELETED')) {
-      // Supabase fired a sign-out event. We used to clear local state +
-      // bounce to landing here, but that was firing falsely on every
-      // page refresh (likely the SDK emitting SIGNED_OUT during JWT
-      // refresh races). Just log it and unsubscribe realtime; let the
-      // user notice via failing cloud writes and sign out manually if
-      // they want a fresh session.
-      console.warn('[auth] Supabase fired', event, '— ignoring (was causing false logouts on refresh).');
-      try { db.unsubscribeRealtime(); } catch (e) {}
+      return;
+    }
+    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      // Healthy auth event. If we'd been worried about session loss,
+      // it's just been resolved — flag initial-auth as done.
+      _initialAuthResolved = true;
+      return;
+    }
+    if ((event === 'SIGNED_OUT' || event === 'USER_DELETED')) {
+      if (!_initialAuthResolved) {
+        // False positive during boot — ignore.
+        console.warn('[auth]', event, 'fired before INITIAL_SESSION — ignoring (boot-time false positive).');
+        return;
+      }
+      if (state && state.currentUserId) {
+        console.warn('[auth] Real', event, 'mid-session — clearing local state and bouncing to landing.');
+        try { db.unsubscribeRealtime(); } catch (e) {}
+        try { _sentrySetUser(null); } catch (e) {}
+        state.currentUserId = null;
+        try { saveState(); } catch (e) {}
+        try { hideCrewBlockScreen(); } catch (e) {}
+        try { showLandingScreen(); } catch (e) {}
+        try { toast('Session expired — please sign in again', 'error'); } catch (e) {}
+      }
     }
   });
 }
@@ -7414,7 +7435,7 @@ function renderTopBar() {
     // The date range is already redundant (dashboard hero + route pills),
     // so the slot is more valuable as a discoverable upload affordance.
     rangeEl.title = 'Click to upload artist logo';
-    rangeEl.innerHTML = `<span class="logo-upload-cta"><span class="lu-bang">!</span><span class="lu-label">Upload artist logo</span></span>`;
+    rangeEl.innerHTML = `<span class="logo-upload-cta"><span class="lu-bang">⚠</span><span class="lu-label">Upload artist logo</span></span>`;
   }
   $('#tourPresenter').textContent = (T().meta.presenter || 'BANDMATE TOUR').toUpperCase();
 }
