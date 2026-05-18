@@ -3761,10 +3761,14 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 <!-- ============ TOAST ROOT ============ -->
 <div class="toast-container" id="toastRoot"></div>
 
-<!-- Shared autocomplete source for every city input across the app.
-     Populated on init() from the TOURING_CITIES constant — same list the
-     per-day editor uses. Any <input list="cities-global"> picks it up. -->
+<!-- Shared autocomplete sources for every city / venue / hotel input
+     across the app. Cities are static (curated list only). Venues mix
+     a curated touring-venues list with the user's own venue history.
+     Hotels are purely user-history. All three rebuild on init + after
+     every hydrate. -->
 <datalist id="cities-global"></datalist>
+<datalist id="venues-global"></datalist>
+<datalist id="hotels-global"></datalist>
 
 <!-- Supabase JS client (CDN) — auth + database. anon key is public-by-design, gated by RLS. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -4468,6 +4472,9 @@ const db = {
         state.currentTourId = tourRows[0].id;
       }
       saveState();
+      // Fresh data — rebuild venue/hotel datalists so user-history
+      // suggestions reflect everything they've ever logged.
+      try { _refreshAutocompleteDatalists(); } catch (e) {}
       return { tours: tourRows.length, dates: (dateRows || []).length };
     } catch (e) {
       this._err('hydrate', e);
@@ -5670,6 +5677,7 @@ function _commitDateRange(startDate, endDate) {
 }
 
 function openDateModal(id) {
+  try { _refreshAutocompleteDatalists(); } catch (e) {}
   const editing = id ? T().dates.find(d => d.id === id) : null;
   const d = editing || { date: '', city: '', state: '', country: '', venue: '', capacity: '', status: 'show', doors: '', setTime: '', loadIn: '', soundcheck: '', promoter: '', notes: '' };
   openModal({
@@ -5692,7 +5700,7 @@ function openDateModal(id) {
         </div>
         <div class="field"><label>City *</label><input id="d_city" list="cities-global" autocomplete="off" value="${esc(d.city)}"></div>
         <div class="field"><label>State / Region</label><input id="d_state" value="${esc(d.state)}" placeholder="e.g. NY, ON"></div>
-        <div class="field full" data-show-day data-press-day><label id="d_venue_lbl">Venue</label><input id="d_venue" value="${esc(d.venue)}"></div>
+        <div class="field full" data-show-day data-press-day><label id="d_venue_lbl">Venue</label><input id="d_venue" list="venues-global" autocomplete="off" value="${esc(d.venue)}"></div>
         <div class="field" data-show-day><label>Capacity</label><input type="number" id="d_cap" value="${esc(d.capacity)}"></div>
         <div class="field" data-show-day><label>Promoter</label><input id="d_prom" value="${esc(d.promoter)}"></div>
         <div class="field" data-show-day><label>Doors</label>${renderTime12Picker('d_doors', d.doors)}</div>
@@ -6606,6 +6614,7 @@ function readTime12Picker(prefix) {
    HOTEL CRUD
    ===================================================================== */
 function openHotelModal() {
+  try { _refreshAutocompleteDatalists(); } catch (e) {}
   const ad = getActiveDate();
   if (!ad) return;
   const h = ad.hotel || { name: '', address: '', conf: '', checkIn: '', checkOut: '', phone: '', notes: '', rooms: [] };
@@ -6616,7 +6625,7 @@ function openHotelModal() {
     onDelete: ad.hotel ? () => { ad.hotel = null; saveState(); } : null,
     body: `
       <div class="form-grid">
-        <div class="field full"><label>Hotel name *</label><input id="h_name" value="${esc(h.name)}"></div>
+        <div class="field full"><label>Hotel name *</label><input id="h_name" list="hotels-global" autocomplete="off" value="${esc(h.name)}"></div>
         <div class="field full"><label>Address</label><input id="h_addr" value="${esc(h.address)}"></div>
         <div class="field"><label>Confirmation #</label><input id="h_conf" value="${esc(h.conf)}"></div>
         <div class="field"><label>Phone</label><input id="h_phone" value="${esc(h.phone)}"></div>
@@ -6755,6 +6764,70 @@ const TOURING_CITIES = [
   'Tokyo, Japan','Osaka, Japan','Kyoto, Japan','Yokohama, Japan','Nagoya, Japan','Sapporo, Japan','Fukuoka, Japan','Seoul, South Korea','Busan, South Korea','Singapore',
   'Hong Kong','Bangkok, Thailand','Manila, Philippines','Jakarta, Indonesia','Kuala Lumpur, Malaysia','Taipei, Taiwan','Shanghai, China','Beijing, China','Mumbai, India','Delhi, India',
   'Bangalore, India','Tel Aviv, Israel','Dubai, UAE','Istanbul, Turkey','Cairo, Egypt','Cape Town, South Africa','Johannesburg, South Africa','Nairobi, Kenya','Lagos, Nigeria','Casablanca, Morocco',
+];
+
+// Touring-relevant venue list — curated for the venue datalist. The user's
+// own venue history (across all their tours) is mixed in at runtime so
+// frequently-visited spots and lesser-known DIY rooms get suggested too.
+const TOURING_VENUES = [
+  // NYC
+  'Madison Square Garden','Barclays Center','Beacon Theatre','Radio City Music Hall','Webster Hall','Terminal 5','Brooklyn Steel','The Bowery Ballroom','Mercury Lounge','Music Hall of Williamsburg',
+  '(Le) Poisson Rouge','Irving Plaza','Elsewhere','Saint Vitus','Brooklyn Bowl','Forest Hills Stadium','Apollo Theater','Knitting Factory','Baby\'s All Right','Bowery Electric',
+  'Rough Trade NYC','Kings Theatre','Brooklyn Mirage','Pier 17','MetLife Stadium','Citi Field','Yankee Stadium',
+  // LA / SoCal
+  'Crypto.com Arena','The Forum','Hollywood Bowl','Greek Theatre','The Wiltern','Hollywood Palladium','Fonda Theatre','Troubadour','The Roxy','El Rey Theatre',
+  'The Echo','Echoplex','The Observatory OC','The Belasco','The Mayan','The Regent Theater','The Novo','Microsoft Theater','BMO Stadium','SoFi Stadium',
+  'Crypto.com Arena','Walt Disney Concert Hall','The Glass House','The Constellation Room','House of Blues Anaheim','Pappy & Harriet\'s','The Canyon Club','The Theatre at Ace Hotel','Crypto Arena',
+  // SF Bay Area
+  'Chase Center','The Fillmore','Great American Music Hall','The Warfield','August Hall','Bimbo\'s 365 Club','The Independent','The Chapel','Slim\'s','Bottom of the Hill',
+  'Greek Theatre (Berkeley)','Fox Theater Oakland','Bill Graham Civic Auditorium','UC Theatre','Cornerstone Berkeley','The Catalyst','Frost Amphitheater',
+  // Chicago
+  'United Center','Allstate Arena','Aragon Ballroom','Riviera Theatre','Vic Theatre','Metro','Lincoln Hall','Schubas Tavern','Thalia Hall','Concord Music Hall',
+  'House of Blues Chicago','Empty Bottle','Subterranean','Park West','The Salt Shed','Auditorium Theatre','Chicago Theatre','Wintrust Arena',
+  // DC / Maryland / Virginia
+  'Capital One Arena','The Anthem','9:30 Club','Black Cat','Lincoln Theatre','Union Stage','Pearl Street Warehouse','Merriweather Post Pavilion','Wolf Trap','The Fillmore Silver Spring',
+  // Boston
+  'TD Garden','House of Blues Boston','Royale','Paradise Rock Club','The Sinclair','Brighton Music Hall','Big Night Live','Roadrunner Boston','MGM Music Hall at Fenway','Orpheum Theatre Boston',
+  // Philly
+  'Wells Fargo Center','The Met Philadelphia','The Fillmore Philadelphia','Union Transfer','World Cafe Live','Johnny Brenda\'s','Underground Arts','Franklin Music Hall','Theatre of Living Arts','Lincoln Financial Field',
+  // Atlanta
+  'State Farm Arena','Fox Theatre Atlanta','Tabernacle','Variety Playhouse','Center Stage Atlanta','Terminal West','The EARL','Buckhead Theatre','Cadence Bank Amphitheatre',
+  // Nashville
+  'Bridgestone Arena','Ryman Auditorium','Grand Ole Opry','Marathon Music Works','Exit/In','Mercy Lounge','The Basement East','Brooklyn Bowl Nashville','3rd and Lindsley','Ascend Amphitheater',
+  // Detroit / Cleveland / Pittsburgh
+  'Little Caesars Arena','The Fillmore Detroit','Saint Andrew\'s Hall','Majestic Theatre','El Club','The Magic Stick','House of Blues Cleveland','Beachland Ballroom','Stage AE','Mr. Smalls Theatre',
+  // Minneapolis / St. Paul
+  'Target Center','First Avenue','7th St Entry','Varsity Theater','Fine Line Music Cafe','Cedar Cultural Center','Palace Theatre St. Paul','The Armory','Xcel Energy Center',
+  // Austin / Texas
+  'Moody Center','ACL Live','Stubb\'s Bar-B-Q','Mohawk','Antone\'s','Empire Garage','Emo\'s','The Parish','Far Out Lounge','Hotel Vegas',
+  'American Airlines Center','Toyota Music Factory','The Bomb Factory','House of Blues Dallas','Trees','Granada Theater','Sons of Hermann Hall','South Side Music Hall','Toyota Center','House of Blues Houston',
+  'Warehouse Live','White Oak Music Hall','Numbers','Last Concert Cafe',
+  // Denver / Colorado
+  'Ball Arena','Red Rocks Amphitheatre','Mission Ballroom','Ogden Theatre','Bluebird Theater','Gothic Theatre','Larimer Lounge','Marquis Theater','Fillmore Auditorium Denver','Boettcher Concert Hall',
+  // Pacific NW
+  'Crystal Ballroom','Roseland Theater','Wonder Ballroom','Mississippi Studios','Doug Fir Lounge','Hawthorne Theatre','Climate Pledge Arena','The Showbox','Showbox SoDo','Neumos',
+  'The Crocodile','Tractor Tavern','Chop Suey','The Vera Project','Moore Theatre','Paramount Theatre Seattle',
+  // Phoenix / Las Vegas
+  'Footprint Center','The Van Buren','Crescent Ballroom','Marquee Theatre','The Rebel Lounge','Valley Bar','T-Mobile Arena','MGM Grand Garden Arena','House of Blues Las Vegas','Brooklyn Bowl Las Vegas',
+  'Allegiant Stadium','The Chelsea','The Pearl',
+  // Florida
+  'Kaseya Center','The Fillmore Miami Beach','Olympia Theater','Revolution Live','Hard Rock Live (Hollywood)','Amalie Arena','Hard Rock Stadium','Bayfront Park Amphitheater','House of Blues Orlando','Hard Rock Live Orlando',
+  // Carolinas / Southeast
+  'Spectrum Center','PNC Music Pavilion','The Underground Charlotte','Coastal Credit Union Music Park','The Ritz Raleigh','Lincoln Theatre Raleigh','Cat\'s Cradle','The Orange Peel','New Mountain Asheville','The Music Farm',
+  // Toronto / Canada
+  'Scotiabank Arena','Budweiser Stage','Massey Hall','Phoenix Concert Theatre','Danforth Music Hall','Lee\'s Palace','Horseshoe Tavern','The Opera House','Rebel','The Mod Club',
+  'History (Toronto)','Velvet Underground Toronto','Adelaide Hall','Bell Centre','MTELUS','Corona Theatre','Rogers Arena','Commodore Ballroom','Vogue Theatre','Orpheum Theatre Vancouver',
+  'Rickshaw Theatre','Saddledome','Scotiabank Saddledome','Canadian Tire Centre','Place Bell',
+  // UK / Ireland
+  'The O2 Arena','Wembley Arena','Brixton Academy','Royal Albert Hall','Hammersmith Apollo','Manchester Arena','AO Arena','First Direct Arena Leeds','Roundhouse','KOKO',
+  'Electric Brixton','Heaven','Scala','OVO Arena Wembley','Apollo Manchester','Albert Hall Manchester','O2 Academy Brixton','O2 Academy Birmingham','3Arena Dublin','The Olympia Theatre Dublin',
+  'Vicar Street','Brixton Electric','Eventim Apollo','Alexandra Palace','SSE Hydro','OVO Hydro','Barrowland Ballroom','SSE Arena Belfast','First Direct Arena','M&S Bank Arena',
+  // EU
+  'Olympia (Paris)','Zenith (Paris)','AccorHotels Arena','Mercedes-Benz Arena Berlin','Columbiahalle','Astra Kulturhaus','Tempodrom','Heineken Music Hall','Ziggo Dome','Paradiso Amsterdam',
+  'Melkweg','AB (Brussels)','Rockhal','Le Bataclan','Le Trianon','La Cigale','Le Trabendo','Palladium (Cologne)','Tonhalle München','Tempodrom Berlin',
+  // Australia / NZ / Japan
+  'Sydney Opera House','Hordern Pavilion','Enmore Theatre','The Metro Theatre','Rod Laver Arena','AAMI Park','The Forum Melbourne','Festival Hall','170 Russell','Tokyo Dome',
+  'Nippon Budokan','Saitama Super Arena','Yokohama Arena','Zepp Tokyo','Zepp Osaka Bayside','Spark Arena',
 ];
 function openGuestModal(guestId) {
   const ad = getActiveDate();
@@ -8965,6 +9038,48 @@ function renderAdvance() {
 // Persist a single advance field to the active date and save state.
 // All fields here are optional — empty strings clear the field rather
 // than removing the key, which keeps the data shape stable.
+// Rebuilds the three shared autocomplete <datalist>s from the current
+// state. Cities are static (curated only). Venues = curated + every
+// venue the user has typed across any of their tours. Hotels = every
+// hotel.name the user has logged across any tour. Called on init, on
+// hydrate, and right before any modal that has a venue/hotel input.
+function _refreshAutocompleteDatalists() {
+  const escAttr = s => String(s || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/[<>]/g, '');
+  // CITIES — static
+  const cityDl = document.getElementById('cities-global');
+  if (cityDl && !cityDl.children.length) {
+    cityDl.innerHTML = TOURING_CITIES.map(c => `<option value="${escAttr(c)}">`).join('');
+  }
+  // Collect user-history venues + hotels from every tour in state
+  const userVenues = new Set();
+  const userHotels = new Set();
+  if (state && state.tours) {
+    Object.values(state.tours).forEach(t => {
+      (t.dates || []).forEach(d => {
+        const v = (d.venue || '').trim();
+        if (v) userVenues.add(v);
+        const h = (d.hotel && d.hotel.name || '').trim();
+        if (h) userHotels.add(h);
+      });
+    });
+  }
+  // VENUES — curated + user history (deduped, user-history first so
+  // their own typed venues appear before the curated list)
+  const venuesDl = document.getElementById('venues-global');
+  if (venuesDl) {
+    const combined = [];
+    const seen = new Set();
+    userVenues.forEach(v => { const k = v.toLowerCase(); if (!seen.has(k)) { seen.add(k); combined.push(v); } });
+    TOURING_VENUES.forEach(v => { const k = v.toLowerCase(); if (!seen.has(k)) { seen.add(k); combined.push(v); } });
+    venuesDl.innerHTML = combined.map(v => `<option value="${escAttr(v)}">`).join('');
+  }
+  // HOTELS — user history only (no curated list — too many to curate)
+  const hotelsDl = document.getElementById('hotels-global');
+  if (hotelsDl) {
+    hotelsDl.innerHTML = Array.from(userHotels).sort().map(h => `<option value="${escAttr(h)}">`).join('');
+  }
+}
+
 function _advanceSave(key, value) {
   const ad = getActiveDate();
   if (!ad) return;
@@ -14697,6 +14812,7 @@ function newTourManualFlow() {
 // bulk-set all days to a single type via the "Set all to" shortcut at top.
 function _newTourPerDayEditor() {
   if (!_newTourDraft) return;
+  try { _refreshAutocompleteDatalists(); } catch (e) {}
   const { startISO, endISO, name } = _newTourDraft;
   const days = _daysBetween(startISO, endISO);
   // Build the day items the first time we enter — persist on _newTourDraft
@@ -14728,7 +14844,7 @@ function _newTourPerDayEditor() {
           <option value="rehearsal" ${d.status==='rehearsal' ? 'selected':''}>Rehearsal</option>
         </select>
         <input class="ntpd-city" list="cities-global" type="text" placeholder="City (optional)" value="${esc(d.city)}" data-i="${i}" oninput="_ntpdCityChange(${i}, this.value)" autocomplete="off">
-        <input class="ntpd-venue" type="text" placeholder="Venue (optional)" value="${esc(d.venue || '')}" data-i="${i}" oninput="_ntpdVenueChange(${i}, this.value)" autocomplete="off">
+        <input class="ntpd-venue" list="venues-global" type="text" placeholder="Venue (optional)" value="${esc(d.venue || '')}" data-i="${i}" oninput="_ntpdVenueChange(${i}, this.value)" autocomplete="off">
       </div>
     `;
   }).join('');
@@ -18715,16 +18831,9 @@ function init() {
   try { loadState(); } catch (e) { console.error('loadState:', e); state = null; }
   try { if (state) migrateGroups(); } catch (e) { console.error('migrateGroups:', e); }
   try { loadUIPrefs(); } catch (e) { console.error('loadUIPrefs:', e); }
-  // Populate the shared city-autocomplete datalist once per page load.
-  // Every <input list="cities-global"> across the app (date editor,
-  // contact modal, place/tag modal, travel assistant, per-day editor)
-  // reads from this single source.
-  try {
-    const dl = document.getElementById('cities-global');
-    if (dl && !dl.children.length) {
-      dl.innerHTML = TOURING_CITIES.map(c => `<option value="${c.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}">`).join('');
-    }
-  } catch (e) { console.warn('cities datalist init:', e); }
+  // Populate the shared autocomplete datalists (cities, venues, hotels).
+  // Cities are static. Venues + hotels mix in user history at runtime.
+  try { _refreshAutocompleteDatalists(); } catch (e) { console.warn('autocomplete init:', e); }
   try { bindTabs(); } catch (e) { console.error('bindTabs:', e); }
   try { bindPhoneNav(); } catch (e) { console.error('bindPhoneNav:', e); }
   // Track mouse globally so the Show Day badge glare aims at the cursor even
