@@ -1645,11 +1645,16 @@ input,select,textarea{font:inherit;color:inherit}
 
 /* Per-day editor for the "Build from scratch" tour flow — one row per
    date in the chosen range. Date is fixed; the TM picks a status type
-   and (optionally) a city. */
+   and (optionally) a city. Show days also get an inline Venue field. */
 .ntpd-list{display:flex;flex-direction:column;gap:6px;max-height:58vh;overflow-y:auto;padding:2px;margin-top:4px}
 .ntpd-row{display:grid;grid-template-columns:150px 150px 1fr;gap:10px;align-items:center;
   padding:9px 12px;background:rgba(20,13,7,.45);border:1px solid var(--line);border-radius:7px;
-  transition:border-color .15s,background .15s}
+  transition:border-color .15s,background .15s,grid-template-columns .15s}
+/* Show days expand to a 4-column grid so the venue input fits inline. */
+.ntpd-row[data-status="show"]{grid-template-columns:150px 150px 1fr 1fr}
+/* Venue input is rendered for every row but only visible on show days. */
+.ntpd-row .ntpd-venue{display:none}
+.ntpd-row[data-status="show"] .ntpd-venue{display:block}
 .ntpd-row:hover{border-color:var(--line-2)}
 .ntpd-row .ntpd-date{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--warm);
   letter-spacing:.08em;font-weight:700;text-transform:uppercase}
@@ -6682,6 +6687,70 @@ function openRoomModal(roomId) {
    GUEST LIST CRUD
    ===================================================================== */
 const PASS_TYPES = ['GA', 'Guest', 'AAA', 'Media', 'M&G', 'Working', 'Aftershow'];
+
+// Touring-relevant city list — feeds the per-day editor city input via
+// HTML5 <datalist> autocomplete. Format: "City, ST" for US/Canada (state
+// or province), "City, Country" for international. ~430 entries covering
+// the top US metros + Canadian + UK / Ireland + EU + Australia / NZ +
+// Mexico / Japan / Asia hubs — covers ~99% of real-world tour stops.
+// The input isn't constrained to this list; TMs can still type anything.
+const TOURING_CITIES = [
+  // US (top metros + festival cities + college towns, alphabetical within batches)
+  'New York, NY','Los Angeles, CA','Chicago, IL','Houston, TX','Phoenix, AZ','Philadelphia, PA','San Antonio, TX','San Diego, CA','Dallas, TX','San Jose, CA',
+  'Austin, TX','Jacksonville, FL','Fort Worth, TX','Columbus, OH','Charlotte, NC','San Francisco, CA','Indianapolis, IN','Seattle, WA','Denver, CO','Washington, DC',
+  'Boston, MA','El Paso, TX','Nashville, TN','Detroit, MI','Oklahoma City, OK','Portland, OR','Las Vegas, NV','Memphis, TN','Louisville, KY','Baltimore, MD',
+  'Milwaukee, WI','Albuquerque, NM','Tucson, AZ','Fresno, CA','Sacramento, CA','Mesa, AZ','Kansas City, MO','Atlanta, GA','Long Beach, CA','Colorado Springs, CO',
+  'Raleigh, NC','Miami, FL','Virginia Beach, VA','Omaha, NE','Oakland, CA','Minneapolis, MN','Tulsa, OK','Arlington, TX','Tampa, FL','New Orleans, LA',
+  'Wichita, KS','Cleveland, OH','Bakersfield, CA','Aurora, CO','Anaheim, CA','Honolulu, HI','Santa Ana, CA','Riverside, CA','Corpus Christi, TX','Lexington, KY',
+  'Stockton, CA','Henderson, NV','Saint Paul, MN','St. Louis, MO','Cincinnati, OH','Pittsburgh, PA','Greensboro, NC','Anchorage, AK','Plano, TX','Lincoln, NE',
+  'Orlando, FL','Irvine, CA','Newark, NJ','Toledo, OH','Durham, NC','Chula Vista, CA','Fort Wayne, IN','Jersey City, NJ','St. Petersburg, FL','Laredo, TX',
+  'Madison, WI','Chandler, AZ','Buffalo, NY','Lubbock, TX','Scottsdale, AZ','Reno, NV','Glendale, AZ','Gilbert, AZ','Winston-Salem, NC','North Las Vegas, NV',
+  'Norfolk, VA','Chesapeake, VA','Garland, TX','Irving, TX','Hialeah, FL','Fremont, CA','Boise, ID','Richmond, VA','Baton Rouge, LA','Spokane, WA',
+  'Des Moines, IA','Tacoma, WA','San Bernardino, CA','Modesto, CA','Fontana, CA','Santa Clarita, CA','Birmingham, AL','Oxnard, CA','Fayetteville, NC','Moreno Valley, CA',
+  'Rochester, NY','Glendale, CA','Huntington Beach, CA','Salt Lake City, UT','Grand Rapids, MI','Amarillo, TX','Yonkers, NY','Aurora, IL','Montgomery, AL','Akron, OH',
+  'Little Rock, AR','Huntsville, AL','Augusta, GA','Port St. Lucie, FL','Grand Prairie, TX','Columbus, GA','Tallahassee, FL','Overland Park, KS','Tempe, AZ','McKinney, TX',
+  'Mobile, AL','Cape Coral, FL','Shreveport, LA','Frisco, TX','Knoxville, TN','Worcester, MA','Brownsville, TX','Vancouver, WA','Fort Lauderdale, FL','Sioux Falls, SD',
+  'Ontario, CA','Chattanooga, TN','Providence, RI','Newport News, VA','Rancho Cucamonga, CA','Santa Rosa, CA','Peoria, AZ','Oceanside, CA','Elk Grove, CA','Salem, OR',
+  'Pembroke Pines, FL','Eugene, OR','Garden Grove, CA','Cary, NC','Fort Collins, CO','Corona, CA','Springfield, MO','Jackson, MS','Alexandria, VA','Hayward, CA',
+  'Clarksville, TN','Lakewood, CO','Lancaster, CA','Salinas, CA','Palmdale, CA','Hollywood, FL','Springfield, MA','Macon, GA','Kansas City, KS','Sunnyvale, CA',
+  'Pomona, CA','Killeen, TX','Escondido, CA','Pasadena, TX','Naperville, IL','Bellevue, WA','Joliet, IL','Murfreesboro, TN','Midland, TX','Rockford, IL',
+  'Paterson, NJ','Savannah, GA','Bridgeport, CT','Torrance, CA','McAllen, TX','Syracuse, NY','Surprise, AZ','Denton, TX','Roseville, CA','Thornton, CO',
+  'Miramar, FL','Pasadena, CA','Mesquite, TX','Olathe, KS','Dayton, OH','Carrollton, TX','Waco, TX','Orange, CA','Fullerton, CA','Charleston, SC',
+  'West Valley City, UT','Visalia, CA','Hampton, VA','Gainesville, FL','Warren, MI','Coral Springs, FL','Cedar Rapids, IA','Round Rock, TX','Sterling Heights, MI','Kent, WA',
+  'Columbia, SC','Santa Clara, CA','New Haven, CT','Stamford, CT','Concord, CA','Elizabeth, NJ','Athens, GA','Thousand Oaks, CA','Lafayette, LA','Simi Valley, CA',
+  'Topeka, KS','Norman, OK','Fargo, ND','Wilmington, NC','Abilene, TX','Hartford, CT','Victorville, CA','Pearland, TX','Vallejo, CA','Ann Arbor, MI',
+  'Berkeley, CA','Allentown, PA','Richardson, TX','Odessa, TX','Arvada, CO','Cambridge, MA','Sugar Land, TX','Beaumont, TX','Lansing, MI','Evansville, IN',
+  'Rochester, MN','Independence, MO','Fairfield, CA','Provo, UT','Clearwater, FL','College Station, TX','West Jordan, UT','Carlsbad, CA','El Monte, CA','Murrieta, CA',
+  'Temecula, CA','Springfield, IL','Costa Mesa, CA','Westminster, CO','Ventura, CA','Manchester, NH','West Covina, CA','Gresham, OR','Clovis, CA','High Point, NC',
+  'Pueblo, CO','Antioch, CA','El Cajon, CA','Burbank, CA','Tyler, TX','Vista, CA','South Bend, IN','Davenport, IA','Edmond, OK','Daly City, CA',
+  'Renton, WA','Sandy Springs, GA','Asheville, NC','Boulder, CO','Burlington, VT','Portland, ME','Charlottesville, VA','Bloomington, IN','Bloomington, IL','Champaign, IL',
+  'Lawrence, KS','Iowa City, IA','State College, PA','Ithaca, NY','Burlington, NC','Ypsilanti, MI','Kalamazoo, MI','Flint, MI','Toledo, OH','Dayton, OH',
+  // Canada
+  'Toronto, ON','Montreal, QC','Vancouver, BC','Calgary, AB','Edmonton, AB','Ottawa, ON','Winnipeg, MB','Quebec City, QC','Hamilton, ON','Kitchener, ON',
+  'London, ON','Halifax, NS','Victoria, BC','Saskatoon, SK','Regina, SK','St. John\'s, NL','Charlottetown, PE','Fredericton, NB','Whitehorse, YT','Yellowknife, NT',
+  // UK / Ireland
+  'London, UK','Manchester, UK','Birmingham, UK','Leeds, UK','Glasgow, UK','Liverpool, UK','Edinburgh, UK','Bristol, UK','Sheffield, UK','Cardiff, UK',
+  'Belfast, UK','Newcastle, UK','Nottingham, UK','Brighton, UK','Leicester, UK','Coventry, UK','Southampton, UK','Aberdeen, UK','Plymouth, UK','Oxford, UK',
+  'Cambridge, UK','York, UK','Bath, UK','Norwich, UK','Dublin, Ireland','Cork, Ireland','Galway, Ireland','Limerick, Ireland','Belfast, Ireland',
+  // Western Europe
+  'Paris, France','Berlin, Germany','Madrid, Spain','Rome, Italy','Amsterdam, Netherlands','Barcelona, Spain','Vienna, Austria','Brussels, Belgium','Stockholm, Sweden','Copenhagen, Denmark',
+  'Munich, Germany','Hamburg, Germany','Frankfurt, Germany','Milan, Italy','Lyon, France','Marseille, France','Lisbon, Portugal','Prague, Czech Republic','Warsaw, Poland','Budapest, Hungary',
+  'Oslo, Norway','Helsinki, Finland','Athens, Greece','Zurich, Switzerland','Geneva, Switzerland','Antwerp, Belgium','Rotterdam, Netherlands','Cologne, Germany','Naples, Italy','Florence, Italy',
+  'Krakow, Poland','Stuttgart, Germany','Dresden, Germany','Leipzig, Germany','Hannover, Germany','Düsseldorf, Germany','Reykjavik, Iceland','Bordeaux, France','Toulouse, France','Nice, France',
+  'Strasbourg, France','Nantes, France','Lille, France','Valencia, Spain','Seville, Spain','Bilbao, Spain','Porto, Portugal','Turin, Italy','Bologna, Italy','Venice, Italy',
+  'Verona, Italy','Genoa, Italy','Utrecht, Netherlands','The Hague, Netherlands','Eindhoven, Netherlands','Ghent, Belgium','Bruges, Belgium','Liege, Belgium','Bratislava, Slovakia','Ljubljana, Slovenia',
+  'Zagreb, Croatia','Sofia, Bulgaria','Bucharest, Romania','Tallinn, Estonia','Riga, Latvia','Vilnius, Lithuania','Gothenburg, Sweden','Malmö, Sweden','Aarhus, Denmark','Bergen, Norway',
+  // Australia / NZ
+  'Sydney, Australia','Melbourne, Australia','Brisbane, Australia','Perth, Australia','Adelaide, Australia','Canberra, Australia','Gold Coast, Australia','Hobart, Australia','Newcastle, Australia','Darwin, Australia',
+  'Auckland, New Zealand','Wellington, New Zealand','Christchurch, New Zealand','Hamilton, New Zealand','Dunedin, New Zealand',
+  // Mexico / Latin America
+  'Mexico City, Mexico','Guadalajara, Mexico','Monterrey, Mexico','Tijuana, Mexico','Cancún, Mexico','Puebla, Mexico','Mérida, Mexico','São Paulo, Brazil','Rio de Janeiro, Brazil','Buenos Aires, Argentina',
+  'Santiago, Chile','Lima, Peru','Bogotá, Colombia','Medellín, Colombia','Quito, Ecuador','Caracas, Venezuela','Montevideo, Uruguay','San José, Costa Rica','Panama City, Panama','Havana, Cuba',
+  // Asia / Pacific
+  'Tokyo, Japan','Osaka, Japan','Kyoto, Japan','Yokohama, Japan','Nagoya, Japan','Sapporo, Japan','Fukuoka, Japan','Seoul, South Korea','Busan, South Korea','Singapore',
+  'Hong Kong','Bangkok, Thailand','Manila, Philippines','Jakarta, Indonesia','Kuala Lumpur, Malaysia','Taipei, Taiwan','Shanghai, China','Beijing, China','Mumbai, India','Delhi, India',
+  'Bangalore, India','Tel Aviv, Israel','Dubai, UAE','Istanbul, Turkey','Cairo, Egypt','Cape Town, South Africa','Johannesburg, South Africa','Nairobi, Kenya','Lagos, Nigeria','Casablanca, Morocco',
+];
 function openGuestModal(guestId) {
   const ad = getActiveDate();
   if (!ad) return;
@@ -14627,10 +14696,14 @@ function _newTourPerDayEditor() {
   const days = _daysBetween(startISO, endISO);
   // Build the day items the first time we enter — persist on _newTourDraft
   // so re-opening (e.g. via Back) preserves the in-progress choices.
+  // Default status is empty so the TM consciously picks a type rather
+  // than having "Show day" applied silently. Rows with no status get
+  // treated as a show day by the downstream renderer (existing behavior)
+  // — the empty default just makes the TM's intent explicit.
   if (!_newTourDraft.dayItems || _newTourDraft.dayItems.length !== days) {
     _newTourDraft.dayItems = [];
     for (let i = 0; i < days; i++) {
-      _newTourDraft.dayItems.push({ date: addDaysISO(startISO, i), status: 'show', city: '' });
+      _newTourDraft.dayItems.push({ date: addDaysISO(startISO, i), status: '', city: '', venue: '' });
     }
   }
   const items = _newTourDraft.dayItems;
@@ -14639,16 +14712,18 @@ function _newTourPerDayEditor() {
     const dowStr = dt.toLocaleDateString('en-US', { weekday: 'short' });
     const dateStr = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     return `
-      <div class="ntpd-row" data-status="${esc(d.status)}" data-i="${i}">
+      <div class="ntpd-row" data-status="${esc(d.status || '')}" data-i="${i}">
         <div class="ntpd-date"><span class="dow">${esc(dowStr)}</span>${esc(dateStr)}</div>
         <select class="ntpd-status" data-i="${i}" onchange="_ntpdStatusChange(${i}, this.value)">
+          <option value=""          ${!d.status              ? 'selected':''}>— Pick day type</option>
           <option value="show"      ${d.status==='show'      ? 'selected':''}>Show day</option>
           <option value="travel"    ${d.status==='travel'    ? 'selected':''}>Travel day</option>
           <option value="off"       ${d.status==='off'       ? 'selected':''}>Day off</option>
           <option value="press"     ${d.status==='press'     ? 'selected':''}>Press day</option>
           <option value="rehearsal" ${d.status==='rehearsal' ? 'selected':''}>Rehearsal</option>
         </select>
-        <input class="ntpd-city" type="text" placeholder="City (optional)" value="${esc(d.city)}" data-i="${i}" oninput="_ntpdCityChange(${i}, this.value)">
+        <input class="ntpd-city" list="ntpd-cities" type="text" placeholder="City (optional)" value="${esc(d.city)}" data-i="${i}" oninput="_ntpdCityChange(${i}, this.value)" autocomplete="off">
+        <input class="ntpd-venue" type="text" placeholder="Venue (optional)" value="${esc(d.venue || '')}" data-i="${i}" oninput="_ntpdVenueChange(${i}, this.value)" autocomplete="off">
       </div>
     `;
   }).join('');
@@ -14665,17 +14740,22 @@ function _newTourPerDayEditor() {
         <button type="button" onclick="_ntpdBulkStatus('rehearsal')">Rehearsal</button>
         <span style="margin-left:auto;font-size:10px;color:var(--warm-mute);text-transform:none;letter-spacing:.04em">City is optional — you can fill any time later.</span>
       </div>
+      <datalist id="ntpd-cities">${TOURING_CITIES.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
       <div class="ntpd-list">${rowsHtml}</div>
-      <div class="help" style="margin-top:10px">Defaults to Show day for every date. Adjust as needed — venue, times, and crew assignments come later from each day's editor.</div>
+      <div class="help" style="margin-top:10px">Day type and city are both optional — leave them blank and pick later in the dashboard if it's easier. Show days get an extra Venue field; that's also optional.</div>
     `,
     submitLabel: 'Create tour',
     onSubmit: () => {
-      // Collect any last-typed city values that may not have fired their
+      // Collect any last-typed values that may not have fired their
       // oninput before submit (defensive — most browsers do, but Safari
-      // sometimes batches).
+      // sometimes batches keyboard input).
       document.querySelectorAll('.ntpd-city').forEach(inp => {
         const i = +inp.dataset.i;
         if (_newTourDraft.dayItems[i]) _newTourDraft.dayItems[i].city = inp.value.trim();
+      });
+      document.querySelectorAll('.ntpd-venue').forEach(inp => {
+        const i = +inp.dataset.i;
+        if (_newTourDraft.dayItems[i]) _newTourDraft.dayItems[i].venue = inp.value.trim();
       });
       _commitNewTour(_newTourDraft.dayItems);
     }
@@ -14694,6 +14774,10 @@ function _ntpdStatusChange(i, value) {
 function _ntpdCityChange(i, value) {
   if (!_newTourDraft?.dayItems?.[i]) return;
   _newTourDraft.dayItems[i].city = value;
+}
+function _ntpdVenueChange(i, value) {
+  if (!_newTourDraft?.dayItems?.[i]) return;
+  _newTourDraft.dayItems[i].venue = value;
 }
 function _ntpdBulkStatus(value) {
   if (!_newTourDraft?.dayItems) return;
@@ -14717,10 +14801,18 @@ function _commitNewTour(dayItems) {
   tour.meta.presenter = draft.presenter;
   tour.meta.currency = draft.currency;
   (dayItems || []).forEach(d => {
+    // Empty status from the per-day editor → fall back to 'show' so the
+    // downstream renderer / gap analysis behaves consistently. The TM
+    // can still flip it on the date editor later.
+    const status = d.status || 'show';
+    // Venue only gets persisted when the status was explicitly 'show'
+    // — otherwise it's a stale value from when they had show selected,
+    // then changed their mind.
+    const venue = (d.status === 'show' ? (d.venue || '') : '');
     tour.dates.push({
       id: dbId(),
       date: d.date, city: d.city || '', state: '', country: '',
-      venue: '', capacity: '', status: d.status || 'show',
+      venue, capacity: '', status,
       doors: '', setTime: '', loadIn: '', soundcheck: '',
       promoter: '', notes: '',
       schedule: [], travel: [], guests: [], setList: [], attachments: [],
@@ -18079,13 +18171,23 @@ async function downloadDaySheetPDF() {
     </tr>
   `).join('') : `<tr><td colspan="2" class="s-empty">No schedule items</td></tr>`;
 
-  // Advance details · render the structured fields as a labeled list
+  // Advance details · render every filled field from the Advance tab so
+  // the day sheet matches what the TM entered. Buyout gets the tour's
+  // currency symbol; WiFi credentials render as two clean lines; the
+  // tech pack file is noted (the binary lives separately in Storage —
+  // the day sheet just flags that one's been advanced).
   const adv = ad.advance || {};
+  const curCode = tour.meta?.currency || 'USD';
+  const curSym = ({ USD:'$', CAD:'CA$', EUR:'€', GBP:'£', AUD:'A$', JPY:'¥' })[curCode] || '$';
   const advLines = [];
   if (adv.dressingRooms)    advLines.push(`DRESSING ROOMS: ${adv.dressingRooms}`);
   if (adv.productionOffice) advLines.push(`PRODUCTION OFFICE: ${adv.productionOffice}`);
   if (adv.rider)            advLines.push(`RIDER: ${adv.rider}`);
-  if (adv.buyout)           advLines.push(`BUYOUT: ${adv.buyout}`);
+  if (adv.buyout != null && adv.buyout !== '') {
+    const buyoutNum = parseFloat(adv.buyout);
+    const buyoutStr = isFinite(buyoutNum) ? `${curSym}${buyoutNum.toLocaleString()}` : String(adv.buyout);
+    advLines.push(`BUYOUT: ${buyoutStr}`);
+  }
   if (adv.catering)         advLines.push(`CATERING: ${adv.catering}`);
   if (adv.showers)          advLines.push(`SHOWERS: ${adv.showers}`);
   if (adv.laundry)          advLines.push(`LAUNDRY: ${adv.laundry}`);
@@ -18095,6 +18197,13 @@ async function downloadDaySheetPDF() {
   if (adv.forkOpp)          advLines.push(`FORK OPERATOR: ${adv.forkOpp}`);
   if (adv.handsIn || adv.handsOut || adv.handsAllDay) {
     advLines.push(`HANDS (IN/OUT/ALLDAY): ${adv.handsIn || '—'} / ${adv.handsOut || '—'} / ${adv.handsAllDay || '—'}`);
+  }
+  if (adv.techPack && (adv.techPack.name || adv.techPack.storagePath || adv.techPack.dataUrl)) {
+    advLines.push(`TECH PACK: ${adv.techPack.name || 'Attached'}`);
+  }
+  if (adv.wifiNetwork || adv.wifiPassword) {
+    if (adv.wifiNetwork)  advLines.push(`WIFI NETWORK: ${adv.wifiNetwork}`);
+    if (adv.wifiPassword) advLines.push(`WIFI PASSWORD: ${adv.wifiPassword}`);
   }
   const advHtml = advLines.length
     ? `<ul class="n-list">${advLines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>`
@@ -18743,7 +18852,7 @@ Object.assign(window, {
   scoutNearVenue,
   openTravelAssistant, closeTravelAssistant, setTaTab, searchHotels, resetHotelFilters, bookHotelToActiveDate, searchFlights, resetFlightFilters, addFlightToTravel,
   toggleTourSwitcher, closeTourSwitcher, switchToTour, switchToTourFromPhone, newTourFlow, newTourManualFlow, newTourImportFlow, renameCurrentTour, deleteCurrentTour,
-  _ntpdStatusChange, _ntpdCityChange, _ntpdBulkStatus,
+  _ntpdStatusChange, _ntpdCityChange, _ntpdVenueChange, _ntpdBulkStatus,
   showLoginScreen, hideLoginScreen, loginWithEmail, loginAsExisting, signUp, logout, showLoginForm, showSignupForm, toggleAccountMenu, closeAccountMenu,
   showLandingScreen, hideLandingScreen, landingChoose,
   showPricingScreen, hidePricingScreen, _pricingSubscribe, _pricingInquire,
