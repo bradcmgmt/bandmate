@@ -462,6 +462,15 @@ input,select,textarea{font:inherit;color:inherit}
 .tab.tab-fixed.active{color:#b1c8ee;background:linear-gradient(90deg,rgba(138,169,216,.16),rgba(138,169,216,.03) 70%);text-shadow:0 0 10px rgba(138,169,216,.35);font-weight:700}
 .tab.tab-fixed.active::before{background:linear-gradient(180deg,transparent,#b1c8ee 30%,#b1c8ee 70%,transparent);box-shadow:0 0 12px rgba(138,169,216,.5)}
 .tab.tab-fixed.active .num{color:#b1c8ee}
+/* Local Recs gets a slightly cooler, lighter blue tint so it visually
+   reads as the "extras / nice-to-have" tab — sitting at the bottom of
+   the tour-wide group, separate from the operational ones above it. */
+.tab.tab-recs{color:#b8d4f5}
+.tab.tab-recs .num{color:rgba(184,212,245,.5)}
+.tab.tab-recs:hover{color:#d4e7fa;background:rgba(184,212,245,.07)}
+.tab.tab-recs.active{color:#d4e7fa;background:linear-gradient(90deg,rgba(184,212,245,.18),rgba(184,212,245,.03) 70%);text-shadow:0 0 10px rgba(184,212,245,.4)}
+.tab.tab-recs.active::before{background:linear-gradient(180deg,transparent,#d4e7fa 30%,#d4e7fa 70%,transparent);box-shadow:0 0 14px rgba(184,212,245,.55)}
+.tab.tab-recs.active .num{color:#d4e7fa}
 
 /* On narrow viewports, collapse the sidebar back to a horizontal scroller
    so mobile / small windows still work. The vertical layout assumes the
@@ -766,8 +775,11 @@ input,select,textarea{font:inherit;color:inherit}
 .kpi.bad .delta{color:var(--red)}
 
 /* ============ DATA TABLES ============ */
-.tbl{border:1px solid var(--line);border-radius:12px;overflow:hidden;
-  background:linear-gradient(180deg,rgba(24,17,11,.9),rgba(17,12,8,.9));box-shadow:inset 0 1px 0 rgba(232,148,58,.04)}
+.tbl{border:1px solid var(--line);border-radius:12px;overflow-x:auto;overflow-y:visible;
+  background:linear-gradient(180deg,rgba(24,17,11,.9),rgba(17,12,8,.9));box-shadow:inset 0 1px 0 rgba(232,148,58,.04);
+  scrollbar-width:thin}
+.tbl::-webkit-scrollbar{height:6px}
+.tbl::-webkit-scrollbar-thumb{background:rgba(232,148,58,.2);border-radius:3px}
 .tbl-row{display:grid;align-items:center;border-top:1px solid var(--line)}
 .tbl-row:first-child{border-top:none}
 .tbl-row.head{background:rgba(232,148,58,.06);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--hi)}
@@ -913,8 +925,13 @@ input,select,textarea{font:inherit;color:inherit}
 .advance-full{grid-column:1 / -1}
 .advance-subsection{grid-column:1 / -1;margin-top:6px;padding:14px;background:rgba(232,148,58,.03);border:1px solid var(--line);border-radius:10px}
 .advance-sub-h{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--hi);font-weight:700;margin-bottom:10px}
-.advance-sub-grid{display:grid;grid-template-columns:1fr 1fr auto auto;gap:12px;align-items:end}
-@media (max-width: 900px){.advance-sub-grid{grid-template-columns:1fr 1fr;gap:10px}}
+/* Advance sub-grid (Hands Confirmed, WiFi, etc.) — auto-wraps based on
+   available width so the panel doesn't overflow when the sidebar
+   reduces space. Each field has a sensible min-width so the rows
+   re-flow naturally. */
+.advance-sub-grid{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
+.advance-sub-grid > .advance-field{flex:1 1 180px;min-width:160px}
+.advance-sub-grid > .advance-field:has(.allday-btn){flex:0 0 auto;min-width:0}
 
 .adv-money{display:flex;align-items:center;background:rgba(20,13,7,.7);border:1px solid var(--line);border-radius:8px;padding-left:10px;transition:border-color .15s}
 .adv-money:focus-within{border-color:var(--hi)}
@@ -3719,8 +3736,8 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
           <button type="button" class="tab tab-fixed" data-tab="venues"><span class="num">11</span> Venues</button>
           <button type="button" class="tab tab-fixed" data-tab="contacts"><span class="num">12</span> Contacts</button>
           <button type="button" class="tab tab-fixed" data-tab="tasks"><span class="num">13</span> Tasks</button>
-          <button type="button" class="tab tab-fixed" data-tab="tags"><span class="num">14</span> Local Recs</button>
-          <button type="button" class="tab tab-fixed" data-tab="profiles"><span class="num">15</span> Crew</button>
+          <button type="button" class="tab tab-fixed" data-tab="profiles"><span class="num">14</span> Crew</button>
+          <button type="button" class="tab tab-fixed tab-recs" data-tab="tags"><span class="num">15</span> Local Recs</button>
         </nav>
 
         <div class="panels-wrap">
@@ -4193,7 +4210,31 @@ const db = {
     try { sb.removeChannel(this._channel); } catch (e) { /* non-fatal */ }
     this._channel = null;
   },
-  _onTourChange(payload) {
+  // Defers a renderAll until the user finishes editing whatever input is
+// currently focused. Without this, every realtime echo (including the
+// echo from the user's own writes) destroys the in-flight input and
+// drops the cursor — most noticeable on the Advance tab and the date
+// editor, where the TM types into multiple fields in sequence.
+_safeRenderAll() {
+  const ae = document.activeElement;
+  const editing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
+  if (editing) {
+    // Only attach the deferred-render listener once per focused element.
+    if (!ae._bmDeferredRender) {
+      ae._bmDeferredRender = true;
+      const fire = () => {
+        ae.removeEventListener('blur', fire);
+        ae._bmDeferredRender = false;
+        try { renderAll(); } catch (e) {}
+      };
+      ae.addEventListener('blur', fire, { once: true });
+    }
+    return;
+  }
+  try { renderAll(); } catch (e) {}
+},
+
+_onTourChange(payload) {
     const { eventType, new: row, old } = payload;
     if (!state) return;
     if (eventType === 'DELETE') {
@@ -4203,7 +4244,7 @@ const db = {
         if (state.currentTourId === id) {
           state.currentTourId = Object.keys(state.tours)[0] || null;
         }
-        try { renderAll(); } catch (e) {}
+        this._safeRenderAll();
       }
       return;
     }
@@ -4214,7 +4255,7 @@ const db = {
     const existingDates = existing?.dates || [];
     state.tours[row.id] = dbMap.rowToTour(row, existingDates);
     if (!state.currentTourId) state.currentTourId = row.id;
-    try { renderAll(); } catch (e) {}
+    this._safeRenderAll();
   },
   // --- Attachments · binary in Storage, metadata in public.attachments ---
   async uploadAttachment(tourId, dateId, file, meta) {
@@ -4370,7 +4411,7 @@ const db = {
         if (state.tours[tourId].activeDateId === id) {
           state.tours[tourId].activeDateId = state.tours[tourId].dates[0]?.id || null;
         }
-        try { renderAll(); } catch (e) {}
+        this._safeRenderAll();
       }
       return;
     }
@@ -4385,7 +4426,7 @@ const db = {
     if (existing) newDate.attachments = existing.attachments || [];
     tour.dates = (tour.dates || []).filter(d => d.id !== row.id).concat(newDate);
     tour.dates.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-    try { renderAll(); } catch (e) {}
+    this._safeRenderAll();
   },
 
   _onSubscriptionChange(payload) {
@@ -4436,7 +4477,7 @@ const db = {
 
     if (eventType === 'DELETE') {
       date.attachments = date.attachments.filter(x => x.id !== rowOrOld.id);
-      try { renderAll(); } catch (e) {}
+      this._safeRenderAll();
       return;
     }
     const mapped = {
@@ -4451,7 +4492,7 @@ const db = {
       addedAt: row.added_at ? Date.parse(row.added_at) : Date.now(),
     };
     date.attachments = date.attachments.filter(x => x.id !== row.id).concat(mapped);
-    try { renderAll(); } catch (e) {}
+    this._safeRenderAll();
   },
   // Pull this user's tours + dates from Supabase and rebuild state.tours.
   // Called after successful signup or sign-in. Replaces state.tours entirely
@@ -8458,9 +8499,9 @@ function renderSchedule() {
           const editFn = isTravel ? `openTravelModal('${s._travelId}')` : `openScheduleModal('${s.id}')`;
           const labelBadge = isTravel ? `<span class="who" style="color:var(--hi);font-size:10px;letter-spacing:.16em;margin-left:6px">↗ TRAVEL</span>` : '';
           return `
-          <div class="item-row" style="grid-template-columns:170px 1fr 280px 80px;align-items:flex-start">
+          <div class="item-row" style="grid-template-columns:minmax(110px,140px) minmax(160px,1fr) minmax(140px,220px) auto;align-items:flex-start">
             <span class="t" style="padding-top:8px">${esc(_scheduleTimeDisplay(s))}</span>
-            <span class="what" style="padding-top:6px">${esc(s.what)}${labelBadge}${s.notes ? `<span class="note">${esc(s.notes)}</span>` : ''}</span>
+            <span class="what" style="padding-top:6px;min-width:0">${esc(s.what)}${labelBadge}${s.notes ? `<span class="note">${esc(s.notes)}</span>` : ''}</span>
             ${isTravel ? '<span></span>' : renderVizPicker(s)}
             <div class="tbl-actions" style="padding-top:6px"><button type="button" onclick="${editFn}">Edit</button></div>
           </div>
@@ -9118,8 +9159,32 @@ function renderAdvance() {
           </div>
         </div>
       </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:18px;border-top:1px solid var(--line);margin-top:8px">
+        <button type="button" class="tb-btn primary" onclick="_advanceSaveAndReturn()" style="padding:9px 18px;font-size:11px">✓ Save & Return to Dashboard</button>
+      </div>
     </div>
   `;
+}
+
+// All Advance fields save on field-blur via _advanceSave. This button is
+// the explicit "I'm done editing" affordance — flushes any in-flight
+// edits from the currently-focused field, then routes back to the
+// dashboard. Without this, the TM had no clear "done" signal and could
+// only tell things were saved by hopping to the dashboard manually.
+function _advanceSaveAndReturn() {
+  // Force the currently-focused input/textarea (if any) to fire its
+  // change event so the last-typed value gets saved before navigation.
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) {
+    try { ae.blur(); } catch (e) {}
+  }
+  // Brief pause so the blur-triggered _advanceSave + scheduled sync
+  // both kick off, then route to the dashboard.
+  setTimeout(() => {
+    try { _dashGoTab('dashboard'); } catch (e) {}
+    try { toast('Advance details saved', 'good'); } catch (e) {}
+  }, 80);
 }
 
 // Persist a single advance field to the active date and save state.
