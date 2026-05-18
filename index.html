@@ -3761,6 +3761,11 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 <!-- ============ TOAST ROOT ============ -->
 <div class="toast-container" id="toastRoot"></div>
 
+<!-- Shared autocomplete source for every city input across the app.
+     Populated on init() from the TOURING_CITIES constant — same list the
+     per-day editor uses. Any <input list="cities-global"> picks it up. -->
+<datalist id="cities-global"></datalist>
+
 <!-- Supabase JS client (CDN) — auth + database. anon key is public-by-design, gated by RLS. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 
@@ -5685,7 +5690,7 @@ function openDateModal(id) {
             <option value="rehearsal" ${d.status==='rehearsal'?'selected':''}>Rehearsal day</option>
           </select>
         </div>
-        <div class="field"><label>City *</label><input id="d_city" value="${esc(d.city)}"></div>
+        <div class="field"><label>City *</label><input id="d_city" list="cities-global" autocomplete="off" value="${esc(d.city)}"></div>
         <div class="field"><label>State / Region</label><input id="d_state" value="${esc(d.state)}" placeholder="e.g. NY, ON"></div>
         <div class="field full" data-show-day data-press-day><label id="d_venue_lbl">Venue</label><input id="d_venue" value="${esc(d.venue)}"></div>
         <div class="field" data-show-day><label>Capacity</label><input type="number" id="d_cap" value="${esc(d.capacity)}"></div>
@@ -7174,7 +7179,7 @@ function openContactModal(id) {
         <div class="field full"><label>Organization</label><input id="c_org" value="${esc(v.organization)}"></div>
         <div class="field"><label>Phone</label><input id="c_phone" value="${esc(v.phone)}"></div>
         <div class="field"><label>Email</label><input id="c_email" value="${esc(v.email)}"></div>
-        <div class="field full"><label>City</label><input id="c_city" value="${esc(v.city)}"></div>
+        <div class="field full"><label>City</label><input id="c_city" list="cities-global" autocomplete="off" value="${esc(v.city)}"></div>
         <div class="field full"><label>Notes</label><textarea id="c_notes">${esc(v.notes)}</textarea></div>
       </div>
     `,
@@ -7433,7 +7438,7 @@ function openTagModal(id) {
           <select id="tg_rating">${[1,2,3,4,5].map(n => `<option ${v.rating==n?'selected':''}>${n}</option>`).join('')}</select>
         </div>
         <div class="field full"><label>Place / Title *</label><input id="tg_name" value="${esc(v.name)}"></div>
-        <div class="field full"><label>City *</label><input id="tg_city" value="${esc(v.city)}"></div>
+        <div class="field full"><label>City *</label><input id="tg_city" list="cities-global" autocomplete="off" value="${esc(v.city)}"></div>
         <div class="field full"><label>Notes</label><textarea id="tg_notes">${esc(v.notes)}</textarea></div>
         <div class="field full"><label>Tags (comma sep)</label><input id="tg_tags" value="${esc(v.tags)}" placeholder="Walkable, Open late, Vegan"></div>
       </div>
@@ -14169,7 +14174,7 @@ function renderHotelsTab(ad, preserveResults) {
   return `
     <div class="ta-search">
       <div class="ta-grid">
-        <div class="ta-field"><label>City</label><input id="ta_h_city" placeholder="e.g. Chicago" value="${esc(defaultCity)}"></div>
+        <div class="ta-field"><label>City</label><input id="ta_h_city" list="cities-global" autocomplete="off" placeholder="e.g. Chicago" value="${esc(defaultCity)}"></div>
         <div class="ta-field"><label>Check-in</label><input type="date" id="ta_h_in" value="${esc(defaultIn)}"></div>
         <div class="ta-field"><label>Check-out</label><input type="date" id="ta_h_out" value="${esc(checkOutDefault)}"></div>
         <div class="ta-field"><label>Rooms needed</label><input type="number" id="ta_h_rooms" value="${T().crew.length || 1}" min="1" max="50"></div>
@@ -14722,7 +14727,7 @@ function _newTourPerDayEditor() {
           <option value="press"     ${d.status==='press'     ? 'selected':''}>Press day</option>
           <option value="rehearsal" ${d.status==='rehearsal' ? 'selected':''}>Rehearsal</option>
         </select>
-        <input class="ntpd-city" list="ntpd-cities" type="text" placeholder="City (optional)" value="${esc(d.city)}" data-i="${i}" oninput="_ntpdCityChange(${i}, this.value)" autocomplete="off">
+        <input class="ntpd-city" list="cities-global" type="text" placeholder="City (optional)" value="${esc(d.city)}" data-i="${i}" oninput="_ntpdCityChange(${i}, this.value)" autocomplete="off">
         <input class="ntpd-venue" type="text" placeholder="Venue (optional)" value="${esc(d.venue || '')}" data-i="${i}" oninput="_ntpdVenueChange(${i}, this.value)" autocomplete="off">
       </div>
     `;
@@ -14740,7 +14745,6 @@ function _newTourPerDayEditor() {
         <button type="button" onclick="_ntpdBulkStatus('rehearsal')">Rehearsal</button>
         <span style="margin-left:auto;font-size:10px;color:var(--warm-mute);text-transform:none;letter-spacing:.04em">City is optional — you can fill any time later.</span>
       </div>
-      <datalist id="ntpd-cities">${TOURING_CITIES.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
       <div class="ntpd-list">${rowsHtml}</div>
       <div class="help" style="margin-top:10px">Day type and city are both optional — leave them blank and pick later in the dashboard if it's easier. Show days get an extra Venue field; that's also optional.</div>
     `,
@@ -18711,6 +18715,16 @@ function init() {
   try { loadState(); } catch (e) { console.error('loadState:', e); state = null; }
   try { if (state) migrateGroups(); } catch (e) { console.error('migrateGroups:', e); }
   try { loadUIPrefs(); } catch (e) { console.error('loadUIPrefs:', e); }
+  // Populate the shared city-autocomplete datalist once per page load.
+  // Every <input list="cities-global"> across the app (date editor,
+  // contact modal, place/tag modal, travel assistant, per-day editor)
+  // reads from this single source.
+  try {
+    const dl = document.getElementById('cities-global');
+    if (dl && !dl.children.length) {
+      dl.innerHTML = TOURING_CITIES.map(c => `<option value="${c.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}">`).join('');
+    }
+  } catch (e) { console.warn('cities datalist init:', e); }
   try { bindTabs(); } catch (e) { console.error('bindTabs:', e); }
   try { bindPhoneNav(); } catch (e) { console.error('bindPhoneNav:', e); }
   // Track mouse globally so the Show Day badge glare aims at the cursor even
