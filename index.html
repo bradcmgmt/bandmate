@@ -2361,6 +2361,11 @@ body.print-tourbook-mode #tourBookArea{display:block!important;position:fixed;in
   background:rgba(138,169,216,.16);border:1px solid rgba(138,169,216,.5);color:#b1c8ee;
   font-family:'JetBrains Mono',monospace;font-size:8.5px;font-weight:800;letter-spacing:.18em;
   align-self:center;flex:0 0 auto;text-transform:uppercase}
+.tools-item .ti-badge.soon{background:rgba(180,180,180,.08);border-color:rgba(180,180,180,.3);color:rgba(220,220,220,.55)}
+/* Disabled / coming-soon items in the Tools menu — visible but inert.
+   Removes hover, dims the row, and shows the not-allowed cursor. */
+.tools-item.disabled{opacity:.42;cursor:not-allowed;pointer-events:none}
+.tools-item.disabled:hover{background:transparent;border-color:transparent}
 .tools-item .ti-desc{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);
   letter-spacing:.04em;margin-top:2px}
 
@@ -18435,10 +18440,10 @@ function toggleToolsMenu() {
   if (!menu) return;
   if (_toolsMenuOpen) {
     menu.innerHTML = `
-      <button type="button" class="tools-item" onclick="closeToolsMenu();openTravelAssistant()">
+      <button type="button" class="tools-item disabled" disabled aria-disabled="true" title="Coming soon">
         <span class="ti-icon">→</span>
         <span class="ti-name">Travel Assistant</span>
-        <span class="ti-badge">BETA</span>
+        <span class="ti-badge soon">Coming soon</span>
       </button>
       <button type="button" class="tools-item" onclick="closeToolsMenu();openPushNotifications()">
         <span class="ti-icon">◆</span>
