@@ -1643,6 +1643,33 @@ input,select,textarea{font:inherit;color:inherit}
 .nt-range-h .nt-range-sub{font-weight:500;color:var(--warm-mute);letter-spacing:.04em;text-transform:none;font-size:11.5px}
 .nt-range-preview{font-size:12px;color:var(--warm-mute);line-height:1.5;font-family:'JetBrains Mono',monospace;letter-spacing:.04em;padding-top:4px}
 
+/* Per-day editor for the "Build from scratch" tour flow — one row per
+   date in the chosen range. Date is fixed; the TM picks a status type
+   and (optionally) a city. */
+.ntpd-list{display:flex;flex-direction:column;gap:6px;max-height:58vh;overflow-y:auto;padding:2px;margin-top:4px}
+.ntpd-row{display:grid;grid-template-columns:150px 150px 1fr;gap:10px;align-items:center;
+  padding:9px 12px;background:rgba(20,13,7,.45);border:1px solid var(--line);border-radius:7px;
+  transition:border-color .15s,background .15s}
+.ntpd-row:hover{border-color:var(--line-2)}
+.ntpd-row .ntpd-date{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--warm);
+  letter-spacing:.08em;font-weight:700;text-transform:uppercase}
+.ntpd-row .ntpd-date .dow{color:var(--warm-mute);font-weight:500;margin-right:5px}
+.ntpd-row select,.ntpd-row input{padding:6px 9px;background:rgba(10,7,5,.6);border:1px solid var(--line);
+  border-radius:5px;color:var(--warm);font-size:13px;font-family:inherit;width:100%}
+.ntpd-row select:focus,.ntpd-row input:focus{border-color:var(--hi);outline:none;
+  box-shadow:0 0 0 1px rgba(232,148,58,.4)}
+/* Visual treatment per status — off days dimmed, travel days greenish */
+.ntpd-row[data-status="off"]{opacity:.62}
+.ntpd-row[data-status="travel"] .ntpd-status{color:#7adc97;border-color:rgba(122,220,151,.35)}
+.ntpd-row[data-status="rehearsal"] .ntpd-status,
+.ntpd-row[data-status="press"] .ntpd-status{color:#f5d76e;border-color:rgba(245,215,110,.35)}
+.ntpd-bulk{display:flex;gap:8px;align-items:center;padding:8px 4px;font-family:'JetBrains Mono',monospace;
+  font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--warm-mute)}
+.ntpd-bulk button{padding:4px 9px;background:transparent;border:1px solid var(--line-2);border-radius:5px;
+  color:var(--warm-mute);font-family:inherit;font-size:10px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;
+  transition:color .15s,border-color .15s}
+.ntpd-bulk button:hover{color:var(--hi);border-color:var(--hi)}
+
 /* Templates section embedded in the Edit Date modal. Lets the TM
    save the current schedule/travel as a reusable template, or drop a
    saved template onto this date, without leaving the modal. */
@@ -14496,8 +14523,9 @@ function newTourFlow() {
   });
 }
 
+let _newTourDraft = null;
+
 function newTourManualFlow() {
-  const today = todayISO();
   openModal({
     title: 'New tour — basics',
     size: 'lg',
@@ -14515,7 +14543,7 @@ function newTourManualFlow() {
       <div class="nt-range">
         <div class="nt-range-h">
           <span>⌜ Tour dates · optional</span>
-          <span class="nt-range-sub">Scaffold the calendar now; edit each day later.</span>
+          <span class="nt-range-sub">Set the range; you'll pick each day's type + city on the next screen.</span>
         </div>
         <div class="form-grid">
           <div class="field">
@@ -14526,87 +14554,47 @@ function newTourManualFlow() {
             <label>End date</label>
             <input type="date" id="nt_end">
           </div>
-          <div class="field full">
-            <label>Default day type <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(applied to every day in the range)</span></label>
-            <select id="nt_default_type">
-              <option value="show">Show day</option>
-              <option value="travel">Travel day</option>
-              <option value="off">Day off</option>
-              <option value="press">Press day</option>
-              <option value="rehearsal">Rehearsal day</option>
-            </select>
-          </div>
         </div>
         <div id="nt_range_preview" class="nt-range-preview"></div>
       </div>
-      <div class="help">After creating, you can fine-tune each day's status, add cities/venues, and drop in shows individually.</div>
+      <div class="help">Leave the date range blank to create the tour with no dates and add them individually later.</div>
     `,
-    submitLabel: 'Create tour',
+    submitLabel: 'Next →',
     onSubmit: () => {
       const name = document.getElementById('nt_name').value.trim();
       const artist = document.getElementById('nt_artist').value.trim();
       if (!name || !artist) { toast('Name and artist required', 'error'); return false; }
-      // Read the date inputs defensively. type="date" values come
-      // back as "YYYY-MM-DD" or "" — anything else (a stale picker
-      // value mid-commit, a browser that didn't validate the typed
-      // entry) gets normalized to '' so we don't scaffold from junk.
       const rawStart = (document.getElementById('nt_start')?.value || '').trim();
       const rawEnd = (document.getElementById('nt_end')?.value || '').trim();
       const isoRe = /^\d{4}-\d{2}-\d{2}$/;
       const startISO = isoRe.test(rawStart) ? rawStart : '';
       const endISO = isoRe.test(rawEnd) ? rawEnd : '';
-      // Only flag an error when BOTH dates are entered AND the range
-      // is invalid. A half-filled range (only start, only end) just
-      // skips the calendar scaffolding silently — the TM can add
-      // dates later from the dashboard. This is friendlier than the
-      // earlier XOR error which fired on perfectly fine inputs that
-      // browsers occasionally returned mid-commit.
       if (startISO && endISO && endISO < startISO) {
         toast('End date must be on or after start', 'error');
         return false;
       }
-      const tour = newEmptyTour(name, state.currentUserId);
-      tour.meta.tourName = name;
-      tour.meta.artist = artist;
-      tour.meta.presenter = document.getElementById('nt_pres').value.trim();
-      tour.meta.currency = document.getElementById('nt_cur').value;
-      // Pre-populate the calendar with empty dates of the chosen
-      // default type. Each day is a real, editable date entry — the
-      // TM can pop any one open to set city/venue/time/etc.
-      let dateCount = 0;
       if (startISO && endISO) {
-        const defaultType = document.getElementById('nt_default_type').value || 'show';
         const days = _daysBetween(startISO, endISO);
         if (days > 90) {
           toast(`${days} days exceeds the 90-day cap — pick a shorter range or add more dates after creating`, 'error');
           return false;
         }
-        for (let i = 0; i < days; i++) {
-          const dt = addDaysISO(startISO, i);
-          tour.dates.push({
-            id: uid('dt'),
-            date: dt, city: '', state: '', country: '',
-            venue: '', capacity: '', status: defaultType,
-            doors: '', setTime: '', loadIn: '', soundcheck: '',
-            promoter: '', notes: '',
-            schedule: [], travel: [], guests: [], setList: [], attachments: [],
-            hotel: null,
-            settlement: { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' },
-          });
-          dateCount++;
-        }
-        tour.dates.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-        if (dateCount) tour.activeDateId = tour.dates[0].id;
       }
-      state.tours[tour.id] = tour;
-      state.currentTourId = tour.id;
-      saveState();
-      db.upsertTour(tour);
-      renderAll();
-      toast(dateCount
-        ? `Tour "${name}" created · ${dateCount} ${dateCount === 1 ? 'date' : 'dates'} scaffolded`
-        : `Tour "${name}" created`,
-        'good');
+      // Stash the basics, then either jump to the per-day editor (if a
+      // date range was provided) or commit the empty tour immediately.
+      _newTourDraft = {
+        name, artist,
+        presenter: document.getElementById('nt_pres').value.trim(),
+        currency: document.getElementById('nt_cur').value,
+        startISO, endISO,
+      };
+      if (startISO && endISO) {
+        // The current modal will auto-close after this onSubmit returns;
+        // defer the next modal one tick so it doesn't get stomped.
+        setTimeout(() => _newTourPerDayEditor(), 60);
+      } else {
+        _commitNewTour([]);
+      }
     }
   });
   // Live "N days will be added" preview, same UX as the dashboard's
@@ -14622,12 +14610,135 @@ function newTourManualFlow() {
       if (e < s) { out.innerHTML = `<span style="color:var(--red)">End date must be on or after start.</span>`; return; }
       const days = _daysBetween(s, e);
       if (days > 90) { out.innerHTML = `<span style="color:var(--red)">${days} days exceeds the 90-day cap — pick a shorter range or add more after creating.</span>`; return; }
-      out.innerHTML = `<span style="color:var(--good)">${days} ${days === 1 ? 'day' : 'days'} will be scaffolded as the default type below.</span>`;
+      out.innerHTML = `<span style="color:var(--good)">${days} ${days === 1 ? 'day' : 'days'} — you'll set each day's type + city on the next step.</span>`;
     };
     document.getElementById('nt_start')?.addEventListener('input', update);
     document.getElementById('nt_end')?.addEventListener('input', update);
     update();
   }, 30);
+}
+
+// Step 2 of "Build from scratch" — per-day editor. One row per day in the
+// chosen range; fixed date + status dropdown + city input. The TM can also
+// bulk-set all days to a single type via the "Set all to" shortcut at top.
+function _newTourPerDayEditor() {
+  if (!_newTourDraft) return;
+  const { startISO, endISO, name } = _newTourDraft;
+  const days = _daysBetween(startISO, endISO);
+  // Build the day items the first time we enter — persist on _newTourDraft
+  // so re-opening (e.g. via Back) preserves the in-progress choices.
+  if (!_newTourDraft.dayItems || _newTourDraft.dayItems.length !== days) {
+    _newTourDraft.dayItems = [];
+    for (let i = 0; i < days; i++) {
+      _newTourDraft.dayItems.push({ date: addDaysISO(startISO, i), status: 'show', city: '' });
+    }
+  }
+  const items = _newTourDraft.dayItems;
+  const rowsHtml = items.map((d, i) => {
+    const dt = new Date(d.date + 'T12:00:00');
+    const dowStr = dt.toLocaleDateString('en-US', { weekday: 'short' });
+    const dateStr = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `
+      <div class="ntpd-row" data-status="${esc(d.status)}" data-i="${i}">
+        <div class="ntpd-date"><span class="dow">${esc(dowStr)}</span>${esc(dateStr)}</div>
+        <select class="ntpd-status" data-i="${i}" onchange="_ntpdStatusChange(${i}, this.value)">
+          <option value="show"      ${d.status==='show'      ? 'selected':''}>Show day</option>
+          <option value="travel"    ${d.status==='travel'    ? 'selected':''}>Travel day</option>
+          <option value="off"       ${d.status==='off'       ? 'selected':''}>Day off</option>
+          <option value="press"     ${d.status==='press'     ? 'selected':''}>Press day</option>
+          <option value="rehearsal" ${d.status==='rehearsal' ? 'selected':''}>Rehearsal</option>
+        </select>
+        <input class="ntpd-city" type="text" placeholder="City (optional)" value="${esc(d.city)}" data-i="${i}" oninput="_ntpdCityChange(${i}, this.value)">
+      </div>
+    `;
+  }).join('');
+  openModal({
+    title: `Per-day setup · ${esc(name)} · ${days} ${days === 1 ? 'day' : 'days'}`,
+    size: 'xl',
+    body: `
+      <div class="ntpd-bulk">
+        <span>Set all to:</span>
+        <button type="button" onclick="_ntpdBulkStatus('show')">Show</button>
+        <button type="button" onclick="_ntpdBulkStatus('travel')">Travel</button>
+        <button type="button" onclick="_ntpdBulkStatus('off')">Off</button>
+        <button type="button" onclick="_ntpdBulkStatus('press')">Press</button>
+        <button type="button" onclick="_ntpdBulkStatus('rehearsal')">Rehearsal</button>
+        <span style="margin-left:auto;font-size:10px;color:var(--warm-mute);text-transform:none;letter-spacing:.04em">City is optional — you can fill any time later.</span>
+      </div>
+      <div class="ntpd-list">${rowsHtml}</div>
+      <div class="help" style="margin-top:10px">Defaults to Show day for every date. Adjust as needed — venue, times, and crew assignments come later from each day's editor.</div>
+    `,
+    submitLabel: 'Create tour',
+    onSubmit: () => {
+      // Collect any last-typed city values that may not have fired their
+      // oninput before submit (defensive — most browsers do, but Safari
+      // sometimes batches).
+      document.querySelectorAll('.ntpd-city').forEach(inp => {
+        const i = +inp.dataset.i;
+        if (_newTourDraft.dayItems[i]) _newTourDraft.dayItems[i].city = inp.value.trim();
+      });
+      _commitNewTour(_newTourDraft.dayItems);
+    }
+  });
+}
+
+// Per-day editor helpers — keep _newTourDraft.dayItems in sync as the TM
+// edits. The DOM data-status attribute drives the per-row visual treatment
+// (off days dimmed, travel days greenish, etc.) via CSS attribute selectors.
+function _ntpdStatusChange(i, value) {
+  if (!_newTourDraft?.dayItems?.[i]) return;
+  _newTourDraft.dayItems[i].status = value;
+  const row = document.querySelector(`.ntpd-row[data-i="${i}"]`);
+  if (row) row.setAttribute('data-status', value);
+}
+function _ntpdCityChange(i, value) {
+  if (!_newTourDraft?.dayItems?.[i]) return;
+  _newTourDraft.dayItems[i].city = value;
+}
+function _ntpdBulkStatus(value) {
+  if (!_newTourDraft?.dayItems) return;
+  _newTourDraft.dayItems.forEach((d, i) => {
+    d.status = value;
+    const sel = document.querySelector(`.ntpd-status[data-i="${i}"]`);
+    if (sel) sel.value = value;
+    const row = document.querySelector(`.ntpd-row[data-i="${i}"]`);
+    if (row) row.setAttribute('data-status', value);
+  });
+}
+
+// Final commit — turns _newTourDraft + per-day items into a real tour
+// record, persists to local + cloud, switches to it, and renders.
+function _commitNewTour(dayItems) {
+  const draft = _newTourDraft;
+  if (!draft) return;
+  const tour = newEmptyTour(draft.name, state.currentUserId);
+  tour.meta.tourName = draft.name;
+  tour.meta.artist = draft.artist;
+  tour.meta.presenter = draft.presenter;
+  tour.meta.currency = draft.currency;
+  (dayItems || []).forEach(d => {
+    tour.dates.push({
+      id: dbId(),
+      date: d.date, city: d.city || '', state: '', country: '',
+      venue: '', capacity: '', status: d.status || 'show',
+      doors: '', setTime: '', loadIn: '', soundcheck: '',
+      promoter: '', notes: '',
+      schedule: [], travel: [], guests: [], setList: [], attachments: [],
+      hotel: null,
+      settlement: { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' },
+    });
+  });
+  tour.dates.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  if (tour.dates.length) tour.activeDateId = tour.dates[0].id;
+  state.tours[tour.id] = tour;
+  state.currentTourId = tour.id;
+  saveState();
+  db.upsertTour(tour);
+  renderAll();
+  toast(tour.dates.length
+    ? `Tour "${draft.name}" created · ${tour.dates.length} ${tour.dates.length === 1 ? 'date' : 'dates'}`
+    : `Tour "${draft.name}" created`, 'good');
+  _newTourDraft = null;
 }
 
 function newTourImportFlow() {
@@ -18632,6 +18743,7 @@ Object.assign(window, {
   scoutNearVenue,
   openTravelAssistant, closeTravelAssistant, setTaTab, searchHotels, resetHotelFilters, bookHotelToActiveDate, searchFlights, resetFlightFilters, addFlightToTravel,
   toggleTourSwitcher, closeTourSwitcher, switchToTour, switchToTourFromPhone, newTourFlow, newTourManualFlow, newTourImportFlow, renameCurrentTour, deleteCurrentTour,
+  _ntpdStatusChange, _ntpdCityChange, _ntpdBulkStatus,
   showLoginScreen, hideLoginScreen, loginWithEmail, loginAsExisting, signUp, logout, showLoginForm, showSignupForm, toggleAccountMenu, closeAccountMenu,
   showLandingScreen, hideLandingScreen, landingChoose,
   showPricingScreen, hidePricingScreen, _pricingSubscribe, _pricingInquire,
