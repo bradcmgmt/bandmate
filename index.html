@@ -418,20 +418,28 @@ input,select,textarea{font:inherit;color:inherit}
 .console-head .actions .btn.danger{color:var(--red);border-color:rgba(232,69,69,.3)}
 .console-head .actions .btn.danger:hover{background:rgba(232,69,69,.12);box-shadow:0 0 12px rgba(232,69,69,.2)}
 
-/* tabs */
-.tabs{display:flex;overflow-x:auto;border-bottom:1px solid var(--line);
+/* Console layout — header on top, then a 2-column body (sidebar nav + panels). */
+.console-body{display:flex;align-items:stretch;min-height:0}
+.panels-wrap{flex:1;min-width:0;min-height:0}
+
+/* Vertical sidebar nav — left side of the console, full panel order */
+.tabs{display:flex;flex-direction:column;flex:0 0 200px;
+  border-right:1px solid var(--line);border-bottom:none;
   background:linear-gradient(180deg,rgba(10,7,5,.6),rgba(17,12,8,.4));
-  scrollbar-width:none;-ms-overflow-style:none}
-.tabs::-webkit-scrollbar{display:none;width:0;height:0}
-.tabs::-webkit-scrollbar-thumb{display:none}
-.tabs::-webkit-scrollbar-track{display:none}
-.tab{padding:12px 16px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
-  color:var(--warm-mute);white-space:nowrap;border-right:1px solid var(--line);
-  display:flex;align-items:center;gap:8px;position:relative;transition:color .15s,background .15s}
-.tab .num{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--line-2)}
-.tab:hover{color:var(--warm);background:rgba(232,148,58,.04)}
-.tab.active{color:var(--hi);background:linear-gradient(180deg,rgba(232,148,58,.12),rgba(232,148,58,.04));font-weight:700;text-shadow:0 0 10px rgba(232,148,58,.3)}
-.tab.active::before{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:linear-gradient(90deg,transparent,var(--hi),transparent)}
+  overflow-y:auto;scrollbar-width:thin}
+.tabs::-webkit-scrollbar{width:6px;height:0}
+.tabs::-webkit-scrollbar-thumb{background:rgba(232,148,58,.18);border-radius:3px}
+.tabs::-webkit-scrollbar-track{background:transparent}
+.tab{padding:11px 14px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--warm-mute);text-align:left;border:none;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:10px;position:relative;transition:color .15s,background .15s,padding-left .15s;
+  background:transparent}
+.tab .num{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--line-2);flex:none}
+.tab:hover{color:var(--warm);background:rgba(232,148,58,.04);padding-left:18px}
+.tab.active{color:var(--hi);background:linear-gradient(90deg,rgba(232,148,58,.16),rgba(232,148,58,.02) 70%);font-weight:700;text-shadow:0 0 10px rgba(232,148,58,.3);padding-left:18px}
+.tab.active::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:linear-gradient(180deg,transparent,var(--hi) 30%,var(--hi) 70%,transparent);
+  box-shadow:0 0 12px rgba(232,148,58,.6)}
 .tab.active .num{color:var(--hi-bright)}
 /* Dashboard tab gets a warmer gold tint to mark it as the canonical "home"
    view — slightly brighter and more yellow than the standard copper accent.
@@ -439,16 +447,35 @@ input,select,textarea{font:inherit;color:inherit}
 .tab[data-tab="dashboard"]{color:#f5d76e}
 .tab[data-tab="dashboard"] .num{color:rgba(245,215,110,.55)}
 .tab[data-tab="dashboard"]:hover{color:#fae29a;background:rgba(245,215,110,.05)}
-.tab[data-tab="dashboard"].active{color:#fae29a;background:linear-gradient(180deg,rgba(245,215,110,.16),rgba(245,215,110,.04));text-shadow:0 0 12px rgba(245,215,110,.4)}
-.tab[data-tab="dashboard"].active::before{background:linear-gradient(90deg,transparent,#f5d76e,transparent)}
+.tab[data-tab="dashboard"].active{color:#fae29a;background:linear-gradient(90deg,rgba(245,215,110,.18),rgba(245,215,110,.03) 70%);text-shadow:0 0 12px rgba(245,215,110,.4)}
+.tab[data-tab="dashboard"].active::before{background:linear-gradient(180deg,transparent,#f5d76e 30%,#f5d76e 70%,transparent);box-shadow:0 0 12px rgba(245,215,110,.6)}
 .tab[data-tab="dashboard"].active .num{color:#fae29a}
-/* tour-level reference tabs (no per-day data) */
-.tab.tab-fixed{color:var(--cool);background:linear-gradient(180deg,rgba(138,169,216,.04),transparent)}
+/* tour-level reference tabs (no per-day data) — kept in the same sidebar,
+   visually grouped with a top separator since they live below the per-day
+   tabs and refer to whole-tour data instead. */
+.tab.tab-fixed{color:var(--cool);background:linear-gradient(90deg,rgba(138,169,216,.04),transparent)}
+.tab.tab-fixed:first-of-type{margin-top:8px;border-top:1px solid var(--line-2);position:relative}
+.tab.tab-fixed:first-of-type::after{content:"TOUR-WIDE";position:absolute;left:14px;top:-7px;background:rgba(10,7,5,.95);
+  padding:0 6px;font-family:'JetBrains Mono',monospace;font-size:8.5px;letter-spacing:.18em;color:rgba(138,169,216,.55)}
 .tab.tab-fixed .num{color:rgba(138,169,216,.4)}
 .tab.tab-fixed:hover{color:#b1c8ee;background:rgba(138,169,216,.06)}
-.tab.tab-fixed.active{color:#b1c8ee;background:linear-gradient(180deg,rgba(138,169,216,.14),rgba(138,169,216,.04));text-shadow:0 0 10px rgba(138,169,216,.35);font-weight:700}
-.tab.tab-fixed.active::before{background:linear-gradient(90deg,transparent,#b1c8ee,transparent)}
+.tab.tab-fixed.active{color:#b1c8ee;background:linear-gradient(90deg,rgba(138,169,216,.16),rgba(138,169,216,.03) 70%);text-shadow:0 0 10px rgba(138,169,216,.35);font-weight:700}
+.tab.tab-fixed.active::before{background:linear-gradient(180deg,transparent,#b1c8ee 30%,#b1c8ee 70%,transparent);box-shadow:0 0 12px rgba(138,169,216,.5)}
 .tab.tab-fixed.active .num{color:#b1c8ee}
+
+/* On narrow viewports, collapse the sidebar back to a horizontal scroller
+   so mobile / small windows still work. The vertical layout assumes the
+   console has room. */
+@media (max-width:900px){
+  .console-body{flex-direction:column}
+  .tabs{flex:0 0 auto;flex-direction:row;border-right:none;border-bottom:1px solid var(--line);overflow-x:auto;overflow-y:hidden}
+  .tab{border-bottom:none;border-right:1px solid var(--line);white-space:nowrap}
+  .tab:hover,.tab.active{padding-left:14px}
+  .tab.active::before{left:0;right:0;top:auto;bottom:0;width:auto;height:2px;
+    background:linear-gradient(90deg,transparent,var(--hi),transparent)}
+  .tab.tab-fixed:first-of-type{margin-top:0;border-top:none}
+  .tab.tab-fixed:first-of-type::after{display:none}
+}
 
 
 
@@ -3677,39 +3704,43 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
         </div>
       </div>
 
-      <nav class="tabs" id="tabs">
-        <button type="button" class="tab active" data-tab="dashboard"><span class="num">01</span> Dashboard</button>
-        <button type="button" class="tab" data-tab="schedule"><span class="num">02</span> Schedule</button>
-        <button type="button" class="tab" data-tab="notes"><span class="num">03</span> Day Notes</button>
-        <button type="button" class="tab" data-tab="travel"><span class="num">04</span> Travel</button>
-        <button type="button" class="tab" data-tab="hotels"><span class="num">05</span> Hotels</button>
-        <button type="button" class="tab" data-tab="guest"><span class="num">06</span> Guest List</button>
-        <button type="button" class="tab" data-tab="setlist"><span class="num">07</span> Set List</button>
-        <button type="button" class="tab" data-tab="advance"><span class="num">08</span> Advance</button>
-        <button type="button" class="tab" data-tab="files"><span class="num">09</span> Attachments</button>
-        <button type="button" class="tab tab-fixed" data-tab="acct"><span class="num">10</span> Settlements</button>
-        <button type="button" class="tab tab-fixed" data-tab="venues"><span class="num">11</span> Venues</button>
-        <button type="button" class="tab tab-fixed" data-tab="contacts"><span class="num">12</span> Contacts</button>
-        <button type="button" class="tab tab-fixed" data-tab="tasks"><span class="num">13</span> Tasks</button>
-        <button type="button" class="tab tab-fixed" data-tab="tags"><span class="num">14</span> Local Recs</button>
-        <button type="button" class="tab tab-fixed" data-tab="profiles"><span class="num">15</span> Crew</button>
-      </nav>
+      <div class="console-body">
+        <nav class="tabs" id="tabs">
+          <button type="button" class="tab active" data-tab="dashboard"><span class="num">01</span> Dashboard</button>
+          <button type="button" class="tab" data-tab="schedule"><span class="num">02</span> Schedule</button>
+          <button type="button" class="tab" data-tab="notes"><span class="num">03</span> Day Notes</button>
+          <button type="button" class="tab" data-tab="travel"><span class="num">04</span> Travel</button>
+          <button type="button" class="tab" data-tab="hotels"><span class="num">05</span> Hotels</button>
+          <button type="button" class="tab" data-tab="guest"><span class="num">06</span> Guest List</button>
+          <button type="button" class="tab" data-tab="setlist"><span class="num">07</span> Set List</button>
+          <button type="button" class="tab" data-tab="advance"><span class="num">08</span> Advance</button>
+          <button type="button" class="tab" data-tab="files"><span class="num">09</span> Attachments</button>
+          <button type="button" class="tab tab-fixed" data-tab="acct"><span class="num">10</span> Settlements</button>
+          <button type="button" class="tab tab-fixed" data-tab="venues"><span class="num">11</span> Venues</button>
+          <button type="button" class="tab tab-fixed" data-tab="contacts"><span class="num">12</span> Contacts</button>
+          <button type="button" class="tab tab-fixed" data-tab="tasks"><span class="num">13</span> Tasks</button>
+          <button type="button" class="tab tab-fixed" data-tab="tags"><span class="num">14</span> Local Recs</button>
+          <button type="button" class="tab tab-fixed" data-tab="profiles"><span class="num">15</span> Crew</button>
+        </nav>
 
-      <div class="panel active" data-panel="dashboard" id="p-dashboard"></div>
-      <div class="panel" data-panel="schedule" id="p-schedule"></div>
-      <div class="panel" data-panel="notes" id="p-notes"></div>
-      <div class="panel" data-panel="travel" id="p-travel"></div>
-      <div class="panel" data-panel="hotels" id="p-hotels"></div>
-      <div class="panel" data-panel="guest" id="p-guest"></div>
-      <div class="panel" data-panel="setlist" id="p-setlist"></div>
-      <div class="panel" data-panel="advance" id="p-advance"></div>
-      <div class="panel" data-panel="acct" id="p-acct"></div>
-      <div class="panel" data-panel="files" id="p-files"></div>
-      <div class="panel" data-panel="venues" id="p-venues"></div>
-      <div class="panel" data-panel="contacts" id="p-contacts"></div>
-      <div class="panel" data-panel="tasks" id="p-tasks"></div>
-      <div class="panel" data-panel="tags" id="p-tags"></div>
-      <div class="panel" data-panel="profiles" id="p-profiles"></div>
+        <div class="panels-wrap">
+          <div class="panel active" data-panel="dashboard" id="p-dashboard"></div>
+          <div class="panel" data-panel="schedule" id="p-schedule"></div>
+          <div class="panel" data-panel="notes" id="p-notes"></div>
+          <div class="panel" data-panel="travel" id="p-travel"></div>
+          <div class="panel" data-panel="hotels" id="p-hotels"></div>
+          <div class="panel" data-panel="guest" id="p-guest"></div>
+          <div class="panel" data-panel="setlist" id="p-setlist"></div>
+          <div class="panel" data-panel="advance" id="p-advance"></div>
+          <div class="panel" data-panel="acct" id="p-acct"></div>
+          <div class="panel" data-panel="files" id="p-files"></div>
+          <div class="panel" data-panel="venues" id="p-venues"></div>
+          <div class="panel" data-panel="contacts" id="p-contacts"></div>
+          <div class="panel" data-panel="tasks" id="p-tasks"></div>
+          <div class="panel" data-panel="tags" id="p-tags"></div>
+          <div class="panel" data-panel="profiles" id="p-profiles"></div>
+        </div><!-- /.panels-wrap -->
+      </div><!-- /.console-body -->
     </section>
 
     <aside class="phone-rig">
