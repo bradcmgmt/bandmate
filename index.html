@@ -16578,6 +16578,15 @@ const STRIPE_LINKS = {
 };
 const BUSINESS_INQUIRY_EMAIL = 'info@bandmate.art';
 
+// Cross-call flag: when the user clicks "Subscribe" on the pricing screen
+// without a Bandmate account, we route them through signup first and set
+// this flag so the moment they finish creating their account, signUp() /
+// loginWithEmail() know to redirect them on to Stripe with their user id
+// baked into the URL. This is the architecture-correct flow — Stripe gets
+// a `client_reference_id` it can echo back via the webhook, eliminating
+// the email-lookup fragility.
+let _pendingStripeCheckoutAfterAuth = false;
+
 function showPricingScreen() {
   document.getElementById('app').hidden = true;
   document.getElementById('onboarding').classList.add('hidden');
@@ -16602,16 +16611,86 @@ function hidePricingScreen() {
   document.getElementById('pricingScreen').hidden = true;
 }
 function _pricingSubscribe() {
-  // Single-tier subscription — opens the Stripe Payment Link in a new
-  // tab so the user can come back to Bandmate after paying. Old call
-  // sites that still pass a tier argument (e.g. '/solo') just get
-  // ignored — the function takes no params now.
+  // Architecturally correct flow: ensure the user has a Bandmate account
+  // BEFORE bouncing them to Stripe. That way we can pass their user.id as
+  // `client_reference_id` on the checkout URL, and the Stripe webhook
+  // links the resulting subscription directly to that account — no
+  // email-lookup fragility, no "you paid but your account didn't activate"
+  // race conditions.
+  //
+  //   Signed in  → straight to Stripe with ?client_reference_id=<uid>
+  //   Signed out → flag pending checkout + route to signup, show banner
   const url = STRIPE_LINKS.subscription;
   if (!url || url.includes('REPLACE_WITH')) {
     toast('Stripe payment link not configured yet — coming soon', 'error');
     return;
   }
-  window.open(url, '_blank', 'noopener,noreferrer');
+  const u = (state && state.currentUserId) ? state.users[state.currentUserId] : null;
+  if (u && u.id) {
+    _redirectToStripeCheckout(u.id, u.email || '');
+    return;
+  }
+  // No account yet — set the flag and route to signup. The moment the
+  // user finishes creating their account, signUp() will redirect them
+  // onward to Stripe with their fresh user.id appended.
+  _pendingStripeCheckoutAfterAuth = true;
+  hidePricingScreen();
+  showLoginScreen({ intent: 'signup' });
+  // Defer until the signup form is on screen, then nudge the banner in.
+  setTimeout(() => {
+    _renderSignupCheckoutBanner();
+    const nameEl = document.getElementById('su_name');
+    if (nameEl) nameEl.focus();
+  }, 80);
+}
+
+// Build the Stripe Payment Link URL with the user's id (and email, if we
+// have it) baked in, then navigate. We use full-page navigation rather
+// than window.open — popups get blocked in many browsers and the user
+// usually wants the payment surface front-and-center anyway.
+function _redirectToStripeCheckout(userId, email) {
+  const base = STRIPE_LINKS.subscription;
+  if (!base) { toast('Stripe payment link not configured', 'error'); return; }
+  let url;
+  try {
+    url = new URL(base);
+    if (userId) url.searchParams.set('client_reference_id', String(userId));
+    if (email) url.searchParams.set('prefilled_email', String(email));
+  } catch (e) {
+    // Defensive fallback — manually concat if URL constructor balks
+    const sep = base.includes('?') ? '&' : '?';
+    const qs = [];
+    if (userId) qs.push('client_reference_id=' + encodeURIComponent(userId));
+    if (email) qs.push('prefilled_email=' + encodeURIComponent(email));
+    window.location.assign(base + (qs.length ? sep + qs.join('&') : ''));
+    return;
+  }
+  toast('Redirecting to Stripe…', 'good');
+  // Tiny delay so the toast has a chance to flash before the navigation
+  setTimeout(() => { window.location.assign(url.toString()); }, 250);
+}
+
+// Renders the "Step 1 of 2 — create your account; payment is next" banner
+// inside the signup form when there's a pending Stripe checkout queued.
+// Idempotent: re-running just re-shows / re-hides as appropriate.
+function _renderSignupCheckoutBanner() {
+  const form = document.getElementById('signupForm');
+  if (!form) return;
+  let banner = document.getElementById('signupStripeBanner');
+  if (_pendingStripeCheckoutAfterAuth) {
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'signupStripeBanner';
+      banner.style.cssText = 'padding:12px 14px;background:linear-gradient(135deg,rgba(231,143,79,.18),rgba(231,143,79,.06));border:1px solid rgba(231,143,79,.5);border-radius:9px;font-size:12.5px;line-height:1.5;color:var(--warm);margin-bottom:4px';
+      banner.innerHTML = '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;letter-spacing:.18em;color:#e78f4f;text-transform:uppercase;font-weight:700;margin-bottom:4px">STEP 1 OF 2</div><div>Create your Bandmate account, then we\'ll send you to Stripe to start your $49.99/mo subscription.</div>';
+      const h = form.querySelector('h3');
+      if (h && h.nextSibling) form.insertBefore(banner, h.nextSibling);
+      else form.insertBefore(banner, form.firstChild);
+    }
+    banner.style.display = '';
+  } else if (banner) {
+    banner.style.display = 'none';
+  }
 }
 function _pricingInquire() {
   const subject = encodeURIComponent('Bandmate · Business plan inquiry');
@@ -16988,10 +17067,37 @@ function renderLoginAccounts() {
 function showLoginForm() {
   document.getElementById('loginForm').hidden = false;
   document.getElementById('signupForm').hidden = true;
+  // If a Stripe checkout is queued, surface a one-liner on the sign-in
+  // form too — covers the user who clicked Subscribe, was routed to
+  // signup, and toggled over to "Already have one? Sign in →".
+  _renderLoginCheckoutBanner();
 }
 function showSignupForm() {
   document.getElementById('loginForm').hidden = true;
   document.getElementById('signupForm').hidden = false;
+  _renderSignupCheckoutBanner();
+}
+
+// Sister to _renderSignupCheckoutBanner — shows the same "Step 1 of 2"
+// note on the sign-in form when a checkout is pending.
+function _renderLoginCheckoutBanner() {
+  const form = document.getElementById('loginForm');
+  if (!form) return;
+  let banner = document.getElementById('loginStripeBanner');
+  if (_pendingStripeCheckoutAfterAuth) {
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'loginStripeBanner';
+      banner.style.cssText = 'padding:12px 14px;background:linear-gradient(135deg,rgba(231,143,79,.18),rgba(231,143,79,.06));border:1px solid rgba(231,143,79,.5);border-radius:9px;font-size:12.5px;line-height:1.5;color:var(--warm);margin-bottom:4px';
+      banner.innerHTML = '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;letter-spacing:.18em;color:#e78f4f;text-transform:uppercase;font-weight:700;margin-bottom:4px">STEP 1 OF 2</div><div>Sign in, then we\'ll send you to Stripe to start your $49.99/mo subscription.</div>';
+      const h = form.querySelector('h3');
+      if (h && h.nextSibling) form.insertBefore(banner, h.nextSibling);
+      else form.insertBefore(banner, form.firstChild);
+    }
+    banner.style.display = '';
+  } else if (banner) {
+    banner.style.display = 'none';
+  }
 }
 
 async function loginWithEmail() {
@@ -17087,6 +17193,15 @@ async function loginWithEmail() {
   }
   saveState();
   _sentrySetUser({ id: userId, email });
+  // SIGNUP-FIRST CHECKOUT FLOW (sign-in side)
+  // User clicked "Subscribe", got routed to the login overlay, and
+  // chose to sign in instead of signing up — they already had an
+  // account. Hand them on to Stripe with their existing user.id.
+  if (_pendingStripeCheckoutAfterAuth && state.users[userId].role === 'tm') {
+    _pendingStripeCheckoutAfterAuth = false;
+    _redirectToStripeCheckout(userId, email);
+    return;
+  }
   // Pull the user's tours + dates from Supabase so this device shows their
   // real cloud data, regardless of what was in localStorage on this browser.
   await db.hydrateUserData(userId);
@@ -17236,6 +17351,22 @@ async function signUp() {
   }
   saveState();
   _sentrySetUser({ id: userId, email });
+  // SIGNUP-FIRST CHECKOUT FLOW
+  // User clicked "Subscribe" on pricing, didn't have an account, signed
+  // up here, and is now ready to go pay. Hand them off to Stripe with
+  // their fresh user.id baked into the URL as client_reference_id so the
+  // webhook links the subscription directly to this account. We do this
+  // BEFORE the rest of the signup post-processing because that ends with
+  // a re-render that would interrupt the navigation.
+  if (_pendingStripeCheckoutAfterAuth && role === 'tm') {
+    _pendingStripeCheckoutAfterAuth = false;
+    // Best-effort: clear the banner / pricing surface so a back nav from
+    // Stripe lands somewhere sensible.
+    const banner = document.getElementById('signupStripeBanner');
+    if (banner) banner.style.display = 'none';
+    _redirectToStripeCheckout(userId, email);
+    return;
+  }
   // Pull the seeded demo tour + dates the signup trigger created so the
   // new account lands on real cloud data, not an empty local state.
   await db.hydrateUserData(userId);

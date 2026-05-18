@@ -55,7 +55,14 @@ module.exports = async function handler(req, res) {
   }
 
   // Resolve a subscription record from any of the lifecycle events we listen to.
-  async function upsertFromSubscription(sub, fallbackEmail) {
+  //
+  // `clientReferenceId` (optional) is the Bandmate user.id we baked into the
+  // checkout URL when the user clicked Subscribe — Stripe echoes it back in
+  // session.client_reference_id on checkout.session.completed. When present,
+  // we use it directly as user_id and skip the email-based profile lookup
+  // entirely (which is fragile in cases where the profile email doesn't
+  // exactly match the email Stripe collected at checkout).
+  async function upsertFromSubscription(sub, fallbackEmail, clientReferenceId) {
     const email = (sub.customer_email
       || fallbackEmail
       || (sub.customer && typeof sub.customer === 'object' ? sub.customer.email : null)
@@ -74,9 +81,16 @@ module.exports = async function handler(req, res) {
       trial_end: toIso(sub.trial_end),
       cancel_at_period_end: !!sub.cancel_at_period_end,
     };
-    // Look up an existing user_id by email so the row links back to the user
-    // if they've already signed up.
-    if (email) {
+    // PREFERRED PATH: signup-first flow gave us client_reference_id — that
+    // IS the user_id. Trust it (we set it ourselves at redirect time).
+    if (clientReferenceId) {
+      row.user_id = clientReferenceId;
+    } else if (email) {
+      // FALLBACK PATH: legacy pay-first flow where we never had a user.id
+      // at checkout time. Look up the user by email so the row links to
+      // them if they've already signed up. If they haven't, the row sits
+      // unlinked until link_existing_subscriptions_for_user fires from
+      // patch-007 on signup.
       const { data: profile } = await supa
         .from('profiles')
         .select('id')
@@ -88,7 +102,7 @@ module.exports = async function handler(req, res) {
       .from('subscriptions')
       .upsert(row, { onConflict: 'stripe_subscription_id' });
     if (error) console.error('[stripe-webhook] upsert failed:', error);
-    else console.log('[stripe-webhook] upserted', email, sub.status);
+    else console.log('[stripe-webhook] upserted', email, sub.status, row.user_id ? `→ user ${row.user_id}` : '(unlinked)');
   }
 
   try {
@@ -97,10 +111,17 @@ module.exports = async function handler(req, res) {
         const session = event.data.object;
         // checkout.session.completed has a subscription id (when mode=subscription)
         // but not the full subscription object. Pull it.
+        // client_reference_id is the Bandmate user.id we set on the checkout
+        // URL — this is what makes the new "signup-first" flow bulletproof.
         if (session.subscription) {
           const sub = await stripe.subscriptions.retrieve(session.subscription);
-          await upsertFromSubscription(sub, session.customer_details?.email || session.customer_email);
+          const fallbackEmail = session.customer_details?.email || session.customer_email;
+          await upsertFromSubscription(sub, fallbackEmail, session.client_reference_id || null);
         }
+        // Subsequent customer.subscription.* events don't carry the
+        // client_reference_id, but the row is already linked from this
+        // initial event — the upsert is on stripe_subscription_id, so the
+        // user_id sticks.
         break;
       }
       case 'customer.subscription.created':
@@ -117,14 +138,36 @@ module.exports = async function handler(req, res) {
             email = cust && !cust.deleted ? cust.email : null;
           } catch (e) { /* non-fatal */ }
         }
-        await upsertFromSubscription(sub, email);
+        // Preserve any user_id already on the row by reading the existing
+        // record. Without this, an `updated` event would null out a user_id
+        // that checkout.session.completed had previously set via
+        // client_reference_id (since this event has no CRI).
+        let existingUserId = null;
+        try {
+          const { data: existing } = await supa
+            .from('subscriptions')
+            .select('user_id')
+            .eq('stripe_subscription_id', sub.id)
+            .maybeSingle();
+          existingUserId = existing?.user_id || null;
+        } catch (e) { /* non-fatal */ }
+        await upsertFromSubscription(sub, email, existingUserId);
         break;
       }
       case 'invoice.payment_failed': {
         const inv = event.data.object;
         if (inv.subscription) {
           const sub = await stripe.subscriptions.retrieve(inv.subscription);
-          await upsertFromSubscription(sub, inv.customer_email);
+          let existingUserId = null;
+          try {
+            const { data: existing } = await supa
+              .from('subscriptions')
+              .select('user_id')
+              .eq('stripe_subscription_id', sub.id)
+              .maybeSingle();
+            existingUserId = existing?.user_id || null;
+          } catch (e) { /* non-fatal */ }
+          await upsertFromSubscription(sub, inv.customer_email, existingUserId);
         }
         break;
       }
