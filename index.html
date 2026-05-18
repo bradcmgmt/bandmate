@@ -16622,7 +16622,7 @@ function _pricingSubscribe() {
   //   Signed out → flag pending checkout + route to signup, show banner
   const url = STRIPE_LINKS.subscription;
   if (!url || url.includes('REPLACE_WITH')) {
-    toast('Stripe payment link not configured yet — coming soon', 'error');
+    toast('Subscriptions not configured yet — coming soon', 'error');
     return;
   }
   const u = (state && state.currentUserId) ? state.users[state.currentUserId] : null;
@@ -16650,7 +16650,7 @@ function _pricingSubscribe() {
 // usually wants the payment surface front-and-center anyway.
 function _redirectToStripeCheckout(userId, email) {
   const base = STRIPE_LINKS.subscription;
-  if (!base) { toast('Stripe payment link not configured', 'error'); return; }
+  if (!base) { toast('Subscriptions not configured', 'error'); return; }
   let url;
   try {
     url = new URL(base);
@@ -16665,7 +16665,7 @@ function _redirectToStripeCheckout(userId, email) {
     window.location.assign(base + (qs.length ? sep + qs.join('&') : ''));
     return;
   }
-  toast('Redirecting to Stripe…', 'good');
+  toast('Redirecting to secure payment portal…', 'good');
   // Tiny delay so the toast has a chance to flash before the navigation
   setTimeout(() => { window.location.assign(url.toString()); }, 250);
 }
@@ -16682,7 +16682,7 @@ function _renderSignupCheckoutBanner() {
       banner = document.createElement('div');
       banner.id = 'signupStripeBanner';
       banner.style.cssText = 'padding:12px 14px;background:linear-gradient(135deg,rgba(231,143,79,.18),rgba(231,143,79,.06));border:1px solid rgba(231,143,79,.5);border-radius:9px;font-size:12.5px;line-height:1.5;color:var(--warm);margin-bottom:4px';
-      banner.innerHTML = '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;letter-spacing:.18em;color:#e78f4f;text-transform:uppercase;font-weight:700;margin-bottom:4px">STEP 1 OF 2</div><div>Create your Bandmate account, then we\'ll send you to Stripe to start your $49.99/mo subscription.</div>';
+      banner.innerHTML = '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;letter-spacing:.18em;color:#e78f4f;text-transform:uppercase;font-weight:700;margin-bottom:4px">STEP 1 OF 2</div><div>Create your Bandmate account, then continue to our secure payment portal to start your $49.99/mo subscription.</div>';
       const h = form.querySelector('h3');
       if (h && h.nextSibling) form.insertBefore(banner, h.nextSibling);
       else form.insertBefore(banner, form.firstChild);
@@ -17089,7 +17089,7 @@ function _renderLoginCheckoutBanner() {
       banner = document.createElement('div');
       banner.id = 'loginStripeBanner';
       banner.style.cssText = 'padding:12px 14px;background:linear-gradient(135deg,rgba(231,143,79,.18),rgba(231,143,79,.06));border:1px solid rgba(231,143,79,.5);border-radius:9px;font-size:12.5px;line-height:1.5;color:var(--warm);margin-bottom:4px';
-      banner.innerHTML = '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;letter-spacing:.18em;color:#e78f4f;text-transform:uppercase;font-weight:700;margin-bottom:4px">STEP 1 OF 2</div><div>Sign in, then we\'ll send you to Stripe to start your $49.99/mo subscription.</div>';
+      banner.innerHTML = '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;letter-spacing:.18em;color:#e78f4f;text-transform:uppercase;font-weight:700;margin-bottom:4px">STEP 1 OF 2</div><div>Sign in, then continue to our secure payment portal to start your $49.99/mo subscription.</div>';
       const h = form.querySelector('h3');
       if (h && h.nextSibling) form.insertBefore(banner, h.nextSibling);
       else form.insertBefore(banner, form.firstChild);
