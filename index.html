@@ -4206,44 +4206,21 @@ const db = {
   // then stamps the tour record with the metadata. Returns true on success.
   async uploadArtistLogo(file) {
     if (!sb) { toast('Auth service not loaded — refresh the page', 'error'); return false; }
-    // Verify the Supabase session is live BEFORE attempting the upload.
-    // If getSession returns null, try a refreshSession() as a recovery
-    // step — the refresh token in storage often still works even when
-    // the access token has gone missing or expired. This dramatically
-    // reduces the "session missing" false-positive rate.
-    let sessionUserId = null;
-    try {
-      let { data: { session } } = await sb.auth.getSession();
-      if (!session) {
-        console.log('[logo.upload] no session from getSession, trying refreshSession()...');
-        const refresh = await sb.auth.refreshSession();
-        session = refresh?.data?.session || null;
-        if (session) console.log('[logo.upload] refreshSession recovered the session');
-      }
-      sessionUserId = session?.user?.id || null;
-    } catch (e) {
-      console.warn('[logo.upload] session lookup threw:', e);
-    }
-    if (!sessionUserId) {
-      toast('Your Supabase session is missing or expired. Sign out and sign back in, then try again.', 'error');
-      return false;
-    }
+    // Don't pre-check the session — go straight to the upload. The SDK
+    // uses its in-memory session for storage calls; if signin recently
+    // succeeded that memory-side session works even when localStorage
+    // shows nothing. Just attempt the upload and surface the real error
+    // if Supabase rejects it.
     if (!state?.currentUserId) { toast('Sign in first', 'error'); return false; }
-    if (sessionUserId !== state.currentUserId) {
-      toast('Auth mismatch — sign out and sign back in to refresh your session.', 'error');
-      return false;
-    }
     const tour = state.tours[state.currentTourId];
     if (!tour || !_isUuid(tour.id)) { toast('Pick a tour first (this tour was created locally and never synced)', 'error'); return false; }
-    if (tour.ownerId !== sessionUserId) {
-      toast(`Only the tour owner can upload a logo for this tour.`, 'error');
-      return false;
-    }
+    if (tour.ownerId !== state.currentUserId) { toast('Only the tour owner can upload a logo for this tour.', 'error'); return false; }
     if (file.type !== 'image/png') { toast('PNG files only', 'error'); return false; }
     const LIMIT = 2 * 1024 * 1024;
     if (file.size > LIMIT) { toast(`Logo must be 2 MB or smaller (yours is ${(file.size/1024/1024).toFixed(1)} MB)`, 'error'); return false; }
     const ts = Date.now();
     const storagePath = `${tour.id}/_artist-logo-${ts}.png`;
+    console.log('[logo.upload] attempting upload to', storagePath);
     if (tour.artistLogo?.storagePath) {
       try { await sb.storage.from('attachments').remove([tour.artistLogo.storagePath]); } catch (e) {}
     }
@@ -4251,13 +4228,16 @@ const db = {
       cacheControl: '3600', contentType: 'image/png', upsert: false,
     });
     if (upErr) {
-      // Bypass _err's silent RLS-swallow for this user-initiated path.
-      // The user clicked Upload, they need to see what went wrong.
       console.error('[db.uploadArtistLogo] upload failed:', upErr);
-      if (/row-level security|row level security/i.test(upErr.message || '')) {
-        toast('Upload blocked by Supabase security policy. Run patch-005 if you haven\'t, or sign out + back in to refresh your session.', 'error');
+      const msg = upErr.message || String(upErr);
+      if (/jwt|auth|401|unauthorized|session/i.test(msg)) {
+        toast('Auth expired — sign out and sign back in to refresh your session, then try again.', 'error');
+      } else if (/row-level security|row level security/i.test(msg)) {
+        toast('Upload blocked by Supabase security policy. Run patch-005 SQL if you haven\'t.', 'error');
+      } else if (/bucket/i.test(msg)) {
+        toast('Storage bucket "attachments" not found — create it in Supabase Dashboard → Storage.', 'error');
       } else {
-        toast(`Upload failed: ${upErr.message || upErr}`, 'error');
+        toast(`Upload failed: ${msg}`, 'error');
       }
       return false;
     }
