@@ -3351,127 +3351,216 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 .route-row .rr-venue{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
 
 /* ============================================================
-   MOBILE LAYOUT (iPhone-friendly)
+   MOBILE LAYOUT (iPhone-friendly) — V3
    ───────────────────────────────────────────────────────────
-   Activates ONLY at ≤768px wide. Desktop is byte-for-byte
-   unchanged above this breakpoint. Auto-detects viewport
-   width — no URL change, no manual toggle. Works at bandmate.art
-   on any device.
+   Activates via BOTH the media query AND a `body.mobile` class
+   that JS adds when viewport is ≤768px. The body-class prefix
+   bumps every rule's specificity above the desktop rules, so
+   the override is guaranteed to win even if some earlier
+   selector tried to be more specific.
+
+   Desktop is byte-for-byte unchanged: `body.mobile` is never
+   added at >768px, and the media query wraps the whole block.
    ============================================================ */
 @media (max-width: 768px) {
-  body { font-size: 14px }
+  html, body.mobile {
+    overflow-x: hidden !important;
+    max-width: 100vw !important;
+  }
+  body.mobile { font-size: 14px }
+  body.mobile #app,
+  body.mobile .console,
+  body.mobile .console-body,
+  body.mobile .panels-wrap,
+  body.mobile .panel,
+  body.mobile .topbar,
+  body.mobile .day-strip-wrap,
+  body.mobile .console-head,
+  body.mobile .tape-strip {
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+  }
 
-  /* Console: full-bleed, no rounded corners eating phone screen */
-  .console { border-radius: 0; margin: 0; border-left: none; border-right: none }
-  .console-head { padding: 9px 12px; flex-wrap: wrap; gap: 6px; min-height: 0 }
-  .console-head .title { font-size: 10px; letter-spacing: .12em }
-  .console-head .actions { gap: 4px; flex-wrap: wrap }
-  .console-head .actions .btn { padding: 5px 9px; font-size: 10px; letter-spacing: .06em }
+  /* ─── TOPBAR ───
+     Desktop uses display:grid with 3 columns. Force flex-column to stack. */
+  body.mobile .topbar {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    padding: 8px 12px !important;
+    grid-template-columns: none !important;
+  }
+  body.mobile .laminate-wrap { display: flex !important; align-items: center; justify-content: space-between; gap: 8px; width: 100% }
+  body.mobile .laminate { padding: 5px 10px !important; gap: 8px }
+  body.mobile .laminate .tag { font-size: 9px; letter-spacing: .14em }
+  body.mobile .brand-logo { height: 20px !important }
 
-  /* Top bar: compact, allow wrap so tour name + logo + date range stack */
-  .topbar { padding: 8px 12px; flex-wrap: wrap; gap: 6px; min-height: 0 }
-  #tourName { font-size: 13px }
-  #tourStats, #tourRange, #tourPresenter { font-size: 10px }
-  .day-strip { padding: 4px 12px 6px 0 }
+  /* Tour banner — center, small, no decorative side rules */
+  body.mobile .tour-banner { padding: 2px 4px !important; gap: 1px; width: 100% }
+  body.mobile .tour-banner::before,
+  body.mobile .tour-banner::after { display: none !important }
+  body.mobile .tour-banner .name { font-size: 11.5px !important; letter-spacing: .1em; line-height: 1.3 }
+  body.mobile .tour-banner .sub { font-size: 9px !important; letter-spacing: .08em; gap: 5px; flex-wrap: wrap; justify-content: center }
 
-  /* Sidebar tabs already collapse to horizontal scroller at 900px.
-     At phone size, tighten further so more chips fit per screen. */
-  .tabs { padding: 0 }
-  .tab { padding: 9px 11px; font-size: 10px; letter-spacing: .12em; gap: 6px }
-  .tab .num { font-size: 9px }
-  .tab.tab-fixed:first-of-type::after { display: none }
+  /* Right cluster — pack into a single row */
+  body.mobile .right-cluster {
+    display: flex !important; justify-content: flex-end; gap: 6px; flex-wrap: wrap; width: 100%;
+  }
+  body.mobile .role-pill { padding: 3px 8px 3px 4px !important; font-size: 9.5px !important; gap: 5px; letter-spacing: .06em }
+  body.mobile .role-pill .avatar { width: 18px !important; height: 18px !important; font-size: 8px }
+  body.mobile .role-pill .ts-tour { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+  body.mobile .role-pill .ts-role { font-size: 8.5px; letter-spacing: .12em }
+  body.mobile .account-pill { padding: 3px 6px 3px 4px !important; gap: 4px; font-size: 9.5px !important }
+  body.mobile .account-pill .ap-name { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+  body.mobile .icon-btn { width: 26px !important; height: 26px !important; font-size: 14px }
+  body.mobile .travel-assist-btn { padding: 4px 8px !important; font-size: 9.5px !important; gap: 4px }
 
-  /* Panel padding: less so content stretches to screen edges */
-  .panel { padding: 14px 12px }
+  /* Tape strip — hide on mobile */
+  body.mobile .tape-strip { display: none !important }
 
-  /* Section title: wrap properly so action buttons stack below the H2 */
-  .section-title { gap: 6px; margin-bottom: 12px }
-  .section-title h2 { font-size: 18px }
-  .section-title .crumb,
-  .section-title .stamp { font-size: 10px; letter-spacing: .08em }
-  .section-title .flex1 { flex-basis: 100% }
+  /* Day strip */
+  body.mobile .day-strip-wrap { padding: 6px 12px 8px !important; gap: 6px }
+  body.mobile .day-strip { gap: 4px !important; padding: 2px 14px 4px 0 }
+  body.mobile .day-add-btn { padding: 5px 8px !important; font-size: 9.5px !important; white-space: nowrap }
+  body.mobile .day-pill { min-width: 110px !important; padding: 6px 10px !important }
 
-  /* Dashboard hero (Dash hero 2-col + Hero tile strip): stack into 2-col */
-  .dash-hero { grid-template-columns: 1fr; gap: 12px; margin-bottom: 12px }
-  .bm-hero-strip { grid-template-columns: 1fr 1fr; gap: 8px }
-  .bm-hero-tile { padding: 8px 8px; border-right: none; border: 1px solid var(--line); border-radius: 8px }
-  .bm-hero-tile .val { font-size: 16px }
-  .bm-hero-tile .lbl { font-size: 10px }
-  .bm-hero-tile .sub { font-size: 10px }
+  /* ─── CONSOLE ─── */
+  body.mobile .console { border-radius: 0 !important; margin: 0; border-left: none; border-right: none }
+  body.mobile .console-head { padding: 8px 12px !important; flex-wrap: wrap; gap: 6px; min-height: 0 }
+  body.mobile .console-head .title { font-size: 10px; letter-spacing: .1em }
+  body.mobile .console-head .actions { gap: 4px; flex-wrap: wrap }
+  body.mobile .console-head .actions .btn { padding: 4px 8px; font-size: 9.5px !important; letter-spacing: .06em }
+  body.mobile .console-head .title .live { width: 6px; height: 6px }
 
-  /* Dashboard cards: one column on mobile */
-  .bm-cards { grid-template-columns: 1fr; gap: 10px }
-  .bm-card { padding: 12px }
-  .bm-card.span-2 { grid-column: auto }
-  .bm-card .card-h { padding: 8px 10px; gap: 6px; flex-wrap: wrap }
-  .bm-card .card-h .h { font-size: 11px }
-  .bm-card .card-body { padding: 10px }
+  /* ─── SIDEBAR / TABS ───
+     Force horizontal scroller regardless of width-only breakpoint */
+  body.mobile .console-body {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+  }
+  body.mobile .tabs {
+    flex: 0 0 auto !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    max-width: 100vw !important;
+    width: 100%;
+    padding: 0 !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--line) !important;
+  }
+  body.mobile .tab {
+    padding: 8px 11px !important;
+    font-size: 9.5px !important;
+    letter-spacing: .1em !important;
+    gap: 5px;
+    white-space: nowrap;
+    border-bottom: none !important;
+    border-right: 1px solid var(--line) !important;
+  }
+  body.mobile .tab .num { font-size: 8.5px }
+  body.mobile .tab:hover, body.mobile .tab.active { padding-left: 11px !important }
+  body.mobile .tab.active::before { left: 0; right: 0; top: auto; bottom: 0; width: auto !important; height: 2px }
+  body.mobile .tab.tab-fixed:first-of-type { margin-top: 0; border-top: none }
+  body.mobile .tab.tab-fixed:first-of-type::after { display: none }
+  body.mobile .panels-wrap { flex: 1; width: 100% !important; min-width: 0 !important }
 
-  /* KPI grid: 2-up on phone, 1-up on very narrow phones */
-  .k-grid { grid-template-columns: 1fr 1fr; gap: 8px }
-  .kpi { padding: 12px }
-  .kpi .value { font-size: 16px }
-  .kpi .label { font-size: 10px }
+  /* ─── PANEL CONTENT ─── */
+  body.mobile .panel { padding: 12px 12px 60px !important; min-width: 0; width: 100% }
 
-  /* Phone preview rig — hide entirely (user IS on a phone now) */
-  .phone-rig { display: none !important }
+  /* Section title */
+  body.mobile .section-title { gap: 6px; margin-bottom: 12px; flex-wrap: wrap }
+  body.mobile .section-title h2 { font-size: 18px; margin: 0 }
+  body.mobile .section-title .crumb,
+  body.mobile .section-title .stamp { font-size: 10px; letter-spacing: .08em }
+  body.mobile .section-title .flex1 { flex-basis: 100%; height: 0 }
 
-  /* Modals: full-screen on mobile rather than centered card */
-  .modal-overlay { padding: 0; align-items: stretch }
-  .modal,
-  .modal.lg,
-  .modal.xl { max-width: 100vw; max-height: 100vh; width: 100vw; height: 100vh; border-radius: 0; margin: 0 }
-  .modal-head { padding: 12px 14px; position: sticky; top: 0; background: rgba(20,15,11,.98); z-index: 5 }
-  .modal-head h3 { font-size: 15px }
-  .modal-body { padding: 14px; max-height: calc(100vh - 110px); overflow-y: auto }
-  .modal-foot { padding: 10px 14px; position: sticky; bottom: 0; background: rgba(20,15,11,.98); flex-wrap: wrap; gap: 6px }
-  .modal-foot button { flex: 1 1 auto; min-width: 100px }
+  /* Dashboard hero */
+  body.mobile .dash-hero { grid-template-columns: 1fr !important; gap: 10px; margin-bottom: 12px }
+  body.mobile .bm-hero-strip { grid-template-columns: 1fr 1fr !important; gap: 8px; padding: 8px }
+  body.mobile .bm-hero-tile { padding: 8px; border-right: none; border: 1px solid var(--line); border-radius: 8px; min-width: 0 }
+  body.mobile .bm-hero-tile .val { font-size: 15px }
+  body.mobile .bm-hero-tile .lbl { font-size: 9.5px; letter-spacing: .12em }
+  body.mobile .bm-hero-tile .sub { font-size: 9.5px }
 
-  /* Form fields: stack one column. font-size:16px on inputs prevents iOS
-     from auto-zooming when the user taps to focus a field. */
-  .form-grid { grid-template-columns: 1fr; gap: 10px }
-  .field.full { grid-column: auto }
-  .field input,
-  .field select,
-  .field textarea { font-size: 16px }
+  /* Dashboard cards: 1 column */
+  body.mobile .bm-cards { grid-template-columns: 1fr !important; gap: 10px }
+  body.mobile .bm-card { padding: 0; min-width: 0 }
+  body.mobile .bm-card.span-2 { grid-column: auto !important }
+  body.mobile .bm-card .card-h { padding: 10px 12px !important; gap: 6px; flex-wrap: wrap; font-size: 11px }
+  body.mobile .bm-card .card-h .h { font-size: 11px }
+  body.mobile .bm-card .card-body { padding: 10px 12px !important }
 
-  /* Tables: edge-to-edge with horizontal scroll, smaller fonts */
-  .tbl { border-radius: 0; border-left: none; border-right: none; margin: 0 -12px; font-size: 12px }
-  .tbl-row > .c { padding: 8px 10px }
-  .tbl-actions button { padding: 5px 8px; font-size: 10px }
+  /* KPI grid */
+  body.mobile .k-grid { grid-template-columns: 1fr 1fr !important; gap: 8px }
+  body.mobile .kpi { padding: 12px }
+  body.mobile .kpi .value { font-size: 16px }
+  body.mobile .kpi .label { font-size: 9.5px; letter-spacing: .12em }
+  body.mobile .kpi .delta { font-size: 10px }
 
-  /* Crew profiles grid: 1 column */
-  .profiles-grid { grid-template-columns: 1fr !important; gap: 10px }
-  .profile-tile { padding: 12px }
+  /* Phone preview rig — hide */
+  body.mobile .phone-rig { display: none !important }
 
-  /* Profiles toolbar buttons wrap nicely */
-  .profiles-toolbar { gap: 6px; flex-wrap: wrap }
-  .profiles-toolbar .tb-btn { padding: 6px 10px; font-size: 10px }
+  /* Modals: full-screen */
+  body.mobile .modal-overlay { padding: 0; align-items: stretch }
+  body.mobile .modal,
+  body.mobile .modal.lg,
+  body.mobile .modal.xl {
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+    margin: 0;
+  }
+  body.mobile .modal-head { padding: 12px 14px; position: sticky; top: 0; background: rgba(20,15,11,.98); z-index: 5 }
+  body.mobile .modal-head h3 { font-size: 15px }
+  body.mobile .modal-body { padding: 14px; max-height: calc(100vh - 110px); overflow-y: auto }
+  body.mobile .modal-foot { padding: 10px 14px; position: sticky; bottom: 0; background: rgba(20,15,11,.98); flex-wrap: wrap; gap: 6px }
+  body.mobile .modal-foot button { flex: 1 1 auto; min-width: 100px }
 
-  /* Tile grid: 1 column */
-  .tile-grid { grid-template-columns: 1fr; gap: 10px }
+  /* Form fields. 16px input font stops iOS auto-zoom on focus. */
+  body.mobile .form-grid { grid-template-columns: 1fr !important; gap: 10px }
+  body.mobile .field.full { grid-column: auto !important }
+  body.mobile .field input, body.mobile .field select, body.mobile .field textarea { font-size: 16px !important }
 
-  /* Onboarding + login overlays — comfortable on mobile */
-  .onboard-overlay .onboard { padding: 16px 14px; max-width: 100vw }
-  #loginScreen,
-  #landingScreen,
-  #pricingScreen,
-  #welcomeScreen { padding: 14px 12px }
+  /* Tables */
+  body.mobile .tbl { border-radius: 0; border-left: none; border-right: none; margin: 0 -12px; font-size: 12px; max-width: 100vw }
+  body.mobile .tbl-row > .c { padding: 8px 10px }
+  body.mobile .tbl-actions button { padding: 5px 8px; font-size: 10px }
 
-  /* Toast notifications take a useful slice of the screen */
-  .toast { left: 12px; right: 12px; max-width: none; font-size: 12px }
+  /* Crew profiles + tile grids: 1 column */
+  body.mobile .profiles-grid { grid-template-columns: 1fr !important; gap: 10px }
+  body.mobile .profile-tile { padding: 12px }
+  body.mobile .tile-grid { grid-template-columns: 1fr !important; gap: 10px }
 
-  /* Top action buttons in tour console — wrap */
-  .tb-btn { padding: 6px 10px; font-size: 10px }
+  /* Profile toolbar */
+  body.mobile .profiles-toolbar { gap: 6px; flex-wrap: wrap }
+  body.mobile .profiles-toolbar .tb-btn { padding: 6px 10px; font-size: 10px }
 
-  /* Console-head live indicator slightly smaller */
-  .console-head .title .live { width: 6px; height: 6px }
+  /* Onboarding / login / pricing */
+  body.mobile .onboard-overlay .onboard { padding: 16px 14px; max-width: 100vw }
+  body.mobile #loginScreen, body.mobile #landingScreen, body.mobile #pricingScreen, body.mobile #welcomeScreen { padding: 14px 12px }
+
+  /* Toast */
+  body.mobile .toast { left: 12px; right: 12px; max-width: none; font-size: 12px }
+
+  body.mobile .tb-btn { padding: 6px 10px; font-size: 10px }
+
+  /* Canvas (ambient watermark) */
+  body.mobile canvas { max-width: 100vw }
 }
 
-/* Very narrow phones (iPhone SE 1st gen, etc.) — collapse 2-col KPIs/tiles */
+/* Very narrow phones (iPhone SE 1st gen, 320px etc.) */
 @media (max-width: 380px) {
-  .bm-hero-strip { grid-template-columns: 1fr }
-  .k-grid { grid-template-columns: 1fr }
+  body.mobile .bm-hero-strip { grid-template-columns: 1fr !important }
+  body.mobile .k-grid { grid-template-columns: 1fr !important }
+  body.mobile .role-pill .ts-tour, body.mobile .role-pill .ts-role { display: none }
+  body.mobile .account-pill .ap-name { max-width: 60px }
+  body.mobile .tour-banner .name { font-size: 11px !important }
 }
 
 </style>
@@ -20505,6 +20594,25 @@ Object.assign(window, {
 });
 
 try { init(); } catch (e) { console.error("init failed:", e); }
+
+// Mobile-mode flag: add `body.mobile` whenever the viewport is ≤768px
+// wide. CSS rules in the @media block use the .mobile body class to
+// hike specificity above the desktop layout selectors. Re-evaluates on
+// resize / orientation change so rotating the phone keeps the layout
+// correct.
+(function setupMobileFlag() {
+  const MOBILE_QUERY = window.matchMedia('(max-width: 768px)');
+  const apply = () => {
+    if (MOBILE_QUERY.matches) document.body.classList.add('mobile');
+    else document.body.classList.remove('mobile');
+  };
+  apply();
+  // Modern browsers support .addEventListener on MediaQueryList; older
+  // iOS Safari only has .addListener. Try modern first, fall back.
+  if (MOBILE_QUERY.addEventListener) MOBILE_QUERY.addEventListener('change', apply);
+  else if (MOBILE_QUERY.addListener) MOBILE_QUERY.addListener(apply);
+  window.addEventListener('orientationchange', apply);
+})();
 
 // PWA service worker · register once on boot. Cache strategy lives in
 // sw.js — see that file for the network-first vs cache-first split.
