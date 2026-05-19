@@ -169,5 +169,4 @@ function escapeHtml(s) {
     .replace(/'/g, '&#39;');
 }
 function escapeAttr(s) { return escapeHtml(s); }
-Move crew-invite into /api/
   
