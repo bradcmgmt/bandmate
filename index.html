@@ -952,9 +952,18 @@ input,select,textarea{font:inherit;color:inherit}
 .adv-techpack-actions{display:flex;gap:4px;flex:none}
 
 /* settlement table */
-.settle-row{grid-template-columns:90px 1.4fr 110px 130px 1fr 100px 90px}
-.settle-row .city{font-weight:700;font-size:13.5px;color:var(--warm)}
-.settle-row .city span{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);display:block;letter-spacing:.06em}
+/* Grid columns: Date / City+Promoter / Guarantee / Final / Notes / Status / Action.
+   Tight fixed widths on the numeric + action cells keep the row inside the
+   container at typical content widths; the City and Notes cells stay flexible
+   so the row never overflows. Min-width:0 lets cells shrink instead of
+   forcing horizontal scroll. Right-pad on the action cell keeps the SETTLE
+   button from kissing (or clipping past) the rounded .tbl border. */
+.settle-row{grid-template-columns:72px minmax(140px,1.3fr) 96px 108px minmax(90px,1fr) 84px 78px;min-width:0}
+.settle-row > .c{min-width:0;overflow:hidden}
+.settle-row .tbl-actions{padding-right:8px;justify-content:flex-end}
+.settle-row .tbl-actions button{white-space:nowrap}
+.settle-row .city{font-weight:700;font-size:13.5px;color:var(--warm);min-width:0;overflow:hidden;text-overflow:ellipsis}
+.settle-row .city span{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);display:block;letter-spacing:.06em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .amt{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;color:var(--warm)}
 .amt.pos{color:var(--good)}
 .amt.pending{color:var(--hi)}
@@ -7395,6 +7404,22 @@ const TOURING_VENUES = [
   // Hawaii & Alaska
   _TV('The Republik','Honolulu, HI'),_TV('Bar 35','Honolulu, HI'),_TV('The Crossroads','Honolulu, HI'),
   _TV('Williwaw','Anchorage, AK'),_TV('Koots','Anchorage, AK'),
+  // ─── Pulled from 6arelyhuman 2025 routing (Wasserman itinerary, 05.13.2025) ───
+  // US venues
+  _TV('The Echo Lounge & Music Hall','Dallas, TX'),_TV('Brooklyn Bowl Philadelphia','Philadelphia, PA'),
+  _TV('District Music Hall','Norwalk, CT'),_TV('The King of Clubs','Columbus, OH'),
+  _TV('The Bottleneck','Lawrence, KS'),_TV('Long Beach Convention Center','Long Beach, CA'),
+  // Canada
+  _TV('Foufounes Electriques','Montreal, QC'),
+  // UK
+  _TV('The Garage Glasgow','Glasgow, UK'),_TV('The Key Club','Leeds, UK'),
+  _TV('Academy 2','Manchester, UK'),_TV('O2 Academy Islington','London, UK'),
+  // Europe / Baltic
+  _TV('TAMA','Poznań, Poland'),_TV('Kwadrat','Krakow, Poland'),_TV('Proxima','Warsaw, Poland'),
+  _TV('Rock for People','Hradec Králové, Czech Republic'),_TV('Lucerna Music Bar','Prague, Czech Republic'),
+  _TV('Kablys & Kultūra','Vilnius, Lithuania'),_TV('Helitehas','Tallinn, Estonia'),
+  _TV('Tiivistämö','Helsinki, Finland'),_TV('Palladium Riga','Riga, Latvia'),
+  _TV('Hole44','Berlin, Germany'),_TV('Luxor','Cologne, Germany'),
 ];
 function openGuestModal(guestId) {
   const ad = getActiveDate();
@@ -9528,6 +9553,9 @@ function renderAccounting() {
       <h2>Settlements</h2>
       <span class="crumb">/ ${T().dates.length} DATES · ${T().meta.currency}</span>
       <span class="stamp">${settledCount} / ${showDates.length} SETTLED</span>
+      <span class="flex1"></span>
+      <button type="button" class="tb-btn primary" onclick="exportSettlementReportCSV()" title="Download a CSV of every show — guarantee, final settlement, deductions, status. Email it to your client's business manager.">↓ Export settlement report</button>
+      <button type="button" class="tb-btn" onclick="printSettlementReport()" title="Open a printable settlement summary — print to PDF and send to the business manager">🖨 Printable</button>
     </div>
 
     <div class="k-grid mb12">
@@ -9560,6 +9588,190 @@ function renderAccounting() {
       }).join('')}
     </div>
   `;
+}
+
+// Export a settlement report as CSV — the format business managers and
+// accountants expect. Opens cleanly in Excel / Google Sheets / Numbers.
+// One row per show, columns: Date, City, State, Venue, Promoter, Capacity,
+// Guarantee, Final, Deductions, Net, Status, Settled Date, Notes. A
+// totals row at the bottom does the math so the manager can sanity-check.
+function exportSettlementReportCSV() {
+  const showDates = (T().dates || []).filter(d => d.status === 'show');
+  if (!showDates.length) { toast('No show dates to export — add shows first', 'error'); return; }
+  const cur = T().meta?.currency || 'USD';
+  const headers = ['Date','City','State','Venue','Promoter','Capacity','Guarantee ('+cur+')','Final ('+cur+')','Deductions ('+cur+')','Net ('+cur+')','Status','Settled date','Notes'];
+  const rows = [headers];
+  let totalGuar = 0, totalFinal = 0, totalDed = 0;
+  showDates.forEach(d => {
+    const s = d.settlement || {};
+    const guar = parseFloat(s.guarantee) || 0;
+    const fin  = parseFloat(s.finalAmount) || 0;
+    // Deductions can be a number OR a free-text string ("$500 sound bill,
+    // $200 catering overage"). Try numeric parse first; if the value is
+    // text, surface it as-is in the deductions column and don't include
+    // it in the Net calculation (the manager needs to read it).
+    const dedRaw = s.deductions;
+    let dedNum = 0, dedText = '';
+    if (typeof dedRaw === 'number') dedNum = dedRaw;
+    else if (typeof dedRaw === 'string') {
+      const parsed = parseFloat(dedRaw.replace(/[^0-9.\-]/g,''));
+      if (!isNaN(parsed) && /^[\s$\-0-9.,]+$/.test(dedRaw)) dedNum = parsed;
+      else dedText = dedRaw;
+    }
+    const net = s.settled ? (fin - dedNum) : 0;
+    totalGuar += guar;
+    if (s.settled) { totalFinal += fin; totalDed += dedNum; }
+    rows.push([
+      d.date || '',
+      d.city || '',
+      d.state || '',
+      d.venue || '',
+      d.promoter || '',
+      d.capacity || '',
+      guar ? guar.toFixed(2) : '',
+      s.settled && fin ? fin.toFixed(2) : '',
+      dedNum ? dedNum.toFixed(2) : (dedText || ''),
+      s.settled ? net.toFixed(2) : '',
+      s.settled ? 'Settled' : (d.date < todayISO() ? 'Awaiting' : 'Upcoming'),
+      s.settledAt ? new Date(s.settledAt).toISOString().slice(0,10) : '',
+      (s.notes || '').replace(/\s+/g, ' ').trim(),
+    ]);
+  });
+  // Totals row at bottom — only sums settled rows for final/net so the
+  // numbers actually represent money received, not theoretical guarantees.
+  rows.push([]);
+  rows.push(['TOTAL — Guaranteed','','','','','', totalGuar.toFixed(2), '', '', '', '', '', '']);
+  rows.push(['TOTAL — Settled (received)','','','','','', '', totalFinal.toFixed(2), totalDed.toFixed(2), (totalFinal - totalDed).toFixed(2), '', '', '']);
+
+  const csv = rows.map(r => r.map(v => {
+    const s = String(v == null ? '' : v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  }).join(',')).join('\n');
+  const artist = (T().meta?.artist || T().meta?.tourName || 'tour').replace(/[^a-z0-9]+/gi,'-').toLowerCase();
+  downloadFile(`bandmate-${artist}-settlement-report-${todayISO()}.csv`, csv, 'text/csv');
+  toast('Settlement report exported', 'good');
+}
+
+// Open a print-friendly settlement summary in a new window. Business
+// managers often want a clean one-page (or few-page) PDF rather than a
+// raw CSV — this gives them that. The user picks "Save as PDF" in their
+// browser print dialog. Same data as the CSV export but with tour
+// branding + a totals block at the top.
+function printSettlementReport() {
+  const showDates = (T().dates || []).filter(d => d.status === 'show');
+  if (!showDates.length) { toast('No show dates to print — add shows first', 'error'); return; }
+  const cur = T().meta?.currency || 'USD';
+  const curSym = ({ USD:'$', CAD:'$', EUR:'€', GBP:'£', AUD:'$', JPY:'¥' })[cur] || '$';
+  const artist = T().meta?.artist || '';
+  const tourName = T().meta?.tourName || 'Tour';
+  let totalGuar = 0, totalFinal = 0, totalDed = 0;
+  showDates.forEach(d => {
+    const s = d.settlement || {};
+    totalGuar += parseFloat(s.guarantee) || 0;
+    if (s.settled) {
+      totalFinal += parseFloat(s.finalAmount) || 0;
+      const dedRaw = s.deductions;
+      const dedNum = typeof dedRaw === 'number'
+        ? dedRaw
+        : (typeof dedRaw === 'string' && /^[\s$\-0-9.,]+$/.test(dedRaw) ? (parseFloat(dedRaw.replace(/[^0-9.\-]/g,'')) || 0) : 0);
+      totalDed += dedNum;
+    }
+  });
+  const settledCount = showDates.filter(d => d.settlement?.settled).length;
+  const rowsHtml = showDates.map(d => {
+    const s = d.settlement || {};
+    const guar = parseFloat(s.guarantee) || 0;
+    const fin  = parseFloat(s.finalAmount) || 0;
+    const dedRaw = s.deductions;
+    const dedNum = typeof dedRaw === 'number'
+      ? dedRaw
+      : (typeof dedRaw === 'string' && /^[\s$\-0-9.,]+$/.test(dedRaw) ? (parseFloat(dedRaw.replace(/[^0-9.\-]/g,'')) || 0) : 0);
+    const dedText = (typeof dedRaw === 'string' && !/^[\s$\-0-9.,]+$/.test(dedRaw)) ? dedRaw : '';
+    const net = s.settled ? (fin - dedNum) : 0;
+    const status = s.settled ? 'Settled' : (d.date < todayISO() ? 'Awaiting' : 'Upcoming');
+    const fmt = n => n ? curSym + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+    return `
+      <tr>
+        <td>${esc(d.date || '')}</td>
+        <td>${esc(d.city || '')}${d.state ? ', ' + esc(d.state) : ''}</td>
+        <td>${esc(d.venue || '')}</td>
+        <td>${esc(d.promoter || '')}</td>
+        <td class="num">${fmt(guar)}</td>
+        <td class="num">${s.settled ? fmt(fin) : '—'}</td>
+        <td class="num">${dedNum ? fmt(dedNum) : (dedText ? esc(dedText) : '—')}</td>
+        <td class="num"><b>${s.settled ? fmt(net) : '—'}</b></td>
+        <td><span class="status status-${s.settled?'settled':(d.date<todayISO()?'awaiting':'upcoming')}">${status}</span></td>
+      </tr>`;
+  }).join('');
+  const w = window.open('', '_blank', 'width=1100,height=800');
+  if (!w) { toast('Pop-up blocked — allow pop-ups to print', 'error'); return; }
+  const fmtTotal = n => curSym + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  w.document.write(`<!doctype html>
+<html><head>
+<meta charset="utf-8">
+<title>Settlement Report · ${esc(artist || tourName)}</title>
+<style>
+  * { box-sizing: border-box }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; color: #1a1410; background: #fff; margin: 0; padding: 36px 44px; font-size: 13px; line-height: 1.4 }
+  h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: -.01em }
+  .sub { color: #666; font-size: 12px; margin: 0 0 22px; font-family: 'JetBrains Mono', Menlo, monospace; letter-spacing: .04em }
+  .totals { display: flex; gap: 12px; margin: 0 0 24px; flex-wrap: wrap }
+  .total-card { flex: 1 1 180px; border: 1px solid #ddd; border-radius: 6px; padding: 12px 14px; background: #fafafa }
+  .total-card .lbl { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #888; margin-bottom: 4px; font-family: 'JetBrains Mono', Menlo, monospace }
+  .total-card .val { font-size: 18px; font-weight: 700; font-family: 'JetBrains Mono', Menlo, monospace; color: #1a1410 }
+  .total-card .delta { font-size: 11px; color: #666; margin-top: 3px }
+  table { width: 100%; border-collapse: collapse; font-size: 12px }
+  thead th { background: #f4f0eb; text-align: left; padding: 9px 10px; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: #555; border-bottom: 2px solid #ccc; font-weight: 700 }
+  thead th.num { text-align: right }
+  tbody td { padding: 9px 10px; border-bottom: 1px solid #eee; vertical-align: top }
+  tbody td.num { text-align: right; font-family: 'JetBrains Mono', Menlo, monospace; white-space: nowrap }
+  tfoot td { padding: 12px 10px; border-top: 2px solid #1a1410; font-weight: 700; font-family: 'JetBrains Mono', Menlo, monospace }
+  tfoot td.num { text-align: right }
+  tfoot .label { letter-spacing: .12em; text-transform: uppercase; font-size: 11px }
+  .status { font-family: 'JetBrains Mono', Menlo, monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; font-weight: 700 }
+  .status-settled { color: #1a6432; background: #e1f0e3 }
+  .status-awaiting { color: #8a4a05; background: #fcefd9 }
+  .status-upcoming { color: #555; background: #eee }
+  .footer { margin-top: 28px; font-size: 10.5px; color: #888; font-family: 'JetBrains Mono', Menlo, monospace; letter-spacing: .06em; border-top: 1px solid #eee; padding-top: 14px }
+  .controls { position: fixed; top: 14px; right: 14px; display: flex; gap: 8px; z-index: 100 }
+  .controls button { padding: 8px 14px; border: 1px solid #1a1410; background: #1a1410; color: #fff; border-radius: 6px; font-size: 12px; cursor: pointer; font-family: inherit }
+  .controls button.secondary { background: #fff; color: #1a1410 }
+  @media print { .controls { display: none } body { padding: 22px 28px } }
+</style>
+</head><body>
+  <div class="controls">
+    <button class="secondary" onclick="window.close()">Close</button>
+    <button onclick="window.print()">Print / Save as PDF</button>
+  </div>
+  <h1>Settlement Report · ${esc(artist || tourName)}</h1>
+  <p class="sub">${esc(tourName)} · ${showDates.length} SHOW${showDates.length===1?'':'S'} · Generated ${todayISO()} · Currency ${esc(cur)}</p>
+  <div class="totals">
+    <div class="total-card"><div class="lbl">Total guarantee</div><div class="val">${fmtTotal(totalGuar)}</div><div class="delta">Across ${showDates.length} shows</div></div>
+    <div class="total-card"><div class="lbl">Settled — gross</div><div class="val">${fmtTotal(totalFinal)}</div><div class="delta">${settledCount} of ${showDates.length} shows</div></div>
+    <div class="total-card"><div class="lbl">Deductions</div><div class="val">${fmtTotal(totalDed)}</div><div class="delta">From settled shows</div></div>
+    <div class="total-card" style="background:#f0fcf2;border-color:#9ed8a8"><div class="lbl">Settled — net</div><div class="val" style="color:#0d5a26">${fmtTotal(totalFinal - totalDed)}</div><div class="delta">Final received after deductions</div></div>
+  </div>
+  <table>
+    <thead><tr>
+      <th>Date</th><th>City</th><th>Venue</th><th>Promoter</th>
+      <th class="num">Guarantee</th><th class="num">Final</th><th class="num">Deductions</th><th class="num">Net</th>
+      <th>Status</th>
+    </tr></thead>
+    <tbody>${rowsHtml}</tbody>
+    <tfoot><tr>
+      <td colspan="4" class="label">Totals (settled shows only)</td>
+      <td class="num">${fmtTotal(totalGuar)}</td>
+      <td class="num">${fmtTotal(totalFinal)}</td>
+      <td class="num">${fmtTotal(totalDed)}</td>
+      <td class="num">${fmtTotal(totalFinal - totalDed)}</td>
+      <td></td>
+    </tr></tfoot>
+  </table>
+  <div class="footer">Generated by Bandmate · bandmate.art · ${todayISO()}</div>
+</body></html>`);
+  w.document.close();
+  setTimeout(() => { try { w.focus(); } catch(e){} }, 100);
+  toast('Settlement report opened — use Print / Save as PDF', 'good');
 }
 
 /* =====================================================================
@@ -20109,7 +20321,7 @@ Object.assign(window, {
   _addDateRangeNext, _bulkSetRangeType, _commitDateRange,
   _calInit, _calNavMonth, _calPickDate, _calRender,
   openGuestModal, openAllotmentModal, openSetItemModal, moveSetItem, copySetList,
-  openSettleModal, openAttachModal, _attachFilePicked, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance,
+  openSettleModal, openAttachModal, _attachFilePicked, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport,
   openTaskModal, openTagModal, toggleTask,
   setActive, closeModal, _modalSubmit, goToTab,
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
