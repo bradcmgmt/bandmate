@@ -7695,15 +7695,40 @@ function renderCrewList() {
   }
   wrap.innerHTML = `<div class="tbl">
     ${T().crew.map(c => `
-      <div class="contact-row" style="grid-template-columns:46px 1fr 1.2fr 110px 80px">
+      <div class="contact-row" style="grid-template-columns:46px 1fr 1.2fr 110px 180px">
         <div class="ini">${esc(initials(c.name))}</div>
         <div class="nm">${esc(c.name)}<span>${esc(c.email || c.phone || '')}</span></div>
         <div class="org">${esc(c.role)}</div>
         <div class="role">${esc(c.type || 'Crew')}</div>
-        <div class="tbl-actions"><button type="button" onclick="openCrewMemberModal('${c.id}')">Edit</button></div>
+        <div class="tbl-actions" style="display:flex;gap:6px;justify-content:flex-end">
+          ${c.email ? `<button type="button" onclick="resendCrewInvite('${c.id}')" title="Resend the invite email to ${esc(c.email)}">Resend invite</button>` : ''}
+          <button type="button" onclick="openCrewMemberModal('${c.id}')">Edit</button>
+        </div>
       </div>
     `).join('')}
   </div>`;
+}
+
+// "Resend invite" button handler. Pulls the current crew record and
+// re-fires the invite email. Useful when a crew member loses the original
+// email, or when the TM forgot the original send was blocked, or when
+// they want to nudge someone who hasn't signed up yet.
+function resendCrewInvite(crewId) {
+  const c = T() && T().crew && T().crew.find(x => x.id === crewId);
+  if (!c) { toast('Crew member not found', 'error'); return; }
+  if (!c.email) { toast('No email on file for this crew member', 'error'); return; }
+  // Check whether this person already has a claimed Bandmate account so
+  // the email template uses the right copy ("Open Bandmate" vs "Set up
+  // your account").
+  const existing = findUserByEmail(c.email);
+  sendCrewInvite({
+    tourId: T().id,
+    tourName: T().name || 'your tour',
+    crewEmail: c.email,
+    crewName: c.name,
+    crewRole: c.role,
+    alreadyHasAccount: !!(existing && existing.claimed),
+  });
 }
 
 function openCrewMemberModal(id) {
@@ -7791,6 +7816,16 @@ function openCrewMemberModal(id) {
         if (existingUser && existingUser.claimed) {
           toast(`${name.split(' ')[0]} added — they'll see this tour on their existing Bandmate login`, 'good');
         }
+        // Fire the invite email. Non-blocking — if it fails, the crew
+        // record still saves; we just surface a soft warning toast.
+        sendCrewInvite({
+          tourId: T().id,
+          tourName: T().name || 'your tour',
+          crewEmail: email,
+          crewName: name,
+          crewRole: role,
+          alreadyHasAccount: !!(existingUser && existingUser.claimed),
+        });
       }
       saveState();
       setTimeout(openCrewModal, 100);
@@ -16691,6 +16726,38 @@ function _renderSignupCheckoutBanner() {
   } else if (banner) {
     banner.style.display = 'none';
   }
+  // Independent of subscription flow — if a crew invite was stashed at
+  // boot (via ?invite=<tour_id> in the URL), show a friendly "you're
+  // being invited" banner so the new user knows what they're joining.
+  _renderSignupInviteBanner();
+}
+
+// "You've been invited to a tour" banner on the signup form. Doesn't
+// know the tour name pre-auth (that lives behind RLS), so it stays
+// generic — the email itself has the tour name in the subject line and
+// body, and the dashboard shows the tour by name post-signup.
+function _renderSignupInviteBanner() {
+  const form = document.getElementById('signupForm');
+  if (!form) return;
+  const pending = _readPendingCrewInvite();
+  let banner = document.getElementById('signupInviteBanner');
+  if (pending) {
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'signupInviteBanner';
+      banner.style.cssText = 'padding:12px 14px;background:linear-gradient(135deg,rgba(138,169,216,.18),rgba(138,169,216,.06));border:1px solid rgba(138,169,216,.5);border-radius:9px;font-size:12.5px;line-height:1.5;color:var(--warm);margin-bottom:4px';
+      banner.innerHTML = '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;letter-spacing:.18em;color:#8aa9d8;text-transform:uppercase;font-weight:700;margin-bottom:4px">YOU\'VE BEEN INVITED</div><div>You\'re joining a tour on Bandmate. Sign up with the same email your TM used to invite you and the tour will appear in your dashboard automatically.</div>';
+      const h = form.querySelector('h3');
+      if (h && h.nextSibling) form.insertBefore(banner, h.nextSibling);
+      else form.insertBefore(banner, form.firstChild);
+    }
+    banner.style.display = '';
+    // Crew accounts only — flip the role dropdown so it defaults correctly.
+    const roleEl = document.getElementById('su_role');
+    if (roleEl) roleEl.value = 'crew';
+  } else if (banner) {
+    banner.style.display = 'none';
+  }
 }
 function _pricingInquire() {
   const subject = encodeURIComponent('Bandmate · Business plan inquiry');
@@ -16724,10 +16791,50 @@ function _pricingInquire() {
 // happen if signup were free anyway.
 // ─────────────────────────────────────────────────────────────────────
 const PENDING_SUBSCRIPTION_KEY = 'bandmate.pending.subscription';
+const PENDING_CREW_INVITE_KEY = 'bandmate.pending.crewInvite';
 
 function _isPostPaymentRedirect() {
   const q = new URLSearchParams(window.location.search || '');
   return q.get('subscribed') === '1';
+}
+
+// CREW INVITE LINK HANDLING
+//
+// When a TM adds a crew member, /api/crew-invite sends them an email
+// containing a button that lands them on bandmate.art/?invite=<tour_id>.
+// We pick that up at boot, stash it in localStorage so it survives the
+// signup flow, and route the new user through signup with a "you're
+// being invited" banner. After they finish signing up, the existing
+// findCrewMatchesByEmail logic in signUp() auto-links them to the tour.
+function _isCrewInviteRedirect() {
+  const q = new URLSearchParams(window.location.search || '');
+  return !!q.get('invite');
+}
+
+function _stashPendingCrewInvite() {
+  const q = new URLSearchParams(window.location.search || '');
+  const tourId = q.get('invite') || '';
+  if (!tourId) return null;
+  const data = { tourId, capturedAt: Date.now() };
+  try { localStorage.setItem(PENDING_CREW_INVITE_KEY, JSON.stringify(data)); } catch (e) {}
+  // Clean the param so a refresh doesn't repeatedly trigger the banner.
+  try {
+    const cleaned = new URL(window.location.href);
+    cleaned.searchParams.delete('invite');
+    window.history.replaceState({}, '', cleaned.pathname + (cleaned.search ? cleaned.search : '') + cleaned.hash);
+  } catch (e) {}
+  return data;
+}
+
+function _readPendingCrewInvite() {
+  try {
+    const raw = localStorage.getItem(PENDING_CREW_INVITE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+function _clearPendingCrewInvite() {
+  try { localStorage.removeItem(PENDING_CREW_INVITE_KEY); } catch (e) {}
 }
 
 function _stashPendingSubscription() {
@@ -17257,6 +17364,55 @@ function findCrewMatchesByEmail(email) {
   return matches;
 }
 
+// Send an invite email to a newly-added crew member. Fire-and-forget by
+// default — caller doesn't need to await; we just surface a soft toast
+// on success/failure so the TM knows the email went out. Used by:
+//   • openCrewMemberModal — fired automatically when a new crew row saves
+//   • "Resend invite" button on existing crew rows (re-send manually)
+//
+// Server is /api/crew-invite (Vercel serverless function → Resend). The
+// TM's name + email come from local state and are stitched in here so
+// replies route back to the right person.
+async function sendCrewInvite(opts) {
+  const o = opts || {};
+  if (!o.crewEmail) return; // can't send without a recipient
+  const u = U();
+  const tmName = (u && u.name) || 'Your tour manager';
+  const tmEmail = (u && u.email) || '';
+  const payload = {
+    tourId: o.tourId || '',
+    tourName: o.tourName || '',
+    crewEmail: o.crewEmail,
+    crewName: o.crewName || '',
+    crewRole: o.crewRole || '',
+    tmName,
+    tmEmail,
+    alreadyHasAccount: !!o.alreadyHasAccount,
+  };
+  try {
+    const r = await fetch('/api/crew-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (r.ok) {
+      const firstName = (o.crewName || o.crewEmail).split(/[\s@]+/)[0];
+      if (!o.silent) toast(`Invite sent to ${firstName}`, 'good');
+      return true;
+    }
+    // Non-200 — try to surface the error message if the response is JSON.
+    let msg = 'Invite email failed to send';
+    try { const j = await r.json(); if (j && j.error) msg = `Invite send failed: ${j.error}`; } catch (e) {}
+    console.warn('[sendCrewInvite]', msg);
+    if (!o.silent) toast(msg, 'error');
+    return false;
+  } catch (e) {
+    console.warn('[sendCrewInvite] network error:', e);
+    if (!o.silent) toast('Invite email failed (network) — they can still sign up directly', 'error');
+    return false;
+  }
+}
+
 async function signUp() {
   const name = (document.getElementById('su_name').value || '').trim();
   const email = (document.getElementById('su_email').value || '').trim().toLowerCase();
@@ -17348,6 +17504,16 @@ async function signUp() {
   if (pending && role === 'tm') {
     _attachSubscriptionToCurrentUser(pending);
     _clearPendingSubscription();
+  }
+  // If the user signed up via a crew invite link, clear the pending
+  // invite stash now. The actual tour-binding happens via the existing
+  // findCrewMatchesByEmail loop above — the stash was purely cosmetic
+  // (banner on the signup form). Hide any leftover banner too.
+  const pendingInvite = _readPendingCrewInvite();
+  if (pendingInvite) {
+    _clearPendingCrewInvite();
+    const inviteBanner = document.getElementById('signupInviteBanner');
+    if (inviteBanner) inviteBanner.style.display = 'none';
   }
   saveState();
   _sentrySetUser({ id: userId, email });
@@ -19635,6 +19801,23 @@ function init() {
       showWelcomeScreen();
       return;
     }
+    // Crew invite redirect (from /api/crew-invite email link). Stash
+    // the tour id so signUp() can use it later, and route the user
+    // straight to the signup form with the invite banner showing. If
+    // they're already signed in, just continue normally — the tour
+    // they were invited to will already be visible on their dashboard
+    // via the existing memberIds wiring.
+    if (_isCrewInviteRedirect()) {
+      _stashPendingCrewInvite();
+      if (!state || !state.currentUserId) {
+        showLoginScreen({ intent: 'signup' });
+        setTimeout(() => _renderSignupInviteBanner(), 80);
+        return;
+      }
+      // Already-signed-in users — proceed to normal routing; nothing
+      // more to do here, the tour link happens server-side at invite-
+      // send time and locally when they next sync.
+    }
     if (!state || !state.currentUserId) {
       // No state OR no logged-in user → land on the public-facing landing
       // page. From there, the user picks a role (TM / Band & Crew) and
@@ -19673,7 +19856,7 @@ Object.assign(window, {
   _addDateRangeNext, _bulkSetRangeType, _commitDateRange,
   _calInit, _calNavMonth, _calPickDate, _calRender,
   openGuestModal, openAllotmentModal, openSetItemModal, moveSetItem, copySetList,
-  openSettleModal, openAttachModal, _attachFilePicked, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal,
+  openSettleModal, openAttachModal, _attachFilePicked, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite,
   openTaskModal, openTagModal, toggleTask,
   setActive, closeModal, _modalSubmit, goToTab,
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,

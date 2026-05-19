@@ -5,6 +5,7 @@
   "description": "Bandmate · tour management web app + serverless API",
   "dependencies": {
     "stripe": "^17.5.0",
-    "@supabase/supabase-js": "^2.45.4"
+    "@supabase/supabase-js": "^2.45.4",
+    "resend": "^4.0.1"
   }
 }
