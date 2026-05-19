@@ -3350,6 +3350,130 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 .route-row.current .rr-city{color:var(--hi)}
 .route-row .rr-venue{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
 
+/* ============================================================
+   MOBILE LAYOUT (iPhone-friendly)
+   ───────────────────────────────────────────────────────────
+   Activates ONLY at ≤768px wide. Desktop is byte-for-byte
+   unchanged above this breakpoint. Auto-detects viewport
+   width — no URL change, no manual toggle. Works at bandmate.art
+   on any device.
+   ============================================================ */
+@media (max-width: 768px) {
+  body { font-size: 14px }
+
+  /* Console: full-bleed, no rounded corners eating phone screen */
+  .console { border-radius: 0; margin: 0; border-left: none; border-right: none }
+  .console-head { padding: 9px 12px; flex-wrap: wrap; gap: 6px; min-height: 0 }
+  .console-head .title { font-size: 10px; letter-spacing: .12em }
+  .console-head .actions { gap: 4px; flex-wrap: wrap }
+  .console-head .actions .btn { padding: 5px 9px; font-size: 10px; letter-spacing: .06em }
+
+  /* Top bar: compact, allow wrap so tour name + logo + date range stack */
+  .topbar { padding: 8px 12px; flex-wrap: wrap; gap: 6px; min-height: 0 }
+  #tourName { font-size: 13px }
+  #tourStats, #tourRange, #tourPresenter { font-size: 10px }
+  .day-strip { padding: 4px 12px 6px 0 }
+
+  /* Sidebar tabs already collapse to horizontal scroller at 900px.
+     At phone size, tighten further so more chips fit per screen. */
+  .tabs { padding: 0 }
+  .tab { padding: 9px 11px; font-size: 10px; letter-spacing: .12em; gap: 6px }
+  .tab .num { font-size: 9px }
+  .tab.tab-fixed:first-of-type::after { display: none }
+
+  /* Panel padding: less so content stretches to screen edges */
+  .panel { padding: 14px 12px }
+
+  /* Section title: wrap properly so action buttons stack below the H2 */
+  .section-title { gap: 6px; margin-bottom: 12px }
+  .section-title h2 { font-size: 18px }
+  .section-title .crumb,
+  .section-title .stamp { font-size: 10px; letter-spacing: .08em }
+  .section-title .flex1 { flex-basis: 100% }
+
+  /* Dashboard hero (Dash hero 2-col + Hero tile strip): stack into 2-col */
+  .dash-hero { grid-template-columns: 1fr; gap: 12px; margin-bottom: 12px }
+  .bm-hero-strip { grid-template-columns: 1fr 1fr; gap: 8px }
+  .bm-hero-tile { padding: 8px 8px; border-right: none; border: 1px solid var(--line); border-radius: 8px }
+  .bm-hero-tile .val { font-size: 16px }
+  .bm-hero-tile .lbl { font-size: 10px }
+  .bm-hero-tile .sub { font-size: 10px }
+
+  /* Dashboard cards: one column on mobile */
+  .bm-cards { grid-template-columns: 1fr; gap: 10px }
+  .bm-card { padding: 12px }
+  .bm-card.span-2 { grid-column: auto }
+  .bm-card .card-h { padding: 8px 10px; gap: 6px; flex-wrap: wrap }
+  .bm-card .card-h .h { font-size: 11px }
+  .bm-card .card-body { padding: 10px }
+
+  /* KPI grid: 2-up on phone, 1-up on very narrow phones */
+  .k-grid { grid-template-columns: 1fr 1fr; gap: 8px }
+  .kpi { padding: 12px }
+  .kpi .value { font-size: 16px }
+  .kpi .label { font-size: 10px }
+
+  /* Phone preview rig — hide entirely (user IS on a phone now) */
+  .phone-rig { display: none !important }
+
+  /* Modals: full-screen on mobile rather than centered card */
+  .modal-overlay { padding: 0; align-items: stretch }
+  .modal,
+  .modal.lg,
+  .modal.xl { max-width: 100vw; max-height: 100vh; width: 100vw; height: 100vh; border-radius: 0; margin: 0 }
+  .modal-head { padding: 12px 14px; position: sticky; top: 0; background: rgba(20,15,11,.98); z-index: 5 }
+  .modal-head h3 { font-size: 15px }
+  .modal-body { padding: 14px; max-height: calc(100vh - 110px); overflow-y: auto }
+  .modal-foot { padding: 10px 14px; position: sticky; bottom: 0; background: rgba(20,15,11,.98); flex-wrap: wrap; gap: 6px }
+  .modal-foot button { flex: 1 1 auto; min-width: 100px }
+
+  /* Form fields: stack one column. font-size:16px on inputs prevents iOS
+     from auto-zooming when the user taps to focus a field. */
+  .form-grid { grid-template-columns: 1fr; gap: 10px }
+  .field.full { grid-column: auto }
+  .field input,
+  .field select,
+  .field textarea { font-size: 16px }
+
+  /* Tables: edge-to-edge with horizontal scroll, smaller fonts */
+  .tbl { border-radius: 0; border-left: none; border-right: none; margin: 0 -12px; font-size: 12px }
+  .tbl-row > .c { padding: 8px 10px }
+  .tbl-actions button { padding: 5px 8px; font-size: 10px }
+
+  /* Crew profiles grid: 1 column */
+  .profiles-grid { grid-template-columns: 1fr !important; gap: 10px }
+  .profile-tile { padding: 12px }
+
+  /* Profiles toolbar buttons wrap nicely */
+  .profiles-toolbar { gap: 6px; flex-wrap: wrap }
+  .profiles-toolbar .tb-btn { padding: 6px 10px; font-size: 10px }
+
+  /* Tile grid: 1 column */
+  .tile-grid { grid-template-columns: 1fr; gap: 10px }
+
+  /* Onboarding + login overlays — comfortable on mobile */
+  .onboard-overlay .onboard { padding: 16px 14px; max-width: 100vw }
+  #loginScreen,
+  #landingScreen,
+  #pricingScreen,
+  #welcomeScreen { padding: 14px 12px }
+
+  /* Toast notifications take a useful slice of the screen */
+  .toast { left: 12px; right: 12px; max-width: none; font-size: 12px }
+
+  /* Top action buttons in tour console — wrap */
+  .tb-btn { padding: 6px 10px; font-size: 10px }
+
+  /* Console-head live indicator slightly smaller */
+  .console-head .title .live { width: 6px; height: 6px }
+}
+
+/* Very narrow phones (iPhone SE 1st gen, etc.) — collapse 2-col KPIs/tiles */
+@media (max-width: 380px) {
+  .bm-hero-strip { grid-template-columns: 1fr }
+  .k-grid { grid-template-columns: 1fr }
+}
+
 </style>
 </head>
 <body>
@@ -8797,10 +8921,12 @@ function renderDashboard() {
           <div class="card-h"><span class="ic">⌚</span><span class="h">Schedule</span><span class="count">${sched.length} ${sched.length === 1 ? 'item' : 'items'}</span><a class="card-link" onclick="_dashGoTab('schedule')">Edit →</a></div>
           <div class="card-body">${schedCardHtml}</div>
         </div>
-        <div class="bm-card">
-          <div class="card-h"><span class="ic">⌖</span><span class="h">Venue</span><a class="card-link" onclick="openDateModal('${ad.id}')">Edit →</a></div>
-          <div class="card-body">${venueCardHtml}</div>
-        </div>
+        ${(ad.status === 'travel' || ad.status === 'off') ? '' : `
+          <div class="bm-card">
+            <div class="card-h"><span class="ic">⌖</span><span class="h">Venue</span><a class="card-link" onclick="openDateModal('${ad.id}')">Edit →</a></div>
+            <div class="card-body">${venueCardHtml}</div>
+          </div>
+        `}
 
         <div class="bm-card">
           <div class="card-h"><span class="ic">⏿</span><span class="h">Hotel</span><a class="card-link" onclick="_dashGoTab('hotels')">Edit →</a></div>
