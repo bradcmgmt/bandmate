@@ -9432,6 +9432,10 @@ function renderAdvance() {
         <div class="advance-sub-h">Hands confirmed</div>
         <div class="advance-sub-grid">
           <div class="advance-field">
+            <label># of hands</label>
+            <input type="number" min="0" step="1" inputmode="numeric" id="adv_handsCount" value="${esc(a.handsCount || '')}" placeholder="e.g. 4" onchange="_advanceSave('handsCount', this.value)">
+          </div>
+          <div class="advance-field">
             <label>In time</label>
             ${renderTime12Picker('adv_in', a.handsIn || '', { disabled: handsAllDay })}
           </div>
@@ -9888,6 +9892,7 @@ function _hasAdvanceInfo(advance) {
   if (advance.buyout && parseFloat(advance.buyout) > 0) return true;
   if (advance.handsAllDay) return true;
   if (advance.handsIn || advance.handsOut) return true;
+  if (advance.handsCount && parseInt(advance.handsCount, 10) > 0) return true;
   if (advance.techPack && advance.techPack.name) return true;
   return false;
 }
@@ -9924,9 +9929,13 @@ function _phoneAdvanceCardHTML(a) {
   }
   // Hands in/out condense into one row when both present, otherwise
   // separate. "All day" gets its own clean value rather than two
-  // empty time rows.
+  // empty time rows. The headcount (handsCount) is prepended to the
+  // value when present — e.g. "4 hands · 09:00 – 18:00" — so the crew
+  // sees the count + window in a single tidy row instead of two.
+  const handsCount = parseInt(a.handsCount, 10);
+  const countPrefix = (handsCount > 0) ? `${handsCount} ` : '';
   if (a.handsAllDay) {
-    rows.push({ label: 'Hands', value: 'All day' });
+    rows.push({ label: 'Hands', value: `${countPrefix}all day` });
   } else if (a.handsIn || a.handsOut) {
     const to12 = (t) => {
       const c = _to12h(t || '');
@@ -9934,9 +9943,20 @@ function _phoneAdvanceCardHTML(a) {
     };
     const inT = to12(a.handsIn);
     const outT = to12(a.handsOut);
-    if (inT && outT) rows.push({ label: 'Hands', value: `${inT} – ${outT}` });
-    else if (inT) rows.push({ label: 'Hands in', value: inT });
-    else if (outT) rows.push({ label: 'Hands out', value: outT });
+    const window = (inT && outT) ? `${inT} – ${outT}` : (inT || outT);
+    if (handsCount > 0) {
+      rows.push({ label: 'Hands', value: `${handsCount} · ${window}` });
+    } else if (inT && outT) {
+      rows.push({ label: 'Hands', value: `${inT} – ${outT}` });
+    } else if (inT) {
+      rows.push({ label: 'Hands in', value: inT });
+    } else if (outT) {
+      rows.push({ label: 'Hands out', value: outT });
+    }
+  } else if (handsCount > 0) {
+    // Count is set but no times — show the count alone so it doesn't
+    // disappear just because times haven't been confirmed yet.
+    rows.push({ label: 'Hands', value: `${handsCount} confirmed` });
   }
   // Wifi gets its own visual subgroup so the crew can spot it fast
   // when they're trying to get their phone on the venue network.
