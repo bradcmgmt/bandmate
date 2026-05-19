@@ -1539,6 +1539,14 @@ input,select,textarea{font:inherit;color:inherit}
 .profile-tile .pt-stat{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;padding:3px 8px;border-radius:4px;margin-left:auto}
 .profile-tile.submitted .pt-stat{color:var(--good);background:rgba(109,207,139,.08);border:1px solid rgba(109,207,139,.3)}
 .profile-tile.pending .pt-stat{color:var(--hi);background:rgba(232,148,58,.08);border:1px solid rgba(232,148,58,.3)}
+/* Inline status chip on the Crew Roster rows — shows whether the
+   invited crew member has signed up with the matching email yet.
+   Sits next to the email address on the second line of the name cell. */
+.crew-status{display:inline-block;font-family:'JetBrains Mono',monospace;
+  font-size:9px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;
+  padding:2px 6px;border-radius:3px;margin-left:6px;vertical-align:middle;line-height:1.3}
+.crew-status.pending{color:var(--hi);background:rgba(232,148,58,.08);border:1px solid rgba(232,148,58,.3)}
+.crew-status.accepted{color:var(--good);background:rgba(109,207,139,.08);border:1px solid rgba(109,207,139,.3)}
 .profile-tile .pt-row{display:grid;grid-template-columns:90px 1fr;gap:8px;font-size:12px;padding:4px 0;border-bottom:1px solid rgba(232,148,58,.06)}
 .profile-tile .pt-row:last-of-type{border-bottom:none}
 .profile-tile .pt-row .pl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--warm-mute);padding-top:1px}
@@ -4313,7 +4321,22 @@ _onTourChange(payload) {
     if (!sb || !storagePath) return null;
     const ttl = 60 * 5; // 5 minutes
     const { data, error } = await sb.storage.from('attachments').createSignedUrl(storagePath, ttl, opts);
-    if (error) { this._err('getSignedAttachmentUrl', error); return null; }
+    if (error) {
+      const msg = (error.message || String(error)).toLowerCase();
+      // "Object not found" / 404 / "not found" are READ-time misses on a
+      // path that no longer exists in Storage — usually because the file
+      // was deleted out of band, or the tour row still has stale
+      // artist_logo metadata pointing at a missing object. This isn't a
+      // save error and the user can't fix it with a retry. Silent warn,
+      // and let the caller decide how to recover (e.g. clear the stale
+      // ref). Other errors fall through to the normal toast path.
+      if (/not\s*found|404|object not found/i.test(msg)) {
+        console.warn(`[db.getSignedAttachmentUrl] object missing for path "${storagePath}" — skipping`);
+        return null;
+      }
+      this._err('getSignedAttachmentUrl', error);
+      return null;
+    }
     return data?.signedUrl || null;
   },
 
@@ -4503,6 +4526,36 @@ _onTourChange(payload) {
   // Called after successful signup or sign-in. Replaces state.tours entirely
   // for tours owned by the current user; non-owned local tours stay untouched
   // until slice 3 brings crew-shared tours in via tour_members.
+  // Query Supabase profiles for these emails and return the set of
+  // emails that have a real, claimed account. Used by the TM dashboard
+  // to detect which invited crew have actually signed up — so the
+  // "PENDING INVITE" badge can flip to "ACCEPTED" without needing the
+  // TM to refresh the page. Returns a lowercased Set for fast lookup.
+  async fetchClaimedEmails(emails) {
+    if (!sb) return new Set();
+    const cleaned = Array.from(new Set(
+      (emails || [])
+        .map(e => (e || '').toString().trim().toLowerCase())
+        .filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))
+    ));
+    if (!cleaned.length) return new Set();
+    try {
+      const { data, error } = await sb
+        .from('profiles')
+        .select('email')
+        .in('email', cleaned);
+      if (error) { this._err('fetchClaimedEmails', error); return new Set(); }
+      const found = new Set();
+      (data || []).forEach(r => {
+        if (r.email) found.add(String(r.email).trim().toLowerCase());
+      });
+      return found;
+    } catch (e) {
+      this._err('fetchClaimedEmails.exception', e);
+      return new Set();
+    }
+  },
+
   async hydrateUserData(userId) {
     if (!sb || !userId) return { tours: 0, dates: 0 };
     try {
@@ -7225,6 +7278,123 @@ const TOURING_VENUES = [
   _TV('Circo Voador','Rio de Janeiro, Brazil'),_TV('Fundição Progresso','Rio de Janeiro, Brazil'),_TV('Citibank Hall','Rio de Janeiro, Brazil'),_TV('Imperator','Rio de Janeiro, Brazil'),
   _TV('Estadio Luna Park','Buenos Aires, Argentina'),_TV('Estadio Monumental','Buenos Aires, Argentina'),_TV('Movistar Arena Buenos Aires','Buenos Aires, Argentina'),_TV('Niceto Club','Buenos Aires, Argentina'),_TV('La Trastienda','Buenos Aires, Argentina'),
   _TV('Movistar Arena Santiago','Santiago, Chile'),_TV('Teatro Caupolicán','Santiago, Chile'),_TV('Estadio Nacional','Santiago, Chile'),_TV('Centro Arena','Santiago, Chile'),
+  // ─── US Club Tier (300–1,000 cap) — major touring cities. These are
+  // the rooms a midsize act typically routes between when they're
+  // bigger than coffeehouses but not yet selling theaters out. Ordered
+  // by metro for easy scanning. ─────────────────────────────────────
+  // Boston / New England
+  _TV('The Middle East Downstairs','Cambridge, MA'),_TV('The Middle East Upstairs','Cambridge, MA'),_TV('The Sinclair','Cambridge, MA'),_TV('Paradise Rock Club','Boston, MA'),_TV('Brighton Music Hall','Allston, MA'),
+  _TV('Royale','Boston, MA'),_TV('Big Night Live','Boston, MA'),_TV('Crystal Ballroom at Somerville','Somerville, MA'),_TV('ONCE Somerville','Somerville, MA'),_TV('Sonia','Cambridge, MA'),
+  _TV('The Burren','Somerville, MA'),_TV('The Lilypad','Cambridge, MA'),_TV('Atwood\'s Tavern','Cambridge, MA'),_TV('The Jungle Community Music Club','Somerville, MA'),
+  _TV('The Met Pawtucket','Pawtucket, RI'),_TV('Fete Music Hall','Providence, RI'),_TV('The Columbus Theatre','Providence, RI'),_TV('AS220','Providence, RI'),_TV('The Strand Ballroom','Providence, RI'),
+  _TV('Toad\'s Place','New Haven, CT'),_TV('College Street Music Hall','New Haven, CT'),_TV('Cafe Nine','New Haven, CT'),_TV('Space Ballroom','Hamden, CT'),_TV('The Webster','Hartford, CT'),_TV('The Webster Underground','Hartford, CT'),
+  _TV('Higher Ground Ballroom','South Burlington, VT'),_TV('Higher Ground Showcase Lounge','South Burlington, VT'),_TV('Nectar\'s','Burlington, VT'),_TV('Club Metronome','Burlington, VT'),_TV('The Monkey House','Winooski, VT'),
+  _TV('Aura','Portland, ME'),_TV('Geno\'s Rock Club','Portland, ME'),_TV('One Longfellow Square','Portland, ME'),_TV('Empire','Portland, ME'),
+  // New York Metro additions
+  _TV('Racket','New York, NY'),_TV('Sony Hall','New York, NY'),_TV('Sultan Room','Brooklyn, NY'),_TV('TV Eye','Queens, NY'),_TV('The Bell House','Brooklyn, NY'),
+  _TV('Littlefield','Brooklyn, NY'),_TV('Union Hall','Brooklyn, NY'),_TV('Pianos','New York, NY'),_TV('Berlin Under A','New York, NY'),_TV('Heaven Can Wait','New York, NY'),
+  _TV('3 Dollar Bill','Brooklyn, NY'),_TV('Brooklyn Made','Brooklyn, NY'),_TV('Bossa Nova Civic Club','Brooklyn, NY'),_TV('Nublu','New York, NY'),_TV('Our Wicked Lady','Brooklyn, NY'),
+  _TV('Drom','New York, NY'),_TV('Joe\'s Pub','New York, NY'),_TV('Le Poisson Rouge','New York, NY'),_TV('Arlene\'s Grocery','New York, NY'),_TV('Bar Lunatico','Brooklyn, NY'),
+  // Philly
+  _TV('Union Transfer','Philadelphia, PA'),_TV('Underground Arts','Philadelphia, PA'),_TV('Johnny Brenda\'s','Philadelphia, PA'),_TV('World Cafe Live','Philadelphia, PA'),_TV('The Foundry','Philadelphia, PA'),
+  _TV('Milkboy Philly','Philadelphia, PA'),_TV('Kung Fu Necktie','Philadelphia, PA'),_TV('Ortlieb\'s','Philadelphia, PA'),_TV('PhilaMOCA','Philadelphia, PA'),_TV('The Lounge at World Cafe Live','Philadelphia, PA'),
+  // DC / Baltimore
+  _TV('The Atlantis','Washington, DC'),_TV('DC9','Washington, DC'),_TV('Songbyrd Music House','Washington, DC'),_TV('Pearl Street Warehouse','Washington, DC'),_TV('The Hamilton','Washington, DC'),
+  _TV('Black Cat','Washington, DC'),_TV('Comet Ping Pong','Washington, DC'),_TV('Ottobar','Baltimore, MD'),_TV('The 8x10','Baltimore, MD'),_TV('Soundstage Baltimore','Baltimore, MD'),
+  // Atlanta
+  _TV('The Masquerade — Hell','Atlanta, GA'),_TV('The Masquerade — Heaven','Atlanta, GA'),_TV('The Masquerade — Purgatory','Atlanta, GA'),_TV('Center Stage','Atlanta, GA'),_TV('The Loft','Atlanta, GA'),
+  _TV('Terminal West','Atlanta, GA'),_TV('Vinyl','Atlanta, GA'),_TV('The EARL','Atlanta, GA'),_TV('Smith\'s Olde Bar','Atlanta, GA'),_TV('Eddie\'s Attic','Decatur, GA'),
+  _TV('529','Atlanta, GA'),_TV('Aisle 5','Atlanta, GA'),_TV('Boggs Social','Atlanta, GA'),_TV('Star Bar','Atlanta, GA'),_TV('The Music Room','Atlanta, GA'),
+  // Athens / Savannah
+  _TV('40 Watt Club','Athens, GA'),_TV('Caledonia Lounge','Athens, GA'),_TV('Hendershot\'s','Athens, GA'),_TV('The Foundry Athens','Athens, GA'),_TV('Flicker Theatre & Bar','Athens, GA'),
+  _TV('The Jinx','Savannah, GA'),_TV('District Live','Savannah, GA'),_TV('Victory North','Savannah, GA'),_TV('El-Rocko Lounge','Savannah, GA'),
+  // Carolinas
+  _TV('Visulite Theatre','Charlotte, NC'),_TV('Neighborhood Theatre','Charlotte, NC'),_TV('The Underground','Charlotte, NC'),_TV('The Milestone','Charlotte, NC'),_TV('The Evening Muse','Charlotte, NC'),_TV('Petra\'s','Charlotte, NC'),
+  _TV('Cat\'s Cradle','Carrboro, NC'),_TV('Cat\'s Cradle Back Room','Carrboro, NC'),_TV('Local 506','Chapel Hill, NC'),_TV('The Pinhook','Durham, NC'),_TV('Motorco Music Hall','Durham, NC'),_TV('The Cave','Chapel Hill, NC'),
+  _TV('Lincoln Theatre','Raleigh, NC'),_TV('Pour House Music Hall','Raleigh, NC'),_TV('Kings','Raleigh, NC'),_TV('Slim\'s','Raleigh, NC'),
+  _TV('The Grey Eagle','Asheville, NC'),_TV('Asheville Music Hall','Asheville, NC'),_TV('Fleetwood\'s','Asheville, NC'),_TV('Ambrose West','Asheville, NC'),_TV('New Mountain','Asheville, NC'),_TV('One Stop','Asheville, NC'),
+  _TV('Bourgie Nights','Wilmington, NC'),_TV('The Whiskey','Wilmington, NC'),_TV('Ted\'s Fun on the River','Wilmington, NC'),
+  _TV('Music Farm','Charleston, SC'),_TV('Charleston Pour House','Charleston, SC'),_TV('Charleston Music Hall','Charleston, SC'),_TV('The Royal American','Charleston, SC'),_TV('Tin Roof Charleston','Charleston, SC'),_TV('The Windjammer','Isle of Palms, SC'),
+  _TV('The Radio Room','Greenville, SC'),_TV('Smiley\'s Acoustic Cafe','Greenville, SC'),_TV('The Firmament','Greenville, SC'),
+  // Florida
+  _TV('The Social','Orlando, FL'),_TV('Will\'s Pub','Orlando, FL'),_TV('Conduit','Orlando, FL'),_TV('Lil Indies','Orlando, FL'),_TV('The Geek Easy','Winter Park, FL'),
+  _TV('Crowbar','Tampa, FL'),_TV('The Orpheum Tampa','Tampa, FL'),_TV('Skipper\'s Smokehouse','Tampa, FL'),_TV('Floridian Social Club','St. Petersburg, FL'),_TV('Local 662','St. Petersburg, FL'),_TV('The Bends','St. Petersburg, FL'),
+  _TV('Jack Rabbits','Jacksonville, FL'),_TV('1904 Music Hall','Jacksonville, FL'),_TV('Underbelly','Jacksonville, FL'),_TV('Nighthawks','Jacksonville, FL'),
+  _TV('The Ground','Miami, FL'),_TV('Gramps','Miami, FL'),_TV('Las Rosas','Miami, FL'),_TV('Bardot','Miami, FL'),_TV('Churchill\'s Pub','Miami, FL'),_TV('Wood Tavern','Miami, FL'),
+  // Virginia
+  _TV('The Broadberry','Richmond, VA'),_TV('The Camel','Richmond, VA'),_TV('Capital Ale House','Richmond, VA'),_TV('Gallery 5','Richmond, VA'),_TV('Cobra Cabana','Richmond, VA'),_TV('Get Tight Lounge','Richmond, VA'),
+  _TV('The Jewish Mother Backstage','Virginia Beach, VA'),_TV('Toast','Norfolk, VA'),
+  // Tennessee
+  _TV('The Basement','Nashville, TN'),_TV('The Basement East','Nashville, TN'),_TV('The 5 Spot','Nashville, TN'),_TV('Eastside Bowl','Madison, TN'),_TV('Blue Room','Nashville, TN'),_TV('City Winery Nashville','Nashville, TN'),
+  _TV('Hi Tone Cafe','Memphis, TN'),_TV('Growlers','Memphis, TN'),_TV('Lafayette\'s Music Room','Memphis, TN'),_TV('Railgarten','Memphis, TN'),_TV('1884 Lounge at Minglewood','Memphis, TN'),_TV('Bar DKDC','Memphis, TN'),
+  _TV('The International','Knoxville, TN'),_TV('The Mill & Mine','Knoxville, TN'),_TV('Bijou Theatre','Knoxville, TN'),_TV('Pilot Light','Knoxville, TN'),_TV('Open Chord','Knoxville, TN'),
+  _TV('Songbirds','Chattanooga, TN'),_TV('JJ\'s Bohemia','Chattanooga, TN'),_TV('The Walker Theatre','Chattanooga, TN'),_TV('Channels Live','Chattanooga, TN'),
+  // Kentucky / Indiana / Ohio
+  _TV('Headliners Music Hall','Louisville, KY'),_TV('Zanzabar','Louisville, KY'),_TV('Mercury Ballroom','Louisville, KY'),_TV('The Whirling Tiger','Louisville, KY'),_TV('Tin Roof Louisville','Louisville, KY'),
+  _TV('The Hi-Fi','Indianapolis, IN'),_TV('HI-FI Annex','Indianapolis, IN'),_TV('The Vogue Theatre','Indianapolis, IN'),_TV('The Melody Inn','Indianapolis, IN'),_TV('White Rabbit Cabaret','Indianapolis, IN'),_TV('The Mousetrap','Indianapolis, IN'),
+  _TV('Beachland Ballroom','Cleveland, OH'),_TV('Beachland Tavern','Cleveland, OH'),_TV('Grog Shop','Cleveland Heights, OH'),_TV('Mahall\'s 20 Lanes','Lakewood, OH'),_TV('The Foundry Cleveland','Cleveland, OH'),
+  _TV('The Woodward Theater','Cincinnati, OH'),_TV('MOTR Pub','Cincinnati, OH'),_TV('Top Cats','Cincinnati, OH'),_TV('Northside Tavern','Cincinnati, OH'),_TV('Madison Live','Covington, KY'),_TV('Live at the Ludlow Garage','Cincinnati, OH'),
+  _TV('A&R Music Bar','Columbus, OH'),_TV('The Basement Columbus','Columbus, OH'),_TV('Skully\'s Music Diner','Columbus, OH'),_TV('Rumba Cafe','Columbus, OH'),_TV('Ace of Cups','Columbus, OH'),_TV('Spacebar','Columbus, OH'),
+  _TV('The Brightside','Dayton, OH'),_TV('Yellow Cab Tavern','Dayton, OH'),_TV('Hidden Gem Music Club','Centerville, OH'),
+  // Michigan
+  _TV('Magic Stick','Detroit, MI'),_TV('The Pike Room','Pontiac, MI'),_TV('The Crofoot','Pontiac, MI'),_TV('El Club','Detroit, MI'),_TV('Marble Bar','Detroit, MI'),_TV('Small\'s Bar','Hamtramck, MI'),
+  _TV('The Loving Touch','Ferndale, MI'),_TV('Token Lounge','Westland, MI'),_TV('Outer Limits Lounge','Hamtramck, MI'),_TV('UFO Factory','Detroit, MI'),
+  _TV('Blind Pig','Ann Arbor, MI'),_TV('The Ark','Ann Arbor, MI'),_TV('Necto','Ann Arbor, MI'),_TV('LIVE Ann Arbor','Ann Arbor, MI'),
+  _TV('Mac\'s Bar','Lansing, MI'),_TV('The Loft Lansing','Lansing, MI'),
+  _TV('The Pyramid Scheme','Grand Rapids, MI'),_TV('The Stache','Grand Rapids, MI'),_TV('Founders Brewing','Grand Rapids, MI'),_TV('Elevation','Grand Rapids, MI'),_TV('Tip Top Deluxe','Grand Rapids, MI'),
+  // Pittsburgh / Buffalo / Rochester
+  _TV('Mr. Smalls Theatre','Millvale, PA'),_TV('Spirit Hall','Pittsburgh, PA'),_TV('Club Cafe','Pittsburgh, PA'),_TV('Howlers','Pittsburgh, PA'),_TV('Cattivo','Pittsburgh, PA'),_TV('Thunderbird Cafe','Pittsburgh, PA'),_TV('Bottlerocket Social Hall','Pittsburgh, PA'),_TV('The Goldmark','Pittsburgh, PA'),
+  _TV('Town Ballroom','Buffalo, NY'),_TV('Mohawk Place','Buffalo, NY'),_TV('Buffalo Iron Works','Buffalo, NY'),_TV('Asbury Hall at Babeville','Buffalo, NY'),_TV('The Showplace Theatre','Buffalo, NY'),
+  _TV('Anthology','Rochester, NY'),_TV('Photo City Music Hall','Rochester, NY'),_TV('The Bug Jar','Rochester, NY'),_TV('Lovin\' Cup','Henrietta, NY'),_TV('Montage Music Hall','Rochester, NY'),
+  _TV('Empire Live','Albany, NY'),_TV('The Hollow Bar + Kitchen','Albany, NY'),_TV('Putnam Place','Saratoga Springs, NY'),_TV('Caffe Lena','Saratoga Springs, NY'),
+  // Midwest
+  _TV('Subterranean','Chicago, IL'),_TV('Empty Bottle','Chicago, IL'),_TV('Beat Kitchen','Chicago, IL'),_TV('Bottom Lounge','Chicago, IL'),_TV('Cobra Lounge','Chicago, IL'),_TV('Sleeping Village','Chicago, IL'),
+  _TV('Reggies Rock Club','Chicago, IL'),_TV('Reggies Music Joint','Chicago, IL'),_TV('The Hideout','Chicago, IL'),_TV('The Promontory','Chicago, IL'),_TV('The Burlington','Chicago, IL'),_TV('The Whistler','Chicago, IL'),
+  _TV('Turf Club','St. Paul, MN'),_TV('The Cedar Cultural Center','Minneapolis, MN'),_TV('Fine Line Music Cafe','Minneapolis, MN'),_TV('Amsterdam Bar & Hall','St. Paul, MN'),_TV('Icehouse','Minneapolis, MN'),_TV('Mortimer\'s','Minneapolis, MN'),_TV('331 Club','Minneapolis, MN'),
+  _TV('Turner Hall Ballroom','Milwaukee, WI'),_TV('Miramar Theatre','Milwaukee, WI'),_TV('Cooperage','Milwaukee, WI'),_TV('Cactus Club','Milwaukee, WI'),_TV('X-Ray Arcade','Cudahy, WI'),_TV('Linneman\'s Riverwest Inn','Milwaukee, WI'),
+  _TV('Majestic Theatre Madison','Madison, WI'),_TV('High Noon Saloon','Madison, WI'),_TV('The Sett at Union South','Madison, WI'),_TV('The Frequency','Madison, WI'),_TV('The Bur Oak','Madison, WI'),
+  _TV('Wooly\'s','Des Moines, IA'),_TV('xBk Live','Des Moines, IA'),_TV('Lefty\'s Live Music','Des Moines, IA'),_TV('Gabe\'s','Iowa City, IA'),_TV('The Englert Theatre','Iowa City, IA'),
+  _TV('The Waiting Room','Omaha, NE'),_TV('Reverb Lounge','Omaha, NE'),_TV('Slowdown','Omaha, NE'),_TV('O\'Leaver\'s','Omaha, NE'),
+  _TV('Bourbon Theatre','Lincoln, NE'),_TV('Duffy\'s Tavern','Lincoln, NE'),_TV('Zoo Bar','Lincoln, NE'),_TV('The Royal Grove','Lincoln, NE'),
+  _TV('recordBar','Kansas City, MO'),_TV('The Riot Room','Kansas City, MO'),_TV('The Truman','Kansas City, MO'),_TV('Knuckleheads Saloon','Kansas City, MO'),_TV('The Rino','North Kansas City, MO'),_TV('Westport Saloon','Kansas City, MO'),
+  _TV('The Granada','Lawrence, KS'),_TV('Off Broadway','St. Louis, MO'),_TV('Old Rock House','St. Louis, MO'),_TV('Blueberry Hill Duck Room','University City, MO'),_TV('Delmar Hall','St. Louis, MO'),_TV('The Ready Room','St. Louis, MO'),_TV('2720 Cherokee','St. Louis, MO'),
+  // Texas
+  _TV('Antone\'s Nightclub','Austin, TX'),_TV('Empire Control Room','Austin, TX'),_TV('Parish','Austin, TX'),_TV('The Continental Club','Austin, TX'),_TV('Hotel Vegas','Austin, TX'),_TV('Cheer Up Charlies','Austin, TX'),
+  _TV('Hole in the Wall','Austin, TX'),_TV('The White Horse','Austin, TX'),_TV('3ten ACL Live','Austin, TX'),_TV('Sahara Lounge','Austin, TX'),_TV('Come and Take It Live','Austin, TX'),
+  _TV('White Oak Music Hall','Houston, TX'),_TV('Continental Club Houston','Houston, TX'),_TV('Heights Theater','Houston, TX'),_TV('The Secret Group','Houston, TX'),_TV('Last Concert Cafe','Houston, TX'),_TV('Big Top Lounge','Houston, TX'),_TV('Warehouse Live Studio','Houston, TX'),
+  _TV('Trees','Dallas, TX'),_TV('Three Links','Dallas, TX'),_TV('Club Dada','Dallas, TX'),_TV('Sundown at Granada','Dallas, TX'),_TV('Deep Ellum Art Co','Dallas, TX'),_TV('Twilite Lounge','Dallas, TX'),_TV('Off the Record','Dallas, TX'),
+  // Louisiana
+  _TV('Tipitina\'s','New Orleans, LA'),_TV('The Howlin\' Wolf','New Orleans, LA'),_TV('One Eyed Jacks','New Orleans, LA'),_TV('Gasa Gasa','New Orleans, LA'),_TV('Siberia','New Orleans, LA'),_TV('Hi-Ho Lounge','New Orleans, LA'),
+  _TV('Toulouse Theatre','New Orleans, LA'),_TV('Maple Leaf Bar','New Orleans, LA'),_TV('d.b.a.','New Orleans, LA'),_TV('Chickie Wah Wah','New Orleans, LA'),_TV('Saturn Bar','New Orleans, LA'),
+  // Alabama / Mississippi
+  _TV('Saturn','Birmingham, AL'),_TV('Workplay','Birmingham, AL'),_TV('The Nick','Birmingham, AL'),_TV('Avondale Brewing','Birmingham, AL'),_TV('Zydeco','Birmingham, AL'),
+  // Oklahoma
+  _TV('The Beer City Music Hall','Oklahoma City, OK'),_TV('89th Street Collective','Oklahoma City, OK'),_TV('The Tower Theatre','Oklahoma City, OK'),_TV('Resonator','Oklahoma City, OK'),_TV('Ponyboy','Oklahoma City, OK'),
+  _TV('The Vanguard','Tulsa, OK'),_TV('Mercury Lounge Tulsa','Tulsa, OK'),_TV('The Colony','Tulsa, OK'),_TV('Soundpony','Tulsa, OK'),_TV('The Shrine','Tulsa, OK'),
+  // Mountain West
+  _TV('Hi-Dive','Denver, CO'),_TV('Larimer Lounge','Denver, CO'),_TV('Globe Hall','Denver, CO'),_TV('Lost Lake','Denver, CO'),_TV('Marquis Theater','Denver, CO'),_TV('Summit Music Hall','Denver, CO'),_TV('Mercury Cafe','Denver, CO'),_TV('Lion\'s Lair','Denver, CO'),
+  _TV('The State Room','Salt Lake City, UT'),_TV('Urban Lounge','Salt Lake City, UT'),_TV('Kilby Court','Salt Lake City, UT'),_TV('Soundwell','Salt Lake City, UT'),_TV('The Royal SLC','Salt Lake City, UT'),_TV('Metro Music Hall','Salt Lake City, UT'),
+  _TV('Neurolux','Boise, ID'),_TV('The Olympic Venue','Boise, ID'),_TV('The Shredder','Boise, ID'),_TV('The Sapphire Room','Boise, ID'),
+  // Southwest
+  _TV('Crescent Ballroom','Phoenix, AZ'),_TV('Valley Bar','Phoenix, AZ'),_TV('The Rebel Lounge','Phoenix, AZ'),_TV('Rhythm Room','Phoenix, AZ'),_TV('Yucca Tap Room','Tempe, AZ'),_TV('Last Exit Live','Phoenix, AZ'),_TV('The Nile Theater','Mesa, AZ'),
+  _TV('Club Congress','Tucson, AZ'),_TV('191 Toole','Tucson, AZ'),_TV('Solar Culture Gallery','Tucson, AZ'),
+  _TV('Sister Bar','Albuquerque, NM'),_TV('Launchpad','Albuquerque, NM'),_TV('El Rey Theater','Albuquerque, NM'),_TV('Sunshine Theater','Albuquerque, NM'),_TV('Low Spirits','Albuquerque, NM'),
+  // West Coast
+  _TV('Ace of Spades','Sacramento, CA'),_TV('Holy Diver','Sacramento, CA'),_TV('Goldfield Trading Post','Sacramento, CA'),_TV('Harlow\'s','Sacramento, CA'),_TV('Old Ironsides','Sacramento, CA'),_TV('The Boardwalk','Orangevale, CA'),_TV('Cafe Colonial','Sacramento, CA'),
+  _TV('Cargo Concert Hall','Reno, NV'),_TV('The Holland Project','Reno, NV'),_TV('The Saint','Reno, NV'),_TV('Jub Jub\'s Thirst Parlor','Reno, NV'),_TV('Virginia Street Brewhouse','Reno, NV'),
+  _TV('The Bunkhouse Saloon','Las Vegas, NV'),_TV('Backstage Bar & Billiards','Las Vegas, NV'),_TV('The Sand Dollar Lounge','Las Vegas, NV'),_TV('24 Oxford','Las Vegas, NV'),_TV('Vinyl at Hard Rock','Las Vegas, NV'),
+  // LA additions (clubs)
+  _TV('Lodge Room','Highland Park, CA'),_TV('Zebulon','Los Angeles, CA'),_TV('The Hi Hat','Los Angeles, CA'),_TV('The Moroccan Lounge','Los Angeles, CA'),_TV('The Bootleg Theater','Los Angeles, CA'),_TV('Resident','Los Angeles, CA'),_TV('The Teragram Ballroom','Los Angeles, CA'),
+  _TV('Permanent Records Roadhouse','Los Angeles, CA'),_TV('Gold-Diggers','Los Angeles, CA'),_TV('Pico Union Project','Los Angeles, CA'),_TV('Harvelle\'s','Santa Monica, CA'),
+  // SF additions
+  _TV('Rickshaw Stop','San Francisco, CA'),_TV('Cafe du Nord','San Francisco, CA'),_TV('Brick & Mortar Music Hall','San Francisco, CA'),_TV('The Knockout','San Francisco, CA'),_TV('DNA Lounge','San Francisco, CA'),_TV('Thee Parkside','San Francisco, CA'),_TV('Make-Out Room','San Francisco, CA'),
+  // Pacific Northwest
+  _TV('The Crocodile','Seattle, WA'),_TV('Madame Lou\'s','Seattle, WA'),_TV('Tractor Tavern','Seattle, WA'),_TV('Sunset Tavern','Seattle, WA'),_TV('Chop Suey','Seattle, WA'),_TV('Barboza','Seattle, WA'),_TV('The Vera Project','Seattle, WA'),_TV('High Dive','Seattle, WA'),_TV('Conor Byrne Pub','Seattle, WA'),
+  _TV('Mississippi Studios','Portland, OR'),_TV('Polaris Hall','Portland, OR'),_TV('Doug Fir Lounge','Portland, OR'),_TV('Holocene','Portland, OR'),_TV('Star Theater','Portland, OR'),_TV('Dante\'s','Portland, OR'),_TV('Hawthorne Theatre','Portland, OR'),_TV('Aladdin Theater','Portland, OR'),_TV('The Goodfoot','Portland, OR'),_TV('Bunk Bar','Portland, OR'),
+  _TV('The Big Dipper','Spokane, WA'),_TV('Lucky You Lounge','Spokane, WA'),_TV('The Pin','Spokane, WA'),_TV('nYne Bar & Bistro','Spokane, WA'),
+  // Hawaii & Alaska
+  _TV('The Republik','Honolulu, HI'),_TV('Bar 35','Honolulu, HI'),_TV('The Crossroads','Honolulu, HI'),
+  _TV('Williwaw','Anchorage, AK'),_TV('Koots','Anchorage, AK'),
 ];
 function openGuestModal(guestId) {
   const ad = getActiveDate();
@@ -7684,6 +7854,42 @@ function openCrewModal() {
     `,
   });
   renderCrewList();
+  // Cross-device acceptance refresh: ask Supabase which of the invited
+  // emails now have a real Bandmate account. If anyone has signed up
+  // since the TM last looked, their badge flips to ACCEPTED without
+  // requiring a page reload. Fire-and-forget — re-renders the list
+  // when the lookup resolves.
+  refreshCrewAcceptance();
+}
+
+// Query Supabase profiles to find out which invited crew members have
+// signed up. Updates the local crew records and triggers a re-render.
+// Safe to call any time the Crew Roster is open — also runs once on
+// boot via the realtime sync hook so the badges are accurate from the
+// very first paint.
+async function refreshCrewAcceptance() {
+  const tour = T();
+  if (!tour || !Array.isArray(tour.crew) || !tour.crew.length) return;
+  const emails = tour.crew.map(c => c.email).filter(Boolean);
+  if (!emails.length) return;
+  const claimedSet = await db.fetchClaimedEmails(emails);
+  if (!claimedSet || !claimedSet.size) return;
+  let changed = false;
+  tour.crew.forEach(c => {
+    const key = (c.email || '').trim().toLowerCase();
+    if (key && claimedSet.has(key) && !c.claimed) {
+      c.claimed = true;
+      c.claimedAt = c.claimedAt || Date.now();
+      changed = true;
+    }
+  });
+  if (changed) {
+    saveState();
+    // Re-paint the open Crew Roster modal (if it's still up) and the
+    // dashboard view so the new ACCEPTED badges land instantly.
+    try { renderCrewList(); } catch (e) {}
+    try { renderAll(); } catch (e) {}
+  }
 }
 
 function renderCrewList() {
@@ -7693,11 +7899,23 @@ function renderCrewList() {
     wrap.innerHTML = `<div class="empty"><h3>No crew yet</h3><p>Add your band, crew, and production team. They'll show up in the room assignments and the crew mobile preview.</p></div>`;
     return;
   }
+  // Status badge: PENDING when invited but not yet claimed; ACCEPTED
+  // once the user signs up with the matching email. Crew without an
+  // email on file get no badge (can't be invited yet).
+  const _crewStatusBadge = (c) => {
+    if (!c.email) return '';
+    const userRec = c.userId ? state.users?.[c.userId] : null;
+    const accepted = !!(c.claimed || (userRec && userRec.claimed));
+    if (accepted) {
+      return '<span class="crew-status accepted" title="This person has signed up with the invited email">✓ ACCEPTED</span>';
+    }
+    return '<span class="crew-status pending" title="Invite sent — waiting for them to sign up">⌛ PENDING</span>';
+  };
   wrap.innerHTML = `<div class="tbl">
     ${T().crew.map(c => `
       <div class="contact-row" style="grid-template-columns:46px 1fr 1.2fr 110px 180px">
         <div class="ini">${esc(initials(c.name))}</div>
-        <div class="nm">${esc(c.name)}<span>${esc(c.email || c.phone || '')}</span></div>
+        <div class="nm">${esc(c.name)}<span>${esc(c.email || c.phone || '')} ${_crewStatusBadge(c)}</span></div>
         <div class="org">${esc(c.role)}</div>
         <div class="role">${esc(c.type || 'Crew')}</div>
         <div class="tbl-actions" style="display:flex;gap:6px;justify-content:flex-end">
@@ -8033,7 +8251,15 @@ function renderTopBar() {
     rangeEl.innerHTML = `<img id="tourLogoImg" alt="Artist logo" style="max-height:22px;max-width:160px;object-fit:contain;display:inline-block;vertical-align:middle;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))">`;
     db.getCachedSignedAttachmentUrl(logo.storagePath).then(url => {
       const img = document.getElementById('tourLogoImg');
-      if (img && url) img.src = url;
+      if (img && url) {
+        img.src = url;
+      } else {
+        // File missing from Storage (deleted out of band, or stale metadata
+        // pointing nowhere). Fall back to the upload CTA so the user has
+        // a clear next action instead of a broken-image icon.
+        rangeEl.title = 'Click to upload artist logo';
+        rangeEl.innerHTML = `<span class="logo-upload-cta"><span class="lu-bang">⚠</span><span class="lu-label">Upload artist logo</span></span>`;
+      }
     });
   } else {
     // No logo yet — show an explicit "! Upload artist logo" CTA in the
@@ -17509,6 +17735,13 @@ async function signUp() {
   const matches = findCrewMatchesByEmail(email);
   matches.forEach(({ tour, crew }) => {
     crew.userId = userId;
+    // Mark the crew row itself as claimed so the TM's Crew Roster
+    // can render an "ACCEPTED" badge immediately, instead of waiting
+    // for the next time the TM re-queries Supabase profiles. The
+    // claimedAt timestamp gives us a "joined the tour at …" string
+    // for tooltips down the line.
+    crew.claimed = true;
+    if (!crew.claimedAt) crew.claimedAt = Date.now();
     if (!tour.memberIds) tour.memberIds = [];
     if (!tour.memberIds.includes(userId)) {
       tour.memberIds.push(userId);
@@ -19876,7 +20109,7 @@ Object.assign(window, {
   _addDateRangeNext, _bulkSetRangeType, _commitDateRange,
   _calInit, _calNavMonth, _calPickDate, _calRender,
   openGuestModal, openAllotmentModal, openSetItemModal, moveSetItem, copySetList,
-  openSettleModal, openAttachModal, _attachFilePicked, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite,
+  openSettleModal, openAttachModal, _attachFilePicked, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance,
   openTaskModal, openTagModal, toggleTask,
   setActive, closeModal, _modalSubmit, goToTab,
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
