@@ -649,9 +649,18 @@ input,select,textarea{font:inherit;color:inherit}
 .bm-dash-head .h-status{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:5px;
   font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;
   background:rgba(232,148,58,.14);border:1px solid rgba(232,148,58,.45);color:var(--hi)}
+/* Status badge colors mirror the day-pill dots in the date strip so a
+   travel day reads as the same blue everywhere, a show as the same
+   green, etc. Swatches:
+     show       → green   (#6dcf8b / #7adc97 — same as .day-pill.s-show)
+     travel/off → blue    (#8aa9d8 / #b1c8ee — same as .day-pill.s-travel / .s-off)
+     press      → yellow  (#f5d76e — same as .day-pill.s-press)
+     rehearsal  → purple  (#b89ad8 — same as .day-pill.s-rehearsal) */
+.bm-dash-head .h-status.show{background:rgba(109,207,139,.12);border-color:rgba(109,207,139,.42);color:#7adc97}
 .bm-dash-head .h-status.off{background:rgba(138,169,216,.12);border-color:rgba(138,169,216,.42);color:#b1c8ee}
-.bm-dash-head .h-status.travel{background:rgba(122,220,151,.10);border-color:rgba(122,220,151,.42);color:#7adc97}
-.bm-dash-head .h-status.press,.bm-dash-head .h-status.rehearsal{background:rgba(232,180,58,.10);border-color:rgba(232,180,58,.4);color:#f5d76e}
+.bm-dash-head .h-status.travel{background:rgba(138,169,216,.12);border-color:rgba(138,169,216,.42);color:#b1c8ee}
+.bm-dash-head .h-status.press{background:rgba(232,180,58,.10);border-color:rgba(232,180,58,.4);color:#f5d76e}
+.bm-dash-head .h-status.rehearsal{background:rgba(184,154,216,.12);border-color:rgba(184,154,216,.42);color:#cdb5e8}
 
 .bm-hero-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;
   padding:14px 16px;border:1px solid var(--line);border-radius:10px;
@@ -7617,6 +7626,451 @@ const TOURING_VENUES = [
   // Hawaii & Alaska
   _TV('The Republik','Honolulu, HI'),_TV('Bar 35','Honolulu, HI'),_TV('The Crossroads','Honolulu, HI'),
   _TV('Williwaw','Anchorage, AK'),_TV('Koots','Anchorage, AK'),
+
+  // ─── US — Theaters, Mid-Size Halls, Arenas, Stadium-Tier (Tier-up additions) ───
+  // NYC area
+  _TV('Hammerstein Ballroom','New York, NY'),_TV('The Town Hall','New York, NY'),_TV('Carnegie Hall','New York, NY'),
+  _TV('Knockdown Center','Queens, NY'),_TV('Avant Gardner','Brooklyn, NY'),_TV('UBS Arena','Belmont Park, NY'),
+  _TV('Coney Island Amphitheater','Brooklyn, NY'),_TV('Capitol Theatre','Port Chester, NY'),_TV('The Theatre at MSG','New York, NY'),
+  _TV('Town Hall NYC','New York, NY'),_TV('Webster Hall (Lower)','New York, NY'),_TV('Bowery Electric','New York, NY'),
+  // Long Island
+  _TV('Westbury Music Fair','Westbury, NY'),_TV('My Father\'s Place','Roslyn, NY'),_TV('The Paramount','Huntington, NY'),
+  // LA area + Inland Empire
+  _TV('Dolby Theatre','Hollywood, CA'),_TV('Pantages Theatre','Hollywood, CA'),_TV('YouTube Theater','Inglewood, CA'),
+  _TV('The Shrine Auditorium','Los Angeles, CA'),_TV('Whisky a Go Go','West Hollywood, CA'),_TV('The Viper Room','West Hollywood, CA'),
+  _TV('Hotel Cafe','Los Angeles, CA'),_TV('Saban Theatre','Beverly Hills, CA'),_TV('The Mint','Los Angeles, CA'),
+  _TV('Largo at the Coronet','Los Angeles, CA'),_TV('Aratani Theatre','Los Angeles, CA'),
+  _TV('Toyota Arena','Ontario, CA'),_TV('Honda Center','Anaheim, CA'),_TV('Segerstrom Center for the Arts','Costa Mesa, CA'),
+  _TV('FivePoint Amphitheatre','Irvine, CA'),_TV('Long Beach Arena','Long Beach, CA'),
+  // SF Bay
+  _TV('The Masonic','San Francisco, CA'),_TV('Davies Symphony Hall','San Francisco, CA'),_TV('Curran Theater','San Francisco, CA'),
+  _TV('Golden Gate Theatre','San Francisco, CA'),_TV('War Memorial Opera House','San Francisco, CA'),
+  _TV('Shoreline Amphitheatre','Mountain View, CA'),_TV('SAP Center','San Jose, CA'),_TV('Concord Pavilion','Concord, CA'),
+  _TV('Mountain Winery','Saratoga, CA'),
+  // San Diego
+  _TV('Pechanga Arena','San Diego, CA'),_TV('Snapdragon Stadium','San Diego, CA'),_TV('North Park Theatre','San Diego, CA'),
+  _TV('Cal Coast Credit Union Open Air Theatre','San Diego, CA'),_TV('Humphreys Concerts by the Bay','San Diego, CA'),
+  _TV('SOMA','San Diego, CA'),
+  // Sacramento
+  _TV('Golden 1 Center','Sacramento, CA'),_TV('Memorial Auditorium','Sacramento, CA'),
+  // Chicago
+  _TV('Park West','Chicago, IL'),_TV('The Salt Shed','Chicago, IL'),_TV('Old Town School of Folk Music','Chicago, IL'),
+  _TV('House of Blues Chicago','Chicago, IL'),_TV('Auditorium Theatre','Chicago, IL'),_TV('Chicago Theatre','Chicago, IL'),
+  _TV('Wintrust Arena','Chicago, IL'),_TV('Civic Opera House','Chicago, IL'),_TV('Symphony Center','Chicago, IL'),
+  _TV('Soldier Field','Chicago, IL'),_TV('Wrigley Field','Chicago, IL'),
+  // Texas — Houston
+  _TV('713 Music Hall','Houston, TX'),_TV('Bayou Music Center','Houston, TX'),_TV('House of Blues Houston','Houston, TX'),
+  _TV('Toyota Center','Houston, TX'),_TV('NRG Stadium','Houston, TX'),_TV('Jones Hall','Houston, TX'),
+  // Texas — Dallas
+  _TV('Granada Theater','Dallas, TX'),_TV('South Side Music Hall','Dallas, TX'),_TV('The Bomb Factory','Dallas, TX'),
+  _TV('House of Blues Dallas','Dallas, TX'),_TV('Dos Equis Pavilion','Dallas, TX'),_TV('American Airlines Center','Dallas, TX'),
+  _TV('Toyota Music Factory','Irving, TX'),_TV('Texas Trust CU Theatre','Grand Prairie, TX'),
+  _TV('Globe Life Field','Arlington, TX'),_TV('AT&T Stadium','Arlington, TX'),
+  // Texas — Austin
+  _TV('ACL Live at the Moody Theater','Austin, TX'),_TV('Bass Concert Hall','Austin, TX'),_TV('Long Center','Austin, TX'),
+  _TV('Germania Insurance Amphitheater','Austin, TX'),_TV('The Paramount Theatre','Austin, TX'),_TV('Moody Center','Austin, TX'),
+  // Texas — San Antonio
+  _TV('Aztec Theatre','San Antonio, TX'),_TV('Paper Tiger','San Antonio, TX'),_TV('Sam\'s Burger Joint','San Antonio, TX'),
+  _TV('Tobin Center','San Antonio, TX'),_TV('Frost Bank Center','San Antonio, TX'),_TV('Majestic Theatre','San Antonio, TX'),
+  // Florida — Miami / S. Florida
+  _TV('Kaseya Center','Miami, FL'),_TV('Hard Rock Live Hollywood','Hollywood, FL'),_TV('James L. Knight Center','Miami, FL'),
+  _TV('Bayfront Park Amphitheater','Miami, FL'),_TV('Adrienne Arsht Center','Miami, FL'),_TV('The Fillmore Miami Beach','Miami Beach, FL'),
+  _TV('Olympia Theater','Miami, FL'),_TV('LoanDepot Park','Miami, FL'),_TV('Hard Rock Stadium','Miami Gardens, FL'),
+  // Florida — Tampa / Orlando / Jax
+  _TV('Yuengling Center','Tampa, FL'),_TV('Amalie Arena','Tampa, FL'),_TV('MIDFLORIDA Credit Union Amphitheatre','Tampa, FL'),
+  _TV('Hard Rock Live Tampa','Tampa, FL'),_TV('Ruth Eckerd Hall','Clearwater, FL'),_TV('Jannus Live','St. Petersburg, FL'),
+  _TV('Mahaffey Theater','St. Petersburg, FL'),
+  _TV('KIA Center','Orlando, FL'),_TV('Hard Rock Live Orlando','Orlando, FL'),_TV('House of Blues Orlando','Lake Buena Vista, FL'),
+  _TV('Plaza Live','Orlando, FL'),_TV('Walt Disney Theater','Orlando, FL'),
+  _TV('VyStar Veterans Memorial Arena','Jacksonville, FL'),_TV('Daily\'s Place','Jacksonville, FL'),_TV('Florida Theatre','Jacksonville, FL'),
+  // Atlanta
+  _TV('State Farm Arena','Atlanta, GA'),_TV('Mercedes-Benz Stadium','Atlanta, GA'),_TV('Truist Park','Atlanta, GA'),
+  _TV('Variety Playhouse','Atlanta, GA'),_TV('Tabernacle','Atlanta, GA'),_TV('Buckhead Theatre','Atlanta, GA'),
+  _TV('Ameris Bank Amphitheatre','Alpharetta, GA'),_TV('Cellairis Amphitheatre at Lakewood','Atlanta, GA'),
+  _TV('Fox Theatre','Atlanta, GA'),_TV('Coca-Cola Roxy','Atlanta, GA'),_TV('City Winery Atlanta','Atlanta, GA'),
+  // Nashville
+  _TV('Bridgestone Arena','Nashville, TN'),_TV('Ryman Auditorium','Nashville, TN'),_TV('Grand Ole Opry','Nashville, TN'),
+  _TV('Brooklyn Bowl Nashville','Nashville, TN'),_TV('Marathon Music Works','Nashville, TN'),_TV('Schermerhorn Symphony Center','Nashville, TN'),
+  _TV('War Memorial Auditorium','Nashville, TN'),_TV('The Pinnacle','Nashville, TN'),_TV('Geodis Park','Nashville, TN'),
+  _TV('Nissan Stadium','Nashville, TN'),
+  // Memphis / Birmingham / NOLA / Louisville
+  _TV('FedEx Forum','Memphis, TN'),_TV('Orpheum Theatre Memphis','Memphis, TN'),_TV('Cannon Center','Memphis, TN'),
+  _TV('Alabama Theatre','Birmingham, AL'),_TV('Lyric Theatre','Birmingham, AL'),_TV('Legacy Arena BJCC','Birmingham, AL'),
+  _TV('Smoothie King Center','New Orleans, LA'),_TV('Caesars Superdome','New Orleans, LA'),_TV('Saenger Theatre','New Orleans, LA'),
+  _TV('Joy Theater','New Orleans, LA'),_TV('Civic Theatre','New Orleans, LA'),_TV('House of Blues New Orleans','New Orleans, LA'),
+  _TV('Mahalia Jackson Theater','New Orleans, LA'),_TV('Orpheum Theater New Orleans','New Orleans, LA'),
+  _TV('KFC Yum! Center','Louisville, KY'),_TV('Iroquois Amphitheater','Louisville, KY'),
+  _TV('Brown Theatre','Louisville, KY'),_TV('The Louisville Palace','Louisville, KY'),
+  // Charlotte / Raleigh / Asheville
+  _TV('Spectrum Center','Charlotte, NC'),_TV('PNC Music Pavilion','Charlotte, NC'),_TV('Bank of America Stadium','Charlotte, NC'),
+  _TV('Ovens Auditorium','Charlotte, NC'),_TV('Belk Theater','Charlotte, NC'),_TV('The Fillmore Charlotte','Charlotte, NC'),
+  _TV('Coastal Credit Union Music Park','Raleigh, NC'),_TV('Walnut Creek Amphitheatre','Raleigh, NC'),_TV('Red Hat Amphitheater','Raleigh, NC'),
+  _TV('Durham Performing Arts Center','Durham, NC'),_TV('The Ritz','Raleigh, NC'),
+  _TV('The Orange Peel','Asheville, NC'),_TV('Harrah\'s Cherokee Center','Asheville, NC'),
+  _TV('Bon Secours Wellness Arena','Greenville, SC'),_TV('Peace Center','Greenville, SC'),
+  _TV('North Charleston Coliseum','North Charleston, SC'),
+  // Mid-Atlantic — Philly
+  _TV('Wells Fargo Center','Philadelphia, PA'),_TV('Lincoln Financial Field','Philadelphia, PA'),_TV('Citizens Bank Park','Philadelphia, PA'),
+  _TV('The Met Philadelphia','Philadelphia, PA'),_TV('Theatre of Living Arts','Philadelphia, PA'),_TV('Franklin Music Hall','Philadelphia, PA'),
+  _TV('The Mann Center','Philadelphia, PA'),_TV('The Fillmore Philadelphia','Philadelphia, PA'),_TV('Tower Theater','Upper Darby, PA'),
+  _TV('Kimmel Center','Philadelphia, PA'),_TV('Academy of Music','Philadelphia, PA'),
+  // DC / Baltimore
+  _TV('Capital One Arena','Washington, DC'),_TV('The Anthem','Washington, DC'),_TV('Lincoln Theatre DC','Washington, DC'),
+  _TV('Howard Theatre','Washington, DC'),_TV('Wolf Trap','Vienna, VA'),_TV('Merriweather Post Pavilion','Columbia, MD'),
+  _TV('9:30 Club','Washington, DC'),_TV('The Kennedy Center','Washington, DC'),_TV('Echostage','Washington, DC'),
+  _TV('MGM National Harbor','Oxon Hill, MD'),
+  _TV('CFG Bank Arena','Baltimore, MD'),_TV('Pier Six Pavilion','Baltimore, MD'),_TV('The Lyric','Baltimore, MD'),
+  _TV('Hippodrome Theatre','Baltimore, MD'),_TV('Rams Head Live','Baltimore, MD'),_TV('Rams Head On Stage','Annapolis, MD'),
+  // Pittsburgh
+  _TV('PPG Paints Arena','Pittsburgh, PA'),_TV('Stage AE','Pittsburgh, PA'),_TV('Roxian Theatre','McKees Rocks, PA'),
+  _TV('Heinz Hall','Pittsburgh, PA'),_TV('Benedum Center','Pittsburgh, PA'),_TV('The Pavilion at Star Lake','Burgettstown, PA'),
+  _TV('Carnegie Music Hall','Pittsburgh, PA'),
+  // Boston / NE
+  _TV('TD Garden','Boston, MA'),_TV('Fenway Park','Boston, MA'),_TV('MGM Music Hall at Fenway','Boston, MA'),
+  _TV('Roadrunner','Brighton, MA'),_TV('Citizens Bank Opera House','Boston, MA'),_TV('Wilbur Theatre','Boston, MA'),
+  _TV('Boch Center Wang Theatre','Boston, MA'),_TV('Boch Center Shubert Theatre','Boston, MA'),_TV('Orpheum Theatre Boston','Boston, MA'),
+  _TV('Symphony Hall Boston','Boston, MA'),_TV('Berklee Performance Center','Boston, MA'),
+  _TV('Xfinity Center','Mansfield, MA'),_TV('DCU Center','Worcester, MA'),_TV('The Palladium','Worcester, MA'),
+  _TV('Hanover Theatre','Worcester, MA'),
+  _TV('XL Center','Hartford, CT'),_TV('The Bushnell','Hartford, CT'),_TV('Mohegan Sun Arena','Uncasville, CT'),
+  _TV('Foxwoods Resort Casino','Mashantucket, CT'),
+  _TV('Amica Mutual Pavilion','Providence, RI'),_TV('Providence Performing Arts Center','Providence, RI'),
+  // Upstate NY
+  _TV('KeyBank Center','Buffalo, NY'),_TV('Highmark Stadium','Orchard Park, NY'),_TV('Shea\'s Performing Arts Center','Buffalo, NY'),
+  _TV('Blue Cross Arena','Rochester, NY'),_TV('Kodak Center','Rochester, NY'),_TV('Eastman Theatre','Rochester, NY'),
+  _TV('CMAC Performing Arts Center','Canandaigua, NY'),
+  _TV('JMA Wireless Dome','Syracuse, NY'),_TV('The Oncenter','Syracuse, NY'),_TV('Landmark Theatre','Syracuse, NY'),
+  _TV('Westcott Theater','Syracuse, NY'),
+  _TV('MVP Arena','Albany, NY'),_TV('The Egg','Albany, NY'),_TV('Palace Theatre Albany','Albany, NY'),
+  _TV('Saratoga Performing Arts Center','Saratoga Springs, NY'),
+  // Detroit / Cleveland / Cincinnati / Columbus / Indy
+  _TV('Fox Theatre','Detroit, MI'),_TV('Fillmore Detroit','Detroit, MI'),_TV('Pine Knob Music Theatre','Clarkston, MI'),
+  _TV('Little Caesars Arena','Detroit, MI'),_TV('Comerica Park','Detroit, MI'),_TV('Saint Andrew\'s Hall','Detroit, MI'),
+  _TV('Masonic Temple','Detroit, MI'),_TV('Royal Oak Music Theatre','Royal Oak, MI'),
+  _TV('Rocket Mortgage FieldHouse','Cleveland, OH'),_TV('KeyBank State Theatre','Cleveland, OH'),_TV('Connor Palace','Cleveland, OH'),
+  _TV('Agora Theatre','Cleveland, OH'),_TV('Severance Hall','Cleveland, OH'),_TV('Jacobs Pavilion at Nautica','Cleveland, OH'),
+  _TV('Blossom Music Center','Cuyahoga Falls, OH'),_TV('Mimi Ohio Theatre','Cleveland, OH'),
+  _TV('Heritage Bank Center','Cincinnati, OH'),_TV('Andrew J Brady Music Center','Cincinnati, OH'),_TV('Riverbend Music Center','Cincinnati, OH'),
+  _TV('Aronoff Center','Cincinnati, OH'),_TV('Music Hall Cincinnati','Cincinnati, OH'),_TV('Bogart\'s','Cincinnati, OH'),
+  _TV('Kemba Live!','Columbus, OH'),_TV('Schottenstein Center','Columbus, OH'),_TV('Nationwide Arena','Columbus, OH'),
+  _TV('Mershon Auditorium','Columbus, OH'),_TV('The Newport Music Hall','Columbus, OH'),
+  _TV('Lucas Oil Stadium','Indianapolis, IN'),_TV('Gainbridge Fieldhouse','Indianapolis, IN'),_TV('TCU Amphitheater','Indianapolis, IN'),
+  _TV('Old National Centre','Indianapolis, IN'),_TV('Murat Theatre','Indianapolis, IN'),
+  // St. Louis / Mpls / Milwaukee / KC / Omaha
+  _TV('The Pageant','St. Louis, MO'),_TV('Stifel Theatre','St. Louis, MO'),_TV('Hollywood Casino Amphitheatre','Maryland Heights, MO'),
+  _TV('The Factory','Chesterfield, MO'),_TV('Enterprise Center','St. Louis, MO'),_TV('Powell Hall','St. Louis, MO'),
+  _TV('Target Center','Minneapolis, MN'),_TV('Xcel Energy Center','St. Paul, MN'),_TV('Palace Theatre St. Paul','St. Paul, MN'),
+  _TV('Northrop Auditorium','Minneapolis, MN'),_TV('Orpheum Theatre Minneapolis','Minneapolis, MN'),_TV('State Theatre Minneapolis','Minneapolis, MN'),
+  _TV('Pantages Theatre Mpls','Minneapolis, MN'),_TV('The Armory','Minneapolis, MN'),_TV('US Bank Stadium','Minneapolis, MN'),
+  _TV('Fiserv Forum','Milwaukee, WI'),_TV('Riverside Theater','Milwaukee, WI'),_TV('Pabst Theater','Milwaukee, WI'),
+  _TV('The Rave / Eagles Ballroom','Milwaukee, WI'),
+  _TV('T-Mobile Center','Kansas City, MO'),_TV('Starlight Theatre','Kansas City, MO'),_TV('Uptown Theater','Kansas City, MO'),
+  _TV('Kauffman Center','Kansas City, MO'),_TV('Azura Amphitheater','Bonner Springs, KS'),
+  _TV('CHI Health Center','Omaha, NE'),_TV('The Astro','La Vista, NE'),_TV('Orpheum Theater Omaha','Omaha, NE'),
+  _TV('Steelhouse Omaha','Omaha, NE'),
+  // Denver / SLC / Phoenix / Vegas
+  _TV('Ball Arena','Denver, CO'),_TV('Empower Field at Mile High','Denver, CO'),_TV('Mission Ballroom','Denver, CO'),
+  _TV('Red Rocks Amphitheatre','Morrison, CO'),_TV('Fiddler\'s Green Amphitheatre','Greenwood Village, CO'),
+  _TV('Bellco Theatre','Denver, CO'),_TV('Boettcher Concert Hall','Denver, CO'),_TV('The Paramount Theatre Denver','Denver, CO'),
+  _TV('Buell Theatre','Denver, CO'),_TV('Levitt Pavilion Denver','Denver, CO'),
+  _TV('Delta Center','Salt Lake City, UT'),_TV('Eccles Theater','Salt Lake City, UT'),_TV('Capitol Theatre SLC','Salt Lake City, UT'),
+  _TV('USANA Amphitheatre','West Valley City, UT'),_TV('The Great Saltair','Magna, UT'),
+  _TV('Footprint Center','Phoenix, AZ'),_TV('State Farm Stadium','Glendale, AZ'),_TV('Talking Stick Resort Amphitheatre','Phoenix, AZ'),
+  _TV('Arizona Financial Theatre','Phoenix, AZ'),_TV('Orpheum Theatre Phoenix','Phoenix, AZ'),
+  _TV('Mesa Arts Center','Mesa, AZ'),_TV('Desert Diamond Arena','Glendale, AZ'),
+  _TV('T-Mobile Arena','Las Vegas, NV'),_TV('Allegiant Stadium','Las Vegas, NV'),_TV('MGM Grand Garden Arena','Las Vegas, NV'),
+  _TV('Dolby Live at Park MGM','Las Vegas, NV'),_TV('The Cosmopolitan','Las Vegas, NV'),_TV('Pearl Concert Theater','Las Vegas, NV'),
+  _TV('The Chelsea','Las Vegas, NV'),_TV('Encore Theater at Wynn','Las Vegas, NV'),_TV('Resorts World Theatre','Las Vegas, NV'),
+  _TV('The Sphere','Las Vegas, NV'),
+  // Pacific NW
+  _TV('Climate Pledge Arena','Seattle, WA'),_TV('T-Mobile Park','Seattle, WA'),_TV('Lumen Field','Seattle, WA'),
+  _TV('Paramount Theatre','Seattle, WA'),_TV('Moore Theatre','Seattle, WA'),_TV('WAMU Theater','Seattle, WA'),
+  _TV('White River Amphitheatre','Auburn, WA'),
+  _TV('Moda Center','Portland, OR'),_TV('Veterans Memorial Coliseum','Portland, OR'),_TV('Roseland Theater','Portland, OR'),
+  _TV('Crystal Ballroom','Portland, OR'),_TV('Revolution Hall','Portland, OR'),_TV('Edgefield Concerts on the Lawn','Troutdale, OR'),
+  _TV('Arlene Schnitzer Concert Hall','Portland, OR'),_TV('Keller Auditorium','Portland, OR'),
+
+  // ─── EUROPE / UK ─────────────────────────────────────────────
+  // UK — London
+  _TV('The O2 Arena','London, UK'),_TV('OVO Arena Wembley','London, UK'),_TV('Wembley Stadium','London, UK'),
+  _TV('Royal Albert Hall','London, UK'),_TV('The London Palladium','London, UK'),_TV('Eventim Apollo','London, UK'),
+  _TV('Indigo at The O2','London, UK'),_TV('O2 Academy Brixton','London, UK'),_TV('KOKO','London, UK'),
+  _TV('Roundhouse','London, UK'),_TV('O2 Shepherd\'s Bush Empire','London, UK'),_TV('O2 Forum Kentish Town','London, UK'),
+  _TV('Scala','London, UK'),_TV('Heaven','London, UK'),_TV('Electric Brixton','London, UK'),
+  _TV('Lafayette','London, UK'),_TV('Omeara','London, UK'),_TV('The Lexington','London, UK'),
+  _TV('Moth Club','London, UK'),_TV('Sebright Arms','London, UK'),_TV('EartH Hackney','London, UK'),
+  _TV('The Dome Tufnell Park','London, UK'),_TV('Bush Hall','London, UK'),_TV('Union Chapel','London, UK'),
+  _TV('Hoxton Hall','London, UK'),_TV('The Jazz Cafe','London, UK'),_TV('Wilton\'s Music Hall','London, UK'),
+  _TV('Brixton Jamm','London, UK'),_TV('Village Underground','London, UK'),
+  // UK — Manchester
+  _TV('AO Arena','Manchester, UK'),_TV('Co-op Live','Manchester, UK'),_TV('O2 Apollo Manchester','Manchester, UK'),
+  _TV('Albert Hall Manchester','Manchester, UK'),_TV('Gorilla','Manchester, UK'),_TV('Band on the Wall','Manchester, UK'),
+  _TV('The Ritz Manchester','Manchester, UK'),_TV('New Century Hall','Manchester, UK'),_TV('Bridgewater Hall','Manchester, UK'),
+  _TV('YES','Manchester, UK'),_TV('Deaf Institute','Manchester, UK'),_TV('Etihad Stadium','Manchester, UK'),
+  // UK — Birmingham
+  _TV('Utilita Arena Birmingham','Birmingham, UK'),_TV('Resorts World Arena','Birmingham, UK'),_TV('Symphony Hall Birmingham','Birmingham, UK'),
+  _TV('O2 Academy Birmingham','Birmingham, UK'),_TV('O2 Institute Birmingham','Birmingham, UK'),_TV('Hare & Hounds','Birmingham, UK'),
+  _TV('Castle & Falcon','Birmingham, UK'),
+  // UK — Leeds
+  _TV('First Direct Arena','Leeds, UK'),_TV('O2 Academy Leeds','Leeds, UK'),_TV('Brudenell Social Club','Leeds, UK'),
+  _TV('Hyde Park Book Club','Leeds, UK'),_TV('Belgrave Music Hall','Leeds, UK'),_TV('The Wardrobe','Leeds, UK'),_TV('Stylus','Leeds, UK'),
+  // UK — Glasgow / Edinburgh
+  _TV('OVO Hydro','Glasgow, UK'),_TV('Barrowland Ballroom','Glasgow, UK'),_TV('King Tut\'s Wah Wah Hut','Glasgow, UK'),
+  _TV('SWG3','Glasgow, UK'),_TV('St Luke\'s','Glasgow, UK'),_TV('Stereo','Glasgow, UK'),_TV('Mono','Glasgow, UK'),
+  _TV('Nice N Sleazy','Glasgow, UK'),_TV('Glasgow Royal Concert Hall','Glasgow, UK'),
+  _TV('O2 Academy Edinburgh','Edinburgh, UK'),_TV('Liquid Room','Edinburgh, UK'),_TV('Sneaky Pete\'s','Edinburgh, UK'),
+  _TV('The Caves','Edinburgh, UK'),_TV('Usher Hall','Edinburgh, UK'),_TV('Murrayfield Stadium','Edinburgh, UK'),
+  // UK — Newcastle / Sheffield / Nottingham
+  _TV('Utilita Arena Newcastle','Newcastle, UK'),_TV('O2 City Hall Newcastle','Newcastle, UK'),_TV('Boiler Shop','Newcastle, UK'),
+  _TV('The Cluny','Newcastle, UK'),_TV('Riverside Newcastle','Newcastle, UK'),
+  _TV('Utilita Arena Sheffield','Sheffield, UK'),_TV('Sheffield City Hall','Sheffield, UK'),_TV('O2 Academy Sheffield','Sheffield, UK'),
+  _TV('The Leadmill','Sheffield, UK'),_TV('The Foundry','Sheffield, UK'),
+  _TV('Motorpoint Arena Nottingham','Nottingham, UK'),_TV('Rock City','Nottingham, UK'),_TV('Rescue Rooms','Nottingham, UK'),
+  _TV('Bodega','Nottingham, UK'),_TV('Stealth','Nottingham, UK'),
+  // UK — Bristol / Liverpool / Cardiff / Brighton
+  _TV('Bristol Beacon','Bristol, UK'),_TV('O2 Academy Bristol','Bristol, UK'),_TV('Marble Factory','Bristol, UK'),
+  _TV('Thekla','Bristol, UK'),_TV('Strange Brew','Bristol, UK'),_TV('The Fleece','Bristol, UK'),_TV('Rough Trade Bristol','Bristol, UK'),
+  _TV('M&S Bank Arena Liverpool','Liverpool, UK'),_TV('Liverpool Olympia','Liverpool, UK'),_TV('Mountford Hall','Liverpool, UK'),
+  _TV('O2 Academy Liverpool','Liverpool, UK'),_TV('The Cavern Club','Liverpool, UK'),_TV('Eventim Olympia Liverpool','Liverpool, UK'),
+  _TV('Utilita Arena Cardiff','Cardiff, UK'),_TV('Tramshed','Cardiff, UK'),_TV('Clwb Ifor Bach','Cardiff, UK'),
+  _TV('Brighton Centre','Brighton, UK'),_TV('Concorde 2','Brighton, UK'),_TV('Chalk','Brighton, UK'),_TV('Komedia','Brighton, UK'),
+  // Ireland
+  _TV('3Arena','Dublin, Ireland'),_TV('3Olympia Theatre','Dublin, Ireland'),_TV('Vicar Street','Dublin, Ireland'),
+  _TV('The Academy Dublin','Dublin, Ireland'),_TV('Whelan\'s','Dublin, Ireland'),_TV('The Workman\'s Club','Dublin, Ireland'),
+  _TV('The Button Factory','Dublin, Ireland'),_TV('The Sugar Club','Dublin, Ireland'),_TV('INEC Killarney','Killarney, Ireland'),
+  _TV('Cork Opera House','Cork, Ireland'),_TV('Cyprus Avenue','Cork, Ireland'),_TV('Live at the Marquee','Cork, Ireland'),
+  _TV('SSE Arena Belfast','Belfast, UK'),_TV('Ulster Hall','Belfast, UK'),_TV('Limelight Belfast','Belfast, UK'),
+  // Germany — Berlin
+  _TV('Uber Arena','Berlin, Germany'),_TV('Velodrom','Berlin, Germany'),_TV('Tempodrom','Berlin, Germany'),
+  _TV('Columbiahalle','Berlin, Germany'),_TV('Astra Kulturhaus','Berlin, Germany'),_TV('Lido Berlin','Berlin, Germany'),
+  _TV('SO36','Berlin, Germany'),_TV('Festsaal Kreuzberg','Berlin, Germany'),_TV('Funkhaus','Berlin, Germany'),
+  _TV('Heimathafen Neukölln','Berlin, Germany'),_TV('Frannz Club','Berlin, Germany'),_TV('Quasimodo','Berlin, Germany'),
+  // Germany — Munich
+  _TV('Olympiahalle München','Munich, Germany'),_TV('Tonhalle München','Munich, Germany'),_TV('Zenith München','Munich, Germany'),
+  _TV('Backstage Werk','Munich, Germany'),_TV('Strom München','Munich, Germany'),_TV('Muffathalle','Munich, Germany'),
+  _TV('Allianz Arena','Munich, Germany'),
+  // Germany — Hamburg / Frankfurt / Köln / others
+  _TV('Barclays Arena Hamburg','Hamburg, Germany'),_TV('Docks Hamburg','Hamburg, Germany'),_TV('Große Freiheit 36','Hamburg, Germany'),
+  _TV('Markthalle Hamburg','Hamburg, Germany'),_TV('Mojo Club','Hamburg, Germany'),_TV('Molotow','Hamburg, Germany'),
+  _TV('Festhalle Frankfurt','Frankfurt, Germany'),_TV('Batschkapp','Frankfurt, Germany'),_TV('Jahrhunderthalle','Frankfurt, Germany'),
+  _TV('Zoom Frankfurt','Frankfurt, Germany'),
+  _TV('Lanxess Arena','Cologne, Germany'),_TV('Palladium Köln','Cologne, Germany'),_TV('E-Werk Köln','Cologne, Germany'),
+  _TV('Live Music Hall','Cologne, Germany'),_TV('Stadtgarten','Cologne, Germany'),
+  _TV('PSD Bank Dome','Düsseldorf, Germany'),_TV('Mitsubishi Electric Halle','Düsseldorf, Germany'),_TV('Stahlwerk','Düsseldorf, Germany'),
+  _TV('Westfalenhalle','Dortmund, Germany'),_TV('FZW','Dortmund, Germany'),_TV('Grugahalle','Essen, Germany'),
+  _TV('Schleyerhalle','Stuttgart, Germany'),_TV('LKA Longhorn','Stuttgart, Germany'),_TV('Im Wizemann','Stuttgart, Germany'),
+  _TV('Capitol Mannheim','Mannheim, Germany'),
+  // France
+  _TV('Accor Arena','Paris, France'),_TV('La Défense Arena','Nanterre, France'),_TV('L\'Olympia','Paris, France'),
+  _TV('Salle Pleyel','Paris, France'),_TV('Le Trianon','Paris, France'),_TV('Le Zénith Paris','Paris, France'),
+  _TV('La Cigale','Paris, France'),_TV('La Maroquinerie','Paris, France'),_TV('L\'Élysée Montmartre','Paris, France'),
+  _TV('Le Trabendo','Paris, France'),_TV('Le Café de la Danse','Paris, France'),_TV('Point Éphémère','Paris, France'),
+  _TV('Badaboum','Paris, France'),_TV('New Morning','Paris, France'),
+  _TV('Halle Tony Garnier','Lyon, France'),_TV('Le Transbordeur','Lyon, France'),_TV('Ninkasi Kao','Lyon, France'),
+  _TV('Le Dôme Marseille','Marseille, France'),_TV('Le Moulin','Marseille, France'),_TV('L\'Espace Julien','Marseille, France'),
+  _TV('Le Zénith de Toulouse','Toulouse, France'),_TV('Le Bikini','Toulouse, France'),_TV('Le Métronum','Toulouse, France'),
+  _TV('Arkéa Arena','Floirac, France'),_TV('Krakatoa','Mérignac, France'),_TV('Stereolux','Nantes, France'),
+  _TV('L\'Aéronef','Lille, France'),_TV('Zénith Lille','Lille, France'),_TV('Le Splendid','Lille, France'),
+  // Netherlands / Belgium
+  _TV('Ziggo Dome','Amsterdam, Netherlands'),_TV('AFAS Live','Amsterdam, Netherlands'),_TV('Paradiso','Amsterdam, Netherlands'),
+  _TV('Bimhuis','Amsterdam, Netherlands'),_TV('Sugarfactory','Amsterdam, Netherlands'),_TV('Bitterzoet','Amsterdam, Netherlands'),
+  _TV('North Sea Jazz Club','Amsterdam, Netherlands'),
+  _TV('Rotterdam Ahoy','Rotterdam, Netherlands'),_TV('Annabel','Rotterdam, Netherlands'),_TV('BIRD','Rotterdam, Netherlands'),
+  _TV('TivoliVredenburg','Utrecht, Netherlands'),_TV('EKKO','Utrecht, Netherlands'),
+  _TV('Paard van Troje','The Hague, Netherlands'),_TV('Effenaar','Eindhoven, Netherlands'),_TV('Klokgebouw','Eindhoven, Netherlands'),
+  _TV('Forest National','Brussels, Belgium'),_TV('Ancienne Belgique','Brussels, Belgium'),_TV('Cirque Royal','Brussels, Belgium'),
+  _TV('Botanique','Brussels, Belgium'),_TV('VK Concerts','Brussels, Belgium'),_TV('La Madeleine','Brussels, Belgium'),
+  _TV('Sportpaleis','Antwerp, Belgium'),_TV('Lotto Arena','Antwerp, Belgium'),_TV('Trix','Antwerp, Belgium'),
+  _TV('De Roma','Antwerp, Belgium'),
+  _TV('Vooruit','Ghent, Belgium'),_TV('Handelsbeurs','Ghent, Belgium'),
+  // Spain
+  _TV('WiZink Center','Madrid, Spain'),_TV('Movistar Arena Madrid','Madrid, Spain'),_TV('La Riviera','Madrid, Spain'),
+  _TV('Sala Mon','Madrid, Spain'),_TV('Sala Cats','Madrid, Spain'),_TV('Teatro Real','Madrid, Spain'),
+  _TV('Palau Sant Jordi','Barcelona, Spain'),_TV('Estadi Olímpic Lluís Companys','Barcelona, Spain'),_TV('Razzmatazz','Barcelona, Spain'),
+  _TV('Sala Apolo','Barcelona, Spain'),_TV('Sala Bikini','Barcelona, Spain'),_TV('Sidecar','Barcelona, Spain'),
+  _TV('L\'Auditori','Barcelona, Spain'),_TV('Palau de la Música Catalana','Barcelona, Spain'),
+  _TV('Roig Arena','Valencia, Spain'),_TV('Sala Moon','Valencia, Spain'),_TV('Loco Club','Valencia, Spain'),
+  _TV('Cartuja Center CITE','Sevilla, Spain'),_TV('Sala X','Sevilla, Spain'),
+  _TV('BEC Barakaldo','Barakaldo, Spain'),_TV('Sala Santana 27','Bilbao, Spain'),_TV('Kafe Antzokia','Bilbao, Spain'),
+  // Italy
+  _TV('Mediolanum Forum','Assago, Italy'),_TV('Alcatraz Milano','Milan, Italy'),_TV('Fabrique','Milan, Italy'),
+  _TV('Magazzini Generali','Milan, Italy'),_TV('Carroponte','Sesto San Giovanni, Italy'),_TV('Santeria Toscana 31','Milan, Italy'),
+  _TV('PalaLottomatica','Rome, Italy'),_TV('Auditorium Parco della Musica','Rome, Italy'),_TV('Atlantico Live','Rome, Italy'),
+  _TV('Largo Venue','Rome, Italy'),_TV('Spazio Novecento','Rome, Italy'),
+  _TV('Estragon Club','Bologna, Italy'),_TV('Locomotiv Club','Bologna, Italy'),_TV('Covo Club','Bologna, Italy'),
+  _TV('PalaPartenope','Naples, Italy'),
+  _TV('Tuscany Hall','Florence, Italy'),_TV('Combo','Florence, Italy'),
+  _TV('Inalpi Arena','Turin, Italy'),_TV('OGR Torino','Turin, Italy'),_TV('Hiroshima Mon Amour','Turin, Italy'),
+  // Switzerland / Austria
+  _TV('Hallenstadion','Zurich, Switzerland'),_TV('Volkshaus Zürich','Zurich, Switzerland'),_TV('X-TRA','Zurich, Switzerland'),
+  _TV('Kaufleuten','Zurich, Switzerland'),_TV('Mascotte','Zurich, Switzerland'),_TV('Dynamo','Zurich, Switzerland'),
+  _TV('L\'Arena de Genève','Geneva, Switzerland'),_TV('L\'Usine','Geneva, Switzerland'),_TV('Alhambra Geneva','Geneva, Switzerland'),
+  _TV('St. Jakobshalle','Basel, Switzerland'),_TV('Volkshaus Basel','Basel, Switzerland'),_TV('Kaserne Basel','Basel, Switzerland'),
+  _TV('Z7 Konzertfabrik','Pratteln, Switzerland'),
+  _TV('Wiener Stadthalle','Vienna, Austria'),_TV('Gasometer','Vienna, Austria'),_TV('Arena Wien','Vienna, Austria'),
+  _TV('Flex Vienna','Vienna, Austria'),_TV('WUK','Vienna, Austria'),_TV('Chelsea','Vienna, Austria'),
+  _TV('Musikverein','Vienna, Austria'),_TV('Konzerthaus Vienna','Vienna, Austria'),_TV('Pratersauna','Vienna, Austria'),
+  _TV('Salzburg Arena','Salzburg, Austria'),_TV('Rockhouse Salzburg','Salzburg, Austria'),
+  _TV('Helmut-List-Halle','Graz, Austria'),_TV('PPC Graz','Graz, Austria'),_TV('Orpheum Graz','Graz, Austria'),
+  // Scandinavia
+  _TV('Royal Arena','Copenhagen, Denmark'),_TV('DR Koncerthuset','Copenhagen, Denmark'),_TV('Vega','Copenhagen, Denmark'),
+  _TV('Amager Bio','Copenhagen, Denmark'),_TV('Loppen','Copenhagen, Denmark'),_TV('Rust','Copenhagen, Denmark'),
+  _TV('Avicii Arena','Stockholm, Sweden'),_TV('Friends Arena','Solna, Sweden'),_TV('Cirkus','Stockholm, Sweden'),
+  _TV('Annexet','Stockholm, Sweden'),_TV('Hovet','Stockholm, Sweden'),_TV('Berns Salonger','Stockholm, Sweden'),
+  _TV('Münchenbryggeriet','Stockholm, Sweden'),_TV('Debaser Strand','Stockholm, Sweden'),_TV('Slaktkyrkan','Stockholm, Sweden'),
+  _TV('Nalen','Stockholm, Sweden'),_TV('Fryshuset','Stockholm, Sweden'),
+  _TV('Telenor Arena','Bærum, Norway'),_TV('Oslo Spektrum','Oslo, Norway'),_TV('Sentrum Scene','Oslo, Norway'),
+  _TV('Rockefeller','Oslo, Norway'),_TV('John Dee','Oslo, Norway'),_TV('Vulkan Arena','Oslo, Norway'),
+  _TV('Parkteatret','Oslo, Norway'),
+  _TV('Scandinavium','Gothenburg, Sweden'),_TV('Trädgår\'n','Gothenburg, Sweden'),_TV('Pustervik','Gothenburg, Sweden'),
+  _TV('Hartwall Arena','Helsinki, Finland'),_TV('Helsinki Ice Hall','Helsinki, Finland'),_TV('Tavastia','Helsinki, Finland'),
+  _TV('Kulttuuritalo','Helsinki, Finland'),_TV('The Circus Helsinki','Helsinki, Finland'),_TV('Korjaamo','Helsinki, Finland'),
+  _TV('Harpa','Reykjavik, Iceland'),_TV('Laugardalshöll','Reykjavik, Iceland'),_TV('Gamla Bíó','Reykjavik, Iceland'),
+  // Central / Eastern Europe
+  _TV('O2 Arena Prague','Prague, Czech Republic'),_TV('Forum Karlín','Prague, Czech Republic'),_TV('Roxy Prague','Prague, Czech Republic'),
+  _TV('Cross Club','Prague, Czech Republic'),_TV('MeetFactory','Prague, Czech Republic'),_TV('Palac Akropolis','Prague, Czech Republic'),
+  _TV('COS Torwar','Warsaw, Poland'),_TV('PGE Narodowy','Warsaw, Poland'),_TV('Stodoła','Warsaw, Poland'),
+  _TV('Klub Hybrydy','Warsaw, Poland'),_TV('Niebo','Warsaw, Poland'),_TV('Klub Studio','Krakow, Poland'),
+  _TV('Tauron Arena Krakow','Krakow, Poland'),
+  _TV('MVM Dome','Budapest, Hungary'),_TV('Akvárium Klub','Budapest, Hungary'),_TV('A38 Hajó','Budapest, Hungary'),
+  _TV('Barba Negra','Budapest, Hungary'),_TV('Dürer Kert','Budapest, Hungary'),
+  _TV('Romexpo','Bucharest, Romania'),_TV('Sala Polivalentă','Bucharest, Romania'),_TV('Arenele Romane','Bucharest, Romania'),
+  // Southern Europe
+  _TV('OAKA Athens','Athens, Greece'),_TV('Faliro Sports Pavilion Arena','Athens, Greece'),_TV('Gagarin 205','Athens, Greece'),
+  _TV('Fuzz Club','Athens, Greece'),_TV('Six DOGS','Athens, Greece'),
+  _TV('Altice Arena','Lisbon, Portugal'),_TV('Coliseu dos Recreios','Lisbon, Portugal'),_TV('LAV Lisboa Ao Vivo','Lisbon, Portugal'),
+  _TV('Music Box Lisboa','Lisbon, Portugal'),_TV('Coliseu do Porto','Porto, Portugal'),_TV('Casa da Música','Porto, Portugal'),
+  _TV('Hard Club Porto','Porto, Portugal'),
+
+  // ─── CANADA — Major touring markets, theaters, arenas, clubs ─────
+  // Toronto
+  _TV('Scotiabank Arena','Toronto, ON'),_TV('Rogers Centre','Toronto, ON'),_TV('Coca-Cola Coliseum','Toronto, ON'),
+  _TV('Massey Hall','Toronto, ON'),_TV('Roy Thomson Hall','Toronto, ON'),_TV('Meridian Hall','Toronto, ON'),
+  _TV('Danforth Music Hall','Toronto, ON'),_TV('Phoenix Concert Theatre','Toronto, ON'),_TV('Axis Club','Toronto, ON'),
+  _TV('Lee\'s Palace','Toronto, ON'),_TV('The Horseshoe Tavern','Toronto, ON'),_TV('The Rivoli','Toronto, ON'),
+  _TV('The Drake Hotel','Toronto, ON'),_TV('The Garrison','Toronto, ON'),_TV('The Great Hall','Toronto, ON'),
+  _TV('Adelaide Hall','Toronto, ON'),_TV('Echo Beach','Toronto, ON'),_TV('Budweiser Stage','Toronto, ON'),
+  _TV('History','Toronto, ON'),_TV('Rebel Toronto','Toronto, ON'),_TV('TD Music Hall','Toronto, ON'),
+  // Montreal
+  _TV('Bell Centre','Montreal, QC'),_TV('Place des Arts','Montreal, QC'),_TV('MTELUS','Montreal, QC'),
+  _TV('Théâtre Corona','Montreal, QC'),_TV('Club Soda','Montreal, QC'),_TV('Bar Le Ritz PDB','Montreal, QC'),
+  _TV('Le Belmont','Montreal, QC'),_TV('Théâtre Beanfield','Montreal, QC'),_TV('Théâtre Plaza','Montreal, QC'),
+  _TV('Théâtre Rialto','Montreal, QC'),_TV('La Sala Rossa','Montreal, QC'),_TV('Casa del Popolo','Montreal, QC'),
+  _TV('Cabaret Lion d\'Or','Montreal, QC'),_TV('L\'Olympia de Montréal','Montreal, QC'),_TV('Maison Symphonique','Montreal, QC'),
+  _TV('La Tulipe','Montreal, QC'),_TV('Théâtre Fairmount','Montreal, QC'),
+  // Vancouver
+  _TV('Rogers Arena','Vancouver, BC'),_TV('BC Place','Vancouver, BC'),_TV('Queen Elizabeth Theatre','Vancouver, BC'),
+  _TV('Orpheum Theatre','Vancouver, BC'),_TV('Vogue Theatre','Vancouver, BC'),_TV('Commodore Ballroom','Vancouver, BC'),
+  _TV('The Rickshaw Theatre','Vancouver, BC'),_TV('The Imperial Vancouver','Vancouver, BC'),_TV('Fortune Sound Club','Vancouver, BC'),
+  _TV('Biltmore Cabaret','Vancouver, BC'),_TV('Doug Mitchell Thunderbird Sports Centre','Vancouver, BC'),_TV('PNE Forum','Vancouver, BC'),
+  _TV('The Pearl Vancouver','Vancouver, BC'),
+  // Calgary
+  _TV('Scotiabank Saddledome','Calgary, AB'),_TV('McMahon Stadium','Calgary, AB'),_TV('Jack Singer Concert Hall','Calgary, AB'),
+  _TV('Grey Eagle Event Centre','Calgary, AB'),_TV('The Palace Theatre','Calgary, AB'),_TV('The Palomino Smokehouse','Calgary, AB'),
+  _TV('MacEwan Hall','Calgary, AB'),_TV('Southern Alberta Jubilee Auditorium','Calgary, AB'),
+  // Edmonton
+  _TV('Rogers Place','Edmonton, AB'),_TV('Commonwealth Stadium','Edmonton, AB'),_TV('Northern Alberta Jubilee Auditorium','Edmonton, AB'),
+  _TV('Winspear Centre','Edmonton, AB'),_TV('The Starlite Room','Edmonton, AB'),_TV('Union Hall','Edmonton, AB'),
+  // Ottawa
+  _TV('Canadian Tire Centre','Ottawa, ON'),_TV('TD Place Arena','Ottawa, ON'),_TV('National Arts Centre','Ottawa, ON'),
+  _TV('Bronson Centre','Ottawa, ON'),_TV('House of TARG','Ottawa, ON'),_TV('The Algonquin Commons Theatre','Ottawa, ON'),
+  // Quebec City
+  _TV('Vidéotron Centre','Quebec City, QC'),_TV('Grand Théâtre de Québec','Quebec City, QC'),
+  _TV('L\'Impérial Bell','Quebec City, QC'),_TV('Le Capitole de Québec','Quebec City, QC'),
+  // Winnipeg
+  _TV('Canada Life Centre','Winnipeg, MB'),_TV('Burton Cummings Theatre','Winnipeg, MB'),_TV('Park Theatre','Winnipeg, MB'),
+  _TV('The Garrick Centre','Winnipeg, MB'),_TV('The Good Will Social Club','Winnipeg, MB'),
+  // Halifax
+  _TV('Scotiabank Centre','Halifax, NS'),_TV('Marquee Ballroom','Halifax, NS'),
+  _TV('The Carleton','Halifax, NS'),_TV('The Seahorse Tavern','Halifax, NS'),
+  // Hamilton
+  _TV('FirstOntario Centre','Hamilton, ON'),_TV('Studio at Hamilton Place','Hamilton, ON'),
+  _TV('Bridgeworks','Hamilton, ON'),_TV('Casbah Lounge','Hamilton, ON'),_TV('This Ain\'t Hollywood','Hamilton, ON'),
+  // KW / London ON
+  _TV('Centre in the Square','Kitchener, ON'),_TV('Maxwell\'s Concerts','Waterloo, ON'),
+  _TV('Budweiser Gardens','London, ON'),_TV('Aeolian Hall','London, ON'),
+  // Saskatchewan
+  _TV('SaskTel Centre','Saskatoon, SK'),_TV('TCU Place','Saskatoon, SK'),_TV('Brandt Centre','Regina, SK'),
+  // Atlantic Canada
+  _TV('Mile One Centre','St. John\'s, NL'),_TV('Avenir Centre','Moncton, NB'),_TV('Aitken Centre','Fredericton, NB'),
+
+  // ─── US — College towns + Secondary markets ──────────────────────
+  // College towns / university markets
+  _TV('Fox Theatre Boulder','Boulder, CO'),_TV('Boulder Theater','Boulder, CO'),_TV('Macky Auditorium','Boulder, CO'),
+  _TV('Aggie Theatre','Fort Collins, CO'),_TV('Washington\'s','Fort Collins, CO'),_TV('The Mishawaka','Bellvue, CO'),
+  _TV('Lincoln Center','Fort Collins, CO'),
+  _TV('Hult Center','Eugene, OR'),_TV('Cuthbert Amphitheater','Eugene, OR'),_TV('McDonald Theatre','Eugene, OR'),
+  _TV('Matthew Knight Arena','Eugene, OR'),_TV('WOW Hall','Eugene, OR'),
+  _TV('Mondavi Center','Davis, CA'),
+  _TV('Michigan Theater','Ann Arbor, MI'),_TV('Hill Auditorium','Ann Arbor, MI'),_TV('Crisler Center','Ann Arbor, MI'),
+  _TV('Wharton Center','East Lansing, MI'),_TV('Breslin Center','East Lansing, MI'),
+  _TV('Morris Performing Arts Center','South Bend, IN'),_TV('Joyce Center','South Bend, IN'),
+  _TV('Hancher Auditorium','Iowa City, IA'),_TV('Carver-Hawkeye Arena','Iowa City, IA'),
+  _TV('Krannert Center','Champaign, IL'),_TV('State Farm Center','Champaign, IL'),
+  _TV('IU Auditorium','Bloomington, IN'),_TV('Buskirk-Chumley Theater','Bloomington, IN'),
+  _TV('Rupp Arena','Lexington, KY'),_TV('Manchester Music Hall','Lexington, KY'),_TV('Singletary Center','Lexington, KY'),
+  _TV('Stegeman Coliseum','Athens, GA'),_TV('Classic Center','Athens, GA'),
+  _TV('Memorial Hall UNC','Chapel Hill, NC'),_TV('Dean E. Smith Center','Chapel Hill, NC'),
+  _TV('Xfinity Center Maryland','College Park, MD'),
+  _TV('Lloyd Noble Center','Norman, OK'),
+
+  // Secondary southern markets
+  _TV('Greensboro Coliseum','Greensboro, NC'),_TV('Carolina Theatre','Greensboro, NC'),_TV('Cone Denim Entertainment Center','Greensboro, NC'),
+  _TV('Colonial Life Arena','Columbia, SC'),_TV('Township Auditorium','Columbia, SC'),
+  _TV('Scope Arena','Norfolk, VA'),_TV('Chartway Arena','Norfolk, VA'),_TV('Hampton Coliseum','Hampton, VA'),
+  _TV('Altria Theater','Richmond, VA'),_TV('Brown\'s Island','Richmond, VA'),
+  _TV('John Paul Jones Arena','Charlottesville, VA'),_TV('Jefferson Theater','Charlottesville, VA'),_TV('Sprint Pavilion','Charlottesville, VA'),
+  _TV('Berglund Center','Roanoke, VA'),_TV('Salem Civic Center','Salem, VA'),
+  _TV('Enmarket Arena','Savannah, GA'),_TV('Lucas Theatre','Savannah, GA'),
+  _TV('James Brown Arena','Augusta, GA'),_TV('Bell Auditorium','Augusta, GA'),_TV('Miller Theater','Augusta, GA'),
+  _TV('Macon City Auditorium','Macon, GA'),_TV('Cox Capitol Theatre','Macon, GA'),
+  _TV('Tuscaloosa Amphitheater','Tuscaloosa, AL'),
+  _TV('Mark C. Smith Concert Hall','Huntsville, AL'),_TV('Von Braun Center','Huntsville, AL'),
+  _TV('Saenger Theatre Mobile','Mobile, AL'),_TV('Mobile Civic Center','Mobile, AL'),
+  _TV('Saenger Theatre Pensacola','Pensacola, FL'),_TV('Vinyl Music Hall','Pensacola, FL'),_TV('Pensacola Bay Center','Pensacola, FL'),
+  _TV('iTHINK Financial Amphitheatre','West Palm Beach, FL'),_TV('Kravis Center','West Palm Beach, FL'),
+  _TV('Amerant Bank Arena','Sunrise, FL'),
+  _TV('Bo Diddley Plaza','Gainesville, FL'),_TV('Stephen C. O\'Connell Center','Gainesville, FL'),
+  _TV('Artis-Naples','Naples, FL'),
+  _TV('Donald L. Tucker Civic Center','Tallahassee, FL'),_TV('The Moon','Tallahassee, FL'),
+  _TV('Tennessee Theatre','Knoxville, TN'),_TV('Thompson-Boling Arena','Knoxville, TN'),
+  _TV('Tivoli Theatre','Chattanooga, TN'),_TV('Memorial Auditorium','Chattanooga, TN'),
+  _TV('BJCC Concert Hall','Birmingham, AL'),
+
+  // Heartland / Plains / Mountain
+  _TV('BOK Center','Tulsa, OK'),_TV('Tulsa Performing Arts Center','Tulsa, OK'),_TV('Hard Rock Hotel Tulsa','Catoosa, OK'),
+  _TV('Paycom Center','Oklahoma City, OK'),_TV('The Criterion','Oklahoma City, OK'),_TV('Civic Center Music Hall','Oklahoma City, OK'),
+  _TV('Diamond Ballroom','Oklahoma City, OK'),
+  _TV('WinStar World Casino','Thackerville, OK'),_TV('Choctaw Casino','Durant, OK'),
+  _TV('Robinson Performance Hall','Little Rock, AR'),_TV('Simmons Bank Arena','North Little Rock, AR'),_TV('Walmart AMP','Rogers, AR'),
+  _TV('Don Haskins Center','El Paso, TX'),_TV('Plaza Theatre','El Paso, TX'),
+  _TV('AVA Amphitheater','Tucson, AZ'),_TV('Linda Ronstadt Music Hall','Tucson, AZ'),
+  _TV('Tingley Coliseum','Albuquerque, NM'),_TV('KiMo Theatre','Albuquerque, NM'),
+  _TV('Marquee Theatre Tempe','Tempe, AZ'),_TV('Mullett Arena','Tempe, AZ'),_TV('Tempe Center for the Arts','Tempe, AZ'),
+
+  // Mid-Atlantic / Northeast secondary
+  _TV('Freedom Mortgage Pavilion','Camden, NJ'),
+  _TV('Hard Rock Live AC','Atlantic City, NJ'),_TV('Boardwalk Hall','Atlantic City, NJ'),_TV('Borgata Event Center','Atlantic City, NJ'),
+  _TV('PPL Center','Allentown, PA'),_TV('Miller Symphony Hall','Allentown, PA'),
+  _TV('Mohegan Sun Arena at Casey Plaza','Wilkes-Barre, PA'),_TV('F.M. Kirby Center','Wilkes-Barre, PA'),
+  _TV('Santander Arena','Reading, PA'),_TV('Santander Performing Arts Center','Reading, PA'),
+  _TV('American Music Theatre','Lancaster, PA'),_TV('Fulton Theatre','Lancaster, PA'),
+  _TV('Erie Insurance Arena','Erie, PA'),_TV('Warner Theatre Erie','Erie, PA'),
+
+  // Midwest secondary
+  _TV('Van Andel Arena','Grand Rapids, MI'),_TV('DeVos Performance Hall','Grand Rapids, MI'),_TV('GLC Live at 20 Monroe','Grand Rapids, MI'),
+  _TV('Huntington Center','Toledo, OH'),_TV('Stranahan Theater','Toledo, OH'),
+  _TV('Akron Civic Theatre','Akron, OH'),_TV('Goodyear Theater','Akron, OH'),
+  _TV('Nutter Center','Dayton, OH'),_TV('Schuster Center','Dayton, OH'),
+  _TV('Memorial Coliseum','Fort Wayne, IN'),_TV('Embassy Theatre','Fort Wayne, IN'),
+  _TV('Ford Center','Evansville, IN'),_TV('Victory Theatre','Evansville, IN'),
+  _TV('Peoria Civic Center','Peoria, IL'),
+  _TV('BMO Center','Rockford, IL'),_TV('Coronado Performing Arts Center','Rockford, IL'),
+  _TV('Adler Theatre','Davenport, IA'),_TV('Paramount Theatre Cedar Rapids','Cedar Rapids, IA'),
+  _TV('Denny Sanford Premier Center','Sioux Falls, SD'),_TV('Washington Pavilion','Sioux Falls, SD'),
+  _TV('Fargodome','Fargo, ND'),_TV('Bismarck Event Center','Bismarck, ND'),
+  _TV('Resch Center','Green Bay, WI'),
+
   // ─── Pulled from 6arelyhuman 2025 routing (Wasserman itinerary, 05.13.2025) ───
   // US venues
   _TV('The Echo Lounge & Music Hall','Dallas, TX'),_TV('Brooklyn Bowl Philadelphia','Philadelphia, PA'),
@@ -8818,11 +9272,14 @@ function renderDashboard() {
   // Day-of-tour progress (1-indexed)
   const dayIdx = T().dates.findIndex(d => d.id === ad.id) + 1;
   const dayOfTotal = `${String(dayIdx).padStart(2,'0')} / ${String(T().dates.length).padStart(2,'0')}`;
-  // Status pill class — colors by status
+  // Status pill class — match the day-pill dot color exactly so the
+  // badge reads as the same color in every surface. Each status maps
+  // to its own class; CSS picks the right swatch.
   const statusClass = effectiveStatus === 'off' ? 'off'
     : effectiveStatus === 'travel' ? 'travel'
-    : (effectiveStatus === 'press' || effectiveStatus === 'rehearsal') ? 'press'
-    : '';
+    : effectiveStatus === 'rehearsal' ? 'rehearsal'
+    : effectiveStatus === 'press' ? 'press'
+    : 'show';
 
   // SCHEDULE CARD content
   const sched = (ad.schedule || []).slice().sort((a, b) => {
