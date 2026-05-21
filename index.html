@@ -3359,6 +3359,168 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 .route-row.current .rr-city{color:var(--hi)}
 .route-row .rr-venue{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
 
+/* ============ CHAT / MESSAGING ============
+   Layout: 2-pane modal (chat list left, conversation right). On
+   mobile the layout collapses to a single column with back-button
+   navigation. Official chats render with the warm copper accent
+   the rest of the app already uses for TM-priority info; casual
+   chats use the cool blue we use for crew/peer surfaces.            */
+.ic-chat{position:relative;display:flex;align-items:center;justify-content:center;
+  width:36px;height:36px;border:none;background:transparent;color:var(--warm);cursor:pointer;
+  border-radius:10px;transition:background .15s,color .15s}
+.ic-chat:hover{background:rgba(232,148,58,.08);color:var(--hi)}
+.ic-chat .ic-glyph{font-size:18px;line-height:1}
+.ic-chat .ic-badge{position:absolute;top:2px;right:2px;
+  min-width:16px;height:16px;padding:0 4px;
+  background:#e8453a;color:#fff;border:1.5px solid var(--ink);border-radius:9px;
+  font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;line-height:1;
+  box-shadow:0 0 8px rgba(232,69,58,.6)}
+
+/* Tools-menu badge — same red unread chip */
+.tools-item .ti-badge:not(.soon){background:#e8453a;color:#fff;
+  font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:800;letter-spacing:.04em;
+  padding:2px 6px;border-radius:9px;line-height:1.2;border:1px solid rgba(232,69,58,.7)}
+
+/* Chat modal — wider than the standard openModal layout */
+.chat-modal{width:min(960px,96vw);max-height:88vh;display:flex;flex-direction:column}
+.chat-layout{display:grid;grid-template-columns:280px 1fr;gap:0;min-height:520px;max-height:74vh;
+  border:1px solid var(--line);border-radius:10px;overflow:hidden;background:rgba(10,7,5,.4)}
+.chat-list-pane{display:flex;flex-direction:column;border-right:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(20,13,7,.6),rgba(10,7,5,.4));min-width:0}
+.chat-list-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.chat-list-head h4{margin:0;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--warm-mute);flex:1}
+.chat-list-head .chat-new-btn{padding:5px 10px;font-family:'JetBrains Mono',monospace;font-size:10px;
+  letter-spacing:.12em;text-transform:uppercase;font-weight:700;cursor:pointer;
+  background:linear-gradient(135deg,var(--hi),var(--hi-2));color:#0a0705;
+  border:1px solid var(--hi);border-radius:6px;box-shadow:0 0 12px rgba(232,148,58,.3)}
+.chat-list{flex:1;overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:2px}
+.chat-row{padding:10px 12px;border-radius:8px;cursor:pointer;
+  display:flex;flex-direction:column;gap:3px;transition:background .12s,border-color .12s;
+  border:1px solid transparent;background:transparent}
+.chat-row:hover{background:rgba(232,148,58,.05);border-color:var(--line)}
+.chat-row.active{background:rgba(232,148,58,.12);border-color:rgba(232,148,58,.4)}
+.chat-row.official{background:linear-gradient(135deg,rgba(232,148,58,.10),rgba(232,148,58,.03));
+  border-color:rgba(232,148,58,.35)}
+.chat-row.official.active{background:linear-gradient(135deg,rgba(232,148,58,.22),rgba(232,148,58,.08));
+  border-color:var(--hi);box-shadow:0 0 14px rgba(232,148,58,.18)}
+.chat-row.has-unread{font-weight:700}
+.chat-row-head{display:flex;align-items:center;gap:6px;min-width:0}
+.chat-row-name{font-size:13px;color:var(--warm);font-weight:600;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.chat-row.official .chat-row-name{color:#fbd9a9}
+.chat-row.has-unread .chat-row-name{color:#fff}
+.chat-row-badge{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.14em;
+  padding:1px 6px;border-radius:3px;border:1px solid var(--line-2);color:var(--warm-mute);
+  text-transform:uppercase;font-weight:700;flex:none}
+.chat-row.official .chat-row-badge{color:#e78f4f;border-color:rgba(231,143,79,.45);background:rgba(231,143,79,.08)}
+.chat-row .chat-row-unread{min-width:18px;height:18px;padding:0 5px;background:#e8453a;color:#fff;
+  border-radius:9px;font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 0 8px rgba(232,69,58,.5)}
+.chat-row-preview{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);
+  letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-list-empty{padding:30px 16px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:10.5px;
+  letter-spacing:.12em;color:var(--warm-mute);text-transform:uppercase}
+
+/* Conversation pane */
+.chat-thread-pane{display:flex;flex-direction:column;min-width:0;background:rgba(10,7,5,.3)}
+.chat-thread-head{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.chat-thread-head .cth-name{flex:1;font-size:14px;font-weight:700;color:var(--warm);min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-thread-head .cth-name.official{color:#fbd9a9}
+.chat-thread-head .cth-meta{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.1em;text-transform:uppercase}
+.chat-thread-head .cth-broadcast{padding:5px 10px;font-family:'JetBrains Mono',monospace;font-size:10px;
+  letter-spacing:.12em;text-transform:uppercase;font-weight:700;cursor:pointer;
+  background:rgba(231,143,79,.12);color:#e78f4f;border:1px solid rgba(231,143,79,.5);border-radius:6px}
+.chat-thread-head .cth-broadcast:hover{box-shadow:0 0 12px rgba(231,143,79,.35)}
+
+.chat-messages{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-height:0}
+.chat-msg{display:flex;flex-direction:column;gap:3px;max-width:78%;align-self:flex-start}
+.chat-msg.mine{align-self:flex-end;align-items:flex-end}
+.chat-msg.broadcast{align-self:stretch;max-width:none}
+.chat-msg-meta{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--warm-mute);letter-spacing:.1em;
+  display:flex;align-items:center;gap:6px}
+.chat-msg-bubble{padding:8px 12px;border-radius:11px;background:rgba(138,169,216,.10);border:1px solid rgba(138,169,216,.3);
+  color:var(--warm);font-size:13px;line-height:1.45;white-space:pre-wrap;word-wrap:break-word}
+.chat-msg.mine .chat-msg-bubble{background:rgba(232,148,58,.12);border-color:rgba(232,148,58,.4);color:#fbd9a9}
+.chat-msg.broadcast .chat-msg-bubble{background:linear-gradient(135deg,rgba(232,148,58,.18),rgba(232,148,58,.06));
+  border-color:rgba(232,148,58,.55);color:#fbd9a9;text-align:center;
+  font-family:'JetBrains Mono',monospace;letter-spacing:.06em;font-size:12px;font-weight:600}
+.chat-msg-bubble .mention{background:rgba(232,148,58,.22);color:#fbd9a9;padding:0 4px;border-radius:3px;font-weight:700}
+.chat-msg-bubble .mention.you{background:#e78f4f;color:#0a0705;box-shadow:0 0 8px rgba(231,143,79,.5)}
+
+.chat-msg-reactions{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}
+.chat-msg-react{display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:9px;
+  border:1px solid var(--line-2);background:rgba(20,15,11,.6);font-size:11px;cursor:pointer;
+  transition:border-color .12s,background .12s}
+.chat-msg-react:hover{border-color:var(--hi);background:rgba(232,148,58,.1)}
+.chat-msg-react.mine{border-color:var(--hi);background:rgba(232,148,58,.16);color:#fbd9a9}
+.chat-msg-react-add{font-size:12px;padding:1px 7px;color:var(--warm-mute);background:transparent;border:1px dashed var(--line-2);
+  border-radius:9px;cursor:pointer}
+.chat-msg-react-add:hover{color:var(--hi);border-color:var(--hi);background:rgba(232,148,58,.05)}
+
+.chat-day-sep{align-self:center;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--warm-mute);padding:8px 14px;background:rgba(20,15,11,.5);border:1px solid var(--line);border-radius:14px}
+
+.chat-compose{border-top:1px solid var(--line);padding:10px 12px;background:rgba(10,7,5,.5);position:relative}
+.chat-compose-row{display:flex;gap:8px;align-items:flex-end}
+.chat-compose-input{flex:1;min-height:36px;max-height:140px;resize:none;background:rgba(20,15,11,.8);
+  border:1px solid var(--line-2);border-radius:8px;color:var(--warm);font-family:inherit;font-size:13px;
+  padding:8px 12px;line-height:1.4;outline:none}
+.chat-compose-input:focus{border-color:var(--hi);box-shadow:0 0 0 3px rgba(232,148,58,.15)}
+.chat-send-btn{padding:8px 14px;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;
+  text-transform:uppercase;font-weight:700;cursor:pointer;
+  background:linear-gradient(135deg,var(--hi),var(--hi-2));color:#0a0705;border:1px solid var(--hi);
+  border-radius:8px;box-shadow:0 0 12px rgba(232,148,58,.3);flex:none}
+.chat-send-btn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+
+.chat-mention-pop{position:absolute;bottom:100%;left:12px;right:12px;margin-bottom:6px;
+  background:rgba(20,13,7,.98);border:1px solid var(--hi);border-radius:8px;
+  box-shadow:0 -6px 20px rgba(0,0,0,.5),0 0 18px rgba(232,148,58,.2);
+  max-height:200px;overflow-y:auto;padding:4px;z-index:5}
+.chat-mention-item{padding:6px 10px;border-radius:5px;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--warm)}
+.chat-mention-item:hover,.chat-mention-item.selected{background:rgba(232,148,58,.15);color:#fbd9a9}
+.chat-mention-item .role{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--warm-mute);letter-spacing:.1em;margin-left:auto}
+
+/* Empty conversation state */
+.chat-thread-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:30px 20px;text-align:center;gap:12px;color:var(--warm-mute)}
+.chat-thread-empty .cte-icon{font-size:36px;opacity:.4}
+.chat-thread-empty .cte-title{font-size:15px;color:var(--warm);font-weight:600}
+.chat-thread-empty .cte-sub{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+
+/* Compose new chat modal (member picker) */
+.chat-new-form{display:flex;flex-direction:column;gap:14px}
+.chat-new-form .field label{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--warm-mute);font-weight:700;margin-bottom:5px;display:block}
+.chat-member-grid{display:flex;flex-direction:column;gap:4px;max-height:240px;overflow-y:auto;
+  border:1px solid var(--line);border-radius:8px;padding:6px;background:rgba(10,7,5,.4)}
+.chat-member-pick{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;cursor:pointer;
+  transition:background .12s}
+.chat-member-pick:hover{background:rgba(232,148,58,.05)}
+.chat-member-pick input{margin:0;accent-color:var(--hi)}
+.chat-member-pick .mp-name{font-size:13px;color:var(--warm);flex:1}
+.chat-member-pick .mp-role{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.08em}
+.chat-official-toggle{display:flex;align-items:center;gap:10px;padding:10px 12px;
+  background:linear-gradient(135deg,rgba(232,148,58,.10),rgba(232,148,58,.02));
+  border:1px solid rgba(232,148,58,.3);border-radius:8px;cursor:pointer}
+.chat-official-toggle input{accent-color:var(--hi)}
+.chat-official-toggle .ot-label{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:#fbd9a9}
+.chat-official-toggle .ot-desc{font-size:11.5px;color:var(--warm-mute);margin-top:2px}
+
+/* Mobile responsive — chat list and thread stack vertically */
+@media (max-width: 768px) {
+  body.mobile .chat-modal,
+  body.mobile .chat-layout { max-height: none !important; min-height: 0; height: auto }
+  body.mobile .chat-layout { grid-template-columns: 1fr !important; min-height: calc(100vh - 60px) }
+  body.mobile .chat-list-pane { border-right: none !important; border-bottom: 1px solid var(--line); max-height: 40vh }
+  body.mobile .chat-thread-pane.empty-on-mobile { display: none }
+  body.mobile .chat-list-pane.hidden-on-mobile { display: none }
+  body.mobile .chat-thread-back { display: flex !important }
+}
+.chat-thread-back{display:none;width:30px;height:30px;align-items:center;justify-content:center;
+  border:1px solid var(--line-2);border-radius:7px;background:transparent;color:var(--warm-mute);cursor:pointer;font-size:18px;flex:none}
+.chat-thread-back:hover{color:var(--hi);border-color:var(--hi)}
+
 /* ============================================================
    MOBILE LAYOUT (iPhone-friendly) — V3
    ───────────────────────────────────────────────────────────
@@ -4027,7 +4189,10 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
               <div class="city" id="phCity">—<small id="phSub">—</small></div>
               <span class="phone-trigger-chev">▾</span>
             </button>
-            <div class="ic">⌕</div>
+            <button type="button" class="ic ic-chat" onclick="openChatsModal()" title="Open messaging" aria-label="Open chats">
+              <span class="ic-glyph">✉</span>
+              <span class="ic-badge" id="phChatUnread" hidden>0</span>
+            </button>
           </div>
           <div class="phone-date-menu" id="phoneDateMenu" hidden></div>
 
@@ -4444,10 +4609,114 @@ const db = {
         payload => this._onAttachmentChange(payload))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions' },
         payload => this._onSubscriptionChange(payload))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+        payload => { try { _onChatMessageRealtime(payload.new); } catch(e){ console.warn('chat-msg rt', e); } })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_reactions' },
+        payload => { try { _onChatReactionRealtime(payload); } catch(e){ console.warn('chat-react rt', e); } })
       .subscribe(status => {
         if (status === 'SUBSCRIBED') console.log('[realtime] connected');
         else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') console.warn('[realtime]', status);
       });
+  },
+
+  // ─── CHAT API ─────────────────────────────────────────────────
+  // All chat operations run through the Supabase client. RLS in
+  // patch-011 keeps everyone honest: members can read/write their
+  // chats; only the tour owner can flag a chat as official; only
+  // the tour owner sees DMs they aren't a member of (audit view).
+  async chatFetchAll(tourId) {
+    if (!sb || !tourId) return { chats: [], members: [] };
+    const { data: chats, error: e1 } = await sb.from('chats')
+      .select('*').eq('tour_id', tourId).eq('archived', false).order('created_at', { ascending: false });
+    if (e1) { this._err('chatFetchAll', e1); return { chats: [], members: [] }; }
+    const ids = (chats || []).map(c => c.id);
+    if (!ids.length) return { chats: [], members: [] };
+    const { data: members } = await sb.from('chat_members').select('*').in('chat_id', ids);
+    return { chats: chats || [], members: members || [] };
+  },
+  async chatFetchMessages(chatId, limit = 200) {
+    if (!sb || !chatId) return [];
+    const { data, error } = await sb.from('chat_messages')
+      .select('*').eq('chat_id', chatId).is('deleted_at', null)
+      .order('created_at', { ascending: true }).limit(limit);
+    if (error) { this._err('chatFetchMessages', error); return []; }
+    return data || [];
+  },
+  async chatFetchReactions(messageIds) {
+    if (!sb || !messageIds?.length) return [];
+    const { data, error } = await sb.from('chat_reactions').select('*').in('message_id', messageIds);
+    if (error) { this._err('chatFetchReactions', error); return []; }
+    return data || [];
+  },
+  async chatCreate(tourId, name, memberUserIds, opts = {}) {
+    if (!sb || !tourId) return null;
+    const isOfficial = !!opts.isOfficial;
+    const isDm = !!opts.isDm;
+    const { data: row, error } = await sb.from('chats').insert({
+      tour_id: tourId, name, is_official: isOfficial, is_dm: isDm,
+      created_by: state.currentUserId,
+    }).select().single();
+    if (error) { this._err('chatCreate', error); return null; }
+    // Add the creator + every selected member. Skip duplicates client-side.
+    const userIds = Array.from(new Set([state.currentUserId, ...(memberUserIds || [])])).filter(Boolean);
+    const memberRows = userIds.map(uid => ({ chat_id: row.id, user_id: uid }));
+    const { error: mErr } = await sb.from('chat_members').insert(memberRows);
+    if (mErr) this._err('chatCreate.members', mErr);
+    return row;
+  },
+  async chatSendMessage(chatId, body, opts = {}) {
+    if (!sb || !chatId || !body) return null;
+    const mentions = Array.isArray(opts.mentions) ? opts.mentions : [];
+    const { data, error } = await sb.from('chat_messages').insert({
+      chat_id: chatId, sender_id: state.currentUserId, body,
+      mentions, is_broadcast: !!opts.isBroadcast,
+    }).select().single();
+    if (error) { this._err('chatSendMessage', error); return null; }
+    return data;
+  },
+  async chatMarkRead(chatId) {
+    if (!sb || !chatId) return;
+    const { error } = await sb.from('chat_members').update({ last_read_at: new Date().toISOString() })
+      .eq('chat_id', chatId).eq('user_id', state.currentUserId);
+    if (error) this._err('chatMarkRead', error);
+  },
+  async chatToggleReaction(messageId, emoji) {
+    if (!sb || !messageId || !emoji) return;
+    // Try delete first (toggle off); if no rows affected, insert.
+    const { data: existing } = await sb.from('chat_reactions')
+      .select('*').eq('message_id', messageId).eq('user_id', state.currentUserId).eq('emoji', emoji);
+    if (existing && existing.length) {
+      const { error } = await sb.from('chat_reactions').delete()
+        .eq('message_id', messageId).eq('user_id', state.currentUserId).eq('emoji', emoji);
+      if (error) this._err('chatToggleReaction.del', error);
+    } else {
+      const { error } = await sb.from('chat_reactions').insert({
+        message_id: messageId, user_id: state.currentUserId, emoji,
+      });
+      if (error) this._err('chatToggleReaction.ins', error);
+    }
+  },
+  // Auto-seed the standard official chats when a tour has none yet.
+  // Runs once per tour, called when the chat modal opens. Idempotent.
+  async chatAutoSeed(tourId) {
+    if (!sb || !tourId) return;
+    const tour = state.tours[tourId];
+    if (!tour || tour.ownerId !== state.currentUserId) return; // only TM seeds
+    const { data: existing } = await sb.from('chats').select('id').eq('tour_id', tourId).limit(1);
+    if (existing && existing.length) return; // already seeded
+    // Gather every tour member's userId (TM + crew)
+    const memberIds = Array.from(new Set([
+      state.currentUserId,
+      ...((tour.crew || []).map(c => c.userId).filter(Boolean)),
+    ]));
+    const seed = [
+      { name: '# all-hands', isOfficial: true },
+      { name: '# band',      isOfficial: false },
+      { name: '# crew',      isOfficial: false },
+    ];
+    for (const s of seed) {
+      await this.chatCreate(tourId, s.name, memberIds, { isOfficial: s.isOfficial });
+    }
   },
   unsubscribeRealtime() {
     if (!sb || !this._channel) return;
@@ -19874,6 +20143,11 @@ function toggleToolsMenu() {
   if (!menu) return;
   if (_toolsMenuOpen) {
     menu.innerHTML = `
+      <button type="button" class="tools-item" onclick="closeToolsMenu();openChatsModal()">
+        <span class="ti-icon">✉</span>
+        <span class="ti-name">Messages</span>
+        <span class="ti-badge" id="toolsChatUnread" hidden>0</span>
+      </button>
       <button type="button" class="tools-item disabled" disabled aria-disabled="true" title="Coming soon">
         <span class="ti-icon">→</span>
         <span class="ti-name">Travel Assistant</span>
@@ -20983,6 +21257,611 @@ function init() {
   }
 }
 
+/* =====================================================================
+   CHAT / MESSAGING — frontend
+   Live in-memory cache populated from Supabase, updated by realtime
+   subscriptions registered in db.subscribeRealtime. UI is two-pane
+   (chat list + thread), full-screen modal on mobile. Mentions are
+   parsed at send time; reactions toggle per (msg, user, emoji).
+   ===================================================================== */
+const _chatState = {
+  loaded: false,
+  chats: [],         // [{ id, tour_id, name, is_official, is_dm, created_by, created_at }]
+  members: [],       // [{ chat_id, user_id, last_read_at, muted }]
+  messages: {},      // { chat_id: [msg, msg, ...] }
+  reactions: {},     // { message_id: [reaction, ...] }
+  activeChatId: null,
+  composeDraft: '',
+  mentionState: null, // { startIdx, query, matches, selectedIdx }
+};
+
+// Common emoji palette for the +reaction picker
+const _CHAT_EMOJIS = ['👍','❤️','✅','🔥','😂','🎉','👀','❓','✋','🙏'];
+
+// Lightweight user lookup for chat author display. Cross-references
+// state.users (claimed accounts) AND the active tour's crew roster
+// (covers seeded crew records who haven't signed up yet).
+function _chatLookupUser(userId) {
+  if (!userId) return null;
+  const u = state.users?.[userId];
+  if (u) return { id: u.id, name: u.name, avatar: u.avatar, role: u.role || 'crew' };
+  // Fall back to crew roster lookup (seeded records may not have a users entry yet)
+  const tour = T();
+  const crew = (tour.crew || []).find(c => c.userId === userId);
+  if (crew) {
+    return { id: userId, name: crew.name, avatar: (crew.name||'??').split(/\s+/).map(s=>s[0]).join('').slice(0,2).toUpperCase(), role: crew.type || 'Crew' };
+  }
+  return { id: userId, name: 'Unknown', avatar: '??', role: '' };
+}
+
+// Build the list of tour members who can be added to a chat / mentioned.
+// Includes the TM (tour owner) + every crew row with a userId.
+function _chatTourMembers() {
+  const tour = T();
+  if (!tour) return [];
+  const set = new Map();
+  if (tour.ownerId && state.users?.[tour.ownerId]) {
+    const o = state.users[tour.ownerId];
+    set.set(o.id, { id: o.id, name: o.name, role: 'Tour Manager' });
+  }
+  (tour.crew || []).forEach(c => {
+    if (c.userId && !set.has(c.userId)) {
+      set.set(c.userId, { id: c.userId, name: c.name, role: c.role || c.type || 'Crew' });
+    }
+  });
+  return Array.from(set.values());
+}
+
+// Sort chats: official first (alphabetical), then DMs (newest first),
+// then group chats (newest first). Inside each band, ones with unread
+// messages float to the top.
+function _chatSort(chats) {
+  const myId = state.currentUserId;
+  const unreadCounts = _chatUnreadCounts();
+  return [...chats].sort((a, b) => {
+    // official first
+    if (a.is_official !== b.is_official) return b.is_official - a.is_official;
+    // unread first within band
+    const ua = unreadCounts[a.id] > 0 ? 1 : 0;
+    const ub = unreadCounts[b.id] > 0 ? 1 : 0;
+    if (ua !== ub) return ub - ua;
+    // newest activity first (last message time, fallback to created)
+    const aLast = _chatLastMessageTime(a.id) || a.created_at;
+    const bLast = _chatLastMessageTime(b.id) || b.created_at;
+    return new Date(bLast) - new Date(aLast);
+  });
+}
+
+function _chatLastMessage(chatId) {
+  const msgs = _chatState.messages[chatId];
+  return msgs && msgs.length ? msgs[msgs.length - 1] : null;
+}
+function _chatLastMessageTime(chatId) {
+  const m = _chatLastMessage(chatId);
+  return m ? m.created_at : null;
+}
+
+// Compute unread counts per chat for current user, comparing the
+// member's last_read_at to each message's created_at.
+function _chatUnreadCounts() {
+  const counts = {};
+  const myId = state.currentUserId;
+  if (!myId) return counts;
+  _chatState.chats.forEach(c => {
+    const me = _chatState.members.find(m => m.chat_id === c.id && m.user_id === myId);
+    if (!me) { counts[c.id] = 0; return; }
+    const lastRead = new Date(me.last_read_at || 0).getTime();
+    const msgs = _chatState.messages[c.id] || [];
+    let n = 0;
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const t = new Date(msgs[i].created_at).getTime();
+      if (t <= lastRead) break;
+      if (msgs[i].sender_id !== myId) n++;
+    }
+    counts[c.id] = n;
+  });
+  return counts;
+}
+
+function _chatTotalUnread() {
+  const counts = _chatUnreadCounts();
+  return Object.values(counts).reduce((a, b) => a + b, 0);
+}
+
+// Update the badges on the chat icons (Tools menu item + crew phone)
+function _refreshChatBadges() {
+  const total = _chatTotalUnread();
+  const display = total > 99 ? '99+' : String(total);
+  const elPhone = document.getElementById('phChatUnread');
+  if (elPhone) {
+    if (total > 0) { elPhone.textContent = display; elPhone.hidden = false; }
+    else elPhone.hidden = true;
+  }
+  const elTools = document.getElementById('toolsChatUnread');
+  if (elTools) {
+    if (total > 0) { elTools.textContent = display; elTools.hidden = false; }
+    else elTools.hidden = true;
+  }
+}
+
+// Initial / refresh load of chats for the active tour.
+async function _chatLoadAll() {
+  const tour = T();
+  if (!tour || !tour.id || tour.id === '_empty') return;
+  const { chats, members } = await db.chatFetchAll(tour.id);
+  _chatState.chats = chats;
+  _chatState.members = members;
+  // Pre-fetch messages for all chats (small list per tour)
+  for (const c of chats) {
+    _chatState.messages[c.id] = await db.chatFetchMessages(c.id);
+  }
+  // Pre-fetch reactions for visible messages
+  const allMsgIds = Object.values(_chatState.messages).flat().map(m => m.id);
+  if (allMsgIds.length) {
+    const reactions = await db.chatFetchReactions(allMsgIds);
+    _chatState.reactions = {};
+    reactions.forEach(r => {
+      (_chatState.reactions[r.message_id] = _chatState.reactions[r.message_id] || []).push(r);
+    });
+  }
+  _chatState.loaded = true;
+  _refreshChatBadges();
+}
+
+// Realtime hooks — called from db.subscribeRealtime when a chat
+// message or reaction lands. Append to local cache, then refresh
+// the open modal if it's mounted.
+function _onChatMessageRealtime(msg) {
+  if (!msg || !msg.chat_id) return;
+  const arr = _chatState.messages[msg.chat_id] = _chatState.messages[msg.chat_id] || [];
+  if (arr.find(m => m.id === msg.id)) return; // dedupe
+  arr.push(msg);
+  // Toast on @mention of current user
+  if (msg.sender_id !== state.currentUserId && Array.isArray(msg.mentions) && msg.mentions.includes(state.currentUserId)) {
+    const sender = _chatLookupUser(msg.sender_id);
+    const chat = _chatState.chats.find(c => c.id === msg.chat_id);
+    toast(`@${sender?.name?.split(/\s+/)[0] || 'Someone'} mentioned you in ${chat?.name || 'a chat'}`, 'good');
+  }
+  // If broadcast and not sender, toast for everyone in the chat
+  if (msg.is_broadcast && msg.sender_id !== state.currentUserId) {
+    const chat = _chatState.chats.find(c => c.id === msg.chat_id);
+    toast(`📣 Broadcast: ${msg.body.slice(0, 80)}${msg.body.length > 80 ? '…' : ''}`, 'good');
+  }
+  _refreshChatBadges();
+  if (document.getElementById('chatModalRoot')) _renderChatModalContents();
+}
+
+function _onChatReactionRealtime(payload) {
+  const r = payload.new || payload.old;
+  if (!r || !r.message_id) return;
+  if (payload.eventType === 'DELETE') {
+    const arr = _chatState.reactions[r.message_id] || [];
+    _chatState.reactions[r.message_id] = arr.filter(x => !(x.user_id === r.user_id && x.emoji === r.emoji));
+  } else {
+    const arr = _chatState.reactions[r.message_id] = _chatState.reactions[r.message_id] || [];
+    if (!arr.find(x => x.user_id === r.user_id && x.emoji === r.emoji)) arr.push(r);
+  }
+  if (document.getElementById('chatModalRoot')) _renderChatModalContents();
+}
+
+// Open the messaging modal. First open of a tour auto-seeds the
+// default channels (#all-hands, #band, #crew) if none exist.
+async function openChatsModal() {
+  if (!T() || T().id === '_empty') { toast('Open a tour first', 'error'); return; }
+  if (!sb) { toast('Chat requires a cloud connection — sign in to use messaging', 'error'); return; }
+  // Render skeleton, then populate async
+  openModal({
+    title: 'Messages',
+    size: 'xl',
+    hideFooter: true,
+    body: `<div id="chatModalRoot" class="chat-modal"><div class="chat-thread-empty"><div class="cte-icon">✉</div><div class="cte-title">Loading messages…</div></div></div>`,
+  });
+  // Auto-seed if first time
+  await db.chatAutoSeed(T().id);
+  // Load all data fresh on open
+  await _chatLoadAll();
+  // Pick an active chat — default to the first official chat,
+  // or whatever the user had open last
+  if (!_chatState.activeChatId || !_chatState.chats.find(c => c.id === _chatState.activeChatId)) {
+    const sorted = _chatSort(_chatState.chats);
+    _chatState.activeChatId = sorted.length ? sorted[0].id : null;
+  }
+  if (_chatState.activeChatId) {
+    db.chatMarkRead(_chatState.activeChatId);
+    // Update local member state so the unread badge clears immediately
+    const me = _chatState.members.find(m => m.chat_id === _chatState.activeChatId && m.user_id === state.currentUserId);
+    if (me) me.last_read_at = new Date().toISOString();
+  }
+  _renderChatModalContents();
+}
+
+function _renderChatModalContents() {
+  const root = document.getElementById('chatModalRoot');
+  if (!root) return;
+  const chats = _chatSort(_chatState.chats);
+  const unread = _chatUnreadCounts();
+  const me = state.currentUserId;
+  const isTM = (T().ownerId === me);
+  const activeId = _chatState.activeChatId;
+  const activeChat = chats.find(c => c.id === activeId);
+
+  root.innerHTML = `
+    <div class="chat-layout">
+      <div class="chat-list-pane ${activeId ? 'hidden-on-mobile' : ''}">
+        <div class="chat-list-head">
+          <h4>Chats</h4>
+          <button type="button" class="chat-new-btn" onclick="openNewChatModal()">+ New</button>
+        </div>
+        <div class="chat-list">
+          ${chats.length ? chats.map(c => {
+            const last = _chatLastMessage(c.id);
+            const lastBody = last ? last.body.replace(/\s+/g,' ').slice(0, 60) : 'No messages yet';
+            const lastSender = last ? (_chatLookupUser(last.sender_id)?.name?.split(/\s+/)[0] || 'Someone') : '';
+            const unreadN = unread[c.id] || 0;
+            const officialBadge = c.is_official ? '<span class="chat-row-badge">OFFICIAL</span>' : (c.is_dm ? '<span class="chat-row-badge">DM</span>' : '');
+            return `
+              <div class="chat-row ${c.is_official ? 'official' : ''} ${activeId === c.id ? 'active' : ''} ${unreadN > 0 ? 'has-unread' : ''}" onclick="setActiveChat('${c.id}')">
+                <div class="chat-row-head">
+                  <span class="chat-row-name">${esc(c.name)}</span>
+                  ${officialBadge}
+                  ${unreadN > 0 ? `<span class="chat-row-unread">${unreadN > 99 ? '99+' : unreadN}</span>` : ''}
+                </div>
+                <div class="chat-row-preview">${last ? esc(lastSender + ': ' + lastBody) : esc(lastBody)}</div>
+              </div>
+            `;
+          }).join('') : '<div class="chat-list-empty">No chats yet · tap + New to start one</div>'}
+        </div>
+      </div>
+      <div class="chat-thread-pane ${activeId ? '' : 'empty-on-mobile'}">
+        ${activeChat ? _renderChatThread(activeChat, isTM, me) : `
+          <div class="chat-thread-empty">
+            <div class="cte-icon">✉</div>
+            <div class="cte-title">Pick a chat or start a new one</div>
+            <div class="cte-sub">Official chats are highlighted</div>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+  // Scroll thread to bottom after render
+  const msgsEl = root.querySelector('.chat-messages');
+  if (msgsEl) msgsEl.scrollTop = msgsEl.scrollHeight;
+}
+
+function _renderChatThread(chat, isTM, myId) {
+  const msgs = _chatState.messages[chat.id] || [];
+  const showBroadcast = isTM && chat.is_official;
+  const headClass = chat.is_official ? 'official' : '';
+  const headBadge = chat.is_official ? 'OFFICIAL · TM CHANNEL' : (chat.is_dm ? 'DIRECT MESSAGE' : 'GROUP CHAT');
+  return `
+    <div class="chat-thread-head">
+      <button type="button" class="chat-thread-back" onclick="setActiveChat(null)">‹</button>
+      <div style="flex:1;min-width:0">
+        <div class="cth-name ${headClass}">${esc(chat.name)}</div>
+        <div class="cth-meta">${headBadge}</div>
+      </div>
+      ${showBroadcast ? `<button type="button" class="cth-broadcast" onclick="_chatSendBroadcastPrompt('${chat.id}')" title="Broadcast to everyone (toast + push)">📣 Broadcast</button>` : ''}
+    </div>
+    <div class="chat-messages">
+      ${msgs.length === 0 ? '<div class="chat-thread-empty" style="flex:1"><div class="cte-icon">✉</div><div class="cte-sub">Be the first to say something</div></div>' : _renderMessages(msgs, myId)}
+    </div>
+    <div class="chat-compose">
+      <div class="chat-compose-row">
+        <textarea class="chat-compose-input" id="chatComposeInput"
+          placeholder="Message ${esc(chat.name)}…"
+          rows="1"
+          oninput="_chatComposeOnInput(this, event)"
+          onkeydown="_chatComposeOnKeydown(this, event, '${chat.id}')"></textarea>
+        <button type="button" class="chat-send-btn" onclick="_chatComposeSend('${chat.id}')">Send</button>
+      </div>
+      <div id="chatMentionPop"></div>
+    </div>
+  `;
+}
+
+function _renderMessages(msgs, myId) {
+  // Group by day for date separators
+  const out = [];
+  let lastDay = null;
+  msgs.forEach(m => {
+    const day = new Date(m.created_at).toDateString();
+    if (day !== lastDay) {
+      out.push(`<div class="chat-day-sep">${esc(_chatFmtDay(m.created_at))}</div>`);
+      lastDay = day;
+    }
+    out.push(_renderMessage(m, myId));
+  });
+  return out.join('');
+}
+
+function _renderMessage(m, myId) {
+  const isMine = m.sender_id === myId;
+  const sender = _chatLookupUser(m.sender_id);
+  const time = _chatFmtTime(m.created_at);
+  const body = _chatRenderBody(m.body, m.mentions, myId);
+  const reactions = (_chatState.reactions[m.id] || []).reduce((acc, r) => {
+    (acc[r.emoji] = acc[r.emoji] || []).push(r.user_id); return acc;
+  }, {});
+  const reactionHtml = Object.entries(reactions).map(([emoji, userIds]) => {
+    const mine = userIds.includes(myId);
+    return `<span class="chat-msg-react ${mine ? 'mine' : ''}" onclick="_chatReactToggle('${m.id}','${esc(emoji).replace(/'/g,"\\'")}')">${emoji} ${userIds.length}</span>`;
+  }).join('');
+  if (m.is_broadcast) {
+    return `
+      <div class="chat-msg broadcast">
+        <div class="chat-msg-meta">📣 BROADCAST · ${esc(sender?.name || 'TM')} · ${time}</div>
+        <div class="chat-msg-bubble">${body}</div>
+      </div>
+    `;
+  }
+  return `
+    <div class="chat-msg ${isMine ? 'mine' : ''}">
+      <div class="chat-msg-meta">${esc(sender?.name || 'Unknown')}${sender?.role==='Tour Manager' ? ' · TM' : ''} · ${time}</div>
+      <div class="chat-msg-bubble">${body}</div>
+      <div class="chat-msg-reactions">
+        ${reactionHtml}
+        <span class="chat-msg-react-add" onclick="_chatReactPicker('${m.id}', event)">+</span>
+      </div>
+    </div>
+  `;
+}
+
+// Render message body: escape HTML, highlight @mentions of any tour
+// member (with extra glow when the mentioned user is the current viewer).
+function _chatRenderBody(body, mentions, myId) {
+  let html = esc(body);
+  const tourMembers = _chatTourMembers();
+  // For each mentioned tour member, replace @firstName or @"Full Name" with a chip
+  tourMembers.forEach(u => {
+    if (!u.name) return;
+    const first = u.name.split(/\s+/)[0];
+    const re = new RegExp(`@${first}\\b`, 'gi');
+    const isYou = (u.id === myId);
+    html = html.replace(re, `<span class="mention${isYou ? ' you' : ''}">@${esc(first)}</span>`);
+  });
+  return html;
+}
+
+function _chatFmtDay(iso) {
+  const d = new Date(iso);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const ymd = new Date(d); ymd.setHours(0,0,0,0);
+  const diffDays = Math.round((today - ymd) / (1000*60*60*24));
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return d.toLocaleDateString(undefined, { weekday: 'long' });
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function _chatFmtTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+// Compose box behavior
+function _chatComposeOnInput(el, e) {
+  _chatState.composeDraft = el.value;
+  // Auto-resize the textarea
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+  // @mention autocomplete
+  const cursor = el.selectionStart;
+  const text = el.value.slice(0, cursor);
+  const at = text.lastIndexOf('@');
+  if (at >= 0 && (at === 0 || /\s/.test(text[at-1]))) {
+    const query = text.slice(at + 1);
+    if (!/\s/.test(query) && query.length <= 24) {
+      const members = _chatTourMembers().filter(u => u.id !== state.currentUserId);
+      const matches = query
+        ? members.filter(u => u.name.toLowerCase().includes(query.toLowerCase())).slice(0, 6)
+        : members.slice(0, 6);
+      _chatState.mentionState = { startIdx: at, query, matches, selectedIdx: 0 };
+      _renderMentionPop();
+      return;
+    }
+  }
+  _chatState.mentionState = null;
+  _renderMentionPop();
+}
+
+function _chatComposeOnKeydown(el, e, chatId) {
+  const ms = _chatState.mentionState;
+  if (ms && ms.matches.length) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); ms.selectedIdx = (ms.selectedIdx + 1) % ms.matches.length; _renderMentionPop(); return; }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); ms.selectedIdx = (ms.selectedIdx - 1 + ms.matches.length) % ms.matches.length; _renderMentionPop(); return; }
+    if (e.key === 'Tab' || e.key === 'Enter') {
+      e.preventDefault();
+      _chatMentionPick(ms.matches[ms.selectedIdx].id);
+      return;
+    }
+    if (e.key === 'Escape') { _chatState.mentionState = null; _renderMentionPop(); return; }
+  } else {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _chatComposeSend(chatId); }
+  }
+}
+
+function _renderMentionPop() {
+  const slot = document.getElementById('chatMentionPop');
+  if (!slot) return;
+  const ms = _chatState.mentionState;
+  if (!ms || !ms.matches.length) { slot.innerHTML = ''; return; }
+  slot.innerHTML = `<div class="chat-mention-pop">
+    ${ms.matches.map((u, i) => `
+      <div class="chat-mention-item ${i === ms.selectedIdx ? 'selected' : ''}" onclick="_chatMentionPick('${u.id}')">
+        <span>@${esc(u.name.split(/\s+/)[0])}</span>
+        <span style="color:var(--warm-mute);margin-left:6px">${esc(u.name)}</span>
+        <span class="role">${esc(u.role || '')}</span>
+      </div>
+    `).join('')}
+  </div>`;
+}
+
+function _chatMentionPick(userId) {
+  const ms = _chatState.mentionState;
+  if (!ms) return;
+  const u = _chatTourMembers().find(x => x.id === userId);
+  if (!u) return;
+  const el = document.getElementById('chatComposeInput');
+  if (!el) return;
+  const first = u.name.split(/\s+/)[0];
+  const before = el.value.slice(0, ms.startIdx);
+  const after = el.value.slice(ms.startIdx + 1 + ms.query.length);
+  const insertion = '@' + first + ' ';
+  el.value = before + insertion + after;
+  const newCursor = (before + insertion).length;
+  el.setSelectionRange(newCursor, newCursor);
+  _chatState.composeDraft = el.value;
+  _chatState.mentionState = null;
+  _renderMentionPop();
+  el.focus();
+}
+
+// Parse @mentions out of the body and return the list of resolved user IDs
+function _chatParseMentions(body) {
+  const mentions = new Set();
+  const members = _chatTourMembers();
+  members.forEach(u => {
+    if (!u.name) return;
+    const first = u.name.split(/\s+/)[0];
+    const re = new RegExp(`@${first}\\b`, 'i');
+    if (re.test(body)) mentions.add(u.id);
+  });
+  return Array.from(mentions);
+}
+
+async function _chatComposeSend(chatId) {
+  const el = document.getElementById('chatComposeInput');
+  if (!el) return;
+  const body = el.value.trim();
+  if (!body) return;
+  const mentions = _chatParseMentions(body);
+  el.value = '';
+  el.style.height = 'auto';
+  _chatState.composeDraft = '';
+  await db.chatSendMessage(chatId, body, { mentions });
+  // The realtime echo will append, but for instant feel we also poke a re-render
+  setTimeout(_renderChatModalContents, 60);
+  el.focus();
+}
+
+async function _chatSendBroadcastPrompt(chatId) {
+  const body = prompt('Broadcast message (will toast every crew device):');
+  if (!body || !body.trim()) return;
+  await db.chatSendMessage(chatId, body.trim(), { isBroadcast: true });
+  toast('Broadcast sent', 'good');
+  setTimeout(_renderChatModalContents, 60);
+}
+
+function setActiveChat(chatId) {
+  _chatState.activeChatId = chatId;
+  if (chatId) {
+    db.chatMarkRead(chatId);
+    const me = _chatState.members.find(m => m.chat_id === chatId && m.user_id === state.currentUserId);
+    if (me) me.last_read_at = new Date().toISOString();
+    _refreshChatBadges();
+  }
+  _renderChatModalContents();
+}
+
+async function _chatReactToggle(messageId, emoji) {
+  await db.chatToggleReaction(messageId, emoji);
+  // Realtime will refresh; nudge anyway
+  setTimeout(_renderChatModalContents, 60);
+}
+
+function _chatReactPicker(messageId, e) {
+  e?.stopPropagation();
+  // Simple inline picker — render a row of common emojis under the +
+  const popId = 'chatReactPop_' + messageId;
+  document.getElementById(popId)?.remove();
+  const pop = document.createElement('div');
+  pop.id = popId;
+  pop.style.cssText = 'position:absolute;background:rgba(20,13,7,.98);border:1px solid var(--hi);border-radius:8px;padding:4px;display:flex;gap:2px;z-index:100;box-shadow:0 4px 14px rgba(0,0,0,.5)';
+  pop.innerHTML = _CHAT_EMOJIS.map(em => `<button type="button" style="background:transparent;border:none;font-size:18px;padding:4px 6px;cursor:pointer;border-radius:5px" onmouseover="this.style.background='rgba(232,148,58,.15)'" onmouseout="this.style.background='transparent'" onclick="_chatReactToggle('${messageId}','${em.replace(/'/g,"\\'")}');this.parentElement.remove()">${em}</button>`).join('');
+  document.body.appendChild(pop);
+  const rect = e.target.getBoundingClientRect();
+  pop.style.top = (rect.top - 44) + 'px';
+  pop.style.left = (rect.left - 8) + 'px';
+  // Auto-dismiss on outside click
+  setTimeout(() => {
+    const off = (ev) => { if (!pop.contains(ev.target)) { pop.remove(); document.removeEventListener('click', off); } };
+    document.addEventListener('click', off);
+  }, 50);
+}
+
+// "New chat" modal — pick members, optionally name + flag official
+function openNewChatModal() {
+  const tour = T();
+  const isTM = (tour.ownerId === state.currentUserId);
+  const members = _chatTourMembers().filter(u => u.id !== state.currentUserId);
+  if (!members.length) {
+    toast('Add crew members to the tour first', 'error');
+    return;
+  }
+  openModal({
+    title: 'New chat',
+    size: '',
+    body: `
+      <div class="chat-new-form">
+        <div class="field">
+          <label>Chat name</label>
+          <input type="text" id="newChatName" placeholder="e.g. Production team" maxlength="60" />
+        </div>
+        <div class="field">
+          <label>Members</label>
+          <div class="chat-member-grid">
+            ${members.map(u => `
+              <label class="chat-member-pick">
+                <input type="checkbox" name="newChatMember" value="${esc(u.id)}" />
+                <span class="mp-name">${esc(u.name)}</span>
+                <span class="mp-role">${esc(u.role || '')}</span>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+        ${isTM ? `
+          <label class="chat-official-toggle">
+            <input type="checkbox" id="newChatOfficial" />
+            <div>
+              <div class="ot-label">⌟ Mark as official</div>
+              <div class="ot-desc">Sorts to the top of every member's chat list and renders in the TM accent color. Use for tour-wide announcements.</div>
+            </div>
+          </label>
+        ` : ''}
+      </div>
+    `,
+    onSubmit: async () => {
+      const name = (document.getElementById('newChatName')?.value || '').trim();
+      const memberIds = Array.from(document.querySelectorAll('input[name="newChatMember"]:checked')).map(cb => cb.value);
+      const isOfficial = !!document.getElementById('newChatOfficial')?.checked;
+      if (!name) { toast('Chat name is required', 'error'); return false; }
+      if (!memberIds.length) { toast('Pick at least one other member', 'error'); return false; }
+      const isDm = (memberIds.length === 1);
+      const row = await db.chatCreate(tour.id, name, memberIds, { isOfficial, isDm });
+      if (!row) { toast('Could not create chat', 'error'); return false; }
+      await _chatLoadAll();
+      _chatState.activeChatId = row.id;
+      // Re-open the messages modal to show the new chat
+      setTimeout(() => { closeModal(); openChatsModal(); }, 100);
+      toast(`Chat "${name}" created`, 'good');
+    },
+  });
+}
+
+// Init: fetch chat data once the user signs in and pick up the first
+// tour. Called from the existing postLoginRouting via setTimeout below.
+async function _chatBootstrap() {
+  if (!sb || !state?.currentUserId || !T() || T().id === '_empty') return;
+  try {
+    await _chatLoadAll();
+    _refreshChatBadges();
+  } catch (e) { console.warn('[chat] bootstrap failed:', e); }
+}
+// Hook into the realtime subscribe so reactions/messages flow in.
+// Bootstrap once after the user is set up.
+window.addEventListener('load', () => {
+  setTimeout(() => { try { _chatBootstrap(); } catch(e){} }, 1500);
+});
+
 /* expose handlers used by inline onclick */
 Object.assign(window, {
   onbChooseSample, onbChooseCSV, onbChooseScratch, downloadCSVTemplate,
@@ -20994,6 +21873,7 @@ Object.assign(window, {
   _calInit, _calNavMonth, _calPickDate, _calRender,
   openGuestModal, openAllotmentModal, openSetItemModal, moveSetItem, copySetList,
   openSettleModal, openAttachModal, _attachFilePicked, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport,
+  openChatsModal, openNewChatModal, setActiveChat, _chatComposeOnInput, _chatComposeOnKeydown, _chatComposeSend, _chatMentionPick, _chatReactToggle, _chatReactPicker, _chatSendBroadcastPrompt,
   openTaskModal, openTagModal, toggleTask,
   setActive, closeModal, _modalSubmit, goToTab,
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
