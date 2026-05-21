@@ -2375,13 +2375,13 @@ body.print-tourbook-mode #tourBookArea{display:block!important;position:fixed;in
   background:linear-gradient(180deg,#1c130b,#140d07);border:1px solid rgba(138,169,216,.4);
   border-radius:10px;padding:6px;z-index:35;
   box-shadow:0 16px 40px -12px rgba(0,0,0,.7),0 0 0 1px rgba(138,169,216,.06)}
-.tools-item{width:100%;display:flex;align-items:flex-start;gap:12px;padding:10px 12px;
+.tools-item{width:100%;display:flex;align-items:center;gap:12px;padding:10px 12px;
   border-radius:7px;border:1px solid transparent;background:transparent;cursor:pointer;text-align:left;color:var(--warm)}
 .tools-item:hover{background:rgba(138,169,216,.06);border-color:rgba(138,169,216,.25)}
 .tools-item .ti-icon{flex:0 0 28px;width:28px;height:28px;border-radius:6px;
   background:rgba(138,169,216,.1);border:1px solid rgba(138,169,216,.35);
   color:#b1c8ee;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;
-  display:flex;align-items:center;justify-content:center;margin-top:1px}
+  display:flex;align-items:center;justify-content:center}
 .tools-item .ti-name{font-size:12px;font-weight:700;color:var(--warm);line-height:1.25;letter-spacing:.16em;text-transform:uppercase;flex:1}
 .tools-item .ti-badge{margin-left:auto;padding:2px 7px;border-radius:4px;
   background:rgba(138,169,216,.16);border:1px solid rgba(138,169,216,.5);color:#b1c8ee;
@@ -20145,7 +20145,7 @@ function toggleToolsMenu() {
     menu.innerHTML = `
       <button type="button" class="tools-item" onclick="closeToolsMenu();openChatsModal()">
         <span class="ti-icon">✉</span>
-        <span class="ti-name">Messages</span>
+        <span class="ti-name">Messaging</span>
         <span class="ti-badge" id="toolsChatUnread" hidden>0</span>
       </button>
       <button type="button" class="tools-item disabled" disabled aria-disabled="true" title="Coming soon">
@@ -21451,7 +21451,7 @@ async function openChatsModal() {
   if (!sb) { toast('Chat requires a cloud connection — sign in to use messaging', 'error'); return; }
   // Render skeleton, then populate async
   openModal({
-    title: 'Messages',
+    title: 'Messaging',
     size: 'xl',
     hideFooter: true,
     body: `<div id="chatModalRoot" class="chat-modal"><div class="chat-thread-empty"><div class="cte-icon">✉</div><div class="cte-title">Loading messages…</div></div></div>`,
