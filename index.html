@@ -3533,6 +3533,12 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
   letter-spacing:.1em;text-transform:uppercase;font-weight:700;
   padding:1px 5px;border-radius:3px;background:rgba(138,169,216,.10);color:#b1c8ee;
   border:1px solid rgba(138,169,216,.3)}
+.chat-member-pick.pending{opacity:.55;cursor:not-allowed}
+.chat-member-pick.pending:hover{background:transparent}
+.chat-member-pick .mp-pending-tag{font-family:'JetBrains Mono',monospace;font-size:8.5px;
+  letter-spacing:.14em;text-transform:uppercase;font-weight:700;
+  padding:1px 6px;border-radius:3px;background:rgba(232,148,58,.08);color:var(--hi);
+  border:1px dashed rgba(232,148,58,.4)}
 
 .chat-official-toggle{display:flex;align-items:center;gap:10px;padding:10px 12px;
   background:linear-gradient(135deg,rgba(232,148,58,.10),rgba(232,148,58,.02));
@@ -4696,11 +4702,23 @@ const db = {
       created_by: state.currentUserId,
     }).select().single();
     if (error) { this._err('chatCreate', error); return null; }
-    // Add the creator + every selected member. Skip duplicates client-side.
-    const userIds = Array.from(new Set([state.currentUserId, ...(memberUserIds || [])])).filter(Boolean);
-    const memberRows = userIds.map(uid => ({ chat_id: row.id, user_id: uid }));
-    const { error: mErr } = await sb.from('chat_members').insert(memberRows);
-    if (mErr) this._err('chatCreate.members', mErr);
+    // Only insert chat_members for userIds that look like real Supabase
+    // UUIDs. Seeded crew records (id format "u_xxx") don't have an
+    // auth.users row yet, so the FK insert would fail and the whole
+    // batch would be rejected — including the creator. Filtering keeps
+    // chat creation robust; unclaimed crew get added later by the
+    // sign-up flow (signUp's findCrewMatchesByEmail pass).
+    const validUserIds = Array.from(new Set([
+      state.currentUserId,
+      ...(memberUserIds || []),
+    ])).filter(uid => uid && _isUuid(uid));
+    // Insert each row independently so a single FK failure doesn't
+    // block the rest. Critical: the creator must land in chat_members
+    // or RLS will hide their own chat from them.
+    for (const uid of validUserIds) {
+      const { error: mErr } = await sb.from('chat_members').insert({ chat_id: row.id, user_id: uid });
+      if (mErr) console.warn('[chatCreate.member]', uid, mErr.message);
+    }
     return row;
   },
   async chatSendMessage(chatId, body, opts = {}) {
@@ -4743,10 +4761,11 @@ const db = {
     if (!tour || tour.ownerId !== state.currentUserId) return; // only TM seeds
     const { data: existing } = await sb.from('chats').select('id').eq('tour_id', tourId).limit(1);
     if (existing && existing.length) return; // already seeded
-    // Gather every tour member's userId (TM + crew)
+    // Gather every tour member's userId. Filter to UUIDs only —
+    // seeded crew records (u_xxx) get added later, after they sign up.
     const memberIds = Array.from(new Set([
       state.currentUserId,
-      ...((tour.crew || []).map(c => c.userId).filter(Boolean)),
+      ...((tour.crew || []).map(c => c.userId).filter(uid => uid && _isUuid(uid))),
     ]));
     const seed = [
       { name: '# all-hands', isOfficial: true },
@@ -21833,23 +21852,32 @@ function openNewChatModal() {
   const isTM = (tour.ownerId === state.currentUserId);
   const myId = state.currentUserId;
   // Build the "people we can put in a chat" list from the tour's crew
-  // roster, INCLUDING members who haven't claimed their accounts yet
-  // (the seeded crew records with a userId). Skip the current user.
+  // roster. Skip the current user.
   const crewRoster = (tour.crew || []).filter(c => c.userId && c.userId !== myId);
   if (!crewRoster.length) {
     toast('Add crew members to the tour first', 'error');
     return;
   }
+  // Crew with real Supabase UUIDs can be added to chats right now.
+  // Crew that's been invited but hasn't signed up yet has a stub
+  // userId (u_xxx) — we'll show them in the picker but disabled,
+  // because the chat_members table has a foreign key to auth.users
+  // and the insert would fail. They'll be auto-added to relevant
+  // chats once they accept their invite (signUp() handles that).
+  const isClaimedUser = (c) => c.userId && _isUuid(c.userId);
   // Groups available on this tour. Reuse the same source the Crew tab
   // and the schedule "Audience" picker use — keeps everything aligned.
   const groups = (typeof getGroups === 'function') ? getGroups() : (tour.meta?.groups || []);
-  // For each group, which crew userIds belong to it
+  // For each group, which CLAIMED crew userIds belong to it (unclaimed
+  // members are excluded from group toggles since they can't be added).
   const groupMembers = {};
   groups.forEach(g => {
-    groupMembers[g] = crewRoster.filter(c => (c.groups || []).includes(g)).map(c => c.userId);
+    groupMembers[g] = crewRoster.filter(c => isClaimedUser(c) && (c.groups || []).includes(g)).map(c => c.userId);
   });
-  // Also build a "Everyone" pseudo-group (entire crew roster)
-  groupMembers['__ALL__'] = crewRoster.map(c => c.userId);
+  // "Everyone" pseudo-group = all claimed crew
+  groupMembers['__ALL__'] = crewRoster.filter(isClaimedUser).map(c => c.userId);
+  const claimedCount = groupMembers['__ALL__'].length;
+  const unclaimedCount = crewRoster.length - claimedCount;
 
   openModal({
     title: 'New chat',
@@ -21860,17 +21888,17 @@ function openNewChatModal() {
           <label>Chat name</label>
           <input type="text" id="newChatName" placeholder="e.g. Production team" maxlength="60" />
         </div>
-        ${groups.length ? `
+        ${groups.length && claimedCount > 0 ? `
           <div class="field">
             <label>Quick-pick by group</label>
             <div class="chat-group-row">
               <button type="button" class="chat-group-chip all" data-group="__ALL__" onclick="_chatToggleGroup('__ALL__')">
                 <span class="cgc-name">Everyone</span>
-                <span class="cgc-count">${crewRoster.length}</span>
+                <span class="cgc-count">${claimedCount}</span>
               </button>
               ${groups.map(g => {
                 const n = groupMembers[g].length;
-                return `<button type="button" class="chat-group-chip" data-group="${esc(g)}" onclick="_chatToggleGroup('${esc(g).replace(/'/g,"\\'")}')" ${n === 0 ? 'disabled title="No members in this group"' : ''}>
+                return `<button type="button" class="chat-group-chip" data-group="${esc(g)}" onclick="_chatToggleGroup('${esc(g).replace(/'/g,"\\'")}')" ${n === 0 ? 'disabled title="No signed-up members in this group"' : ''}>
                   <span class="cgc-name">${esc(g)}</span>
                   <span class="cgc-count">${n}</span>
                 </button>`;
@@ -21881,15 +21909,17 @@ function openNewChatModal() {
         ` : ''}
         <div class="field">
           <label>Members <span class="chat-pick-count" id="chatPickCount">0 selected</span></label>
+          ${unclaimedCount > 0 ? `<div class="chat-group-hint" style="margin-bottom:6px;color:#fdba74">${unclaimedCount} crew member${unclaimedCount===1?'':'s'} below haven't accepted their invite yet — they'll auto-join chats they're picked for after sign-up.</div>` : ''}
           <div class="chat-member-grid" id="chatMemberGrid">
             ${crewRoster.map(c => {
               const groupBits = (c.groups || []).slice(0, 3).map(g => `<span class="mp-grouptag">${esc(g)}</span>`).join('');
+              const claimed = isClaimedUser(c);
               return `
-                <label class="chat-member-pick" data-userid="${esc(c.userId)}">
-                  <input type="checkbox" name="newChatMember" value="${esc(c.userId)}" onchange="_chatUpdatePickCount()" />
+                <label class="chat-member-pick ${claimed ? '' : 'pending'}" data-userid="${esc(c.userId)}" ${claimed ? '' : 'title="This crew member hasn\'t signed up yet"'}>
+                  <input type="checkbox" name="newChatMember" value="${esc(c.userId)}" onchange="_chatUpdatePickCount()" ${claimed ? '' : 'disabled'} />
                   <span class="mp-name">${esc(c.name)}</span>
                   ${groupBits ? `<span class="mp-groups">${groupBits}</span>` : ''}
-                  <span class="mp-role">${esc(c.role || c.type || '')}</span>
+                  ${claimed ? `<span class="mp-role">${esc(c.role || c.type || '')}</span>` : `<span class="mp-pending-tag">⌛ PENDING INVITE</span>`}
                 </label>
               `;
             }).join('')}
