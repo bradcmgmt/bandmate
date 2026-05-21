@@ -3365,11 +3365,15 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
    navigation. Official chats render with the warm copper accent
    the rest of the app already uses for TM-priority info; casual
    chats use the cool blue we use for crew/peer surfaces.            */
-.ic-chat{position:relative;display:flex;align-items:center;justify-content:center;
+/* Action cluster on the right of the crew phone header — holds the
+   search and chat buttons side-by-side. */
+.phone-app-bar-actions{display:flex;align-items:center;gap:4px}
+.ic-search,.ic-chat{position:relative;display:flex;align-items:center;justify-content:center;
   width:36px;height:36px;border:none;background:transparent;color:var(--warm);cursor:pointer;
-  border-radius:10px;transition:background .15s,color .15s}
+  border-radius:10px;transition:background .15s,color .15s;padding:0}
+.ic-search:hover{background:rgba(138,169,216,.08);color:#b1c8ee}
 .ic-chat:hover{background:rgba(232,148,58,.08);color:var(--hi)}
-.ic-chat .ic-glyph{font-size:18px;line-height:1}
+.ic-search .ic-glyph,.ic-chat .ic-glyph{font-size:18px;line-height:1}
 .ic-chat .ic-badge{position:absolute;top:2px;right:2px;
   min-width:16px;height:16px;padding:0 4px;
   background:#e8453a;color:#fff;border:1.5px solid var(--ink);border-radius:9px;
@@ -3500,6 +3504,36 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
 .chat-member-pick input{margin:0;accent-color:var(--hi)}
 .chat-member-pick .mp-name{font-size:13px;color:var(--warm);flex:1}
 .chat-member-pick .mp-role{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.08em}
+/* Group quick-pick chips inside the New Chat modal — same source of
+   truth as the Crew tab's Manage Groups. Tapping one toggles every
+   crew member in that group on/off. "Everyone" picks the whole
+   crew roster. Active state = all members of the group are currently
+   selected in the member checkbox grid below. */
+.chat-group-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.chat-group-chip{display:inline-flex;align-items:center;gap:8px;padding:6px 11px;
+  border:1px solid var(--line-2);border-radius:999px;background:rgba(20,15,11,.6);
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.12em;
+  text-transform:uppercase;font-weight:700;color:var(--warm);cursor:pointer;
+  transition:border-color .12s,background .12s,color .12s,box-shadow .12s}
+.chat-group-chip:hover:not(:disabled){border-color:var(--hi);color:var(--hi)}
+.chat-group-chip:disabled{opacity:.4;cursor:not-allowed}
+.chat-group-chip.active{border-color:var(--hi);background:rgba(232,148,58,.16);
+  color:#fbd9a9;box-shadow:0 0 12px rgba(232,148,58,.25)}
+.chat-group-chip.all{border-color:rgba(138,169,216,.4);color:#b1c8ee;background:rgba(138,169,216,.06)}
+.chat-group-chip.all:hover:not(:disabled){border-color:#8aa9d8;color:#cdd9e8}
+.chat-group-chip.all.active{border-color:#8aa9d8;background:rgba(138,169,216,.2);color:#fff}
+.chat-group-chip .cgc-count{padding:1px 6px;border-radius:9px;font-size:9.5px;
+  background:rgba(0,0,0,.35);color:inherit;letter-spacing:0;font-weight:800}
+.chat-group-hint{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.1em;
+  color:var(--warm-mute);margin-top:6px;line-height:1.5}
+.chat-pick-count{float:right;font-family:'JetBrains Mono',monospace;font-size:9.5px;
+  letter-spacing:.12em;color:var(--hi);font-weight:700;text-transform:none}
+.chat-member-pick .mp-groups{display:flex;gap:3px;margin-left:6px;flex-wrap:wrap}
+.chat-member-pick .mp-grouptag{font-family:'JetBrains Mono',monospace;font-size:8.5px;
+  letter-spacing:.1em;text-transform:uppercase;font-weight:700;
+  padding:1px 5px;border-radius:3px;background:rgba(138,169,216,.10);color:#b1c8ee;
+  border:1px solid rgba(138,169,216,.3)}
+
 .chat-official-toggle{display:flex;align-items:center;gap:10px;padding:10px 12px;
   background:linear-gradient(135deg,rgba(232,148,58,.10),rgba(232,148,58,.02));
   border:1px solid rgba(232,148,58,.3);border-radius:8px;cursor:pointer}
@@ -4189,10 +4223,15 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
               <div class="city" id="phCity">—<small id="phSub">—</small></div>
               <span class="phone-trigger-chev">▾</span>
             </button>
-            <button type="button" class="ic ic-chat" onclick="openChatsModal()" title="Open messaging" aria-label="Open chats">
-              <span class="ic-glyph">✉</span>
-              <span class="ic-badge" id="phChatUnread" hidden>0</span>
-            </button>
+            <div class="phone-app-bar-actions">
+              <button type="button" class="ic ic-search" onclick="openPhoneSearch()" title="Search tour data" aria-label="Search">
+                <span class="ic-glyph">⌕</span>
+              </button>
+              <button type="button" class="ic ic-chat" onclick="openChatsModal()" title="Open messaging" aria-label="Open chats">
+                <span class="ic-glyph">✉</span>
+                <span class="ic-badge" id="phChatUnread" hidden>0</span>
+              </button>
+            </div>
           </div>
           <div class="phone-date-menu" id="phoneDateMenu" hidden></div>
 
@@ -21792,11 +21831,26 @@ function _chatReactPicker(messageId, e) {
 function openNewChatModal() {
   const tour = T();
   const isTM = (tour.ownerId === state.currentUserId);
-  const members = _chatTourMembers().filter(u => u.id !== state.currentUserId);
-  if (!members.length) {
+  const myId = state.currentUserId;
+  // Build the "people we can put in a chat" list from the tour's crew
+  // roster, INCLUDING members who haven't claimed their accounts yet
+  // (the seeded crew records with a userId). Skip the current user.
+  const crewRoster = (tour.crew || []).filter(c => c.userId && c.userId !== myId);
+  if (!crewRoster.length) {
     toast('Add crew members to the tour first', 'error');
     return;
   }
+  // Groups available on this tour. Reuse the same source the Crew tab
+  // and the schedule "Audience" picker use — keeps everything aligned.
+  const groups = (typeof getGroups === 'function') ? getGroups() : (tour.meta?.groups || []);
+  // For each group, which crew userIds belong to it
+  const groupMembers = {};
+  groups.forEach(g => {
+    groupMembers[g] = crewRoster.filter(c => (c.groups || []).includes(g)).map(c => c.userId);
+  });
+  // Also build a "Everyone" pseudo-group (entire crew roster)
+  groupMembers['__ALL__'] = crewRoster.map(c => c.userId);
+
   openModal({
     title: 'New chat',
     size: '',
@@ -21806,16 +21860,39 @@ function openNewChatModal() {
           <label>Chat name</label>
           <input type="text" id="newChatName" placeholder="e.g. Production team" maxlength="60" />
         </div>
+        ${groups.length ? `
+          <div class="field">
+            <label>Quick-pick by group</label>
+            <div class="chat-group-row">
+              <button type="button" class="chat-group-chip all" data-group="__ALL__" onclick="_chatToggleGroup('__ALL__')">
+                <span class="cgc-name">Everyone</span>
+                <span class="cgc-count">${crewRoster.length}</span>
+              </button>
+              ${groups.map(g => {
+                const n = groupMembers[g].length;
+                return `<button type="button" class="chat-group-chip" data-group="${esc(g)}" onclick="_chatToggleGroup('${esc(g).replace(/'/g,"\\'")}')" ${n === 0 ? 'disabled title="No members in this group"' : ''}>
+                  <span class="cgc-name">${esc(g)}</span>
+                  <span class="cgc-count">${n}</span>
+                </button>`;
+              }).join('')}
+            </div>
+            <div class="chat-group-hint">Tap a group to select/deselect everyone in it. You can still tick or untick individuals below.</div>
+          </div>
+        ` : ''}
         <div class="field">
-          <label>Members</label>
-          <div class="chat-member-grid">
-            ${members.map(u => `
-              <label class="chat-member-pick">
-                <input type="checkbox" name="newChatMember" value="${esc(u.id)}" />
-                <span class="mp-name">${esc(u.name)}</span>
-                <span class="mp-role">${esc(u.role || '')}</span>
-              </label>
-            `).join('')}
+          <label>Members <span class="chat-pick-count" id="chatPickCount">0 selected</span></label>
+          <div class="chat-member-grid" id="chatMemberGrid">
+            ${crewRoster.map(c => {
+              const groupBits = (c.groups || []).slice(0, 3).map(g => `<span class="mp-grouptag">${esc(g)}</span>`).join('');
+              return `
+                <label class="chat-member-pick" data-userid="${esc(c.userId)}">
+                  <input type="checkbox" name="newChatMember" value="${esc(c.userId)}" onchange="_chatUpdatePickCount()" />
+                  <span class="mp-name">${esc(c.name)}</span>
+                  ${groupBits ? `<span class="mp-groups">${groupBits}</span>` : ''}
+                  <span class="mp-role">${esc(c.role || c.type || '')}</span>
+                </label>
+              `;
+            }).join('')}
           </div>
         </div>
         ${isTM ? `
@@ -21840,11 +21917,125 @@ function openNewChatModal() {
       if (!row) { toast('Could not create chat', 'error'); return false; }
       await _chatLoadAll();
       _chatState.activeChatId = row.id;
-      // Re-open the messages modal to show the new chat
       setTimeout(() => { closeModal(); openChatsModal(); }, 100);
       toast(`Chat "${name}" created`, 'good');
     },
   });
+  // Stash for group-toggle handler
+  _chatNewModalGroupMap = groupMembers;
+  _chatUpdatePickCount();
+}
+
+// Module-level so the inline onclick handler can read it.
+let _chatNewModalGroupMap = {};
+
+// Toggle every userId in a group on/off. If every member of the group
+// is already checked, this deselects them; otherwise it selects all
+// missing ones (without disturbing other selections).
+function _chatToggleGroup(groupName) {
+  const userIds = _chatNewModalGroupMap[groupName] || [];
+  if (!userIds.length) return;
+  const checkboxes = userIds.map(uid =>
+    document.querySelector(`input[name="newChatMember"][value="${uid.replace(/"/g,'\\"')}"]`)
+  ).filter(Boolean);
+  // If every checkbox in the group is checked → uncheck all; else check all
+  const allChecked = checkboxes.every(cb => cb.checked);
+  checkboxes.forEach(cb => { cb.checked = !allChecked; });
+  // Visual toggle on the chip
+  const chip = document.querySelector(`.chat-group-chip[data-group="${groupName.replace(/"/g,'\\"')}"]`);
+  if (chip) chip.classList.toggle('active', !allChecked);
+  _chatUpdatePickCount();
+}
+
+// Updates the "N selected" hint + the active-state on group chips so
+// the chip glows when its members are all selected.
+function _chatUpdatePickCount() {
+  const checked = document.querySelectorAll('input[name="newChatMember"]:checked');
+  const n = checked.length;
+  const slot = document.getElementById('chatPickCount');
+  if (slot) slot.textContent = n === 0 ? '0 selected' : `${n} selected`;
+  // Sync group chip active states
+  Object.keys(_chatNewModalGroupMap).forEach(g => {
+    const userIds = _chatNewModalGroupMap[g];
+    if (!userIds.length) return;
+    const chip = document.querySelector(`.chat-group-chip[data-group="${g.replace(/"/g,'\\"')}"]`);
+    if (!chip) return;
+    const allChecked = userIds.every(uid =>
+      document.querySelector(`input[name="newChatMember"][value="${uid.replace(/"/g,'\\"')}"]`)?.checked
+    );
+    chip.classList.toggle('active', allChecked);
+  });
+}
+
+// Search button on the crew mobile header. For v1 this opens a quick
+// modal letting crew search across schedule items, hotels, venues,
+// and crew names. Lightweight client-side filter — no backend changes.
+function openPhoneSearch() {
+  const tour = T();
+  if (!tour || tour.id === '_empty') { toast('Open a tour first', 'error'); return; }
+  // Build a flat searchable index across schedule items, hotels,
+  // venues, and crew. Each entry has { type, label, sub, dateId }.
+  const idx = [];
+  (tour.dates || []).forEach(d => {
+    if (d.venue || d.city) {
+      idx.push({ type: 'Show', label: [d.city, d.state].filter(Boolean).join(', '), sub: [d.venue, fmtDate(d.date)].filter(Boolean).join(' · '), dateId: d.id });
+    }
+    if (d.hotel?.name) {
+      idx.push({ type: 'Hotel', label: d.hotel.name, sub: [d.hotel.address || d.city, fmtDate(d.date)].filter(Boolean).join(' · '), dateId: d.id });
+    }
+    (d.schedule || []).forEach(s => {
+      idx.push({ type: 'Schedule', label: s.what || '', sub: [s.allDay ? 'All day' : s.time, fmtDate(d.date)].filter(Boolean).join(' · '), dateId: d.id });
+    });
+  });
+  (tour.crew || []).forEach(c => {
+    idx.push({ type: 'Crew', label: c.name || '', sub: [c.role, c.type].filter(Boolean).join(' · '), dateId: null });
+  });
+  (tour.contacts || []).forEach(c => {
+    idx.push({ type: 'Contact', label: c.name || '', sub: [c.role, c.company].filter(Boolean).join(' · '), dateId: null });
+  });
+
+  openModal({
+    title: 'Search this tour',
+    size: '',
+    hideFooter: true,
+    body: `
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <input type="text" id="phSearchInput" placeholder="Search shows, venues, hotels, crew…" autocomplete="off"
+          oninput="_phoneSearchRender(this.value)"
+          style="width:100%;padding:11px 14px;font-size:16px;background:rgba(20,15,11,.8);border:1px solid var(--line-2);border-radius:8px;color:var(--warm);outline:none" />
+        <div id="phSearchResults" style="max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
+      </div>
+    `,
+  });
+  window._phoneSearchIndex = idx;
+  setTimeout(() => document.getElementById('phSearchInput')?.focus(), 80);
+  _phoneSearchRender('');
+}
+
+function _phoneSearchRender(query) {
+  const slot = document.getElementById('phSearchResults');
+  if (!slot) return;
+  const idx = window._phoneSearchIndex || [];
+  const q = (query || '').trim().toLowerCase();
+  const matches = q
+    ? idx.filter(e => `${e.type} ${e.label} ${e.sub}`.toLowerCase().includes(q)).slice(0, 50)
+    : idx.slice(0, 30);
+  if (!matches.length) {
+    slot.innerHTML = `<div style="padding:18px;text-align:center;color:var(--warm-mute);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em">No matches</div>`;
+    return;
+  }
+  slot.innerHTML = matches.map(m => `
+    <div onclick="${m.dateId ? `closeModal();setActive('${m.dateId}')` : 'closeModal()'}"
+      style="padding:10px 12px;border:1px solid var(--line);border-radius:7px;cursor:pointer;background:rgba(20,15,11,.5);display:flex;gap:10px;align-items:center"
+      onmouseover="this.style.borderColor='var(--hi)';this.style.background='rgba(232,148,58,.05)'"
+      onmouseout="this.style.borderColor='var(--line)';this.style.background='rgba(20,15,11,.5)'">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--hi);padding:2px 6px;border:1px solid rgba(232,148,58,.4);border-radius:4px;flex:none">${esc(m.type)}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13.5px;color:var(--warm);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.label || '(no name)')}</div>
+        ${m.sub ? `<div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.sub)}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
 }
 
 // Init: fetch chat data once the user signs in and pick up the first
@@ -21873,7 +22064,8 @@ Object.assign(window, {
   _calInit, _calNavMonth, _calPickDate, _calRender,
   openGuestModal, openAllotmentModal, openSetItemModal, moveSetItem, copySetList,
   openSettleModal, openAttachModal, _attachFilePicked, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport,
-  openChatsModal, openNewChatModal, setActiveChat, _chatComposeOnInput, _chatComposeOnKeydown, _chatComposeSend, _chatMentionPick, _chatReactToggle, _chatReactPicker, _chatSendBroadcastPrompt,
+  openChatsModal, openNewChatModal, setActiveChat, _chatComposeOnInput, _chatComposeOnKeydown, _chatComposeSend, _chatMentionPick, _chatReactToggle, _chatReactPicker, _chatSendBroadcastPrompt, _chatToggleGroup, _chatUpdatePickCount,
+  openPhoneSearch, _phoneSearchRender,
   openTaskModal, openTagModal, toggleTask,
   setActive, closeModal, _modalSubmit, goToTab,
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
