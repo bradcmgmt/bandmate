@@ -5299,15 +5299,47 @@ _onTourChange(payload) {
   // (if any). RLS on public.subscriptions scopes the query to "their own
   // row" via user_id or email match against the JWT, so there's no risk
   // of leaking someone else's billing data.
+  //
+  // Two-pass query: the RLS-default `select` already filters by user_id
+  // OR email-match-against-JWT. But if Postgres' query planner gets
+  // confused or the row has neither set, the email-explicit fallback
+  // makes sure we still find it. Logs both attempts for debugging.
   async fetchSubscription() {
     if (!sb) return null;
+    // Pass 1 — let RLS do the filtering (matches by user_id OR JWT email)
     const { data, error } = await sb.from('subscriptions')
-      .select('status, current_period_end, trial_end, plan, cancel_at_period_end, stripe_customer_id')
+      .select('status, current_period_end, trial_end, plan, cancel_at_period_end, stripe_customer_id, email, user_id')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (error) { console.warn('[db.fetchSubscription]', error); return null; }
-    return data;
+    if (error) { console.warn('[db.fetchSubscription] pass1 error:', error); }
+    if (data) {
+      console.log('[db.fetchSubscription] found:', { status: data.status, user_id: data.user_id, email: data.email });
+      return data;
+    }
+    // Pass 2 — explicit email lookup as a belt-and-suspenders fallback.
+    // Useful when the user signed up AFTER paying (subscription row has
+    // email but user_id is null) and the JWT email matches the row.
+    let sessionEmail = null;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      sessionEmail = session?.user?.email || null;
+    } catch (e) {}
+    if (sessionEmail) {
+      const { data: byEmail, error: e2 } = await sb.from('subscriptions')
+        .select('status, current_period_end, trial_end, plan, cancel_at_period_end, stripe_customer_id, email, user_id')
+        .ilike('email', sessionEmail)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (e2) console.warn('[db.fetchSubscription] pass2 error:', e2);
+      if (byEmail) {
+        console.log('[db.fetchSubscription] found via email fallback:', { status: byEmail.status, email: byEmail.email });
+        return byEmail;
+      }
+    }
+    console.warn('[db.fetchSubscription] no subscription row found for current session. JWT email =', sessionEmail);
+    return null;
   },
 
   _onDateChange(payload) {
@@ -19333,7 +19365,15 @@ async function hydrateSubscription() {
     console.warn('[hydrateSubscription] No live session — leaving subscriptionStatus unchanged.');
     return;
   }
-  const sub = await db.fetchSubscription();
+  let sub = await db.fetchSubscription();
+  // Webhook race: if Stripe hasn't quite landed the row yet, give it
+  // one more chance after a short delay. Critical for the "subscribe →
+  // dashboard" handoff to feel instant — the alternative is bouncing
+  // the user to pricing for the few seconds before the webhook arrives.
+  if (!sub) {
+    await new Promise(r => setTimeout(r, 2500));
+    sub = await db.fetchSubscription();
+  }
   if (!sub) {
     // Definitive empty result (session was live and query succeeded with
     // no rows) — user genuinely has no subscription. Only set 'none' if
