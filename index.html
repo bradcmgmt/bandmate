@@ -4587,10 +4587,36 @@ const db = {
   //
   // Returns the new UUID on success, null on failure.
   async promoteTourToCloud(localTourId) {
-    if (!sb || !state?.currentUserId) return null;
+    if (!sb) return null;
     if (_isUuid(localTourId)) {
       console.warn('[db.promoteTourToCloud] already a UUID, nothing to do:', localTourId);
       return localTourId;
+    }
+    // Resolve the REAL Supabase auth user — not state.currentUserId,
+    // which may still be a legacy stub like "u_xxx" from the prototype
+    // era. The owner_id column is typed uuid and Postgres will reject
+    // anything that isn't a real UUID.
+    let authUid = null;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      authUid = session?.user?.id || null;
+    } catch (e) { /* fall through to error toast below */ }
+    if (!authUid || !_isUuid(authUid)) {
+      toast('Sign in with your Bandmate account before uploading to the cloud', 'error');
+      return null;
+    }
+    // Best-effort: if state.currentUserId is a stub, re-key it to the
+    // real auth UUID so future writes don't keep hitting this same
+    // failure mode. The local user record (display name, role, etc.)
+    // gets carried over.
+    if (state?.currentUserId && state.currentUserId !== authUid && !_isUuid(state.currentUserId)) {
+      const stubUser = state.users?.[state.currentUserId];
+      if (stubUser) {
+        state.users[authUid] = { ...stubUser, id: authUid };
+        delete state.users[state.currentUserId];
+      }
+      state.currentUserId = authUid;
+      saveState();
     }
     const tour = state.tours?.[localTourId];
     if (!tour) { toast('Tour not found in local state', 'error'); return null; }
@@ -4618,10 +4644,10 @@ const db = {
       dates: newDates,
       tasks: newTasks,
       activeDateId: newActive,
-      ownerId: state.currentUserId,
+      ownerId: authUid,
     };
-    // Push tour shell to Supabase
-    const row = dbMap.tourToRow(newTour, state.currentUserId);
+    // Push tour shell to Supabase — owner_id MUST be the real auth UUID
+    const row = dbMap.tourToRow(newTour, authUid);
     const { error: tErr } = await sb.from('tours').upsert(row, { onConflict: 'id' });
     if (tErr) { this._err('promoteTourToCloud.tour', tErr); return null; }
     // Push each date. Best-effort: continue even if individual dates fail.
@@ -4923,7 +4949,21 @@ _onTourChange(payload) {
   },
   // --- Attachments · binary in Storage, metadata in public.attachments ---
   async uploadAttachment(tourId, dateId, file, meta) {
-    if (!sb || !state?.currentUserId) return null;
+    if (!sb) return null;
+    // Require a live Supabase auth session — uploads need a real user
+    // for RLS + storage policies to evaluate `auth.uid()`. Stub users
+    // (legacy local-only ids like "u_xxx") get rejected with a clear
+    // sign-in prompt rather than a cryptic UUID cast error.
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session?.user?.id || !_isUuid(session.user.id)) {
+        toast('Sign in with your Bandmate account before uploading', 'error');
+        return null;
+      }
+    } catch (e) {
+      toast('Could not verify your session — try signing out and back in', 'error');
+      return null;
+    }
     // If the tour is still on a legacy local-only id, transparently
     // promote it to a real cloud UUID first so the upload can proceed.
     // The caller passed in the OLD id, so use the promotion result to
