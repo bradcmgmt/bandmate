@@ -4541,11 +4541,75 @@ const db = {
     if (!sb || !state?.currentUserId) return;
     // Leftover local-only tour from the prototype era — id isn't a UUID, so
     // Postgres will reject it. Skip silently; this tour lives in localStorage
-    // until the user re-creates it (or until a future migration helper).
+    // until the user re-creates it (or until promoteTourToCloud runs).
     if (!_isUuid(tour.id)) { console.warn('[db] skip upsertTour (non-UUID id):', tour.id); return; }
     const row = dbMap.tourToRow(tour, state.currentUserId);
     const { error } = await sb.from('tours').upsert(row, { onConflict: 'id' });
     if (error) this._err('upsertTour', error);
+  },
+
+  // Promote a local-only legacy tour (id like 't_demo', 'tour_1234', etc.)
+  // to a proper cloud-synced tour with a real UUID. Generates new UUIDs
+  // for the tour and every date, pushes the tour + dates to Supabase,
+  // re-keys state.tours, updates state.currentTourId, and saves locally.
+  //
+  // This unblocks attachment uploads, chat creation, member invites,
+  // and every other feature that requires the tour to exist in Postgres.
+  //
+  // Returns the new UUID on success, null on failure.
+  async promoteTourToCloud(localTourId) {
+    if (!sb || !state?.currentUserId) return null;
+    if (_isUuid(localTourId)) {
+      console.warn('[db.promoteTourToCloud] already a UUID, nothing to do:', localTourId);
+      return localTourId;
+    }
+    const tour = state.tours?.[localTourId];
+    if (!tour) { toast('Tour not found in local state', 'error'); return null; }
+    // Generate new UUIDs and a fresh date-id map so we can keep
+    // foreign-key-ish references consistent (e.g. tasks.dateId).
+    const newTourId = dbId();
+    const dateIdMap = {}; // old date id → new date id
+    const newDates = (tour.dates || []).map(d => {
+      const newId = _isUuid(d.id) ? d.id : dbId();
+      dateIdMap[d.id] = newId;
+      return { ...d, id: newId };
+    });
+    // Re-point any tasks that were tied to a date by id
+    const newTasks = (tour.tasks || []).map(t => {
+      if (t.dateId && dateIdMap[t.dateId]) return { ...t, dateId: dateIdMap[t.dateId] };
+      return t;
+    });
+    // activeDateId might also be a local-only id
+    const newActive = tour.activeDateId && dateIdMap[tour.activeDateId]
+      ? dateIdMap[tour.activeDateId]
+      : (newDates[0]?.id || null);
+    const newTour = {
+      ...tour,
+      id: newTourId,
+      dates: newDates,
+      tasks: newTasks,
+      activeDateId: newActive,
+      ownerId: state.currentUserId,
+    };
+    // Push tour shell to Supabase
+    const row = dbMap.tourToRow(newTour, state.currentUserId);
+    const { error: tErr } = await sb.from('tours').upsert(row, { onConflict: 'id' });
+    if (tErr) { this._err('promoteTourToCloud.tour', tErr); return null; }
+    // Push each date. Best-effort: continue even if individual dates fail.
+    let dateFails = 0;
+    for (let i = 0; i < newDates.length; i++) {
+      const d = newDates[i];
+      const drow = dbMap.dateToRow(newTourId, d, i);
+      const { error: dErr } = await sb.from('dates').upsert(drow, { onConflict: 'id' });
+      if (dErr) { console.warn('[promoteTourToCloud.date]', d.id, dErr.message); dateFails++; }
+    }
+    // Re-key state locally so the rest of the app uses the new UUID
+    state.tours[newTourId] = newTour;
+    delete state.tours[localTourId];
+    if (state.currentTourId === localTourId) state.currentTourId = newTourId;
+    saveState();
+    console.log(`[promoteTourToCloud] migrated ${localTourId} → ${newTourId} (${newDates.length} dates, ${dateFails} date failures)`);
+    return newTourId;
   },
   async deleteTour(tourId) {
     if (!sb) return;
@@ -4831,7 +4895,25 @@ _onTourChange(payload) {
   // --- Attachments · binary in Storage, metadata in public.attachments ---
   async uploadAttachment(tourId, dateId, file, meta) {
     if (!sb || !state?.currentUserId) return null;
-    if (!_isUuid(tourId)) { toast('Cannot upload to a local-only tour', 'error'); return null; }
+    // If the tour is still on a legacy local-only id, transparently
+    // promote it to a real cloud UUID first so the upload can proceed.
+    // The caller passed in the OLD id, so use the promotion result to
+    // update tourId + dateId for the rest of the flow.
+    if (!_isUuid(tourId)) {
+      toast('Promoting tour to cloud first…', 'good');
+      const newTourId = await this.promoteTourToCloud(tourId);
+      if (!newTourId) { toast('Could not promote tour to cloud', 'error'); return null; }
+      // The date id will have been re-keyed by promotion. Look up the
+      // active date's new id by walking the migrated tour.
+      const newTour = state.tours[newTourId];
+      tourId = newTourId;
+      if (dateId && !_isUuid(dateId)) {
+        // find the date whose ORIGINAL position matches the caller's intent
+        // — simplest: re-derive via the active date, since the uploader
+        // always uploads to whichever date was active when they hit Save.
+        dateId = newTour?.activeDateId || (newTour?.dates?.[0]?.id) || null;
+      }
+    }
     const attachId = dbId();
     const ext = (file.name.split('.').pop() || '').toLowerCase().slice(0, 8);
     const storagePath = `${tourId}/${attachId}${ext ? '.' + ext : ''}`;
