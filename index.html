@@ -4888,6 +4888,17 @@ const db = {
   // the tour owner sees DMs they aren't a member of (audit view).
   async chatFetchAll(tourId) {
     if (!sb || !tourId) return { chats: [], members: [] };
+    // Skip silently for legacy local-only tours (non-UUID ids). Without
+    // this, .eq('tour_id', 't_xxx') hits Postgres with an invalid uuid
+    // cast and returns a 400, which the _err handler then surfaces as
+    // a red "Cloud save failed (chatFetchAll)" toast on every boot.
+    // Real chats are unreachable until the tour is promoted to cloud
+    // (via the artist-logo / attachment upload flow), so empty is the
+    // honest answer here.
+    if (!_isUuid(tourId)) {
+      console.warn('[chatFetchAll] skipping for non-UUID tour:', tourId);
+      return { chats: [], members: [] };
+    }
     const { data: chats, error: e1 } = await sb.from('chats')
       .select('*').eq('tour_id', tourId).eq('archived', false).order('created_at', { ascending: false });
     if (e1) { this._err('chatFetchAll', e1); return { chats: [], members: [] }; }
@@ -4974,6 +4985,14 @@ const db = {
   // Runs once per tour, called when the chat modal opens. Idempotent.
   async chatAutoSeed(tourId) {
     if (!sb || !tourId) return;
+    // Same UUID guard as chatFetchAll — legacy local-only tours don't
+    // have a Supabase row yet, so seeding chats against them would
+    // throw 400s. Promote the tour first via the attachment-upload
+    // flow, then the next chat-modal open will seed cleanly.
+    if (!_isUuid(tourId)) {
+      console.warn('[chatAutoSeed] skipping for non-UUID tour:', tourId);
+      return;
+    }
     const tour = state.tours[tourId];
     if (!tour || tour.ownerId !== state.currentUserId) return; // only TM seeds
     const { data: existing } = await sb.from('chats').select('id').eq('tour_id', tourId).limit(1);
