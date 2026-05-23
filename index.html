@@ -1044,6 +1044,11 @@ input,select,textarea{font:inherit;color:inherit}
   letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--warm)}
 .at-scope-pick.active .asp-label{color:#cdd9e8}
 .at-scope-pick .asp-desc{font-size:11px;color:var(--warm-mute);line-height:1.4}
+/* Inline spinner shown next to status text during attachment upload */
+.at-spinner{display:inline-block;width:11px;height:11px;border-radius:50%;
+  border:2px solid rgba(232,148,58,.25);border-top-color:var(--hi);
+  animation:at-spin .8s linear infinite;vertical-align:middle;margin-right:4px}
+@keyframes at-spin{to{transform:rotate(360deg)}}
 
 /* contact rows */
 .contact-row{display:grid;grid-template-columns:46px 1fr 1.2fr 110px 80px;gap:12px;align-items:center;padding:13px 14px;border-top:1px solid var(--line)}
@@ -4952,11 +4957,18 @@ _onTourChange(payload) {
       return;
     }
     if (!row || !row.id) return;
-    // Preserve existing local dates array on update — date changes flow
-    // through _onDateChange separately. Insert seeds an empty dates array.
+    // Preserve existing local arrays that don't live on the tours row.
+    // - dates: synced via _onDateChange separately
+    // - attachments: live in their own table, synced via _onAttachmentChange
+    // Without preserving these, every tour UPDATE wipes them client-side
+    // until the next full re-hydrate, causing the classic "uploaded file
+    // flashes then disappears" bug right after scheduleActiveTourSync runs.
     const existing = state.tours[row.id];
-    const existingDates = existing?.dates || [];
-    state.tours[row.id] = dbMap.rowToTour(row, existingDates);
+    const existingDates = existing && existing.dates ? existing.dates : [];
+    const existingAttachments = existing && Array.isArray(existing.attachments) ? existing.attachments : [];
+    const remapped = dbMap.rowToTour(row, existingDates);
+    remapped.attachments = existingAttachments;
+    state.tours[row.id] = remapped;
     if (!state.currentTourId) state.currentTourId = row.id;
     this._safeRenderAll();
   },
@@ -5270,12 +5282,12 @@ _onTourChange(payload) {
     if (!rowOrOld) return;
     const tour = state.tours[rowOrOld.tour_id];
     if (!tour) return;
-    const date = (tour.dates || []).find(d => d.id === rowOrOld.date_id);
-    if (!date) return;
-    if (!date.attachments) date.attachments = [];
+    // New unified model: every attachment lives on tour.attachments
+    // with a dateId field (null = tour-wide, uuid = date-scoped).
+    if (!Array.isArray(tour.attachments)) tour.attachments = [];
 
     if (eventType === 'DELETE') {
-      date.attachments = date.attachments.filter(x => x.id !== rowOrOld.id);
+      tour.attachments = tour.attachments.filter(x => x.id !== rowOrOld.id);
       this._safeRenderAll();
       return;
     }
@@ -5288,9 +5300,10 @@ _onTourChange(payload) {
       link: row.link || '',
       tags: row.tags || '',
       storagePath: row.storage_path || '',
+      dateId: row.date_id || null,
       addedAt: row.added_at ? Date.parse(row.added_at) : Date.now(),
     };
-    date.attachments = date.attachments.filter(x => x.id !== row.id).concat(mapped);
+    tour.attachments = tour.attachments.filter(x => x.id !== row.id).concat(mapped);
     this._safeRenderAll();
   },
   // Pull this user's tours + dates from Supabase and rebuild state.tours.
@@ -8921,17 +8934,31 @@ function openAttachModal(attId, opts) {
       // Read scope from the radio buttons. "date" only valid if there's
       // an active date — falls back to "tour" otherwise.
       const scopeEl = document.querySelector('input[name="at_scope"]:checked');
-      const scope = (scopeEl?.value === 'date' && ad) ? 'date' : 'tour';
+      const scope = (scopeEl && scopeEl.value === 'date' && ad) ? 'date' : 'tour';
       const scopedDateId = (scope === 'date' && ad) ? ad.id : null;
       if (!Array.isArray(tour.attachments)) tour.attachments = [];
+
+      // Visible "uploading" state on the modal so the user gets feedback
+      // while the file is being sent to Storage. The status row gets a
+      // spinner + message; the Save button is disabled by the modal
+      // framework while onSubmit is in-flight.
+      const statusSlot = document.getElementById('at_file_status');
+      const setStatus = (txt, busy) => {
+        if (!statusSlot) return;
+        statusSlot.innerHTML = (busy ? '<span class="at-spinner"></span> ' : '') + esc(txt);
+        statusSlot.style.color = busy ? 'var(--hi)' : '';
+      };
 
       // Case 1 — fresh file picked: upload to Storage, replace any previous file.
       if (_attachPickedFile) {
         if (a && a.storagePath) {
+          setStatus('Removing old version...', true);
           try { await sb.storage.from('attachments').remove([a.storagePath]); } catch (e) {}
         }
+        setStatus(`Uploading ${formatSize(_attachPickedFile.size)} to cloud...`, true);
         const result = await db.uploadAttachment(T().id, scopedDateId, _attachPickedFile, baseMeta);
-        if (!result) return false;
+        if (!result) { setStatus('Upload failed - check console for details', false); return false; }
+        setStatus('Saved! Finishing up...', true);
         // CRITICAL: uploadAttachment may have triggered promoteTourToCloud,
         // which re-keys state.tours and orphans the `tour` variable we
         // captured at the top of this modal. Re-fetch T() so we push the
