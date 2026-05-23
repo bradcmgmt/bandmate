@@ -15358,12 +15358,38 @@ function izApply() {
 
   state.onboarded = true;
   if (T().dates.length) T().activeDateId = T().dates[0].id;
+  // Force the active tab back to Dashboard so the user lands on the
+  // tour overview, not whatever tab they were on before the import.
+  try {
+    activeTab = 'dashboard';
+    if (state.ui) state.ui.activeTab = 'dashboard';
+  } catch (e) {}
   saveState();
 
   closeModal();
   $('#onboarding').classList.add('hidden');
   $('#app').hidden = false;
+
+  // Diagnostic: log the resulting state so we can debug if dates still
+  // don't appear. Tells us EXACTLY how many tours, dates, and which is
+  // current.
+  console.log('[izApply] complete', {
+    newTourId: _newTour.id,
+    currentTourId: state.currentTourId,
+    tourCount: Object.keys(state.tours).length,
+    datesOnNewTour: T().dates.length,
+    activeDateId: T().activeDateId,
+    onboarded: state.onboarded,
+  });
+
   renderAll();
+  // Force the dashboard tab + panel to actually become visible. Without
+  // these, the panel content gets re-rendered but the .active class
+  // stays on whatever was active before the import — often a blank
+  // panel, causing the "no dates show up" symptom even though the
+  // dates ARE in state.tours[].dates correctly.
+  try { applyTabFromState(); } catch (e) { console.error('applyTabFromState:', e); }
+  try { syncPhoneScreenFromTab(); } catch (e) { console.error('syncPhoneScreenFromTab:', e); }
 
   const gaps = calcGapSummary(s.merged);
   // Build a single composite toast that mentions both gaps and any
@@ -20195,7 +20221,19 @@ function postLoginRouting() {
   const accessible = [...owned];
   member.forEach(t => { if (!accessible.find(x => x.id === t.id)) accessible.push(t); });
 
-  if (!accessible.length) {
+  // If the ONLY tour visible to this TM is the auto-seeded "Demo Tour ·
+  // Wayfinder" (and they haven't dismissed the onboarding before),
+  // treat it as if they have zero tours so they get the create-your-
+  // first-tour onboarding overlay. Their demo tour stays in state for
+  // exploration via the tour switcher; we just don't auto-route to it.
+  // This catches any user whose Supabase signup ran before patch-012
+  // disabled the demo seed, AND every fresh signup that arrives via
+  // an old trigger.
+  const onlyDemoTour = u.role === 'tm'
+    && accessible.length === 1
+    && /demo tour/i.test(accessible[0]?.meta?.tourName || accessible[0]?.name || '')
+    && !state.onboarded;
+  if (!accessible.length || onlyDemoTour) {
     if (u.role === 'tm') {
       // Show onboarding so TM can create their first tour
       state.onboarded = false;
