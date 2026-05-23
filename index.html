@@ -237,6 +237,42 @@ input,select,textarea{font:inherit;color:inherit}
   animation:trial-pulse 2.2s ease-in-out infinite}
 .trial-badge.urgent:hover{border-color:#e84545;color:#fdb3b3;
   box-shadow:inset 0 0 0 1px rgba(232,69,69,.25),0 0 18px rgba(232,69,69,.4)}
+
+/* Dashboard empty-state start cards. Three paths side-by-side:
+   IMPORT (primary, copper accent), MANUAL, DEMO. Always visible
+   when there are zero dates on the tour, even mid-session — so a
+   freshly-promoted tour with no dates yet still surfaces the
+   "upload documents" path on the dashboard's main panel. */
+.empty.empty-start{padding:32px 24px 40px;text-align:center;
+  background:linear-gradient(180deg,rgba(232,148,58,.04),rgba(20,15,11,.4));
+  border:1px solid var(--line);border-radius:12px}
+.empty.empty-start h3{margin:0 0 8px;font-size:24px;letter-spacing:-.01em;color:var(--warm);font-weight:700}
+.empty.empty-start > p{font-size:14px;line-height:1.55;color:var(--warm-mute);
+  max-width:560px;margin:0 auto 24px}
+.start-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:14px;text-align:left}
+.start-card{display:flex;flex-direction:column;gap:8px;
+  padding:18px 18px 16px;border:1px solid var(--line);border-radius:10px;
+  background:linear-gradient(180deg,rgba(24,17,11,.7),rgba(17,12,8,.7));
+  color:var(--warm);cursor:pointer;
+  transition:border-color .15s,background .15s,box-shadow .15s,transform .15s}
+.start-card:hover{border-color:var(--line-glow);transform:translateY(-1px);
+  box-shadow:0 6px 20px rgba(0,0,0,.4),0 0 18px rgba(232,148,58,.08)}
+.start-card.primary{border-color:rgba(232,148,58,.5);
+  background:linear-gradient(180deg,rgba(232,148,58,.10),rgba(232,148,58,.02));
+  box-shadow:inset 0 0 0 1px rgba(232,148,58,.06),0 0 20px rgba(232,148,58,.12)}
+.start-card.primary:hover{border-color:var(--hi);
+  box-shadow:inset 0 0 0 1px rgba(232,148,58,.18),0 6px 22px rgba(0,0,0,.4),0 0 24px rgba(232,148,58,.22)}
+.start-card .sc-num{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--warm-mute);font-weight:700}
+.start-card.primary .sc-num{color:var(--hi)}
+.start-card .sc-title{font-size:17px;font-weight:700;color:var(--warm);line-height:1.3;margin-top:2px}
+.start-card .sc-desc{font-size:12.5px;line-height:1.55;color:var(--warm-mute);flex:1;margin-top:2px}
+.start-card .sc-cta{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--warm-mute);font-weight:700;margin-top:8px;
+  padding-top:8px;border-top:1px solid var(--line)}
+.start-card.primary .sc-cta{color:var(--hi)}
+.start-card:hover .sc-cta{color:var(--hi)}
 @keyframes trial-pulse{0%,100%{box-shadow:inset 0 0 0 1px rgba(232,69,69,.12),0 0 14px rgba(232,69,69,.18)}
   50%{box-shadow:inset 0 0 0 1px rgba(232,69,69,.25),0 0 22px rgba(232,69,69,.35)}}
 
@@ -4253,9 +4289,10 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
     </div>
     <div class="right-cluster">
       <!-- Trial badge: populated by renderTrialBadge() when the user's
-           subscription status is 'trialing'. Click opens the account menu
-           for manage-subscription access. Hidden by default. -->
-      <button type="button" id="trialBadge" class="trial-badge" hidden onclick="toggleAccountMenu()" title="You're on a free trial — click to view billing">
+           subscription status is 'trialing'. Click opens the Stripe-hosted
+           billing portal where the TM can update card, view invoices,
+           cancel, or reactivate. Every change auto-syncs via webhook. -->
+      <button type="button" id="trialBadge" class="trial-badge" hidden onclick="openSubscriptionPortal()" title="Manage your subscription, payment method, and billing">
         <span class="tb-icon">⌛</span>
         <span class="tb-text" id="trialBadgeText">Free trial</span>
       </button>
@@ -10280,12 +10317,39 @@ function renderDashboard() {
   const ad = getActiveDate();
   const root = $('#p-dashboard');
   if (!ad) {
+    // Empty-tour state — surface the THREE primary onboarding paths
+    // so the TM never has to hunt for "how do I get started?". The
+    // import card is always present so they can drop in a deal memo
+    // / itinerary / tour grid and have Bandmate build the schedule
+    // from it. Build-from-scratch and CSV-template paths sit alongside.
     root.innerHTML = `
-      <div class="section-title"><h2>Welcome</h2></div>
-      <div class="empty">
-        <h3>Your tour is ready — add your first date</h3>
-        <p>Each date holds its own schedule, hotel, guest list, set list, and settlement. You can also import dates from a CSV.</p>
-        <button type="button" onclick="openAddDateChooser()">+ Add first date</button>
+      <div class="section-title">
+        <h2>Welcome${(state?.users?.[state.currentUserId]?.name?.split(/\s+/)[0]) ? ', ' + esc(state.users[state.currentUserId].name.split(/\s+/)[0]) : ''}</h2>
+        <span class="crumb">/ NEW TOUR · 0 DATES</span>
+      </div>
+      <div class="empty empty-start">
+        <h3>Let's build your tour</h3>
+        <p>Pick the fastest path for how your tour is documented today. You can mix all three later — import to fill the bulk, then refine date-by-date.</p>
+        <div class="start-cards">
+          <button type="button" class="start-card primary" onclick="onbChooseCSV()">
+            <div class="sc-num">01 · IMPORT</div>
+            <div class="sc-title">Upload tour documents</div>
+            <div class="sc-desc">Drop deal memos, itineraries, tour grids, contracts. Bandmate reads each file and builds the schedule, hotels, contacts, and dates for you — flags whatever's still missing.</div>
+            <div class="sc-cta">Upload documents →</div>
+          </button>
+          <button type="button" class="start-card" onclick="openAddDateChooser()">
+            <div class="sc-num">02 · MANUAL</div>
+            <div class="sc-title">Add dates one by one</div>
+            <div class="sc-desc">Start with a single date and fill in details as bookings firm up. Best when you're still routing or only have a few dates booked.</div>
+            <div class="sc-cta">Add first date →</div>
+          </button>
+          <button type="button" class="start-card" onclick="onbChooseSample()">
+            <div class="sc-num">03 · DEMO</div>
+            <div class="sc-title">Explore a sample tour</div>
+            <div class="sc-desc">Pre-loaded 4-date run with crew, schedules, hotels. Best for seeing what Bandmate can do before committing your real data.</div>
+            <div class="sc-cta">Load sample →</div>
+          </button>
+        </div>
       </div>
     `;
     return;
@@ -19467,6 +19531,56 @@ async function hydrateSubscription() {
 // null, empty string) is treated as subscribed to avoid false-positive
 // lock-outs during auth blips — the webhook + hydrate will eventually
 // stamp the real status and re-evaluate.
+// Open the Stripe-hosted Customer Portal so the user can manage their
+// subscription (update card, view invoices, cancel, reactivate). Reads
+// the current Supabase session, posts the access token to our
+// /api/stripe-portal serverless function (which authenticates the user
+// + creates a portal session via Stripe), then navigates to the
+// returned URL. Every change inside the portal auto-fires our webhook
+// against /api/stripe-webhook so the DB stays in sync.
+async function openSubscriptionPortal() {
+  if (!sb) { toast('Auth service not ready — refresh the page', 'error'); return; }
+  toast('Opening billing portal...', 'good');
+  let accessToken = null;
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    accessToken = session?.access_token || null;
+  } catch (e) {}
+  if (!accessToken) {
+    toast('Session expired — sign in again, then try Manage Billing', 'error');
+    return;
+  }
+  try {
+    const r = await fetch('/api/stripe-portal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        supabaseAccessToken: accessToken,
+        returnUrl: window.location.origin + '/',
+      }),
+    });
+    if (!r.ok) {
+      let msg = 'Could not open billing portal';
+      try {
+        const j = await r.json();
+        if (j && j.error) msg = j.error;
+        if (j && j.hint) console.warn('[openSubscriptionPortal]', j.hint);
+      } catch (e) {}
+      toast(msg, 'error');
+      return;
+    }
+    const j = await r.json();
+    if (!j.url) { toast('Portal URL missing in response', 'error'); return; }
+    // Navigate the current tab to the portal — the user will return
+    // to bandmate.art automatically when they're done (Stripe handles
+    // the back-redirect via the return_url we set on the session).
+    window.location.assign(j.url);
+  } catch (e) {
+    console.error('[openSubscriptionPortal]', e);
+    toast('Network error — try again', 'error');
+  }
+}
+
 // Trial badge in the topbar. Shows "Free trial · N days left" when the
 // current user's subscription status is 'trialing', with the badge
 // turning red/urgent when 2 days or less remain. Hidden for active
@@ -23135,7 +23249,7 @@ Object.assign(window, {
   _addDateRangeNext, _bulkSetRangeType, _commitDateRange,
   _calInit, _calNavMonth, _calPickDate, _calRender,
   openGuestModal, openAllotmentModal, openSetItemModal, moveSetItem, copySetList,
-  openSettleModal, openAttachModal, _attachFilePicked, _attachScopeChange, _attachBackToPick, _attachUpdatePrimaryLabel, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport, renderLocalAttachments, renderAttachments, renderTrialBadge,
+  openSettleModal, openAttachModal, _attachFilePicked, _attachScopeChange, _attachBackToPick, _attachUpdatePrimaryLabel, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport, renderLocalAttachments, renderAttachments, renderTrialBadge, openSubscriptionPortal,
   openChatsModal, openNewChatModal, setActiveChat, _chatComposeOnInput, _chatComposeOnKeydown, _chatComposeSend, _chatMentionPick, _chatReactToggle, _chatReactPicker, _chatSendBroadcastPrompt, _chatToggleGroup, _chatUpdatePickCount,
   openPhoneSearch, _phoneSearchRender,
   openTaskModal, openTagModal, toggleTask,
