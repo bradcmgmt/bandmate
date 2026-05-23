@@ -1095,8 +1095,15 @@ input,select,textarea{font:inherit;color:inherit}
   letter-spacing:.22em;text-transform:uppercase;color:var(--hi);font-weight:800;
   text-shadow:0 0 12px rgba(232,148,58,.4)}
 .at-upload-overlay .auo-sub{font-size:13px;color:var(--warm);line-height:1.5;
-  font-weight:500;max-width:380px}
+  font-weight:500;max-width:380px;white-space:pre-line;min-height:38px}
+.at-upload-overlay .auo-bar{width:260px;height:4px;border-radius:2px;
+  background:rgba(232,148,58,.12);overflow:hidden;margin-top:4px}
+.at-upload-overlay .auo-bar-fill{height:100%;width:0;
+  background:linear-gradient(90deg,var(--hi),var(--hi-2));
+  box-shadow:0 0 10px rgba(232,148,58,.5);
+  transition:width .3s ease-out;border-radius:2px}
 @keyframes auo-fade{from{opacity:0}to{opacity:1}}
+@keyframes auo-fade-out{from{opacity:1}to{opacity:0}}
 /* The modal body needs position:relative so the overlay anchors inside it */
 .modal-body{position:relative}
 
@@ -8887,6 +8894,10 @@ let _attachPickedDataUrl = '';
 // Single-file mode skips this and stays on 'pick' for the whole flow.
 let _attachStep = 'pick';
 let _attachMultiNames = []; // Per-file overrides set on the naming step
+// Stashed step-1 metadata. Captured during the pick → name transition
+// so step 2 can finish the upload after the original form fields are
+// no longer in the DOM. Reset every time the modal opens.
+let _attachStashedMeta = null;
 
 // One-time migration: collect every attachment on every date and move
 // them into a single tour.attachments[] array. Each item keeps a
@@ -8950,6 +8961,7 @@ function openAttachModal(attId, opts) {
   _attachPickedDataUrl = '';
   _attachStep = 'pick';
   _attachMultiNames = [];
+  _attachStashedMeta = null;
   const hasStored = !!(a && a.storagePath);
   // The Local scope option is only meaningful when there's an active date
   const hasDate = !!ad;
@@ -9011,9 +9023,19 @@ function openAttachModal(attId, opts) {
       // ----- MULTI-FILE STEP 1 → STEP 2 TRANSITION -----
       // If the user picked 2+ files and we're still on the picker step,
       // intercept the submit and transition to the naming step instead.
-      // Per-file name editing happens there; actual upload waits for
-      // the user to click Save again on step 2.
+      // Capture the step-1 form values FIRST — step 2 replaces the
+      // modal body, so the original inputs (#at_type, #at_link, etc.)
+      // disappear from the DOM. Without this stash, the subsequent
+      // upload submit would crash silently on null.value reads.
       if (_attachStep === 'pick' && _attachPickedFiles && _attachPickedFiles.length > 1) {
+        const scopeElCapture = document.querySelector('input[name="at_scope"]:checked');
+        _attachStashedMeta = {
+          type: ($('#at_type')?.value || 'Contract'),
+          link: ($('#at_link')?.value || '').trim(),
+          tags: ($('#at_tags')?.value || '').trim(),
+          scope: (scopeElCapture && scopeElCapture.value === 'date' && ad) ? 'date' : 'tour',
+          scopedDateId: ((scopeElCapture && scopeElCapture.value === 'date' && ad) ? ad.id : null),
+        };
         _attachStep = 'name';
         _renderAttachNamingStep();
         return false; // keep modal open, don't trigger renderAll yet
@@ -9037,31 +9059,51 @@ function openAttachModal(attId, opts) {
           return (inp?.value || '').trim() || f.name;
         });
       }
-      const baseMeta = {
+      // Source of truth for shared metadata:
+      //  • multi mode: use _attachStashedMeta (captured at step 1→2
+      //    transition; the live form inputs no longer exist in the DOM)
+      //  • single mode: read directly from the still-mounted form inputs
+      const baseMeta = isMulti && _attachStashedMeta ? {
         name,
-        type: $('#at_type').value,
-        size: $('#at_size')?.value?.trim() || '',
-        link: $('#at_link')?.value?.trim() || '',
-        tags: $('#at_tags')?.value?.trim() || '',
+        type: _attachStashedMeta.type,
+        size: '',
+        link: _attachStashedMeta.link,
+        tags: _attachStashedMeta.tags,
+      } : {
+        name,
+        type: ($('#at_type')?.value || 'Contract'),
+        size: ($('#at_size')?.value || '').trim(),
+        link: ($('#at_link')?.value || '').trim(),
+        tags: ($('#at_tags')?.value || '').trim(),
       };
-      // Read scope from the radio buttons. "date" only valid if there's
-      // an active date — falls back to "tour" otherwise.
-      const scopeEl = document.querySelector('input[name="at_scope"]:checked');
-      const scope = (scopeEl && scopeEl.value === 'date' && ad) ? 'date' : 'tour';
-      const scopedDateId = (scope === 'date' && ad) ? ad.id : null;
+      // Scope: same rule — stashed in multi mode, live in single mode.
+      let scope, scopedDateId;
+      if (isMulti && _attachStashedMeta) {
+        scope = _attachStashedMeta.scope;
+        scopedDateId = _attachStashedMeta.scopedDateId;
+      } else {
+        const scopeEl = document.querySelector('input[name="at_scope"]:checked');
+        scope = (scopeEl && scopeEl.value === 'date' && ad) ? 'date' : 'tour';
+        scopedDateId = (scope === 'date' && ad) ? ad.id : null;
+      }
       if (!Array.isArray(tour.attachments)) tour.attachments = [];
 
       // Visible "uploading" state on the modal so the user gets feedback
-      // while the file is being sent to Storage. Status row gets a small
-      // spinner + message; a full-modal overlay covers the body so it's
-      // visually obvious the modal is busy. Save button is disabled by
-      // the modal framework while onSubmit is in-flight.
-      const statusSlot = document.getElementById('at_file_status');
+      // while the file is being sent to Storage. Two surfaces, both
+      // safe to call regardless of which step the modal is showing:
+      //   1. #at_file_status — inline spinner+text (only exists on step 1)
+      //   2. #at_upload_overlay — full-modal overlay (works on any step)
+      // The overlay always wins as the primary feedback so the user
+      // can't miss that an upload is happening.
       const setStatus = (txt, busy) => {
-        if (!statusSlot) return;
-        statusSlot.innerHTML = (busy ? '<span class="at-spinner"></span> ' : '') + esc(txt);
-        statusSlot.style.color = busy ? 'var(--hi)' : '';
-        // Toggle the full-modal overlay alongside the status update
+        // Status line (only exists in single-file / step-1 layouts)
+        const statusSlot = document.getElementById('at_file_status');
+        if (statusSlot) {
+          statusSlot.innerHTML = (busy ? '<span class="at-spinner"></span> ' : '') + esc(txt);
+          statusSlot.style.color = busy ? 'var(--hi)' : '';
+        }
+        // Full-modal overlay — always created on the modal body, which
+        // exists on any step. Updates the sub-text on subsequent calls.
         let overlay = document.getElementById('at_upload_overlay');
         if (busy) {
           if (!overlay) {
@@ -9072,18 +9114,25 @@ function openAttachModal(attId, opts) {
               <div class="auo-card">
                 <div class="auo-spinner"></div>
                 <div class="auo-title" id="at_upload_overlay_title">Uploading...</div>
-                <div class="auo-sub" id="at_upload_overlay_sub">${esc(txt)}</div>
+                <div class="auo-sub" id="at_upload_overlay_sub"></div>
+                <div class="auo-bar"><div class="auo-bar-fill" id="at_upload_overlay_bar"></div></div>
               </div>
             `;
             const body = document.querySelector('.modal-body');
             if (body) body.appendChild(overlay);
-          } else {
-            const sub = document.getElementById('at_upload_overlay_sub');
-            if (sub) sub.textContent = txt;
           }
+          const sub = document.getElementById('at_upload_overlay_sub');
+          if (sub) sub.textContent = txt;
         } else if (overlay) {
-          overlay.remove();
+          // Smooth fade-out so the dismissal isn't jarring
+          overlay.style.animation = 'auo-fade-out .25s ease-out forwards';
+          setTimeout(() => { if (overlay && overlay.parentNode) overlay.remove(); }, 260);
         }
+      };
+      // Helper for batch uploads: updates the progress bar (0..1)
+      const setProgress = (frac) => {
+        const bar = document.getElementById('at_upload_overlay_bar');
+        if (bar) bar.style.width = Math.max(0, Math.min(1, frac)) * 100 + '%';
       };
 
       // Case 1 — fresh file(s) picked: upload to Storage. Two flavors:
@@ -9095,15 +9144,19 @@ function openAttachModal(attId, opts) {
         const batch = _attachPickedFiles.slice();
         const names = _attachMultiNames.slice(); // user-edited names from step 2
         let successCount = 0, failCount = 0;
+        setStatus(`Preparing ${batch.length} files...`, true);
+        setProgress(0);
         for (let i = 0; i < batch.length; i++) {
           const f = batch[i];
           const displayName = names[i] || f.name;
-          // Update the per-row status indicator in the file list
+          // Update the per-row status indicator in the file list (only
+          // exists if user is still looking at step 1 list — on step 2
+          // these are no-ops, the overlay carries the load instead).
           const rowStatus = document.getElementById(`at_multi_status_${i}`);
           const row = document.getElementById(`at_multi_row_${i}`);
           if (rowStatus) rowStatus.innerHTML = '<span class="at-spinner"></span>';
           if (row) row.classList.add('uploading');
-          setStatus(`Uploading ${i + 1} of ${batch.length}: ${displayName}`, true);
+          setStatus(`Uploading ${i + 1} of ${batch.length}\n${displayName}`, true);
           const fileMeta = {
             name: displayName,
             type: baseMeta.type,
@@ -9124,6 +9177,8 @@ function openAttachModal(attId, opts) {
             if (rowStatus) rowStatus.textContent = '✗';
             if (row) { row.classList.remove('uploading'); row.classList.add('failed'); }
           }
+          // Update the visible progress bar after each file finishes
+          setProgress((i + 1) / batch.length);
         }
         setStatus(`Done — ${successCount} uploaded${failCount ? `, ${failCount} failed` : ''}`, false);
         if (successCount) toast(`${successCount} file${successCount === 1 ? '' : 's'} uploaded`, 'good');
@@ -19264,7 +19319,16 @@ async function hydrateSubscription() {
     // Definitive empty result (session was live and query succeeded with
     // no rows) — user genuinely has no subscription. Only set 'none' if
     // status wasn't already a positive one we're trying to preserve.
-    if (!['active', 'trialing'].includes(u.subscriptionStatus)) {
+    // Also leave it alone if the user JUST came back from Stripe
+    // checkout (pending stash within last 30 minutes) — the webhook
+    // is still in-flight and downgrading to 'none' would bounce them
+    // to the pricing screen for a few seconds until the realtime fires.
+    let hasRecentPending = false;
+    try {
+      const pending = _readPendingSubscription();
+      hasRecentPending = !!(pending && pending.capturedAt && (Date.now() - pending.capturedAt) < 30 * 60 * 1000);
+    } catch (e) {}
+    if (!['active', 'trialing'].includes(u.subscriptionStatus) && !hasRecentPending) {
       u.subscriptionStatus = 'none';
     }
   } else {
@@ -19287,6 +19351,17 @@ async function hydrateSubscription() {
 function userIsSubscribed(user) {
   if (!user) return false;
   if (user.role !== 'tm') return true; // crew is always free
+  // Grace period: if the user JUST came back from Stripe checkout (we
+  // stashed a pending subscription within the last ~30 minutes), trust
+  // it as 'trialing/active' even before hydrateSubscription finds the
+  // row in Supabase. Closes the webhook race window where Stripe takes
+  // a few seconds to fire customer.subscription.created and the user
+  // would otherwise see the pricing screen for those few seconds.
+  try {
+    const pending = _readPendingSubscription();
+    const stashAge = pending && pending.capturedAt ? (Date.now() - pending.capturedAt) : Infinity;
+    if (pending && stashAge < 30 * 60 * 1000) return true;
+  } catch (e) {}
   const status = user.subscriptionStatus;
   // Definitively unsubscribed → block
   if (['none', 'canceled', 'past_due', 'unpaid', 'incomplete_expired'].includes(status)) return false;
@@ -22046,9 +22121,28 @@ function init() {
     // we need to attach to the new user; stash it now (which also
     // cleans the URL) so it survives the upcoming signup flow.
     if (_isPostPaymentRedirect()) {
-      _stashPendingSubscription();
-      showWelcomeScreen();
-      return;
+      const pending = _stashPendingSubscription();
+      // If the user is ALREADY signed in (most common case with the
+      // signup-first checkout flow), skip the celebratory welcome modal
+      // and route directly into the app. Attach the subscription locally
+      // so userIsSubscribed reads positive immediately while the webhook
+      // catches up async. Kick a fresh hydrateSubscription a few seconds
+      // later to pull the real row from Supabase once the webhook lands.
+      if (state && state.currentUserId && state.users && state.users[state.currentUserId]) {
+        try { _attachSubscriptionToCurrentUser(pending); } catch (e) {}
+        try { saveState(); } catch (e) {}
+        toast('Subscription active — welcome aboard', 'good');
+        // Re-fetch subscription a few seconds in to grab the webhook's
+        // upsert. If found, _onSubscriptionChange will update status; if
+        // not, the 30-min grace period on userIsSubscribed keeps the app
+        // unlocked while we wait.
+        setTimeout(() => { try { hydrateSubscription(); } catch (e) {} }, 4000);
+        setTimeout(() => { try { hydrateSubscription(); } catch (e) {} }, 12000);
+        // Continue to normal routing (skips return so the rest of init runs)
+      } else {
+        showWelcomeScreen();
+        return;
+      }
     }
     // Crew invite redirect (from /api/crew-invite email link). Stash
     // the tour id so signUp() can use it later, and route the user
