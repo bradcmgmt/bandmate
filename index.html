@@ -1017,6 +1017,33 @@ input,select,textarea{font:inherit;color:inherit}
 .tile .tile-actions .at-dl-btn:hover{color:var(--hi);border-color:var(--hi)}
 .tile .ftype .at-imp{font-size:9px;letter-spacing:.18em;color:#7adc97;border:1px solid rgba(122,220,151,.4);
   padding:2px 6px;border-radius:4px;background:rgba(122,220,151,.06)}
+/* Scope tag on attachment tiles in the tour-wide Attachments view.
+   Tour-wide files get the blue tour-fixed accent; date-scoped files
+   show their date+city. Both compact + monospaced so the tile header
+   stays readable on tile-grid (auto-fit 220px). */
+.tile .ftype .at-scope-tour{font-family:'JetBrains Mono',monospace;font-size:9px;
+  letter-spacing:.18em;color:#b1c8ee;border:1px solid rgba(138,169,216,.4);
+  padding:2px 6px;border-radius:4px;background:rgba(138,169,216,.08);font-weight:700}
+.tile .ftype .at-scope-date{font-family:'JetBrains Mono',monospace;font-size:9px;
+  letter-spacing:.12em;color:var(--hi);border:1px solid rgba(232,148,58,.35);
+  padding:2px 6px;border-radius:4px;background:rgba(232,148,58,.06);font-weight:700;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
+.tile .ftype .at-scope-tag{display:inline-flex;align-items:center}
+/* Scope picker (radio) inside the attachment modal */
+.at-scope-pick{flex:1 1 220px;display:flex;flex-direction:column;gap:2px;
+  padding:9px 12px;border:1px solid var(--line-2);border-radius:7px;
+  background:rgba(0,0,0,.25);cursor:pointer;
+  transition:border-color .12s,background .12s,box-shadow .12s;position:relative}
+.at-scope-pick input[type="radio"]{position:absolute;opacity:0;pointer-events:none}
+.at-scope-pick:hover{border-color:rgba(138,169,216,.5)}
+.at-scope-pick.active{border-color:#8aa9d8;background:rgba(138,169,216,.08);
+  box-shadow:inset 0 0 0 1px rgba(138,169,216,.25)}
+.at-scope-pick.disabled{opacity:.45;cursor:not-allowed}
+.at-scope-pick.disabled:hover{border-color:var(--line-2)}
+.at-scope-pick .asp-label{font-family:'JetBrains Mono',monospace;font-size:11px;
+  letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--warm)}
+.at-scope-pick.active .asp-label{color:#cdd9e8}
+.at-scope-pick .asp-desc{font-size:11px;color:var(--warm-mute);line-height:1.4}
 
 /* contact rows */
 .contact-row{display:grid;grid-template-columns:46px 1fr 1.2fr 110px 80px;gap:12px;align-items:center;padding:13px 14px;border-top:1px solid var(--line)}
@@ -4177,13 +4204,14 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
           <button type="button" class="tab" data-tab="guest"><span class="num">06</span> Guest List</button>
           <button type="button" class="tab" data-tab="setlist"><span class="num">07</span> Set List</button>
           <button type="button" class="tab" data-tab="advance"><span class="num">08</span> Advance</button>
-          <button type="button" class="tab" data-tab="files"><span class="num">09</span> Attachments</button>
+          <button type="button" class="tab" data-tab="localfiles"><span class="num">09</span> Local Attachments</button>
           <button type="button" class="tab tab-fixed" data-tab="acct"><span class="num">10</span> Settlements</button>
           <button type="button" class="tab tab-fixed" data-tab="venues"><span class="num">11</span> Venues</button>
           <button type="button" class="tab tab-fixed" data-tab="contacts"><span class="num">12</span> Contacts</button>
-          <button type="button" class="tab tab-fixed" data-tab="tasks"><span class="num">13</span> Tasks</button>
-          <button type="button" class="tab tab-fixed" data-tab="profiles"><span class="num">14</span> Crew</button>
-          <button type="button" class="tab tab-fixed tab-recs" data-tab="tags"><span class="num">15</span> Local Recs</button>
+          <button type="button" class="tab tab-fixed" data-tab="files"><span class="num">13</span> Attachments</button>
+          <button type="button" class="tab tab-fixed" data-tab="tasks"><span class="num">14</span> Tasks</button>
+          <button type="button" class="tab tab-fixed" data-tab="profiles"><span class="num">15</span> Crew</button>
+          <button type="button" class="tab tab-fixed tab-recs" data-tab="tags"><span class="num">16</span> Local Recs</button>
         </nav>
 
         <div class="panels-wrap">
@@ -4195,6 +4223,7 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
           <div class="panel" data-panel="guest" id="p-guest"></div>
           <div class="panel" data-panel="setlist" id="p-setlist"></div>
           <div class="panel" data-panel="advance" id="p-advance"></div>
+          <div class="panel" data-panel="localfiles" id="p-localfiles"></div>
           <div class="panel" data-panel="acct" id="p-acct"></div>
           <div class="panel" data-panel="files" id="p-files"></div>
           <div class="panel" data-panel="venues" id="p-venues"></div>
@@ -5219,10 +5248,12 @@ _onTourChange(payload) {
       (dateRows || []).forEach(r => {
         (datesByTour[r.tour_id] = datesByTour[r.tour_id] || []).push(dbMap.rowToDate(r));
       });
-      const attachByDate = {};
+      // Group attachments by TOUR (not by date) so they all land in the
+      // unified tour.attachments[] list. Each item keeps a `dateId` field:
+      // null = tour-wide, uuid = scoped to that date.
+      const attachByTour = {};
       (attachRows || []).forEach(r => {
-        if (!r.date_id) return;
-        (attachByDate[r.date_id] = attachByDate[r.date_id] || []).push({
+        const item = {
           id: r.id,
           name: r.name || '',
           type: r.type || '',
@@ -5231,8 +5262,10 @@ _onTourChange(payload) {
           link: r.link || '',
           tags: r.tags || '',
           storagePath: r.storage_path || '',
+          dateId: r.date_id || null,
           addedAt: r.added_at ? Date.parse(r.added_at) : Date.now(),
-        });
+        };
+        (attachByTour[r.tour_id] = attachByTour[r.tour_id] || []).push(item);
       });
 
       if (!state) state = newEmptyState();
@@ -5243,10 +5276,13 @@ _onTourChange(payload) {
       });
       tourRows.forEach(row => {
         const dates = (datesByTour[row.id] || []).map(d => {
-          d.attachments = attachByDate[d.id] || [];
+          // Legacy: keep an empty date.attachments array for back-compat
+          // with any code that still reads it. New code reads tour.attachments.
+          d.attachments = [];
           return d;
         });
         const tour = dbMap.rowToTour(row, dates);
+        tour.attachments = attachByTour[row.id] || [];
         state.tours[tour.id] = tour;
       });
       // Pick a current tour if none set, or if current is gone
@@ -8658,24 +8694,95 @@ const ATTACH_TYPES = ['Contract', 'Rider', 'Stage Plot', 'Input List', 'Day Shee
 let _attachPickedFile = null;
 let _attachPickedDataUrl = '';
 
-function openAttachModal(attId) {
+// One-time migration: collect every attachment on every date and move
+// them into a single tour.attachments[] array. Each item keeps a
+// `dateId` field — null for tour-wide, uuid for date-scoped. Per user's
+// decision, ALL existing per-date attachments become tour-wide on
+// migration (dateId set to null), so legacy files appear in the new
+// Attachments tab from any date. The Supabase rows get their date_id
+// nulled out in a best-effort pass; failures don't block migration.
+function _migrateAttachmentsToTour() {
+  const t = T();
+  if (!t || t.id === '_empty') return;
+  if (!Array.isArray(t.attachments)) t.attachments = [];
+  // Track ids already in tour.attachments to dedupe
+  const seen = new Set(t.attachments.map(a => a.id));
+  let moved = 0;
+  (t.dates || []).forEach(d => {
+    if (!Array.isArray(d.attachments) || !d.attachments.length) return;
+    d.attachments.forEach(a => {
+      if (seen.has(a.id)) return;
+      // Existing attachments become tour-wide per the user's migration choice
+      t.attachments.push({ ...a, dateId: null });
+      seen.add(a.id);
+      moved++;
+    });
+    d.attachments = []; // clear legacy per-date storage
+  });
+  if (moved > 0) {
+    saveState();
+    // Best-effort cloud sync — null out date_id for the migrated rows so
+    // Supabase agrees with local. Only valid UUIDs (real cloud rows) get
+    // updated; legacy local-only ids are skipped silently.
+    if (sb && _isUuid(t.id)) {
+      t.attachments.forEach(a => {
+        if (a.dateId === null && _isUuid(a.id)) {
+          sb.from('attachments').update({ date_id: null }).eq('id', a.id)
+            .then(({ error }) => { if (error) console.warn('[attachMigrate]', a.id, error.message); });
+        }
+      });
+    }
+    console.log(`[attachMigrate] moved ${moved} attachments → tour-wide`);
+  }
+}
+
+function openAttachModal(attId, opts) {
+  opts = opts || {};
   const ad = getActiveDate();
-  if (!ad) return;
-  const a = attId ? ad.attachments.find(x => x.id === attId) : null;
+  const tour = T();
+  if (!tour || tour.id === '_empty') return;
+  // Make sure migration has run before we work with attachments
+  _migrateAttachmentsToTour();
+  // attId now resolves against the unified tour.attachments[]
+  const all = Array.isArray(tour.attachments) ? tour.attachments : [];
+  const a = attId ? all.find(x => x.id === attId) : null;
+  // Default scope: whichever tab the user opened the modal from. Edit
+  // mode pre-selects the existing record's scope so editing doesn't
+  // accidentally reclassify it.
+  let defaultScope = opts.defaultScope || (a ? (a.dateId ? 'date' : 'tour') : 'tour');
   const v = a || { name: '', type: 'Contract', size: '', link: '', tags: '', storagePath: '', mime: '' };
   _attachPickedFile = null;
   _attachPickedDataUrl = '';
   const hasStored = !!(a && a.storagePath);
+  // The Local scope option is only meaningful when there's an active date
+  const hasDate = !!ad;
+  const dateLabel = hasDate ? `${esc(ad.city || 'this date')} · ${fmtMD(ad.date)}` : '';
   openModal({
     title: a ? 'Edit attachment' : 'Add attachment',
     showDelete: !!a,
     onDelete: a ? async () => {
-      ad.attachments = ad.attachments.filter(x => x.id !== a.id);
+      if (!Array.isArray(tour.attachments)) tour.attachments = [];
+      tour.attachments = tour.attachments.filter(x => x.id !== a.id);
       saveState();
       await db.deleteAttachment(a.id, a.storagePath);
     } : null,
     body: `
       <div class="form-grid">
+        <div class="field full" style="background:linear-gradient(135deg,rgba(138,169,216,.06),rgba(232,148,58,.02));border:1px solid var(--line-2);border-radius:8px;padding:10px 12px">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--warm-mute);font-weight:700;margin-bottom:6px;display:block">Scope</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <label class="at-scope-pick ${defaultScope==='tour'?'active':''}" data-scope="tour">
+              <input type="radio" name="at_scope" value="tour" ${defaultScope==='tour'?'checked':''} onchange="_attachScopeChange()" />
+              <span class="asp-label">⊞ All tour dates</span>
+              <span class="asp-desc">Visible from every date on this tour</span>
+            </label>
+            <label class="at-scope-pick ${defaultScope==='date'?'active':''} ${hasDate?'':'disabled'}" data-scope="date">
+              <input type="radio" name="at_scope" value="date" ${defaultScope==='date'?'checked':''} ${hasDate?'':'disabled'} onchange="_attachScopeChange()" />
+              <span class="asp-label">◉ This date only</span>
+              <span class="asp-desc">${hasDate ? dateLabel : 'No active date'}</span>
+            </label>
+          </div>
+        </div>
         <div class="field full">
           <label>Pick a file <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(stored in the cloud · up to 50 MB)</span></label>
           <input type="file" id="at_file" onchange="_attachFilePicked(this)">
@@ -8709,48 +8816,48 @@ function openAttachModal(attId) {
         name, type: $('#at_type').value, size: $('#at_size').value.trim(),
         link: $('#at_link').value.trim(), tags: $('#at_tags').value.trim(),
       };
+      // Read scope from the radio buttons. "date" only valid if there's
+      // an active date — falls back to "tour" otherwise.
+      const scopeEl = document.querySelector('input[name="at_scope"]:checked');
+      const scope = (scopeEl?.value === 'date' && ad) ? 'date' : 'tour';
+      const scopedDateId = (scope === 'date' && ad) ? ad.id : null;
+      if (!Array.isArray(tour.attachments)) tour.attachments = [];
 
       // Case 1 — fresh file picked: upload to Storage, replace any previous file.
       if (_attachPickedFile) {
-        // Remove the previous Storage object before uploading the new one so
-        // we don't orphan the old binary when the user replaces a file.
         if (a && a.storagePath) {
           try { await sb.storage.from('attachments').remove([a.storagePath]); } catch (e) {}
         }
-        const result = await db.uploadAttachment(T().id, ad.id, _attachPickedFile, baseMeta);
-        // Keep _attachPickedFile set on failure so the user can fix the
-        // underlying issue (e.g. bucket missing, RLS) and retry by clicking
-        // Save again — no need to re-pick the file from disk.
+        const result = await db.uploadAttachment(T().id, scopedDateId, _attachPickedFile, baseMeta);
         if (!result) return false;
+        // Stamp scope into the local record
+        result.dateId = scopedDateId;
         if (a) {
-          // Replace the metadata row (delete old, keep new in state via result)
-          await db.deleteAttachment(a.id, null); // storage already removed above
-          ad.attachments = ad.attachments.filter(x => x.id !== a.id);
-          ad.attachments.push(result);
+          await db.deleteAttachment(a.id, null);
+          tour.attachments = tour.attachments.filter(x => x.id !== a.id);
+          tour.attachments.push(result);
         } else {
-          ad.attachments.push(result);
+          tour.attachments.push(result);
         }
       } else if (a) {
-        // Case 2 — editing metadata only (no new file picked): update fields on
-        // both the local object and the cloud row.
-        Object.assign(a, baseMeta);
+        // Case 2 — editing metadata only (no new file picked): update fields + scope.
+        Object.assign(a, baseMeta, { dateId: scopedDateId });
         if (_isUuid(a.id)) {
           const { error } = await sb.from('attachments').update({
             name: baseMeta.name, type: baseMeta.type, link: baseMeta.link, tags: baseMeta.tags,
+            date_id: scopedDateId,
           }).eq('id', a.id);
           if (error) db._err('updateAttachmentMeta', error);
         }
       } else {
         // Case 3 — link-only attachment (no file picked, just a cloud URL).
-        // Insert a metadata row with no storage_path; view/download just
-        // uses the cloud URL field.
         if (!baseMeta.link) {
           toast('Pick a file or paste a cloud URL', 'error');
           return false;
         }
         const newId = dbId();
         const row = {
-          id: newId, tour_id: T().id, date_id: ad.id,
+          id: newId, tour_id: T().id, date_id: scopedDateId,
           name: baseMeta.name, type: baseMeta.type, storage_path: '', mime: '',
           size_bytes: null, link: baseMeta.link, tags: baseMeta.tags,
         };
@@ -8758,10 +8865,10 @@ function openAttachModal(attId) {
           const { error } = await sb.from('attachments').insert(row);
           if (error) { db._err('insertLinkAttachment', error); return false; }
         }
-        ad.attachments.push({
+        tour.attachments.push({
           id: newId, name: baseMeta.name, type: baseMeta.type, size: baseMeta.size,
           link: baseMeta.link, tags: baseMeta.tags, storagePath: '', mime: '',
-          addedAt: Date.now(),
+          dateId: scopedDateId, addedAt: Date.now(),
         });
       }
 
@@ -8794,6 +8901,14 @@ function openAttachModal(attId) {
         }, 60);
       }
     }
+  });
+}
+
+// Sync visual `active` state of the scope picker when the radio changes
+function _attachScopeChange() {
+  document.querySelectorAll('.at-scope-pick').forEach(el => {
+    const input = el.querySelector('input[type="radio"]');
+    el.classList.toggle('active', !!input?.checked);
   });
 }
 
@@ -9471,6 +9586,7 @@ const TAB_TO_PHONE_SCREEN = {
   setlist:   'today',
   acct:      'more',
   files:     'more',
+  localfiles:'more',
   venues:    'more',
   contacts:  'more',
   tasks:     'today',
@@ -9506,7 +9622,7 @@ function renderActivePanel() {
     dashboard: renderDashboard, schedule: renderSchedule, travel: renderTravel,
     hotels: renderHotels, guest: renderGuestList, setlist: renderSetList,
     notes: renderDayNotes, advance: renderAdvance,
-    acct: renderAccounting, files: renderAttachments, venues: renderVenues,
+    acct: renderAccounting, files: renderAttachments, localfiles: renderLocalAttachments, venues: renderVenues,
     contacts: renderContacts, tasks: renderTasks, tags: renderTags,
     profiles: renderCrewProfiles
   }[activeTab];
@@ -11517,56 +11633,127 @@ function _phoneAdvanceCardHTML(a) {
   `;
 }
 
-function renderAttachments() {
-  const ad = getActiveDate();
-  const root = $('#p-files');
-  if (!ad) { root.innerHTML = noDate(); return; }
+// ---------------------------------------------------------------
+// ATTACHMENTS — split into two views as of v0.6:
+//   • renderAttachments()      → TOUR-WIDE (blue tab #13) — every file
+//   • renderLocalAttachments() → DATE-ONLY  (orange tab #09) — current
+//     date only, for files that don't transfer show-to-show
+// Single source of truth lives on tour.attachments[]. Each item has an
+// optional `dateId` field: null = tour-wide, uuid = date-scoped.
+// ---------------------------------------------------------------
 
-  const items = ad.attachments || [];
+// Render one attachment tile. Shared by both renderers.
+function _attachmentTileHTML(a, scopeLabel) {
+  const hasFile = !!(a.storagePath || a.dataUrl);
+  const hasLink = !!a.link;
+  const viewBtn = hasFile
+    ? `<button type="button" class="at-view-btn" onclick="_viewAttachment('${a.id}')">View</button>`
+    : (hasLink ? `<a class="at-view-btn" href="${esc(a.link)}" target="_blank" rel="noopener noreferrer">Open ↗</a>` : '');
+  const downloadBtn = hasFile
+    ? `<button type="button" class="at-dl-btn" onclick="_downloadAttachment('${a.id}')">Download</button>`
+    : '';
+  return `
+    <div class="tile">
+      <div class="ftype">
+        <div class="left"><span class="dot"></span> ${esc(a.type.toUpperCase())}</div>
+        ${scopeLabel ? `<span class="at-scope-tag">${scopeLabel}</span>` : ''}
+        ${a.tags === 'imported' ? '<span class="at-imp">↑ IMPORTED</span>' : ''}
+      </div>
+      <div class="name">${esc(a.name)}</div>
+      <div class="meta"><span>${esc(a.size || '—')}</span><span>${esc(a.tags || '')}</span></div>
+      <div class="tile-actions">
+        ${viewBtn}
+        ${downloadBtn}
+        <button type="button" onclick="openAttachModal('${a.id}')">Edit</button>
+      </div>
+    </div>`;
+}
+
+// Return all attachments for this tour, regardless of scope. Reads from
+// tour.attachments (new source of truth) plus, defensively, any legacy
+// per-date attachments that haven't been migrated yet.
+function _getAllTourAttachments() {
+  const t = T();
+  if (!t || t.id === '_empty') return [];
+  const all = Array.isArray(t.attachments) ? t.attachments.slice() : [];
+  // Legacy fallback — if any date still has old per-date attachments,
+  // surface them in the tour-wide view too (with dateId stamped so the
+  // local view can filter them).
+  (t.dates || []).forEach(d => {
+    (d.attachments || []).forEach(a => {
+      if (!all.find(x => x.id === a.id)) all.push({ ...a, dateId: d.id });
+    });
+  });
+  return all;
+}
+
+// TOUR-WIDE Attachments tab (blue, tour-fixed). Shows every file across
+// every date, with a small tag indicating scope (tour-wide vs date X).
+function renderAttachments() {
+  const root = $('#p-files');
+  const all = _getAllTourAttachments();
+  const tour = T();
+  const dateLookup = {};
+  (tour.dates || []).forEach(d => { dateLookup[d.id] = d; });
+
   root.innerHTML = `
     <div class="section-title">
-      <h2>Attachments · ${esc(ad.city)}</h2>
-      <span class="crumb">/ ${fmtDate(ad.date).toUpperCase()}</span>
+      <h2>Attachments</h2>
+      <span class="crumb">/ ALL FILES ON THIS TOUR</span>
+      <span class="stamp">${all.length} FILES</span>
+      <button type="button" class="add-btn" onclick="openAttachModal(null, { defaultScope: 'tour' })">+ Add file</button>
+    </div>
+
+    ${all.length === 0 ? `
+      <div class="empty">
+        <h3>No attachments on this tour yet</h3>
+        <p>Tour-wide files live here: contracts, riders, stage plots, insurance certificates, immigration docs, anything that's relevant across every date. For files only relevant on one specific day, use the per-date <b>Local Attachments</b> tab.</p>
+        <button type="button" onclick="openAttachModal(null, { defaultScope: 'tour' })">+ Add first attachment</button>
+      </div>
+    ` : `
+      <div class="tile-grid">
+        ${all.map(a => {
+          const d = a.dateId ? dateLookup[a.dateId] : null;
+          const scopeLabel = d
+            ? `<span class="at-scope-date">${esc(fmtMD(d.date))} · ${esc(d.city || '')}</span>`
+            : '<span class="at-scope-tour">TOUR-WIDE</span>';
+          return _attachmentTileHTML(a, scopeLabel);
+        }).join('')}
+      </div>
+    `}
+  `;
+}
+
+// PER-DATE Local Attachments tab (orange, per-date). Shows ONLY files
+// scoped to the currently-active date — the "do not transfer show to
+// show" bucket.
+function renderLocalAttachments() {
+  const ad = getActiveDate();
+  const root = $('#p-localfiles');
+  if (!ad) { root.innerHTML = noDate(); return; }
+  const all = _getAllTourAttachments();
+  const items = all.filter(a => a.dateId === ad.id);
+  root.innerHTML = `
+    <div class="section-title">
+      <h2>Local Attachments · ${esc(ad.city)}</h2>
+      <span class="crumb">/ ${fmtDate(ad.date).toUpperCase()} · DATE-ONLY</span>
       <span class="stamp">${items.length} FILES</span>
-      <button type="button" class="add-btn" onclick="openAttachModal()">+ Add file</button>
+      <button type="button" class="add-btn" onclick="openAttachModal(null, { defaultScope: 'date' })">+ Add file</button>
+    </div>
+
+    <div class="muted" style="font-size:11.5px;line-height:1.5;margin:-6px 0 14px;padding:8px 12px;background:rgba(232,148,58,.04);border:1px solid rgba(232,148,58,.18);border-radius:7px">
+      Files added here only show on <b>${esc(ad.city)} · ${fmtMD(ad.date)}</b>. Use this for parking permits, day-of-show set times, venue-specific maps — anything that doesn't carry across the rest of the tour. For tour-wide files (contracts, riders, insurance), use the blue <b>Attachments</b> tab.
     </div>
 
     ${items.length === 0 ? `
       <div class="empty">
-        <h3>No attachments for ${esc(ad.city)} yet</h3>
-        <p>Track contracts, riders, stage plots, parking permits, immigration docs, and venue maps. Bandmate stores file metadata + a cloud link.</p>
-        <button type="button" onclick="openAttachModal()">+ Add first attachment</button>
+        <h3>No local files for ${esc(ad.city)} yet</h3>
+        <p>Pick "+ Add file" to upload something that's only relevant on this date. Tour-wide files belong in the blue Attachments tab.</p>
+        <button type="button" onclick="openAttachModal(null, { defaultScope: 'date' })">+ Add first file</button>
       </div>
     ` : `
       <div class="tile-grid">
-        ${items.map(a => {
-          // Three viewing options based on what's stored:
-          //   1. Cloud file (storagePath) → View + Download via signed URL.
-          //      Legacy localStorage attachments with dataUrl still work
-          //      via the same handlers — _viewAttachment/_downloadAttachment
-          //      branch on which field is present.
-          //   2. External link only       → Open in new tab
-          //   3. Metadata only            → Edit only
-          const hasFile = !!(a.storagePath || a.dataUrl);
-          const hasLink = !!a.link;
-          const viewBtn = hasFile
-            ? `<button type="button" class="at-view-btn" onclick="_viewAttachment('${a.id}')">View</button>`
-            : (hasLink ? `<a class="at-view-btn" href="${esc(a.link)}" target="_blank" rel="noopener noreferrer">Open ↗</a>` : '');
-          const downloadBtn = hasFile
-            ? `<button type="button" class="at-dl-btn" onclick="_downloadAttachment('${a.id}')">Download</button>`
-            : '';
-          return `
-          <div class="tile">
-            <div class="ftype"><div class="left"><span class="dot"></span> ${esc(a.type.toUpperCase())}</div>${a.tags === 'imported' ? '<span class="at-imp">↑ IMPORTED</span>' : ''}</div>
-            <div class="name">${esc(a.name)}</div>
-            <div class="meta"><span>${esc(a.size || '—')}</span><span>${esc(a.tags || '')}</span></div>
-            <div class="tile-actions">
-              ${viewBtn}
-              ${downloadBtn}
-              <button type="button" onclick="openAttachModal('${a.id}')">Edit</button>
-            </div>
-          </div>`;
-        }).join('')}
+        ${items.map(a => _attachmentTileHTML(a, '')).join('')}
       </div>
     `}
   `;
@@ -21285,6 +21472,18 @@ const SAMPLE_TOUR = {
 function init() {
   try { loadState(); } catch (e) { console.error('loadState:', e); state = null; }
   try { if (state) migrateGroups(); } catch (e) { console.error('migrateGroups:', e); }
+  // Run the per-date → tour-wide attachment migration once per boot, for
+  // every tour. Idempotent — safe even if it's already migrated.
+  try {
+    if (state && state.tours) {
+      Object.keys(state.tours).forEach(tid => {
+        const prev = state.currentTourId;
+        state.currentTourId = tid;
+        try { _migrateAttachmentsToTour(); } catch (e) {}
+        state.currentTourId = prev;
+      });
+    }
+  } catch (e) { console.error('attachMigrate:', e); }
   try { loadUIPrefs(); } catch (e) { console.error('loadUIPrefs:', e); }
   // Wire custom autocomplete for any inputs already in the DOM at load
   // time (the rest get wired in openModal as modals are rendered).
@@ -22175,7 +22374,7 @@ Object.assign(window, {
   _addDateRangeNext, _bulkSetRangeType, _commitDateRange,
   _calInit, _calNavMonth, _calPickDate, _calRender,
   openGuestModal, openAllotmentModal, openSetItemModal, moveSetItem, copySetList,
-  openSettleModal, openAttachModal, _attachFilePicked, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport,
+  openSettleModal, openAttachModal, _attachFilePicked, _attachScopeChange, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport, renderLocalAttachments, renderAttachments,
   openChatsModal, openNewChatModal, setActiveChat, _chatComposeOnInput, _chatComposeOnKeydown, _chatComposeSend, _chatMentionPick, _chatReactToggle, _chatReactPicker, _chatSendBroadcastPrompt, _chatToggleGroup, _chatUpdatePickCount,
   openPhoneSearch, _phoneSearchRender,
   openTaskModal, openTagModal, toggleTask,
