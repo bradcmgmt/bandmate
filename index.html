@@ -4599,22 +4599,23 @@ const db = {
     let authUid = null;
     let sessionDebug = null;
     try {
-      let { data: { session } } = await sb.auth.getSession();
+      const getRes = await sb.auth.getSession();
+      let session = getRes && getRes.data ? getRes.data.session : null;
       // Auto-heal: if there's no live session, try a silent refresh
       // before bailing. This recovers from the very common case of
       // an expired access token where the refresh token is still good.
-      if (!session?.user?.id || !_isUuid(session.user.id)) {
+      if (!session || !session.user || !session.user.id || !_isUuid(session.user.id)) {
         try {
-          const { data: refreshed } = await sb.auth.refreshSession();
-          session = refreshed?.session || session;
+          const refRes = await sb.auth.refreshSession();
+          if (refRes && refRes.data && refRes.data.session) session = refRes.data.session;
         } catch (e) { /* fall through */ }
       }
       sessionDebug = session;
-      authUid = session?.user?.id || null;
+      authUid = session && session.user ? session.user.id : null;
     } catch (e) { /* fall through to error toast below */ }
     if (!authUid || !_isUuid(authUid)) {
-      console.warn('[promoteTourToCloud] No live Supabase auth session even after refresh. state.currentUserId =', state?.currentUserId, '· session =', sessionDebug);
-      toast('Session expired — sign out, sign back in via the login screen, then retry', 'error');
+      console.warn('[promoteTourToCloud] No live Supabase auth session even after refresh. state.currentUserId =', state ? state.currentUserId : null, '. session =', sessionDebug);
+      toast('Session expired - sign out, sign back in via the login screen, then retry', 'error');
       return null;
     }
     // Best-effort: if state.currentUserId is a stub, re-key it to the
@@ -4962,29 +4963,63 @@ _onTourChange(payload) {
   // --- Attachments · binary in Storage, metadata in public.attachments ---
   async uploadAttachment(tourId, dateId, file, meta) {
     if (!sb) return null;
-    // Require a live Supabase auth session — uploads need a real user
-    // for RLS + storage policies to evaluate `auth.uid()`. Try
-    // refreshing the session first (covers the very common case of an
-    // expired access token where the refresh token is still good).
-    // Only after refresh fails do we ask the user to sign in again.
+    // Require a live Supabase auth session. Two-step auto-recovery
+    // before bailing:
+    //   1. Try sb.auth.getSession() — fast, returns cached session
+    //   2. Try sb.auth.refreshSession() — uses refresh token to mint
+    //      a new access token without re-prompting the user
+    // If both fail, bounce the user to the login screen WITH their
+    // email pre-filled so they can just type their password and retry.
+    let authUser = null;
     try {
-      let { data: { session } } = await sb.auth.getSession();
-      if (!session?.user?.id || !_isUuid(session.user.id)) {
-        // Best-effort silent refresh — uses the refresh token from
-        // localStorage to mint a new access token without re-prompting.
+      let getRes = await sb.auth.getSession();
+      let session = getRes && getRes.data ? getRes.data.session : null;
+      authUser = session && session.user ? session.user : null;
+      console.log('[uploadAttachment] initial session check', {
+        hasSession: !!session,
+        userId: session && session.user ? session.user.id : null,
+        userIdIsUuid: _isUuid((session && session.user && session.user.id) || ''),
+        expiresAt: session ? session.expires_at : null,
+        localCurrentUserId: state ? state.currentUserId : null,
+      });
+      if (!authUser || !authUser.id || !_isUuid(authUser.id)) {
         try {
-          const { data: refreshed } = await sb.auth.refreshSession();
-          session = refreshed?.session || null;
-        } catch (e) { /* fall through */ }
-      }
-      if (!session?.user?.id || !_isUuid(session.user.id)) {
-        toast('Session expired — sign out, sign back in via the login screen, then retry', 'error');
-        console.warn('[uploadAttachment] No live Supabase auth session even after refresh. state.currentUserId =', state?.currentUserId, '· session.user =', session?.user);
-        return null;
+          const refRes = await sb.auth.refreshSession();
+          const refreshed = refRes && refRes.data ? refRes.data : null;
+          console.log('[uploadAttachment] refreshSession result', {
+            hasSession: !!(refreshed && refreshed.session),
+            userId: refreshed && refreshed.session && refreshed.session.user ? refreshed.session.user.id : null,
+            error: refRes && refRes.error ? refRes.error.message : null,
+          });
+          if (refreshed && refreshed.session && refreshed.session.user) {
+            authUser = refreshed.session.user;
+          }
+        } catch (e) {
+          console.warn('[uploadAttachment] refreshSession threw:', e);
+        }
       }
     } catch (e) {
-      toast('Could not verify your session — sign out and back in, then retry', 'error');
-      console.error('[uploadAttachment] session check threw:', e);
+      console.error('[uploadAttachment] getSession threw:', e);
+    }
+    if (!authUser || !authUser.id || !_isUuid(authUser.id)) {
+      // Hard fail - surface a recovery flow. Try to derive the user's
+      // email from local state so the sign-in form pre-fills it.
+      const localUser = state && state.currentUserId && state.users ? state.users[state.currentUserId] : null;
+      const recoverEmail = localUser && localUser.email ? localUser.email : '';
+      toast('Your session needs to be refreshed. Opening sign-in screen...', 'error');
+      // Route to the login screen with email pre-filled
+      setTimeout(() => {
+        try { closeModal(); } catch (e) {}
+        try {
+          if (typeof showLoginScreen === 'function') showLoginScreen();
+          else if (typeof logout === 'function') logout();
+        } catch (e) {}
+        setTimeout(() => {
+          const li = document.getElementById('li_email');
+          if (li && recoverEmail) li.value = recoverEmail;
+          if (li) li.focus();
+        }, 150);
+      }, 600);
       return null;
     }
     // If the tour is still on a legacy local-only id, transparently
@@ -8870,7 +8905,7 @@ function openAttachModal(attId, opts) {
         <div class="field"><label>Type</label>
           <select id="at_type">${ATTACH_TYPES.map(t => `<option ${v.type===t?'selected':''}>${t}</option>`).join('')}</select>
         </div>
-        <div class="field"><label>Size</label><input id="at_size" value="${esc(v.size)}" placeholder="1.2 MB"></div>
+        <div class="field"><label>Size <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(auto)</span></label><input id="at_size" value="${esc(v.size)}" placeholder="—" readonly tabindex="-1" style="opacity:.7;cursor:not-allowed;pointer-events:none"></div>
         <div class="field full"><label>Link / cloud URL <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional · used when no file uploaded)</span></label><input id="at_link" value="${esc(v.link)}" placeholder="https://drive.google.com/..."></div>
         <div class="field full"><label>Tags (comma sep)</label><input id="at_tags" value="${esc(v.tags)}" placeholder="Legal, Tech, Hospitality"></div>
       </div>
@@ -9023,7 +9058,9 @@ async function _attachFilePicked(input) {
   const nameInp = document.getElementById('at_name');
   const sizeInp = document.getElementById('at_size');
   if (nameInp && !nameInp.value.trim()) nameInp.value = file.name;
-  if (sizeInp && !sizeInp.value.trim()) sizeInp.value = formatSize(file.size);
+  // SIZE always overwrites — the input is read-only in the modal HTML
+  // and must reflect the actual picked file, not whatever was typed.
+  if (sizeInp) sizeInp.value = formatSize(file.size);
   if (status) status.textContent = `Ready to upload · ${formatSize(file.size)} · ${file.name}`;
 }
 
