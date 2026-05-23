@@ -1050,6 +1050,56 @@ input,select,textarea{font:inherit;color:inherit}
   animation:at-spin .8s linear infinite;vertical-align:middle;margin-right:4px}
 @keyframes at-spin{to{transform:rotate(360deg)}}
 
+/* Multi-file picker list rendered when 2+ files are selected. Each
+   row shows a status glyph (⌛ pending, ✓ done, ✗ failed), filename
+   (truncated), and size. Uploading row pulses to draw attention. */
+.at-multi-row{display:grid;grid-template-columns:24px 1fr auto;align-items:center;
+  gap:8px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;
+  background:rgba(20,15,11,.5);font-size:12px}
+.at-multi-row .amr-status{font-family:'JetBrains Mono',monospace;font-size:13px;
+  color:var(--warm-mute);text-align:center;width:24px;display:flex;align-items:center;justify-content:center}
+.at-multi-row .amr-name{color:var(--warm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.at-multi-row .amr-size{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);letter-spacing:.04em}
+.at-multi-row.uploading{border-color:rgba(232,148,58,.45);background:rgba(232,148,58,.06);
+  animation:at-pulse 1.4s ease-in-out infinite}
+.at-multi-row.uploading .amr-name{color:var(--hi)}
+.at-multi-row.done{border-color:rgba(109,207,139,.35);background:rgba(109,207,139,.04)}
+.at-multi-row.done .amr-status{color:#7adc97}
+.at-multi-row.failed{border-color:rgba(232,69,69,.4);background:rgba(232,69,69,.04)}
+.at-multi-row.failed .amr-status{color:#e84545}
+@keyframes at-pulse{0%,100%{box-shadow:0 0 0 0 rgba(232,148,58,.0)}50%{box-shadow:0 0 0 4px rgba(232,148,58,.1)}}
+
+.at-multi-row.done,
+.at-multi-row.failed{transition:border-color .2s,background .2s}
+
+/* Full-modal processing overlay — appears while any attachment upload
+   is in flight. Covers the modal body so the user can't accidentally
+   tap something mid-upload, and gives clear feedback that work is
+   happening. Auto-removes when setStatus is called with busy=false. */
+.at-upload-overlay{position:absolute;inset:0;z-index:10;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(10,7,5,.78);backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  animation:auo-fade .25s ease-out}
+.at-upload-overlay .auo-card{display:flex;flex-direction:column;align-items:center;gap:14px;
+  padding:24px 32px;border-radius:12px;
+  background:linear-gradient(180deg,rgba(24,17,11,.95),rgba(17,12,8,.95));
+  border:1px solid rgba(232,148,58,.4);
+  box-shadow:0 16px 48px rgba(0,0,0,.6),0 0 24px rgba(232,148,58,.15);
+  max-width:420px;text-align:center}
+.at-upload-overlay .auo-spinner{width:40px;height:40px;border-radius:50%;
+  border:3px solid rgba(232,148,58,.18);border-top-color:var(--hi);
+  animation:at-spin .9s linear infinite;
+  box-shadow:0 0 18px rgba(232,148,58,.25)}
+.at-upload-overlay .auo-title{font-family:'JetBrains Mono',monospace;font-size:12.5px;
+  letter-spacing:.22em;text-transform:uppercase;color:var(--hi);font-weight:800;
+  text-shadow:0 0 12px rgba(232,148,58,.4)}
+.at-upload-overlay .auo-sub{font-size:13px;color:var(--warm);line-height:1.5;
+  font-weight:500;max-width:380px}
+@keyframes auo-fade{from{opacity:0}to{opacity:1}}
+/* The modal body needs position:relative so the overlay anchors inside it */
+.modal-body{position:relative}
+
 /* contact rows */
 .contact-row{display:grid;grid-template-columns:46px 1fr 1.2fr 110px 80px;gap:12px;align-items:center;padding:13px 14px;border-top:1px solid var(--line)}
 .contact-row:first-child{border-top:none}
@@ -8807,6 +8857,7 @@ const ATTACH_TYPES = ['Contract', 'Rider', 'Stage Plot', 'Input List', 'Day Shee
 // the modal's session (cleared whenever the modal is reopened) so a
 // stale pick from a previous open can't leak into the new save.
 let _attachPickedFile = null;
+let _attachPickedFiles = []; // Multi-select: every file the user selected
 let _attachPickedDataUrl = '';
 
 // One-time migration: collect every attachment on every date and move
@@ -8899,11 +8950,12 @@ function openAttachModal(attId, opts) {
           </div>
         </div>
         <div class="field full">
-          <label>Pick a file <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(stored in the cloud · up to 50 MB)</span></label>
-          <input type="file" id="at_file" onchange="_attachFilePicked(this)">
+          <label>Pick file(s) <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(stored in the cloud · up to 50 MB each · multi-select supported)</span></label>
+          <input type="file" id="at_file" ${a ? '' : 'multiple'} onchange="_attachFilePicked(this)">
           <div id="at_file_status" class="muted mono" style="font-size:10.5px;margin-top:4px;letter-spacing:.06em">
             ${hasStored ? `Cloud file stored · ${esc(v.size || '')}` : 'No file picked yet — or use the cloud link below'}
           </div>
+          <div id="at_file_list" style="display:none;margin-top:8px;flex-direction:column;gap:4px"></div>
         </div>
         <div class="field full" style="background:rgba(232,148,58,.04);border:1px solid rgba(232,148,58,.18);border-radius:8px;padding:10px 12px">
           <label style="display:flex;align-items:center;gap:9px;cursor:pointer;margin:0">
@@ -8939,18 +8991,81 @@ function openAttachModal(attId, opts) {
       if (!Array.isArray(tour.attachments)) tour.attachments = [];
 
       // Visible "uploading" state on the modal so the user gets feedback
-      // while the file is being sent to Storage. The status row gets a
-      // spinner + message; the Save button is disabled by the modal
-      // framework while onSubmit is in-flight.
+      // while the file is being sent to Storage. Status row gets a small
+      // spinner + message; a full-modal overlay covers the body so it's
+      // visually obvious the modal is busy. Save button is disabled by
+      // the modal framework while onSubmit is in-flight.
       const statusSlot = document.getElementById('at_file_status');
       const setStatus = (txt, busy) => {
         if (!statusSlot) return;
         statusSlot.innerHTML = (busy ? '<span class="at-spinner"></span> ' : '') + esc(txt);
         statusSlot.style.color = busy ? 'var(--hi)' : '';
+        // Toggle the full-modal overlay alongside the status update
+        let overlay = document.getElementById('at_upload_overlay');
+        if (busy) {
+          if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'at_upload_overlay';
+            overlay.className = 'at-upload-overlay';
+            overlay.innerHTML = `
+              <div class="auo-card">
+                <div class="auo-spinner"></div>
+                <div class="auo-title" id="at_upload_overlay_title">Uploading...</div>
+                <div class="auo-sub" id="at_upload_overlay_sub">${esc(txt)}</div>
+              </div>
+            `;
+            const body = document.querySelector('.modal-body');
+            if (body) body.appendChild(overlay);
+          } else {
+            const sub = document.getElementById('at_upload_overlay_sub');
+            if (sub) sub.textContent = txt;
+          }
+        } else if (overlay) {
+          overlay.remove();
+        }
       };
 
-      // Case 1 — fresh file picked: upload to Storage, replace any previous file.
-      if (_attachPickedFile) {
+      // Case 1 — fresh file(s) picked: upload to Storage. Two flavors:
+      //   • multi-file mode (_attachPickedFiles.length > 1): batch upload,
+      //     each file's own name is used; metadata (Type, Tags, Scope)
+      //     applies to every file.
+      //   • single-file mode: existing UX (editable name, optional replace).
+      if (_attachPickedFiles && _attachPickedFiles.length > 1) {
+        const batch = _attachPickedFiles.slice();
+        let successCount = 0, failCount = 0;
+        for (let i = 0; i < batch.length; i++) {
+          const f = batch[i];
+          // Update the per-row status indicator in the file list
+          const rowStatus = document.getElementById(`at_multi_status_${i}`);
+          const row = document.getElementById(`at_multi_row_${i}`);
+          if (rowStatus) rowStatus.innerHTML = '<span class="at-spinner"></span>';
+          if (row) row.classList.add('uploading');
+          setStatus(`Uploading ${i + 1} of ${batch.length}: ${f.name}`, true);
+          const fileMeta = {
+            name: f.name,
+            type: baseMeta.type,
+            size: formatSize(f.size),
+            link: '',
+            tags: baseMeta.tags,
+          };
+          const res = await db.uploadAttachment(T().id, scopedDateId, f, fileMeta);
+          if (res) {
+            successCount++;
+            const liveTour = T();
+            if (!Array.isArray(liveTour.attachments)) liveTour.attachments = [];
+            liveTour.attachments.push(res);
+            if (rowStatus) rowStatus.textContent = '✓';
+            if (row) { row.classList.remove('uploading'); row.classList.add('done'); }
+          } else {
+            failCount++;
+            if (rowStatus) rowStatus.textContent = '✗';
+            if (row) { row.classList.remove('uploading'); row.classList.add('failed'); }
+          }
+        }
+        setStatus(`Done — ${successCount} uploaded${failCount ? `, ${failCount} failed` : ''}`, false);
+        if (successCount) toast(`${successCount} file${successCount === 1 ? '' : 's'} uploaded`, 'good');
+        if (failCount && !successCount) return false;
+      } else if (_attachPickedFile) {
         if (a && a.storagePath) {
           setStatus('Removing old version...', true);
           try { await sb.storage.from('attachments').remove([a.storagePath]); } catch (e) {}
@@ -9030,8 +9145,11 @@ function openAttachModal(attId, opts) {
       // saved above; the analyze step is purely additive — it may
       // add dates, hotels, travel, contacts, etc. across the tour.
       const analyzeOn = !!document.getElementById('at_analyze')?.checked;
-      const fileToAnalyze = _attachPickedFile;
+      // Only run "analyze + auto-fill" for single-file uploads. Multi-file
+      // batches skip analysis to avoid surprise re-parsing of N files.
+      const fileToAnalyze = (_attachPickedFiles && _attachPickedFiles.length === 1) ? _attachPickedFile : null;
       _attachPickedFile = null;
+      _attachPickedFiles = [];
       _attachPickedDataUrl = '';
       if (analyzeOn && fileToAnalyze) {
         // Don't block the modal close — kick the analysis off after
@@ -9067,28 +9185,65 @@ function _attachScopeChange() {
 // upload-to-Storage on Save. 50 MB ceiling — anything larger should use a
 // cloud link instead (Drive / Dropbox / S3 / Box).
 async function _attachFilePicked(input) {
-  const file = input && input.files && input.files[0];
+  const files = input && input.files ? Array.from(input.files) : [];
   const status = document.getElementById('at_file_status');
-  if (!file) { _attachPickedFile = null; _attachPickedDataUrl = ''; return; }
+  const list = document.getElementById('at_file_list');
+  const nameInp = document.getElementById('at_name');
+  const sizeInp = document.getElementById('at_size');
+  if (!files.length) {
+    _attachPickedFile = null;
+    _attachPickedFiles = [];
+    _attachPickedDataUrl = '';
+    if (list) { list.style.display = 'none'; list.innerHTML = ''; }
+    return;
+  }
   const UPLOAD_LIMIT = 50 * 1024 * 1024;
-  if (file.size > UPLOAD_LIMIT) {
-    toast(`File ${(file.size/1024/1024).toFixed(1)} MB — too large to upload. Add a cloud link instead.`, 'error');
+  const oversized = files.filter(f => f.size > UPLOAD_LIMIT);
+  if (oversized.length) {
+    const names = oversized.map(f => `${f.name} (${(f.size/1024/1024).toFixed(1)} MB)`).join(', ');
+    toast(`Too large to upload (50 MB max): ${names}`, 'error');
     input.value = '';
     _attachPickedFile = null;
+    _attachPickedFiles = [];
     _attachPickedDataUrl = '';
     if (status) status.textContent = 'No file picked — over 50 MB; paste a cloud URL below.';
     return;
   }
-  _attachPickedFile = file;
-  _attachPickedDataUrl = ''; // no longer used — kept for backward compat in any callers
-  // Auto-fill name + size if not already set
-  const nameInp = document.getElementById('at_name');
-  const sizeInp = document.getElementById('at_size');
-  if (nameInp && !nameInp.value.trim()) nameInp.value = file.name;
-  // SIZE always overwrites — the input is read-only in the modal HTML
-  // and must reflect the actual picked file, not whatever was typed.
-  if (sizeInp) sizeInp.value = formatSize(file.size);
-  if (status) status.textContent = `Ready to upload · ${formatSize(file.size)} · ${file.name}`;
+  // Single-file mode (1 file selected): keep the legacy single-file UX
+  // with editable name/type/tags, no list. Multi-file mode (2+ files):
+  // show a stacked list and use the file's own name for each upload.
+  _attachPickedFiles = files;
+  _attachPickedFile = files[0];
+  _attachPickedDataUrl = '';
+  if (files.length === 1) {
+    if (list) { list.style.display = 'none'; list.innerHTML = ''; }
+    if (nameInp && !nameInp.value.trim()) nameInp.value = files[0].name;
+    if (sizeInp) sizeInp.value = formatSize(files[0].size);
+    if (status) status.textContent = `Ready to upload · ${formatSize(files[0].size)} · ${files[0].name}`;
+    return;
+  }
+  // Multi-file mode UI
+  if (list) {
+    list.style.display = 'flex';
+    const totalSize = files.reduce((n, f) => n + f.size, 0);
+    list.innerHTML = `
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;color:var(--hi);text-transform:uppercase;font-weight:700;margin-bottom:2px">
+        ${files.length} files · ${formatSize(totalSize)} total
+      </div>
+      ${files.map((f, i) => `
+        <div class="at-multi-row" id="at_multi_row_${i}">
+          <span class="amr-status" id="at_multi_status_${i}">⌛</span>
+          <span class="amr-name">${esc(f.name)}</span>
+          <span class="amr-size">${formatSize(f.size)}</span>
+        </div>
+      `).join('')}
+    `;
+  }
+  // Hide the per-file name/size inputs since they don't apply to a batch.
+  // Tags + Type still apply to all uploaded files as a batch attribute.
+  if (nameInp) nameInp.value = ''; // batch — name comes from each file
+  if (sizeInp) sizeInp.value = `${files.length} files`;
+  if (status) status.textContent = `Ready to upload ${files.length} files (Tags & Type apply to all)`;
 }
 
 // Walk every owned tour for the attachment id. We don't restrict to
