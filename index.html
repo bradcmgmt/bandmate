@@ -1100,6 +1100,29 @@ input,select,textarea{font:inherit;color:inherit}
 /* The modal body needs position:relative so the overlay anchors inside it */
 .modal-body{position:relative}
 
+/* Step 2 of multi-file upload — per-file name editing rows */
+.at-name-row{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:flex-start;
+  padding:10px 12px;border:1px solid var(--line);border-radius:7px;background:rgba(20,15,11,.5);
+  transition:border-color .15s,background .15s}
+.at-name-row:hover{border-color:var(--line-glow);background:rgba(232,148,58,.03)}
+.at-name-row .anr-meta{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:4px;min-width:48px;padding-top:4px}
+.at-name-row .anr-num{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:var(--hi);
+  width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:rgba(232,148,58,.08);border:1px solid rgba(232,148,58,.3);line-height:1}
+.at-name-row .anr-size{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.06em;
+  color:var(--warm-mute);text-align:center}
+.at-name-row .anr-input-wrap{display:flex;flex-direction:column;gap:3px;min-width:0}
+.at-name-row .anr-input-wrap input{width:100%;padding:8px 10px;background:rgba(0,0,0,.4);
+  border:1px solid var(--line-2);border-radius:6px;color:var(--warm);font-size:13.5px;
+  font-family:'Inter',sans-serif;outline:none;box-sizing:border-box}
+.at-name-row .anr-input-wrap input:focus{border-color:var(--hi);
+  box-shadow:0 0 0 3px rgba(232,148,58,.12)}
+.at-name-row .anr-orig{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);
+  letter-spacing:.04em;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  padding-left:2px}
+.at-name-row .anr-orig .mono{color:var(--warm-mute)}
+
 /* contact rows */
 .contact-row{display:grid;grid-template-columns:46px 1fr 1.2fr 110px 80px;gap:12px;align-items:center;padding:13px 14px;border-top:1px solid var(--line)}
 .contact-row:first-child{border-top:none}
@@ -8859,6 +8882,11 @@ const ATTACH_TYPES = ['Contract', 'Rider', 'Stage Plot', 'Input List', 'Day Shee
 let _attachPickedFile = null;
 let _attachPickedFiles = []; // Multi-select: every file the user selected
 let _attachPickedDataUrl = '';
+// Two-step modal state for multi-file uploads: 'pick' (file picker
+// + shared metadata) → 'name' (per-file name editing) → upload.
+// Single-file mode skips this and stays on 'pick' for the whole flow.
+let _attachStep = 'pick';
+let _attachMultiNames = []; // Per-file overrides set on the naming step
 
 // One-time migration: collect every attachment on every date and move
 // them into a single tour.attachments[] array. Each item keeps a
@@ -8918,7 +8946,10 @@ function openAttachModal(attId, opts) {
   let defaultScope = opts.defaultScope || (a ? (a.dateId ? 'date' : 'tour') : 'tour');
   const v = a || { name: '', type: 'Contract', size: '', link: '', tags: '', storagePath: '', mime: '' };
   _attachPickedFile = null;
+  _attachPickedFiles = [];
   _attachPickedDataUrl = '';
+  _attachStep = 'pick';
+  _attachMultiNames = [];
   const hasStored = !!(a && a.storagePath);
   // The Local scope option is only meaningful when there's an active date
   const hasDate = !!ad;
@@ -8977,11 +9008,41 @@ function openAttachModal(attId, opts) {
       <div class="help">Pick a file to upload it to Bandmate's secure cloud — every device with access to this tour can then view/download it. Files over 50 MB should use an external cloud link (Drive / Dropbox / S3 / Box).</div>
     `,
     onSubmit: async () => {
-      const name = $('#at_name').value.trim();
-      if (!name) { toast('File name required', 'error'); return false; }
+      // ----- MULTI-FILE STEP 1 → STEP 2 TRANSITION -----
+      // If the user picked 2+ files and we're still on the picker step,
+      // intercept the submit and transition to the naming step instead.
+      // Per-file name editing happens there; actual upload waits for
+      // the user to click Save again on step 2.
+      if (_attachStep === 'pick' && _attachPickedFiles && _attachPickedFiles.length > 1) {
+        _attachStep = 'name';
+        _renderAttachNamingStep();
+        return false; // keep modal open, don't trigger renderAll yet
+      }
+
+      // ----- STEP 2 (or single-file): VALIDATE + UPLOAD -----
+      // In multi mode on step 2, the name field is hidden — pull names
+      // from the per-file inputs instead. In single mode, the name field
+      // is the source of truth.
+      const isMulti = _attachPickedFiles && _attachPickedFiles.length > 1;
+      let name = '';
+      if (!isMulti) {
+        name = ($('#at_name')?.value || '').trim();
+        if (!name) { toast('File name required', 'error'); return false; }
+      }
+      // For multi mode, gather per-file names from the naming-step inputs.
+      // Default to the file's own name if the user blanked the input.
+      if (isMulti) {
+        _attachMultiNames = _attachPickedFiles.map((f, i) => {
+          const inp = document.getElementById(`at_multi_name_${i}`);
+          return (inp?.value || '').trim() || f.name;
+        });
+      }
       const baseMeta = {
-        name, type: $('#at_type').value, size: $('#at_size').value.trim(),
-        link: $('#at_link').value.trim(), tags: $('#at_tags').value.trim(),
+        name,
+        type: $('#at_type').value,
+        size: $('#at_size')?.value?.trim() || '',
+        link: $('#at_link')?.value?.trim() || '',
+        tags: $('#at_tags')?.value?.trim() || '',
       };
       // Read scope from the radio buttons. "date" only valid if there's
       // an active date — falls back to "tour" otherwise.
@@ -9032,17 +9093,19 @@ function openAttachModal(attId, opts) {
       //   • single-file mode: existing UX (editable name, optional replace).
       if (_attachPickedFiles && _attachPickedFiles.length > 1) {
         const batch = _attachPickedFiles.slice();
+        const names = _attachMultiNames.slice(); // user-edited names from step 2
         let successCount = 0, failCount = 0;
         for (let i = 0; i < batch.length; i++) {
           const f = batch[i];
+          const displayName = names[i] || f.name;
           // Update the per-row status indicator in the file list
           const rowStatus = document.getElementById(`at_multi_status_${i}`);
           const row = document.getElementById(`at_multi_row_${i}`);
           if (rowStatus) rowStatus.innerHTML = '<span class="at-spinner"></span>';
           if (row) row.classList.add('uploading');
-          setStatus(`Uploading ${i + 1} of ${batch.length}: ${f.name}`, true);
+          setStatus(`Uploading ${i + 1} of ${batch.length}: ${displayName}`, true);
           const fileMeta = {
-            name: f.name,
+            name: displayName,
             type: baseMeta.type,
             size: formatSize(f.size),
             link: '',
@@ -9244,6 +9307,134 @@ async function _attachFilePicked(input) {
   if (nameInp) nameInp.value = ''; // batch — name comes from each file
   if (sizeInp) sizeInp.value = `${files.length} files`;
   if (status) status.textContent = `Ready to upload ${files.length} files (Tags & Type apply to all)`;
+  // Hide the per-file FILE NAME row entirely in multi mode — each file
+  // gets its own editable name on step 2 of the modal flow.
+  if (nameInp) {
+    const nameField = nameInp.closest('.field');
+    if (nameField) nameField.style.display = 'none';
+  }
+  // Swap the primary action label from "Save" to "Continue →" so the
+  // user knows they're not committing yet — clicking continues to the
+  // per-file name step.
+  _attachUpdatePrimaryLabel('Continue →');
+}
+
+// Helper — rewrites the primary action button's label without
+// re-rendering the whole modal. Used to swap Save → Continue → Save
+// across the two-step multi-upload flow.
+function _attachUpdatePrimaryLabel(label) {
+  const btn = document.querySelector('.modal-foot .btn.primary');
+  if (btn) btn.textContent = label;
+}
+
+// Step 2 of multi-file upload: per-file name editing. Replaces the
+// modal body with a focused naming UI — one input per file pre-filled
+// with the file's own name. Save button label becomes "Upload X files".
+function _renderAttachNamingStep() {
+  const body = document.querySelector('.modal-body');
+  const header = document.querySelector('.modal-head h3');
+  if (!body || !_attachPickedFiles || !_attachPickedFiles.length) return;
+  if (header) header.textContent = 'Name your files';
+  const totalSize = _attachPickedFiles.reduce((n, f) => n + f.size, 0);
+  body.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;
+        background:linear-gradient(135deg,rgba(138,169,216,.10),rgba(138,169,216,.03));
+        border:1px solid rgba(138,169,216,.35);border-radius:8px">
+        <a onclick="_attachBackToPick()" style="cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#b1c8ee;font-weight:700">← Back</a>
+        <div style="flex:1">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:#b1c8ee;font-weight:700">Step 2 of 2 · Name your files</div>
+          <div style="font-size:11.5px;color:var(--warm-mute);line-height:1.4;margin-top:2px">
+            ${_attachPickedFiles.length} files · ${formatSize(totalSize)} total. Edit the names below or keep the file's own name. Click Upload to send them all to the cloud.
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${_attachPickedFiles.map((f, i) => `
+          <div class="at-name-row">
+            <div class="anr-meta">
+              <span class="anr-num">${i + 1}</span>
+              <span class="anr-size">${formatSize(f.size)}</span>
+            </div>
+            <div class="anr-input-wrap">
+              <input
+                type="text"
+                id="at_multi_name_${i}"
+                value="${esc(f.name)}"
+                placeholder="${esc(f.name)}"
+                maxlength="200"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <div class="anr-orig">Original: <span class="mono">${esc(f.name)}</span></div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+  _attachUpdatePrimaryLabel(`Upload ${_attachPickedFiles.length} files`);
+  // Focus the first input so the user can immediately edit
+  setTimeout(() => {
+    const first = document.getElementById('at_multi_name_0');
+    if (first) first.focus();
+  }, 80);
+}
+
+// "← Back" handler — returns from the naming step to the picker step.
+// Doesn't lose the picked files; just re-renders the modal body so
+// the user can change file selection, scope, type, or tags.
+function _attachBackToPick() {
+  _attachStep = 'pick';
+  // Easiest reliable path: close the modal and reopen with the same
+  // state. The files array is preserved on _attachPickedFiles so the
+  // user doesn't have to re-select.
+  const pickedFiles = _attachPickedFiles.slice();
+  // We need to re-trigger the modal in 'pick' mode. The cleanest path
+  // is to re-call openAttachModal — but we'd lose state. Better: just
+  // re-render the modal body with the original form HTML.
+  closeModal();
+  setTimeout(() => {
+    openAttachModal(null, { defaultScope: 'tour' });
+    // Wait for the modal to mount, then re-inject the files
+    setTimeout(() => {
+      const input = document.getElementById('at_file');
+      if (input) {
+        // Re-trigger the multi-file UI manually since we can't programmatically
+        // set FileList. Mark the files as picked + re-render the file list.
+        _attachPickedFiles = pickedFiles;
+        _attachPickedFile = pickedFiles[0];
+        const list = document.getElementById('at_file_list');
+        const status = document.getElementById('at_file_status');
+        const nameInp = document.getElementById('at_name');
+        const sizeInp = document.getElementById('at_size');
+        if (list) {
+          list.style.display = 'flex';
+          const totalSize = pickedFiles.reduce((n, f) => n + f.size, 0);
+          list.innerHTML = `
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;color:var(--hi);text-transform:uppercase;font-weight:700;margin-bottom:2px">
+              ${pickedFiles.length} files · ${formatSize(totalSize)} total
+            </div>
+            ${pickedFiles.map((f, i) => `
+              <div class="at-multi-row" id="at_multi_row_${i}">
+                <span class="amr-status" id="at_multi_status_${i}">⌛</span>
+                <span class="amr-name">${esc(f.name)}</span>
+                <span class="amr-size">${formatSize(f.size)}</span>
+              </div>
+            `).join('')}
+          `;
+        }
+        if (nameInp) {
+          nameInp.value = '';
+          const nameField = nameInp.closest('.field');
+          if (nameField) nameField.style.display = 'none';
+        }
+        if (sizeInp) sizeInp.value = `${pickedFiles.length} files`;
+        if (status) status.textContent = `Ready to upload ${pickedFiles.length} files (Tags & Type apply to all)`;
+        _attachUpdatePrimaryLabel('Continue →');
+      }
+    }, 100);
+  }, 100);
 }
 
 // Walk every owned tour for the attachment id. We don't restrict to
@@ -22682,7 +22873,7 @@ Object.assign(window, {
   _addDateRangeNext, _bulkSetRangeType, _commitDateRange,
   _calInit, _calNavMonth, _calPickDate, _calRender,
   openGuestModal, openAllotmentModal, openSetItemModal, moveSetItem, copySetList,
-  openSettleModal, openAttachModal, _attachFilePicked, _attachScopeChange, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport, renderLocalAttachments, renderAttachments,
+  openSettleModal, openAttachModal, _attachFilePicked, _attachScopeChange, _attachBackToPick, _attachUpdatePrimaryLabel, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport, renderLocalAttachments, renderAttachments,
   openChatsModal, openNewChatModal, setActiveChat, _chatComposeOnInput, _chatComposeOnKeydown, _chatComposeSend, _chatMentionPick, _chatReactToggle, _chatReactPicker, _chatSendBroadcastPrompt, _chatToggleGroup, _chatUpdatePickCount,
   openPhoneSearch, _phoneSearchRender,
   openTaskModal, openTagModal, toggleTask,
