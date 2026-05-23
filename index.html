@@ -4957,11 +4957,12 @@ _onTourChange(payload) {
     try {
       const { data: { session } } = await sb.auth.getSession();
       if (!session?.user?.id || !_isUuid(session.user.id)) {
-        toast('Sign in with your Bandmate account before uploading', 'error');
+        toast('Sign out and sign back in to refresh your session before uploading', 'error');
+        console.warn('[uploadAttachment] No live Supabase auth session. state.currentUserId =', state?.currentUserId, '· session.user =', session?.user);
         return null;
       }
     } catch (e) {
-      toast('Could not verify your session — try signing out and back in', 'error');
+      toast('Could not verify your session — sign out and back in, then retry', 'error');
       return null;
     }
     // If the tour is still on a legacy local-only id, transparently
@@ -5015,7 +5016,11 @@ _onTourChange(payload) {
     return {
       id: attachId,
       name: row.name, type: row.type, size: formatSize(file.size), mime: row.mime,
-      link: row.link, tags: row.tags, storagePath, addedAt: Date.now(),
+      link: row.link, tags: row.tags, storagePath,
+      // Echo back the resolved dateId so the caller (which may have passed
+      // a pre-promotion id) can store the post-promotion uuid. null = tour-wide.
+      dateId: row.date_id || null,
+      addedAt: Date.now(),
     };
   },
   async deleteAttachment(attachmentId, storagePath) {
@@ -8870,18 +8875,27 @@ function openAttachModal(attId, opts) {
         }
         const result = await db.uploadAttachment(T().id, scopedDateId, _attachPickedFile, baseMeta);
         if (!result) return false;
-        // Stamp scope into the local record
-        result.dateId = scopedDateId;
+        // CRITICAL: uploadAttachment may have triggered promoteTourToCloud,
+        // which re-keys state.tours and orphans the `tour` variable we
+        // captured at the top of this modal. Re-fetch T() so we push the
+        // new attachment into the LIVE tour record, not the orphaned one.
+        const liveTour = T();
+        if (!Array.isArray(liveTour.attachments)) liveTour.attachments = [];
+        // dateId may also have been re-keyed by promotion. Trust the
+        // server-side value returned in result.dateId (set by uploadAttachment).
         if (a) {
           await db.deleteAttachment(a.id, null);
-          tour.attachments = tour.attachments.filter(x => x.id !== a.id);
-          tour.attachments.push(result);
+          liveTour.attachments = liveTour.attachments.filter(x => x.id !== a.id);
+          liveTour.attachments.push(result);
         } else {
-          tour.attachments.push(result);
+          liveTour.attachments.push(result);
         }
       } else if (a) {
         // Case 2 — editing metadata only (no new file picked): update fields + scope.
-        Object.assign(a, baseMeta, { dateId: scopedDateId });
+        // Re-fetch the live attachment in case promotion happened on another path.
+        const liveTour = T();
+        const liveAtt = (liveTour.attachments || []).find(x => x.id === a.id) || a;
+        Object.assign(liveAtt, baseMeta, { dateId: scopedDateId });
         if (_isUuid(a.id)) {
           const { error } = await sb.from('attachments').update({
             name: baseMeta.name, type: baseMeta.type, link: baseMeta.link, tags: baseMeta.tags,
@@ -8895,20 +8909,33 @@ function openAttachModal(attId, opts) {
           toast('Pick a file or paste a cloud URL', 'error');
           return false;
         }
-        const newId = dbId();
+        // Promote the tour to cloud first if needed, so the link-only
+        // row has a valid UUID tour_id (same self-heal as binary uploads).
+        let writeTourId = T().id;
+        let writeDateId = scopedDateId;
+        if (!_isUuid(writeTourId)) {
+          toast('Promoting tour to cloud first…', 'good');
+          const newId = await db.promoteTourToCloud(writeTourId);
+          if (!newId) return false;
+          writeTourId = newId;
+          if (writeDateId && !_isUuid(writeDateId)) {
+            writeDateId = T().activeDateId || (T().dates?.[0]?.id) || null;
+          }
+        }
+        const attId = dbId();
         const row = {
-          id: newId, tour_id: T().id, date_id: scopedDateId,
+          id: attId, tour_id: writeTourId, date_id: writeDateId,
           name: baseMeta.name, type: baseMeta.type, storage_path: '', mime: '',
           size_bytes: null, link: baseMeta.link, tags: baseMeta.tags,
         };
-        if (_isUuid(T().id)) {
-          const { error } = await sb.from('attachments').insert(row);
-          if (error) { db._err('insertLinkAttachment', error); return false; }
-        }
-        tour.attachments.push({
-          id: newId, name: baseMeta.name, type: baseMeta.type, size: baseMeta.size,
+        const { error } = await sb.from('attachments').insert(row);
+        if (error) { db._err('insertLinkAttachment', error); return false; }
+        const liveTour = T();
+        if (!Array.isArray(liveTour.attachments)) liveTour.attachments = [];
+        liveTour.attachments.push({
+          id: attId, name: baseMeta.name, type: baseMeta.type, size: baseMeta.size,
           link: baseMeta.link, tags: baseMeta.tags, storagePath: '', mime: '',
-          dateId: scopedDateId, addedAt: Date.now(),
+          dateId: writeDateId, addedAt: Date.now(),
         });
       }
 
