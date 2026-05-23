@@ -4597,12 +4597,24 @@ const db = {
     // era. The owner_id column is typed uuid and Postgres will reject
     // anything that isn't a real UUID.
     let authUid = null;
+    let sessionDebug = null;
     try {
-      const { data: { session } } = await sb.auth.getSession();
+      let { data: { session } } = await sb.auth.getSession();
+      // Auto-heal: if there's no live session, try a silent refresh
+      // before bailing. This recovers from the very common case of
+      // an expired access token where the refresh token is still good.
+      if (!session?.user?.id || !_isUuid(session.user.id)) {
+        try {
+          const { data: refreshed } = await sb.auth.refreshSession();
+          session = refreshed?.session || session;
+        } catch (e) { /* fall through */ }
+      }
+      sessionDebug = session;
       authUid = session?.user?.id || null;
     } catch (e) { /* fall through to error toast below */ }
     if (!authUid || !_isUuid(authUid)) {
-      toast('Sign in with your Bandmate account before uploading to the cloud', 'error');
+      console.warn('[promoteTourToCloud] No live Supabase auth session even after refresh. state.currentUserId =', state?.currentUserId, '· session =', sessionDebug);
+      toast('Session expired — sign out, sign back in via the login screen, then retry', 'error');
       return null;
     }
     // Best-effort: if state.currentUserId is a stub, re-key it to the
@@ -4951,18 +4963,28 @@ _onTourChange(payload) {
   async uploadAttachment(tourId, dateId, file, meta) {
     if (!sb) return null;
     // Require a live Supabase auth session — uploads need a real user
-    // for RLS + storage policies to evaluate `auth.uid()`. Stub users
-    // (legacy local-only ids like "u_xxx") get rejected with a clear
-    // sign-in prompt rather than a cryptic UUID cast error.
+    // for RLS + storage policies to evaluate `auth.uid()`. Try
+    // refreshing the session first (covers the very common case of an
+    // expired access token where the refresh token is still good).
+    // Only after refresh fails do we ask the user to sign in again.
     try {
-      const { data: { session } } = await sb.auth.getSession();
+      let { data: { session } } = await sb.auth.getSession();
       if (!session?.user?.id || !_isUuid(session.user.id)) {
-        toast('Sign out and sign back in to refresh your session before uploading', 'error');
-        console.warn('[uploadAttachment] No live Supabase auth session. state.currentUserId =', state?.currentUserId, '· session.user =', session?.user);
+        // Best-effort silent refresh — uses the refresh token from
+        // localStorage to mint a new access token without re-prompting.
+        try {
+          const { data: refreshed } = await sb.auth.refreshSession();
+          session = refreshed?.session || null;
+        } catch (e) { /* fall through */ }
+      }
+      if (!session?.user?.id || !_isUuid(session.user.id)) {
+        toast('Session expired — sign out, sign back in via the login screen, then retry', 'error');
+        console.warn('[uploadAttachment] No live Supabase auth session even after refresh. state.currentUserId =', state?.currentUserId, '· session.user =', session?.user);
         return null;
       }
     } catch (e) {
       toast('Could not verify your session — sign out and back in, then retry', 'error');
+      console.error('[uploadAttachment] session check threw:', e);
       return null;
     }
     // If the tour is still on a legacy local-only id, transparently
