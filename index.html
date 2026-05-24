@@ -1821,6 +1821,14 @@ input,select,textarea{font:inherit;color:inherit}
 .field-warn-or::after{content:"!";position:absolute;top:0;right:2px;font-size:12px;color:#8aa9d8;
   font-weight:900;font-family:'JetBrains Mono',monospace;text-shadow:0 0 6px rgba(138,169,216,.7)}
 .field-warn-or > label{color:#8aa9d8 !important}
+/* Inline warning glyph next to a dashboard card heading — fires when the
+   whole section has a gap (e.g. no venue at all, no schedule, no hotel)
+   so the TM can spot it at section-level, not just inside the body. */
+.card-h-warn{display:inline-flex;align-items:center;justify-content:center;
+  margin-left:6px;font-size:11px;color:#fdba74;text-shadow:0 0 6px rgba(253,186,116,.6);
+  animation:tabwarn 2s ease-in-out infinite;line-height:1}
+.card-h-warn.or{color:#8aa9d8;text-shadow:0 0 6px rgba(138,169,216,.7);font-weight:900;
+  font-family:'JetBrains Mono',monospace;font-size:12px}
 .rescan-nudge{margin:14px 0;padding:10px 14px;background:linear-gradient(135deg,rgba(109,207,139,.1),rgba(109,207,139,.04));
   border:1px solid rgba(109,207,139,.35);border-radius:9px;color:var(--good);font-size:12.5px;
   display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;letter-spacing:.04em}
@@ -5057,7 +5065,9 @@ const db = {
     // auth.users row yet, so the FK insert would fail and the whole
     // batch would be rejected — including the creator. Filtering keeps
     // chat creation robust; unclaimed crew get added later by the
-    // sign-up flow (signUp's findCrewMatchesByEmail pass).
+    // _reconcilePendingChatPicks pass that runs each time the TM
+    // opens the chats modal (caller stashes their emails on
+    // tour.meta.pendingChatPicks).
     const validUserIds = Array.from(new Set([
       state.currentUserId,
       ...(memberUserIds || []),
@@ -10794,18 +10804,18 @@ function renderDashboard() {
 
       <div class="bm-cards">
         <div class="bm-card span-2">
-          <div class="card-h"><span class="ic">⌚</span><span class="h">Schedule</span><span class="count">${sched.length} ${sched.length === 1 ? 'item' : 'items'}</span><a class="card-link" onclick="_dashGoTab('schedule')">Edit →</a></div>
+          <div class="card-h"><span class="ic">⌚</span><span class="h">Schedule</span>${isMissing('schedule') ? `<span class="card-h-warn" title="Schedule is empty — add at least one item">⚠</span>` : ''}<span class="count">${sched.length} ${sched.length === 1 ? 'item' : 'items'}</span><a class="card-link" onclick="_dashGoTab('schedule')">Edit →</a></div>
           <div class="card-body">${schedCardHtml}</div>
         </div>
         ${(ad.status === 'travel' || ad.status === 'off') ? '' : `
           <div class="bm-card">
-            <div class="card-h"><span class="ic">⌖</span><span class="h">Venue</span><a class="card-link" onclick="openDateModal('${ad.id}')">Edit →</a></div>
+            <div class="card-h"><span class="ic">⌖</span><span class="h">Venue</span>${(isMissing('venue') || isMissing('city') || isMissing('capacity')) ? `<span class="card-h-warn" title="${isMissing('venue') ? 'Venue not set' : isMissing('city') ? 'City not set' : 'Capacity not set'}">⚠</span>` : ''}<a class="card-link" onclick="openDateModal('${ad.id}')">Edit →</a></div>
             <div class="card-body">${venueCardHtml}</div>
           </div>
         `}
 
         <div class="bm-card">
-          <div class="card-h"><span class="ic">⏿</span><span class="h">Hotel</span><a class="card-link" onclick="_dashGoTab('hotels')">Edit →</a></div>
+          <div class="card-h"><span class="ic">⏿</span><span class="h">Hotel</span>${isOrGap('hotel or travel') ? `<span class="card-h-warn or" title="Needs either a hotel or a travel item logged">!</span>` : ''}<a class="card-link" onclick="_dashGoTab('hotels')">Edit →</a></div>
           <div class="card-body">${hotelCardHtml}</div>
         </div>
         <div class="bm-card">
@@ -13942,6 +13952,41 @@ async function extractPDFText(file) {
 // here as we encounter them in real tour data — no algorithmic guessing,
 // only confirmed mappings, so we never silently rewrite a legitimate
 // city to the wrong one.
+// ──────────────────────────────────────────────────────────────────────
+// _splitCamelCity(city)
+//
+// PDF.js sometimes collapses the newline between an address's street
+// line and its city line into nothing, producing strings like:
+//   "Castle DoningtonDerby"   (Castle Donington \n Derby → joined)
+//   "BetrieblicheNürnberg"    (other split-word artifacts)
+//
+// English and European city names never contain a lowercase-then-
+// uppercase letter pair inside a single word ("DoningtonDerby" has
+// "nD" in the middle). When we see that pattern we treat it as a
+// collapsed newline and split there, keeping everything from the
+// uppercase letter onward as the actual city.
+//
+// We skip splits with short prefixes (≤3 chars) so we don't damage
+// legitimate names like McAllen, McDonald, DeKalb, DesMoines.
+function _splitCamelCity(city) {
+  if (!city) return city;
+  const re = /([a-zß-öø-ÿ])([A-ZÀ-ÖØ-Þ])/g;
+  let lastSplit = -1;
+  let m;
+  while ((m = re.exec(city)) !== null) {
+    const upperIdx = m.index + 1;
+    // Find the start of the word containing this transition.
+    let wordStart = 0;
+    for (let i = upperIdx - 1; i >= 0; i--) {
+      if (city[i] === ' ' || city[i] === '-') { wordStart = i + 1; break; }
+    }
+    const prefixLen = upperIdx - wordStart;
+    if (prefixLen >= 4) lastSplit = upperIdx;
+  }
+  if (lastSplit > 0) return city.slice(lastSplit).trim();
+  return city;
+}
+
 function _recoverTruncatedCity(city, country) {
   if (!city) return null;
   const key = city.trim().toLowerCase();
@@ -14129,6 +14174,13 @@ function _parseCAADealMemoBlock(block) {
         out.country = intl[2].trim();
         break;
       }
+    }
+    // Recover from PDF.js newline collapse — when "Castle Donington\nDerby"
+    // gets joined as "Castle DoningtonDerby" the regex grabs the whole
+    // thing. _splitCamelCity detects the unnatural lowercase→uppercase
+    // transition and slices the city down to just "Derby".
+    if (out.city) {
+      out.city = _splitCamelCity(out.city);
     }
     // Final defense: PDF font encoding sometimes drops accented characters
     // entirely (Nürnberg → "rnberg"). If the extracted city looks like a
@@ -23386,6 +23438,69 @@ function _onChatReactionRealtime(payload) {
   if (document.getElementById('chatModalRoot')) _renderChatModalContents();
 }
 
+// ────────────────────────────────────────────────────────────────────
+// Deferred-invite reconciler for chat picks.
+//
+// When the TM creates a new chat and includes crew members who haven't
+// signed up yet, those picks can't be inserted into chat_members at
+// creation time (FK to auth.users(id) would fail for stub IDs). They
+// get stashed on tour.meta.pendingChatPicks as { chatId, email } pairs.
+//
+// This function drains the stash: for each pending pick, if the crew
+// member with that email is now claimed (has a real Supabase UUID),
+// insert a chat_members row and remove the pick from the stash. Pick
+// emails that still don't match a claimed user stay in the stash for
+// the next pass.
+//
+// Only the tour owner runs the reconcile — they're the one with insert
+// permission on chat_members for their tour (per the RLS policy), and
+// running this from every member's session would be wasteful and
+// would silently 403 for non-owners anyway.
+//
+// Called on chat-modal open, so the TM's daily app use naturally
+// triggers it. If a TM is offline for a while, picks queue up and
+// flush the next time they open the app.
+async function _reconcilePendingChatPicks(tour) {
+  if (!tour || !state.currentUserId || !sb) return;
+  if (tour.ownerId !== state.currentUserId) return; // TM only
+  const picks = Array.isArray(tour.meta?.pendingChatPicks) ? tour.meta.pendingChatPicks : [];
+  if (!picks.length) return;
+  const crew = Array.isArray(tour.crew) ? tour.crew : [];
+  const remaining = [];
+  const toInsert = [];
+  for (const pick of picks) {
+    const email = (pick.email || '').toLowerCase().trim();
+    if (!email || !pick.chatId) continue;
+    // Find this crew member by email. If they're now claimed (real
+    // UUID userId), they can be inserted into chat_members.
+    const member = crew.find(c => (c.email || '').toLowerCase().trim() === email);
+    if (member && _isUuid(member.userId)) {
+      toInsert.push({ chat_id: pick.chatId, user_id: member.userId });
+    } else {
+      remaining.push(pick);
+    }
+  }
+  if (!toInsert.length) return; // nothing to flush yet
+  // Upsert each row individually so a single failure doesn't abort
+  // the whole batch — we want to drain whatever we can.
+  let inserted = 0;
+  for (const row of toInsert) {
+    try {
+      const { error } = await sb.from('chat_members').upsert(row, { onConflict: 'chat_id,user_id' });
+      if (!error) inserted++;
+      else console.warn('[reconcile chat picks] insert failed:', error.message, row);
+    } catch (e) {
+      console.warn('[reconcile chat picks] insert threw:', e, row);
+    }
+  }
+  if (inserted > 0) {
+    tour.meta = tour.meta || {};
+    tour.meta.pendingChatPicks = remaining;
+    saveState();
+    console.log(`[reconcile chat picks] flushed ${inserted}/${toInsert.length} pending picks for tour ${tour.id}`);
+  }
+}
+
 // Open the messaging modal. First open of a tour auto-seeds the
 // default channels (#all-hands, #band, #crew) if none exist.
 async function openChatsModal() {
@@ -23400,6 +23515,10 @@ async function openChatsModal() {
   });
   // Auto-seed if first time
   await db.chatAutoSeed(T().id);
+  // Drain any deferred picks for crew that signed up since the last
+  // time the TM opened the chat UI. Runs before _chatLoadAll so the
+  // reconciled chat_members rows show up in the first fetch.
+  try { await _reconcilePendingChatPicks(T()); } catch (e) { console.warn('reconcile picks:', e); }
   // Load all data fresh on open
   await _chatLoadAll();
   // Pick an active chat — default to the first official chat,
@@ -23752,15 +23871,18 @@ function openNewChatModal() {
   // Groups available on this tour. Reuse the same source the Crew tab
   // and the schedule "Audience" picker use — keeps everything aligned.
   const groups = (typeof getGroups === 'function') ? getGroups() : (tour.meta?.groups || []);
-  // For each group, which CLAIMED crew userIds belong to it (unclaimed
-  // members are excluded from group toggles since they can't be added).
+  // For each group, ALL crew userIds (claimed + unclaimed) that belong
+  // to it. Unclaimed picks get stashed as deferred invites — they'll
+  // auto-join the chat once they sign up via the reconciler
+  // (_reconcilePendingChatPicks) that runs whenever the TM opens the
+  // chats modal.
   const groupMembers = {};
   groups.forEach(g => {
-    groupMembers[g] = crewRoster.filter(c => isClaimedUser(c) && (c.groups || []).includes(g)).map(c => c.userId);
+    groupMembers[g] = crewRoster.filter(c => (c.groups || []).includes(g)).map(c => c.userId);
   });
-  // "Everyone" pseudo-group = all claimed crew
-  groupMembers['__ALL__'] = crewRoster.filter(isClaimedUser).map(c => c.userId);
-  const claimedCount = groupMembers['__ALL__'].length;
+  // "Everyone" pseudo-group = the entire roster (claimed + unclaimed)
+  groupMembers['__ALL__'] = crewRoster.map(c => c.userId);
+  const claimedCount = crewRoster.filter(isClaimedUser).length;
   const unclaimedCount = crewRoster.length - claimedCount;
 
   openModal({
@@ -23793,14 +23915,14 @@ function openNewChatModal() {
         ` : ''}
         <div class="field">
           <label>Members <span class="chat-pick-count" id="chatPickCount">0 selected</span></label>
-          ${unclaimedCount > 0 ? `<div class="chat-group-hint" style="margin-bottom:6px;color:#fdba74">${unclaimedCount} crew member${unclaimedCount===1?'':'s'} below haven't accepted their invite yet — they'll auto-join chats they're picked for after sign-up.</div>` : ''}
+          ${unclaimedCount > 0 ? `<div class="chat-group-hint" style="margin-bottom:6px;color:#fdba74">${unclaimedCount} crew member${unclaimedCount===1?'':'s'} below haven't accepted their invite yet. Pick them anyway — they'll auto-join the chat as soon as they sign up.</div>` : ''}
           <div class="chat-member-grid" id="chatMemberGrid">
             ${crewRoster.map(c => {
               const groupBits = (c.groups || []).slice(0, 3).map(g => `<span class="mp-grouptag">${esc(g)}</span>`).join('');
               const claimed = isClaimedUser(c);
               return `
-                <label class="chat-member-pick ${claimed ? '' : 'pending'}" data-userid="${esc(c.userId)}" ${claimed ? '' : 'title="This crew member hasn\'t signed up yet"'}>
-                  <input type="checkbox" name="newChatMember" value="${esc(c.userId)}" onchange="_chatUpdatePickCount()" ${claimed ? '' : 'disabled'} />
+                <label class="chat-member-pick ${claimed ? '' : 'pending'}" data-userid="${esc(c.userId)}" data-email="${esc(c.email || '')}" ${claimed ? '' : `title="${esc(c.name)} hasn't signed up yet — they'll auto-join this chat when they do"`}>
+                  <input type="checkbox" name="newChatMember" value="${esc(c.userId)}" data-email="${esc(c.email || '')}" data-claimed="${claimed ? '1' : '0'}" onchange="_chatUpdatePickCount()" />
                   <span class="mp-name">${esc(c.name)}</span>
                   ${groupBits ? `<span class="mp-groups">${groupBits}</span>` : ''}
                   ${claimed ? `<span class="mp-role">${esc(c.role || c.type || '')}</span>` : `<span class="mp-pending-tag">⌛ PENDING INVITE</span>`}
@@ -23822,17 +23944,45 @@ function openNewChatModal() {
     `,
     onSubmit: async () => {
       const name = (document.getElementById('newChatName')?.value || '').trim();
-      const memberIds = Array.from(document.querySelectorAll('input[name="newChatMember"]:checked')).map(cb => cb.value);
+      // Split picks into "ready to insert now" (claimed UUIDs) vs
+      // "stash for later" (unclaimed stubs). chat_members has a FK to
+      // auth.users(id) so we can't insert stubs directly — they go
+      // into tour.meta.pendingChatPicks and get drained by
+      // _reconcilePendingChatPicks when those users sign up.
+      const picked = Array.from(document.querySelectorAll('input[name="newChatMember"]:checked'));
+      const claimedIds = picked.filter(cb => cb.dataset.claimed === '1').map(cb => cb.value);
+      const pendingEmails = picked
+        .filter(cb => cb.dataset.claimed !== '1')
+        .map(cb => (cb.dataset.email || '').trim().toLowerCase())
+        .filter(Boolean);
       const isOfficial = !!document.getElementById('newChatOfficial')?.checked;
       if (!name) { toast('Chat name is required', 'error'); return false; }
-      if (!memberIds.length) { toast('Pick at least one other member', 'error'); return false; }
-      const isDm = (memberIds.length === 1);
-      const row = await db.chatCreate(tour.id, name, memberIds, { isOfficial, isDm });
+      if (!claimedIds.length && !pendingEmails.length) { toast('Pick at least one other member', 'error'); return false; }
+      // A DM requires both parties to be claimed users right now; if
+      // any pick is a pending invite, treat the chat as a group so the
+      // deferred-invite mechanism makes sense.
+      const isDm = (claimedIds.length === 1 && pendingEmails.length === 0);
+      const row = await db.chatCreate(tour.id, name, claimedIds, { isOfficial, isDm });
       if (!row) { toast('Could not create chat', 'error'); return false; }
+      // Stash pending picks on the tour. The reconciler picks these
+      // up next time it runs and inserts the chat_members row for
+      // any pick whose email is now a claimed user.
+      if (pendingEmails.length) {
+        tour.meta = tour.meta || {};
+        const existing = Array.isArray(tour.meta.pendingChatPicks) ? tour.meta.pendingChatPicks : [];
+        for (const email of pendingEmails) {
+          existing.push({ chatId: row.id, email });
+        }
+        tour.meta.pendingChatPicks = existing;
+        // saveState() persists locally AND schedules a debounced cloud
+        // sync of the active tour (including the new meta field).
+        try { saveState(); } catch (e) { console.error('[newChat] save pending picks:', e); }
+      }
       await _chatLoadAll();
       _chatState.activeChatId = row.id;
       setTimeout(() => { closeModal(); openChatsModal(); }, 100);
-      toast(`Chat "${name}" created`, 'good');
+      const pendingNote = pendingEmails.length ? ` · ${pendingEmails.length} will join after sign-up` : '';
+      toast(`Chat "${name}" created${pendingNote}`, 'good');
     },
   });
   // Stash for group-toggle handler
