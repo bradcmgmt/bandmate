@@ -102,22 +102,87 @@ module.exports = async function handler(req, res) {
 
   // Create the portal session
   const stripe = new Stripe(stripeKey, { apiVersion: '2024-09-30.acacia' });
-  try {
-    const session = await stripe.billingPortal.sessions.create({
-      customer: customerId,
+  // Wrap in a self-healing loop: if Stripe returns "No such customer"
+  // for the ID we have on file, the row is stale (customer was deleted
+  // or merged in Stripe — common when a user accidentally created two
+  // checkout sessions early on). Look up the customer by email in
+  // Stripe directly, pick the one with an active subscription, persist
+  // the fix to the subscriptions table, and retry.
+  async function openPortal(cid) {
+    return stripe.billingPortal.sessions.create({
+      customer: cid,
       return_url: returnUrl,
     });
+  }
+  try {
+    const session = await openPortal(customerId);
     res.status(200).json({ url: session.url });
+    return;
   } catch (err) {
-    console.error('[stripe-portal] portal create failed:', err);
-    // Most common failure: portal isn't enabled in Stripe Dashboard yet.
-    // Surface a friendly error so the user knows what to do.
-    const msg = err.message || 'Portal create failed';
-    res.status(502).json({
-      error: msg,
-      hint: /portal/i.test(msg)
-        ? 'Enable the Customer Portal in Stripe Dashboard → Settings → Billing → Customer portal'
-        : undefined,
-    });
+    const isMissing = err && (err.code === 'resource_missing'
+      || /No such customer/i.test(err.message || ''));
+    if (!isMissing) {
+      console.error('[stripe-portal] portal create failed:', err);
+      const msg = err.message || 'Portal create failed';
+      res.status(502).json({
+        error: msg,
+        hint: /portal/i.test(msg)
+          ? 'Enable the Customer Portal in Stripe Dashboard → Settings → Billing → Customer portal'
+          : undefined,
+      });
+      return;
+    }
+    // Stale customer ID — try to recover. Search Stripe by email and
+    // pick the customer that actually has a subscription attached.
+    console.warn('[stripe-portal] stale customer id, attempting recovery for', userEmail);
+    if (!userEmail) {
+      res.status(404).json({ error: 'Your subscription record is out of sync. Contact support to reset it.' });
+      return;
+    }
+    try {
+      const found = await stripe.customers.list({ email: userEmail, limit: 10 });
+      let healed = null;
+      // Prefer a customer with an active subscription. If none have
+      // active subs, fall back to the most recently created one.
+      for (const c of found.data) {
+        const subs = await stripe.subscriptions.list({ customer: c.id, status: 'all', limit: 5 });
+        const hasLive = subs.data.some(s => ['active','trialing','past_due'].includes(s.status));
+        if (hasLive) { healed = c; break; }
+      }
+      if (!healed && found.data.length) {
+        healed = found.data.sort((a, b) => (b.created || 0) - (a.created || 0))[0];
+      }
+      if (!healed) {
+        res.status(404).json({ error: 'No Stripe customer found for this email. Subscribe first to set up billing.' });
+        return;
+      }
+      // Persist the healed id so future calls (and the webhook) skip
+      // this recovery path. Update by user_id first, then email as
+      // fallback for legacy pay-first rows.
+      try {
+        const upd1 = await supa
+          .from('subscriptions')
+          .update({ stripe_customer_id: healed.id })
+          .eq('user_id', userId);
+        if (!upd1.count) {
+          await supa
+            .from('subscriptions')
+            .update({ stripe_customer_id: healed.id })
+            .ilike('email', userEmail);
+        }
+        console.log('[stripe-portal] healed customer id', { old: customerId, new: healed.id, user: userId });
+      } catch (e) {
+        console.warn('[stripe-portal] heal-write failed:', e?.message);
+        // Continue anyway — opening the portal with the right id is
+        // more important than persisting the fix this round.
+      }
+      const session = await openPortal(healed.id);
+      res.status(200).json({ url: session.url });
+    } catch (e2) {
+      console.error('[stripe-portal] recovery failed:', e2);
+      res.status(502).json({
+        error: 'Could not open billing portal. Your account may have multiple Stripe customers — contact support.',
+      });
+    }
   }
 };
