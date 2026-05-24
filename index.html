@@ -5937,7 +5937,20 @@ function csvToObjects(text) {
   });
 }
 function downloadFile(name, content, mime = 'text/plain') {
-  const blob = new Blob([content], { type: mime });
+  // Prepend a UTF-8 BOM (﻿) for text formats that Excel opens by
+  // default — CSV especially. Without the BOM, Excel reads CSVs as the
+  // legacy system codepage and mangles accented characters: Nürnberg
+  // becomes "NÃ¼rnberg", Zürich becomes "ZÃ¼rich". The BOM tells Excel
+  // "this is UTF-8" and accents render correctly. Modern editors and
+  // browsers strip the BOM silently so it's safe to always include it
+  // for text/csv. We skip it for binary blobs (Blob will be a Uint8Array
+  // or similar, BOM string concat would corrupt them).
+  let body = content;
+  const isText = typeof content === 'string';
+  if (isText && /^text\/csv\b/i.test(mime) && !body.startsWith('﻿')) {
+    body = '﻿' + body;
+  }
+  const blob = new Blob([body], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = name; document.body.appendChild(a); a.click();
