@@ -3051,6 +3051,17 @@ body.travel-assistant-mode #travelAssistantArea{
   color:var(--hi);cursor:pointer;font-family:'Inter',sans-serif;font-weight:700;font-size:14px;letter-spacing:.02em;
   transition:all .15s ease;margin-top:auto}
 .pc-cta:hover{background:rgba(232,148,58,.1)}
+/* Subtle "I already subscribed" escape hatch button — sits under the
+   pricing CTA. Used by signed-in users who got bounced to pricing due
+   to webhook race or stale local state. Re-pulls subscription from
+   Supabase and re-routes if positive. */
+.pc-recheck{display:block;width:100%;margin-top:10px;padding:7px 10px;
+  background:transparent;border:1px dashed var(--line-2);border-radius:6px;
+  color:var(--warm-mute);font-family:'JetBrains Mono',monospace;font-size:10px;
+  letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+  transition:border-color .15s,color .15s}
+.pc-recheck:hover{border-color:var(--hi);color:var(--hi)}
+
 .pc-cta.primary{background:linear-gradient(135deg,#e8943a,#c9772a);color:#0e0805;
   box-shadow:0 0 22px -4px rgba(232,148,58,.5),inset 0 1px 0 rgba(255,255,255,.08)}
 .pc-cta.primary:hover{box-shadow:0 0 30px -2px rgba(232,148,58,.65)}
@@ -4073,6 +4084,11 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
         </ul>
         <button type="button" class="pc-cta primary" onclick="_pricingSubscribe()">Subscribe →</button>
         <div class="pc-foot">Cancel anytime · 7-day full refund</div>
+        <!-- Escape hatch for already-subscribed users who got bounced here
+             due to a webhook race or stale local state. Re-pulls the
+             subscription row from Supabase and routes them into the app
+             if positive. -->
+        <button type="button" class="pc-recheck" onclick="_pricingRecheck()" title="If you already subscribed and shouldn't be seeing this, click to re-check your subscription status">↻ I already subscribed — refresh my status</button>
       </div>
 
       <div class="pricing-card pc-business">
@@ -19094,8 +19110,45 @@ function showPricingScreen() {
     document.body.classList.add('bg-video-on');
   } else {
     document.body.classList.remove('bg-video-on');
+    // Auto-recovery: signed-in user bouncing to pricing might be a
+    // race condition where their subscription IS in Supabase but the
+    // local subscriptionStatus is stale. Silently re-pull the row a
+    // moment after open; if it confirms a positive status, route
+    // them straight into the app without them touching anything.
+    setTimeout(() => { try { _pricingAutoRecover(); } catch (e) {} }, 800);
   }
   window.scrollTo(0, 0);
+}
+
+// Silent auto-recovery for signed-in users who land on the pricing
+// screen but ARE actually subscribed. Pulls fresh subscription data
+// from Supabase; if positive, hides pricing and routes to the app.
+// No UI feedback on success (just routes); failures are silent too
+// (the user can still manually click "I already subscribed" or the
+// Subscribe button). Logs everything to console for debugging.
+async function _pricingAutoRecover() {
+  const u = U();
+  if (!u || u.role !== 'tm') return;
+  console.log('[_pricingAutoRecover] starting check for user:', {
+    role: u.role,
+    status: u.subscriptionStatus,
+    trialEnd: u.trialEnd,
+    periodEnd: u.subscriptionPeriodEnd,
+    customerId: u.stripeCustomerId,
+  });
+  try { await hydrateSubscription(); } catch (e) { console.warn('[_pricingAutoRecover] hydrate threw:', e); }
+  const u2 = U();
+  console.log('[_pricingAutoRecover] post-hydrate state:', {
+    status: u2?.subscriptionStatus,
+    trialEnd: u2?.trialEnd,
+    periodEnd: u2?.subscriptionPeriodEnd,
+    isSubscribed: u2 && userIsSubscribed(u2),
+  });
+  if (u2 && userIsSubscribed(u2)) {
+    try { hidePricingScreen(); } catch (e) {}
+    try { postLoginRouting(); } catch (e) {}
+    toast('Subscription confirmed', 'good');
+  }
 }
 function hidePricingScreen() {
   document.getElementById('pricingScreen').hidden = true;
@@ -19531,6 +19584,33 @@ async function hydrateSubscription() {
 // null, empty string) is treated as subscribed to avoid false-positive
 // lock-outs during auth blips — the webhook + hydrate will eventually
 // stamp the real status and re-evaluate.
+// Escape hatch on the pricing screen for users who ARE actually
+// subscribed but got bounced here due to a webhook race or stale
+// local subscriptionStatus. Pulls a fresh subscription row from
+// Supabase and re-routes them into the app on success.
+async function _pricingRecheck() {
+  toast('Checking subscription status...', '');
+  try {
+    // Force the local user's status to be re-pulled from Supabase
+    await hydrateSubscription();
+  } catch (e) { console.warn('[_pricingRecheck] hydrate failed:', e); }
+  const u = U();
+  if (u && userIsSubscribed(u)) {
+    toast('Subscription confirmed — welcome back', 'good');
+    try { hidePricingScreen(); } catch (e) {}
+    try { postLoginRouting(); } catch (e) {}
+  } else {
+    // Still no positive status — give the user concrete next steps
+    toast('No active subscription found for this account. Check your inbox for the Stripe confirmation email or contact support.', 'error');
+    console.warn('[_pricingRecheck] user still not subscribed after re-hydrate:', {
+      role: u?.role,
+      status: u?.subscriptionStatus,
+      trialEnd: u?.trialEnd,
+      periodEnd: u?.subscriptionPeriodEnd,
+    });
+  }
+}
+
 // Open the Stripe-hosted Customer Portal so the user can manage their
 // subscription (update card, view invoices, cancel, reactivate). Reads
 // the current Supabase session, posts the access token to our
@@ -19888,7 +19968,7 @@ async function loginWithEmail() {
   toast(`Welcome back, ${state.users[userId].name.split(' ')[0]}`, 'good');
 }
 
-function loginAsExisting(userId) {
+async function loginAsExisting(userId) {
   if (!state) state = newEmptyState();
   if (!state.users[userId]) { toast('Account not found', 'error'); return; }
   if (!state.users[userId].claimed) { toast('That account hasn\'t been claimed yet — sign up to claim it', 'error'); return; }
@@ -19905,6 +19985,10 @@ function loginAsExisting(userId) {
     }, 200);
   }
   saveState();
+  // Pull fresh subscription status from Supabase before routing — same
+  // as the email-signin path. Without this, a stale local 'none' status
+  // would bounce a really-subscribed user to the pricing screen.
+  try { await hydrateSubscription(); } catch (e) { console.warn('[loginAsExisting] hydrate failed:', e); }
   postLoginRouting();
 }
 
@@ -23294,7 +23378,7 @@ Object.assign(window, {
   _ntpdStatusChange, _ntpdCityChange, _ntpdVenueChange, _ntpdBulkStatus,
   showLoginScreen, hideLoginScreen, loginWithEmail, loginAsExisting, signUp, logout, showLoginForm, showSignupForm, toggleAccountMenu, closeAccountMenu,
   showLandingScreen, hideLandingScreen, landingChoose,
-  showPricingScreen, hidePricingScreen, _pricingSubscribe, _pricingInquire,
+  showPricingScreen, hidePricingScreen, _pricingSubscribe, _pricingInquire, _pricingRecheck,
   _showCrewNoToursModal, _copyCrewEmail,
   showWelcomeScreen, hideWelcomeScreen, _welcomeContinue, _welcomeContinueAsExisting,
   showCrewBlockScreen, hideCrewBlockScreen,
