@@ -13912,6 +13912,63 @@ async function extractPDFText(file) {
 //   Sellable Capacity: 50,000
 //
 // Returns an array of parsed blocks or null if not CAA format.
+
+// ──────────────────────────────────────────────────────────────────────
+// _recoverTruncatedCity(city, country)
+//
+// Last-line defense for PDF font-encoding quirks. Some deal memo PDFs
+// use embedded fonts whose CMap drops accented characters entirely when
+// extracted by PDF.js — "Nürnberg" comes out as "rnberg", "Köln" as
+// "ln", "Zürich" as "rich". The earlier Unicode-aware regex catches
+// most cases, but if the accent is physically absent from the text
+// stream there's nothing for the regex to grab.
+//
+// This map covers the common European festival/touring hosts. When the
+// extracted city matches a known truncated tail (with optional country
+// hint to disambiguate), we substitute the full name. Add new entries
+// here as we encounter them in real tour data — no algorithmic guessing,
+// only confirmed mappings, so we never silently rewrite a legitimate
+// city to the wrong one.
+function _recoverTruncatedCity(city, country) {
+  if (!city) return null;
+  const key = city.trim().toLowerCase();
+  // tail → { full, country (optional disambiguator) }
+  const KNOWN = {
+    // Germany — the umlaut casualties
+    'rnberg':    { full: 'Nürnberg',    country: 'Germany' },
+    'sseldorf':  { full: 'Düsseldorf',  country: 'Germany' },
+    'ln':        { full: 'Köln',        country: 'Germany' },
+    'nchen':     { full: 'München',     country: 'Germany' },
+    'rzburg':    { full: 'Würzburg',    country: 'Germany' },
+    'ttingen':   { full: 'Göttingen',   country: 'Germany' },
+    'tersloh':   { full: 'Gütersloh',   country: 'Germany' },
+    'bingen':    { full: 'Tübingen',    country: 'Germany' },
+    'nster':     { full: 'Münster',     country: 'Germany' },
+    'snabrck':   { full: 'Osnabrück',   country: 'Germany' },
+    'saarbrcken':{ full: 'Saarbrücken', country: 'Germany' },
+    // Switzerland
+    'rich':      { full: 'Zürich',      country: 'Switzerland' },
+    // Scandinavia
+    'rebro':     { full: 'Örebro',      country: 'Sweden' },
+    'lndal':     { full: 'Mölndal',     country: 'Sweden' },
+    'rnskldsvik':{ full: 'Örnsköldsvik',country: 'Sweden' },
+    'ngelholm':  { full: 'Ängelholm',   country: 'Sweden' },
+    'rhus':      { full: 'Århus',       country: 'Denmark' },
+    'lborg':     { full: 'Aalborg',     country: 'Denmark' },
+    // Austria
+    'sterreich': { full: 'Österreich',  country: 'Austria' },
+  };
+  const hit = KNOWN[key];
+  if (!hit) return null;
+  // If we know a country and one was extracted, require it to match.
+  // Otherwise (country missing/unknown) accept the fix — better to
+  // recover than leave the user with garbage.
+  if (hit.country && country && country.trim().toLowerCase() !== hit.country.toLowerCase()) {
+    return null;
+  }
+  return hit.full;
+}
+
 function _extractCAADealMemoBlocks(text) {
   if (!text) return null;
   // Detect CAA shape — these markers together are unique to CAA memos
@@ -14001,22 +14058,41 @@ function _parseCAADealMemoBlock(block) {
   //
   // Look for the line directly under the venue. Try US/CA first (ST code),
   // then international (Country word).
+  //
+  // Unicode-aware city pattern: includes Latin-1 Supplement (U+00C0–U+00FF)
+  // and Latin Extended-A & B (U+0100–U+024F) so cities like Nürnberg,
+  // Düsseldorf, Köln, São Paulo, Zürich, Malmö, Brønshøj parse correctly.
+  // The previous [A-Za-z]-only pattern silently dropped any city name
+  // containing an umlaut/accent/diacritic.
+  const CITY_FIRST_CHAR = 'A-Z\\u00C0-\\u00D6\\u00D8-\\u00DE\\u0100-\\u024F';
+  const CITY_REST_CHAR  = 'A-Za-z\\u00C0-\\u024F';
+  const CITY_PAT = `[${CITY_FIRST_CHAR}][${CITY_REST_CHAR}'\\s\\-\\.]*?`;
   const venueAddrIdx = block.search(/Venue\s*Address/i);
   if (venueAddrIdx >= 0) {
     const addrWindow = block.slice(venueAddrIdx, venueAddrIdx + 400);
     // US/Canada: "City, ST [ZIP]"
-    const usCa = addrWindow.match(/([A-Z][A-Za-z][A-Za-z'\s\-]*?),\s*([A-Z]{2})\s+\d{5}|([A-Z][A-Za-z][A-Za-z'\s\-]*?),\s*([A-Z]{2})\s+[A-Z]\d[A-Z]/);
+    const usCaRe = new RegExp(`(${CITY_PAT}),\\s*([A-Z]{2})\\s+\\d{5}|(${CITY_PAT}),\\s*([A-Z]{2})\\s+[A-Z]\\d[A-Z]`);
+    const usCa = addrWindow.match(usCaRe);
     if (usCa) {
       out.city = (usCa[1] || usCa[3] || '').trim();
       out.state = (usCa[2] || usCa[4] || '').trim();
       out.country = out.state && /^(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT)$/.test(out.state) ? 'Canada' : 'USA';
     } else {
       // International: "City, Country [ZIP]"
-      const intl = addrWindow.match(/([A-Z][A-Za-z][A-Za-z'\s\-]*?),\s+(Belgium|Netherlands|Germany|France|UK|United Kingdom|Ireland|Spain|Italy|Portugal|Denmark|Sweden|Norway|Finland|Poland|Czech Republic|Czechia|Switzerland|Austria|Hungary|Greece|Romania|Estonia|Latvia|Lithuania|Mexico|Brazil|Argentina|Chile|Japan|Australia|New Zealand|Iceland)(?:\s+[\w\d\-]+)?/i);
+      const intlRe = new RegExp(`(${CITY_PAT}),\\s+(Belgium|Netherlands|Germany|France|UK|United Kingdom|Ireland|Spain|Italy|Portugal|Denmark|Sweden|Norway|Finland|Poland|Czech Republic|Czechia|Switzerland|Austria|Hungary|Greece|Romania|Estonia|Latvia|Lithuania|Slovakia|Slovenia|Croatia|Bulgaria|Serbia|Mexico|Brazil|Argentina|Chile|Japan|Australia|New Zealand|Iceland|Luxembourg|Liechtenstein|Monaco|Malta)(?:\\s+[\\w\\d\\-]+)?`, 'i');
+      const intl = addrWindow.match(intlRe);
       if (intl) {
         out.city = intl[1].trim();
         out.country = intl[2].trim();
       }
+    }
+    // Final defense: PDF font encoding sometimes drops accented characters
+    // entirely (Nürnberg → "rnberg"). If the extracted city looks like a
+    // tail-end of a known city, try to recover the full name from a
+    // small known-cities map. Add common festival hosts as we encounter them.
+    if (out.city) {
+      const cityFix = _recoverTruncatedCity(out.city, out.country);
+      if (cityFix) out.city = cityFix;
     }
   }
 
@@ -14200,8 +14276,14 @@ function _parseDealMemoBlock(block) {
   // bleed up into the street-address line above ("Pacific Avenue\n\n
   // Santa Cruz, CA 95060" → just "Santa Cruz" not "Pacific Avenue Santa Cruz").
   // Each city word is "Capital + lowercase" (or hyphenated like Saint-Paul).
-  const cityWord = `[A-Z][a-z]+(?:[\\-'][A-Z][a-z]+)*\\.?`; // Saint-Paul, St., O'Brien
-  const cityMulti = `${cityWord}(?:[ ]${cityWord})*`;        // "Santa Cruz", "San Luis Obispo"
+  // Unicode-aware: includes Latin-1 Supplement + Latin Extended-A/B so
+  // city names with accents (Nürnberg, São Paulo, Düsseldorf, Köln,
+  // Malmö, Brønshøj, München) parse correctly. Without these ranges the
+  // first non-ASCII character would silently terminate the match.
+  const ULU = 'A-Z\\u00C0-\\u00D6\\u00D8-\\u00DE\\u0100-\\u024F'; // uppercase Latin (with extended)
+  const ULL = 'a-z\\u00DF-\\u00F6\\u00F8-\\u00FF\\u0100-\\u024F'; // lowercase Latin (with extended)
+  const cityWord = `[${ULU}][${ULL}]+(?:[\\-'][${ULU}][${ULL}]+)*\\.?`; // Saint-Paul, St., O'Brien, Nürnberg
+  const cityMulti = `${cityWord}(?:[ ]${cityWord})*`;                    // "Santa Cruz", "São Paulo"
   // Match City, ST [ZIP]. ZIP is optional — some memos omit it (e.g. just
   // "Indianapolis, IN" with no ZIP). Look for either a ZIP or a country
   // name on the next line as confirmation it's a real address.
