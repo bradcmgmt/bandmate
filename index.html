@@ -2827,6 +2827,11 @@ body.travel-assistant-mode #travelAssistantArea{
 .ts-tour-item .ts-tour-text .ts-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700}
 .ts-tour-item .ts-tour-text .ts-meta{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.06em;font-weight:500}
 .ts-tour-item .ts-count{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--warm-mute);letter-spacing:.1em}
+.ts-tour-item .ts-unsynced{display:inline-block;margin-left:8px;padding:1px 6px;
+  font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.14em;
+  color:#fdba74;background:rgba(253,186,116,.08);border:1px solid rgba(253,186,116,.4);
+  border-radius:4px;vertical-align:middle;text-transform:uppercase;
+  text-shadow:0 0 4px rgba(253,186,116,.5);animation:tabwarn 2s ease-in-out infinite}
 .ts-action{display:grid;grid-template-columns:24px 1fr;gap:10px;align-items:center;padding:10px 12px;border-radius:8px;color:var(--hi);cursor:pointer;background:transparent;border:1px solid var(--line-2);text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
 .ts-action:hover{background:rgba(232,148,58,.08);border-color:var(--hi)}
 
@@ -4921,8 +4926,24 @@ const db = {
   // mutation paths without us needing to wire each one individually.
   _syncTimer: null,
   _syncInFlight: false,
+  _promoteInFlight: false,
   scheduleActiveTourSync() {
     if (!sb || !state?.currentUserId) return;
+    // Auto-promote on first save. If the active tour has a non-UUID id,
+    // the regular sync would silently skip (see _runActiveTourSync's
+    // early-return at !_isUuid(tour.id)) — meaning the tour exists ONLY
+    // in localStorage and dies on the next page reload. Catch that case
+    // here and promote it to a proper cloud-synced tour. promoteTourToCloud
+    // calls saveState() on success, which re-fires this function and
+    // takes the normal sync path the second time.
+    const tour = state.tours?.[state.currentTourId];
+    if (tour && tour.id !== '_empty' && !_isUuid(tour.id) && !this._promoteInFlight) {
+      this._promoteInFlight = true;
+      this.promoteTourToCloud(tour.id)
+        .catch(e => console.warn('[scheduleActiveTourSync.promote]', e))
+        .finally(() => { this._promoteInFlight = false; });
+      return;
+    }
     if (this._syncTimer) clearTimeout(this._syncTimer);
     this._syncTimer = setTimeout(() => this._runActiveTourSync(), 600);
   },
@@ -5681,10 +5702,27 @@ _onTourChange(payload) {
       });
 
       if (!state) state = newEmptyState();
-      // Drop any previously-hydrated tours for this user so we don't accumulate
-      // stale rows on re-login. Keeps tours owned by other users (stubs) intact.
+      // SAFE MERGE — never delete a local tour unless cloud has the same
+      // row to replace it with. The previous logic blindly wiped every
+      // local tour owned by this user before re-populating from cloud,
+      // which destroyed any tour that hadn't finished its 600ms-debounced
+      // sync (race on tab close, stub-owner state at creation time, etc).
+      // Now: cloud is authoritative for tours that exist in BOTH places,
+      // and local-only tours survive untouched. They get queued for
+      // promotion at the end of this function so they make it to cloud.
+      const cloudTourIds = new Set(tourRows.map(r => r.id));
       Object.keys(state.tours).forEach(tid => {
-        if (state.tours[tid]?.ownerId === userId) delete state.tours[tid];
+        const t = state.tours[tid];
+        if (!t) return;
+        if (t.ownerId !== userId) return; // not this user's tour
+        if (cloudTourIds.has(tid)) {
+          // Cloud has this tour — overwrite is safe because we're about
+          // to repopulate it from the cloud row below.
+          delete state.tours[tid];
+        }
+        // Else: local-only tour, leave it alone. Either the user just
+        // created it and the sync is still pending, or sync silently
+        // skipped for some structural reason — either way, never delete.
       });
       tourRows.forEach(row => {
         const dates = (datesByTour[row.id] || []).map(d => {
@@ -5699,9 +5737,35 @@ _onTourChange(payload) {
       });
       // Pick a current tour if none set, or if current is gone
       if (!state.currentTourId || !state.tours[state.currentTourId]) {
-        state.currentTourId = tourRows[0].id;
+        state.currentTourId = tourRows[0]?.id || state.currentTourId;
       }
       saveState();
+      // Queue local-only tours for cloud promotion. Anything that survived
+      // the merge above (this user's tours that AREN'T in the cloud row
+      // list) is a tour the user built locally but the cloud doesn't know
+      // about yet. Promote it asynchronously after hydrate returns so
+      // the UI isn't blocked.
+      const orphans = Object.keys(state.tours).filter(tid => {
+        const t = state.tours[tid];
+        return t && t.ownerId === userId && !cloudTourIds.has(tid);
+      });
+      if (orphans.length) {
+        console.log(`[hydrateUserData] ${orphans.length} unsynced local tour(s) — queueing for promotion`);
+        setTimeout(async () => {
+          for (const tid of orphans) {
+            try {
+              if (_isUuid(tid)) {
+                // UUID id, just push to cloud (it never made it the first time)
+                const tour = state.tours[tid];
+                if (tour) await this.upsertTour(tour);
+              } else {
+                // Legacy non-UUID id — needs a fresh UUID + re-keying
+                await this.promoteTourToCloud(tid);
+              }
+            } catch (e) { console.warn('[hydrateUserData.promote]', tid, e); }
+          }
+        }, 1200);
+      }
       return { tours: tourRows.length, dates: (dateRows || []).length };
     } catch (e) {
       this._err('hydrate', e);
@@ -18664,11 +18728,17 @@ function renderTourSwitcher() {
       const dateRange = (startISO || endISO)
         ? `${fmtMD(startISO)} → ${fmtMD(endISO)}`
         : 'no dates yet';
+      // A tour is "not synced" when its id isn't a UUID (so cloud
+      // writes silently skip) OR its ownerId doesn't match the current
+      // session (ownership disagreement, RLS would block the write).
+      // The badge tells the user their work isn't safe yet so they
+      // can take action (refresh, sign back in) before they lose it.
+      const isUnsynced = !!t && (!_isUuid(t.id) || (u && t.ownerId && t.ownerId !== u.id));
       return `
-        <button class="ts-tour-item ${isCurrent?'active':''}" type="button" onclick="switchToTour('${t.id}')">
+        <button class="ts-tour-item ${isCurrent?'active':''}" type="button" onclick="switchToTour('${t.id}')" title="${isUnsynced ? 'This tour has not synced to the cloud yet. Edit any field to retry, or refresh the page.' : ''}">
           <span class="ts-check">${isCurrent ? '✓' : ' '}</span>
           <span class="ts-tour-text">
-            <span class="ts-name">${esc(t.name || 'Untitled tour')}</span>
+            <span class="ts-name">${esc(t.name || 'Untitled tour')}${isUnsynced ? ' <span class="ts-unsynced" title="Not synced to cloud — local only">⚠ local</span>' : ''}</span>
             <span class="ts-meta">${esc(t.meta?.artist || '—')} · ${dateRange}</span>
           </span>
           <span class="ts-count">${(t.dates||[]).length}d</span>
@@ -24457,6 +24527,41 @@ async function _chatBootstrap() {
 // Bootstrap once after the user is set up.
 window.addEventListener('load', () => {
   setTimeout(() => { try { _chatBootstrap(); } catch(e){} }, 1500);
+});
+
+// ────────────────────────────────────────────────────────────────────
+// Pending-sync flush on tab close / visibility hidden.
+//
+// saveState() schedules a 600ms-debounced cloud sync. If the user
+// closes the tab within that window — common when creating a new tour
+// and immediately navigating away — the timer never fires and the
+// changes never reach Supabase. On their next login, hydrateUserData
+// finds nothing in the cloud and (pre-fix) wiped the local copy too.
+//
+// These listeners cancel the debounce and fire the sync immediately
+// so we have a fighting chance of completing the request before the
+// tab dies. Browsers give a few hundred ms grace on beforeunload for
+// in-flight requests, which is usually enough for one upsert.
+//
+// visibilitychange covers mobile (Safari, Chrome Android), which may
+// kill a tab without firing beforeunload first. Visibility going to
+// "hidden" is the only reliable signal.
+function _flushPendingSync() {
+  try {
+    if (db._syncTimer) {
+      clearTimeout(db._syncTimer);
+      db._syncTimer = null;
+    }
+    // Don't await — beforeunload listeners can't wait on promises.
+    // Fire-and-forget; the browser will let the in-flight request
+    // finish if it can.
+    db._runActiveTourSync();
+  } catch (e) { /* nothing useful we can do on tab teardown */ }
+}
+window.addEventListener('beforeunload', _flushPendingSync);
+window.addEventListener('pagehide', _flushPendingSync);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') _flushPendingSync();
 });
 
 /* expose handlers used by inline onclick */
