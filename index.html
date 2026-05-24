@@ -5414,42 +5414,76 @@ _onTourChange(payload) {
   // row" via user_id or email match against the JWT, so there's no risk
   // of leaking someone else's billing data.
   //
-  // Two-pass query: the RLS-default `select` already filters by user_id
-  // OR email-match-against-JWT. But if Postgres' query planner gets
-  // confused or the row has neither set, the email-explicit fallback
-  // makes sure we still find it. Logs both attempts for debugging.
+  // Three-pass query:
+  //   1. Most recent POSITIVE row (trialing/active) — preferred, since a
+  //      user with multiple subscriptions might have an old canceled
+  //      one AND a current active one. Without this filter, a newer
+  //      canceled row would clobber an older still-active one and lock
+  //      the user out.
+  //   2. Most recent row of ANY status (fallback) — handles users
+  //      whose subscription is genuinely canceled/past_due so the UI
+  //      can show the right message.
+  //   3. Explicit email lookup (legacy belt-and-suspenders) — for rows
+  //      whose user_id is null but the JWT email matches.
   async fetchSubscription() {
     if (!sb) return null;
-    // Pass 1 — let RLS do the filtering (matches by user_id OR JWT email)
-    const { data, error } = await sb.from('subscriptions')
-      .select('status, current_period_end, trial_end, plan, cancel_at_period_end, stripe_customer_id, email, user_id')
+    const COLUMNS = 'status, current_period_end, trial_end, plan, cancel_at_period_end, stripe_customer_id, email, user_id';
+
+    // Pass 1 — prefer the most recent active/trialing row
+    const { data: positive, error: e1 } = await sb.from('subscriptions')
+      .select(COLUMNS)
+      .in('status', ['trialing', 'active'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (error) { console.warn('[db.fetchSubscription] pass1 error:', error); }
-    if (data) {
-      console.log('[db.fetchSubscription] found:', { status: data.status, user_id: data.user_id, email: data.email });
-      return data;
+    if (e1) console.warn('[db.fetchSubscription] pass1 (positive) error:', e1);
+    if (positive) {
+      console.log('[db.fetchSubscription] found positive:', { status: positive.status, customerId: positive.stripe_customer_id, email: positive.email });
+      return positive;
     }
-    // Pass 2 — explicit email lookup as a belt-and-suspenders fallback.
-    // Useful when the user signed up AFTER paying (subscription row has
-    // email but user_id is null) and the JWT email matches the row.
+
+    // Pass 2 — most recent row of ANY status (so canceled/past_due
+    // states still surface accurate UI messaging)
+    const { data: anyStatus, error: e2 } = await sb.from('subscriptions')
+      .select(COLUMNS)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (e2) console.warn('[db.fetchSubscription] pass2 (any) error:', e2);
+    if (anyStatus) {
+      console.log('[db.fetchSubscription] found (non-positive):', { status: anyStatus.status, customerId: anyStatus.stripe_customer_id, email: anyStatus.email });
+      return anyStatus;
+    }
+
+    // Pass 3 — explicit email lookup as final fallback for rows whose
+    // user_id is null but the JWT email matches them. Same status
+    // priority order.
     let sessionEmail = null;
     try {
       const { data: { session } } = await sb.auth.getSession();
       sessionEmail = session?.user?.email || null;
     } catch (e) {}
     if (sessionEmail) {
-      const { data: byEmail, error: e2 } = await sb.from('subscriptions')
-        .select('status, current_period_end, trial_end, plan, cancel_at_period_end, stripe_customer_id, email, user_id')
+      const { data: byEmailPos } = await sb.from('subscriptions')
+        .select(COLUMNS)
+        .ilike('email', sessionEmail)
+        .in('status', ['trialing', 'active'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (byEmailPos) {
+        console.log('[db.fetchSubscription] found via email+positive fallback:', { status: byEmailPos.status });
+        return byEmailPos;
+      }
+      const { data: byEmailAny } = await sb.from('subscriptions')
+        .select(COLUMNS)
         .ilike('email', sessionEmail)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (e2) console.warn('[db.fetchSubscription] pass2 error:', e2);
-      if (byEmail) {
-        console.log('[db.fetchSubscription] found via email fallback:', { status: byEmail.status, email: byEmail.email });
-        return byEmail;
+      if (byEmailAny) {
+        console.log('[db.fetchSubscription] found via email fallback:', { status: byEmailAny.status });
+        return byEmailAny;
       }
     }
     console.warn('[db.fetchSubscription] no subscription row found for current session. JWT email =', sessionEmail);
