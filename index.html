@@ -3051,6 +3051,37 @@ body.travel-assistant-mode #travelAssistantArea{
   color:var(--hi);cursor:pointer;font-family:'Inter',sans-serif;font-weight:700;font-size:14px;letter-spacing:.02em;
   transition:all .15s ease;margin-top:auto}
 .pc-cta:hover{background:rgba(232,148,58,.1)}
+/* Status banner at the top of the pricing screen — shown when the
+   user's subscription is in a definitively bad state (canceled,
+   past_due, unpaid). Differentiates "never subscribed" from "lapsed". */
+.pricing-status-banner{display:flex;align-items:center;gap:14px;
+  padding:14px 20px;margin:0 auto 24px;max-width:880px;
+  border-radius:10px;border:1px solid rgba(232,69,69,.45);
+  background:linear-gradient(135deg,rgba(232,69,69,.10),rgba(232,69,69,.02));
+  box-shadow:0 0 24px rgba(232,69,69,.12);position:relative;z-index:5}
+.pricing-status-banner.canceled,
+.pricing-status-banner.expired{border-color:rgba(232,148,58,.5);
+  background:linear-gradient(135deg,rgba(232,148,58,.12),rgba(232,148,58,.02));
+  box-shadow:0 0 24px rgba(232,148,58,.15)}
+.pricing-status-banner .psb-icon{font-size:24px;line-height:1;
+  color:#e84545;flex:none}
+.pricing-status-banner.canceled .psb-icon,
+.pricing-status-banner.expired .psb-icon{color:var(--hi)}
+.pricing-status-banner .psb-body{flex:1;min-width:0}
+.pricing-status-banner .psb-title{font-family:'JetBrains Mono',monospace;
+  font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;
+  color:#ff9595;margin-bottom:3px}
+.pricing-status-banner.canceled .psb-title,
+.pricing-status-banner.expired .psb-title{color:var(--hi)}
+.pricing-status-banner .psb-msg{font-size:13px;line-height:1.5;color:var(--warm)}
+.pricing-status-banner .psb-portal{padding:9px 14px;border-radius:7px;
+  border:1px solid var(--line-2);background:rgba(20,15,11,.6);
+  color:var(--warm);font-family:'JetBrains Mono',monospace;font-size:11px;
+  letter-spacing:.12em;text-transform:uppercase;font-weight:700;cursor:pointer;
+  flex:none;transition:border-color .15s,color .15s,background .15s}
+.pricing-status-banner .psb-portal:hover{border-color:var(--hi);
+  color:var(--hi);background:rgba(232,148,58,.06)}
+
 /* Subtle "I already subscribed" escape hatch button — sits under the
    pricing CTA. Used by signed-in users who got bounced to pricing due
    to webhook race or stale local state. Re-pulls subscription from
@@ -19093,7 +19124,16 @@ const BUSINESS_INQUIRY_EMAIL = 'info@bandmate.art';
 // the email-lookup fragility.
 let _pendingStripeCheckoutAfterAuth = false;
 
+// Guard for the auto-recover so renderAll → showPricingScreen → recover
+// → saveState → renderAll loop doesn't fire infinitely. Only ONE
+// auto-recover attempt per page session; once it runs, subsequent
+// showPricingScreen calls skip it.
+let _pricingAutoRecoverFired = false;
+
 function showPricingScreen() {
+  // Don't re-show if we're already on it — guards against renderAll
+  // calling this repeatedly on every realtime echo + tick.
+  const alreadyShowing = document.getElementById('pricingScreen') && !document.getElementById('pricingScreen').hidden;
   document.getElementById('app').hidden = true;
   document.getElementById('onboarding').classList.add('hidden');
   document.getElementById('landingScreen').hidden = true;
@@ -19110,14 +19150,59 @@ function showPricingScreen() {
     document.body.classList.add('bg-video-on');
   } else {
     document.body.classList.remove('bg-video-on');
-    // Auto-recovery: signed-in user bouncing to pricing might be a
-    // race condition where their subscription IS in Supabase but the
-    // local subscriptionStatus is stale. Silently re-pull the row a
-    // moment after open; if it confirms a positive status, route
-    // them straight into the app without them touching anything.
-    setTimeout(() => { try { _pricingAutoRecover(); } catch (e) {} }, 800);
+    // Auto-recovery: only fire ONCE per session. Without the guard,
+    // renderAll → showPricingScreen → recover → hydrate → saveState
+    // → realtime echo → renderAll → showPricingScreen loops forever.
+    if (!_pricingAutoRecoverFired && !alreadyShowing) {
+      _pricingAutoRecoverFired = true;
+      setTimeout(() => { try { _pricingAutoRecover(); } catch (e) {} }, 800);
+    }
   }
+  // Surface a clearer message for users whose subscription has been
+  // canceled or otherwise blocked (vs the generic landing pitch).
+  if (!isPreAuth) _renderPricingStatusBanner();
   window.scrollTo(0, 0);
+}
+
+// Show a status banner at the top of the pricing screen when the user
+// has a definitive negative subscription status (canceled, past_due,
+// unpaid). Helps differentiate "you've never subscribed" from "your
+// subscription lapsed and needs reactivation".
+function _renderPricingStatusBanner() {
+  const u = U();
+  if (!u || u.role !== 'tm') return;
+  const status = u.subscriptionStatus;
+  const screen = document.getElementById('pricingScreen');
+  if (!screen) return;
+  // Remove any prior banner before injecting a new one
+  const prior = document.getElementById('pricingStatusBanner');
+  if (prior) prior.remove();
+  let msg = '';
+  let kind = '';
+  if (status === 'canceled') {
+    msg = 'Your subscription is canceled. Subscribe again to restore access. You can also reactivate from your Stripe billing portal if you canceled by mistake.';
+    kind = 'canceled';
+  } else if (status === 'past_due' || status === 'unpaid') {
+    msg = 'Your last payment failed. Update your card to restore access.';
+    kind = 'past_due';
+  } else if (status === 'incomplete_expired') {
+    msg = 'Your subscription expired before payment completed. Subscribe again below.';
+    kind = 'expired';
+  }
+  if (!msg) return;
+  const banner = document.createElement('div');
+  banner.id = 'pricingStatusBanner';
+  banner.className = 'pricing-status-banner ' + kind;
+  banner.innerHTML = `
+    <div class="psb-icon">⚠</div>
+    <div class="psb-body">
+      <div class="psb-title">Subscription ${esc(status)}</div>
+      <div class="psb-msg">${esc(msg)}</div>
+    </div>
+    <button type="button" class="psb-portal" onclick="openSubscriptionPortal()">Open billing portal →</button>
+  `;
+  // Insert at the very top of the pricing screen content
+  screen.insertBefore(banner, screen.firstChild);
 }
 
 // Silent auto-recovery for signed-in users who land on the pricing
@@ -19145,6 +19230,9 @@ async function _pricingAutoRecover() {
     isSubscribed: u2 && userIsSubscribed(u2),
   });
   if (u2 && userIsSubscribed(u2)) {
+    // Reset the guard — they're back in the app, future pricing bounces
+    // (if any) should get a fresh auto-recovery attempt.
+    _pricingAutoRecoverFired = false;
     try { hidePricingScreen(); } catch (e) {}
     try { postLoginRouting(); } catch (e) {}
     toast('Subscription confirmed', 'good');
