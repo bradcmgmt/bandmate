@@ -13892,6 +13892,179 @@ async function extractPDFText(file) {
   }
 }
 
+// CAA-format deal memo parser. CAA uses a totally different layout from
+// Wasserman — labels like SHOW DATE(S):, VENUE:, BUYER:, DEAL TERMS:.
+// Touring agents at CAA send these as one PDF per show OR as a bundle.
+// Each block looks roughly like:
+//
+//   CREATIVE ARTISTS AGENCY
+//   ...
+//   Booking#: 1081206
+//   CLIENT: Set It Off
+//   # Shows: 1  Doors Open: Time TBD  ...
+//   SHOW DATE(S): Sun 21 Jun, 2026
+//   VENUE: Festivalpark Stenehei (Graspop Metal Meeting)
+//   Venue Address Kastelsedijk
+//   Dessel, Belgium 2480
+//   BUYER: GMM festival BVBA - Zandbergen, Dessel, Belgium 2480
+//   DEAL TERMS: 20,000 EUR Flat Guarantee...
+//   ...
+//   Sellable Capacity: 50,000
+//
+// Returns an array of parsed blocks or null if not CAA format.
+function _extractCAADealMemoBlocks(text) {
+  if (!text) return null;
+  // Detect CAA shape — these markers together are unique to CAA memos
+  const isCAA = /CREATIVE\s+ARTISTS\s+AGENCY/i.test(text)
+    || (/SHOW\s+DATE\(S\):/i.test(text) && /VENUE:/i.test(text) && /BUYER:/i.test(text));
+  if (!isCAA) return null;
+  // Split on Booking# boundaries for multi-show bundles. CAA bundles
+  // each show with its own Booking#, so this is the cleanest split.
+  // Fall back to splitting on "CREATIVE ARTISTS AGENCY" header if no
+  // Booking# markers. Single-memo files end up with one block either way.
+  let blocks = text.split(/(?=Booking#:\s*\d+)/i).filter(s => s.trim().length > 200);
+  if (blocks.length < 2) {
+    blocks = text.split(/(?=CREATIVE\s+ARTISTS\s+AGENCY)/i).filter(s => s.trim().length > 200);
+  }
+  if (!blocks.length) blocks = [text];
+  const out = [];
+  for (const b of blocks) {
+    const parsed = _parseCAADealMemoBlock(b);
+    if (parsed && (parsed.date || parsed.venue || parsed.city)) out.push(parsed);
+  }
+  return out.length ? out : null;
+}
+
+function _parseCAADealMemoBlock(block) {
+  const out = {};
+  const months = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12 };
+
+  // ── Date ────────────────────────────────────────────────────────────
+  // CAA format: "SHOW DATE(S): Sun 21 Jun, 2026" or just "21 Jun, 2026"
+  // Tolerate the optional weekday prefix and trailing parenthetical.
+  // Look near the SHOW DATE(S) label first for accuracy.
+  const dates = [];
+  const dateLabelIdx = block.search(/SHOW\s+DATE\(S\):/i);
+  if (dateLabelIdx >= 0) {
+    const window = block.slice(dateLabelIdx, dateLabelIdx + 200);
+    // Pattern: "(Optional weekday) DD MonthName(,)? YYYY"
+    const m = window.match(/(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)?\s*(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*,?\s+(\d{4})/i);
+    if (m) {
+      const monIdx = months[m[2].toLowerCase().slice(0,3)];
+      if (monIdx) {
+        const iso = `${m[3]}-${String(monIdx).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
+        dates.push(iso);
+      }
+    }
+  }
+  // Fallback: any DD-MonthName-YYYY anywhere in the block (first match wins)
+  if (!dates.length) {
+    const m = block.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*,?\s+(\d{4})\b/i);
+    if (m) {
+      const monIdx = months[m[2].toLowerCase().slice(0,3)];
+      if (monIdx) {
+        const iso = `${m[3]}-${String(monIdx).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
+        dates.push(iso);
+      }
+    }
+  }
+  out.date = dates[0] || '';
+  out.dates = dates;
+
+  // ── Venue ───────────────────────────────────────────────────────────
+  // "VENUE: Festivalpark Stenehei (Graspop Metal Meeting)" — when the
+  // parenthetical is present, that's usually the festival name (the
+  // more recognizable one); the bare name is the venue. Prefer the
+  // parenthetical as the user-facing label since it's what TMs will
+  // recognize when scanning their dashboard.
+  const venueMatch = block.match(/VENUE:\s*([^\n\r]+)/i);
+  if (venueMatch) {
+    const raw = venueMatch[1].trim();
+    const parenMatch = raw.match(/^([^(]+?)\s*\(([^)]+)\)/);
+    if (parenMatch) {
+      out.venue = parenMatch[2].trim(); // festival/recognizable name
+      out._venueSecondary = parenMatch[1].trim(); // physical venue name
+    } else {
+      out.venue = raw;
+    }
+  }
+
+  // ── City / State / Country ──────────────────────────────────────────
+  // CAA layouts vary, but the address block under "Venue Address" follows
+  // this shape:
+  //   Venue Address Kastelsedijk       ← street (may be on same line as label)
+  //   Dessel, Belgium 2480             ← City, Country ZIP
+  //
+  // OR for US shows:
+  //   123 Main St
+  //   Brooklyn, NY 11201               ← City, ST ZIP
+  //
+  // Look for the line directly under the venue. Try US/CA first (ST code),
+  // then international (Country word).
+  const venueAddrIdx = block.search(/Venue\s*Address/i);
+  if (venueAddrIdx >= 0) {
+    const addrWindow = block.slice(venueAddrIdx, venueAddrIdx + 400);
+    // US/Canada: "City, ST [ZIP]"
+    const usCa = addrWindow.match(/([A-Z][A-Za-z][A-Za-z'\s\-]*?),\s*([A-Z]{2})\s+\d{5}|([A-Z][A-Za-z][A-Za-z'\s\-]*?),\s*([A-Z]{2})\s+[A-Z]\d[A-Z]/);
+    if (usCa) {
+      out.city = (usCa[1] || usCa[3] || '').trim();
+      out.state = (usCa[2] || usCa[4] || '').trim();
+      out.country = out.state && /^(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT)$/.test(out.state) ? 'Canada' : 'USA';
+    } else {
+      // International: "City, Country [ZIP]"
+      const intl = addrWindow.match(/([A-Z][A-Za-z][A-Za-z'\s\-]*?),\s+(Belgium|Netherlands|Germany|France|UK|United Kingdom|Ireland|Spain|Italy|Portugal|Denmark|Sweden|Norway|Finland|Poland|Czech Republic|Czechia|Switzerland|Austria|Hungary|Greece|Romania|Estonia|Latvia|Lithuania|Mexico|Brazil|Argentina|Chile|Japan|Australia|New Zealand|Iceland)(?:\s+[\w\d\-]+)?/i);
+      if (intl) {
+        out.city = intl[1].trim();
+        out.country = intl[2].trim();
+      }
+    }
+  }
+
+  // ── Capacity ────────────────────────────────────────────────────────
+  // CAA puts "Sellable Capacity: 50,000" in the ticket scaling section.
+  // For festivals with multiple stages, also check "Stage Name (Ncap)"
+  // patterns in the Billing section since that's where the actual show
+  // stage size lives.
+  const sellMatch = block.match(/Sellable\s+Capacity:\s*([\d,]+)/i);
+  if (sellMatch) {
+    out.capacity = sellMatch[1].replace(/,/g, '');
+  } else {
+    const stageMatch = block.match(/\(([\d,]+)\s*cap\)/i);
+    if (stageMatch) out.capacity = stageMatch[1].replace(/,/g, '');
+  }
+
+  // ── Promoter / Buyer ────────────────────────────────────────────────
+  // "BUYER: GMM festival BVBA (VAT: 0811 589 003) - Zandbergen, Dessel, Belgium 2480"
+  // We want just the company name — strip everything after the first
+  // parenthetical or hyphen so the dashboard column stays readable.
+  const buyerMatch = block.match(/BUYER:\s*([^\n\r(\-]+)/i);
+  if (buyerMatch) {
+    out.promoter = buyerMatch[1].trim();
+  }
+
+  // ── Guarantee ───────────────────────────────────────────────────────
+  // "DEAL TERMS: 20,000 EUR Flat Guarantee" or with $/£/€
+  const guarMatch = block.match(/DEAL\s+TERMS:\s*([\d,]+(?:\.\d+)?)\s*(USD|EUR|GBP|CAD|\$|£|€)/i)
+    || block.match(/Guarantee:\s*([\d,]+(?:\.\d+)?)\s*(USD|EUR|GBP|CAD)/i);
+  if (guarMatch) {
+    out.guarantee = parseFloat(guarMatch[1].replace(/,/g, '')) || 0;
+  }
+
+  // ── Set time (from the Billing block, if present) ───────────────────
+  // Festival memos often list the artist's set window like:
+  //   Set It Off (4th from top; 17:25-18:10)
+  // Grab the FIRST time from that line for the dashboard setTime field.
+  const setMatch = block.match(/Set It Off[^\n]*?\(([^)]*?(\d{1,2}:\d{2})[^)]*?)\)/i);
+  if (setMatch) {
+    out.setTime = setMatch[2];
+  }
+
+  // ── Status — always 'show' for a deal memo ──────────────────────────
+  out.status = 'show';
+
+  return out;
+}
+
 // Multi-deal-memo PDF parser. Touring agents bundle every show on a leg
 // into one fat PDF — typically 25-40 deal memos back to back. Each memo
 // follows a stable Wasserman/CAA/UTA-style template:
@@ -14540,6 +14713,61 @@ function processTextDoc(text, file, result) {
   // memo, so single-file uploads parse just as cleanly as bundled ones.
   // Cross-file order is handled later by mergeImportResults (sort by date)
   // and fillDateGapsWithOffDays (auto-insert off-days between legs).
+  // Try CAA format FIRST (it has distinctive markers that Wasserman doesn't).
+  // CAA deal memos use SHOW DATE(S), VENUE, BUYER, DEAL TERMS labels.
+  const caaBlocks = _extractCAADealMemoBlocks(text);
+  if (caaBlocks && caaBlocks.length >= 1) {
+    const filenameDate = _extractDateFromFilename(file.name);
+    let totalShows = 0;
+    caaBlocks.forEach(b => {
+      let nights = (b.dates && b.dates.length) ? b.dates : [b.date || ''];
+      if (filenameDate) {
+        nights = nights.map(d => d || filenameDate);
+        if (!b.date) b.date = filenameDate;
+      }
+      nights.forEach((d, i) => {
+        result.extracted.dates.push({
+          date: d || '',
+          city: b.city || '',
+          state: b.state || '',
+          country: b.country || '',
+          venue: b.venue || '',
+          capacity: b.capacity || '',
+          doors: '', setTime: b.setTime || '',
+          promoter: b.promoter || '',
+          guarantee: (b.guarantee || 0) / nights.length,
+          status: 'show',
+          notes: nights.length > 1 ? `CAA deal memo · night ${i + 1} of ${nights.length}` : 'CAA deal memo · ' + file.name,
+          _source: file.name,
+        });
+        totalShows++;
+      });
+    });
+    if (caaBlocks.length === 1) {
+      result.notes.push(`CAA deal memo · ${totalShows} show${totalShows===1?'':'s'} extracted`);
+    } else {
+      result.notes.push(`CAA deal memos · ${totalShows} show${totalShows===1?'':'s'} across ${caaBlocks.length} memo${caaBlocks.length===1?'':'s'}`);
+    }
+    // Pull emails for contacts
+    const emails = _extractEmails(text);
+    emails.slice(0, 30).forEach(e => {
+      const namePart = e.split('@')[0].replace(/[._]/g, ' ');
+      result.extracted.contacts.push({
+        name: titleCase(namePart),
+        email: e,
+        role: 'Promoter',
+        organization: e.split('@')[1].split('.')[0],
+        notes: 'Extracted from ' + file.name,
+      });
+    });
+    if (emails.length) result.notes.push(`Contacts · ${Math.min(emails.length, 30)} emails extracted`);
+    // IMPORTANT: skip _extractTravelAndHotelsInto for CAA memos — the
+    // bank wire-transfer block contains addresses (JPMorgan Chase, etc.)
+    // that the generic hotel/travel scanner misreads as a hotel. Real
+    // CAA memos don't have travel info inline anyway.
+    return;
+  }
+
   const memoBlocks = _extractDealMemoBlocks(text);
   if (memoBlocks && memoBlocks.length >= 1) {
     // Filename fallback: if a memo block came back with no date but the
