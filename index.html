@@ -14883,6 +14883,283 @@ function _parseDateLoose(text) {
   return '';
 }
 
+// ════════════════════════════════════════════════════════════════════
+// GENERIC DEAL-MEMO PARSER
+//
+// Catches everything that isn't CAA or Wasserman: WME, UTA, IAG, The
+// Team, Paradigm, ICM, AAM, X-ray, Primary Talent, regional agencies,
+// promoter-direct memos, etc. The CAA and Wasserman parsers are kept
+// because their templates have unique landmarks worth specializing on
+// — but most agencies converge on the same core label set:
+//
+//   DATE / SHOW DATE / Performance Date / Engagement Date
+//   VENUE / Venue Name / Performance Venue / Location
+//   CAPACITY / Sellable Capacity / Total Capacity
+//   GUARANTEE / Fee / Performance Fee / Compensation / DEAL TERMS
+//   PROMOTER / BUYER / Purchaser / Presenter
+//   DOORS / Doors Open
+//   SET / Set Time / Show Time / Performance Time / Stage Time
+//   CURFEW
+//
+// The generic parser hunts for these labels regardless of agency, then
+// reuses the same city/venue extraction helpers (line-based parsing,
+// _splitCamelCity, _recoverTruncatedCity) we built for CAA so accented
+// city names and PDF newline-collapse artifacts work everywhere.
+//
+// Detection precedence in processTextDoc: CAA → Wasserman → Generic →
+// single-show fallback. The first parser whose extractor returns
+// blocks wins.
+
+// Sniff the agency name from the memo header. Used to label the import
+// for the TM (e.g. "WME deal memo · 3 shows extracted") and to skip
+// agency-specific noise downstream (e.g. CAA's bank wire-transfer
+// block masquerading as a hotel address). Returns 'unknown' when the
+// header doesn't match anything we recognize.
+function _detectMemoAgency(text) {
+  if (!text) return 'unknown';
+  const t = text.slice(0, 4000); // header region is enough
+  if (/CREATIVE\s+ARTISTS\s+AGENCY|\bCAA\b\s+(?:Agency|Music|Tour)/i.test(t)) return 'CAA';
+  if (/\bWasserman\b/i.test(t)) return 'Wasserman';
+  if (/WILLIAM\s+MORRIS\s+ENDEAVOR|\bWME\b\s+(?:Entertainment|Music|Live|Talent)/i.test(t)) return 'WME';
+  if (/UNITED\s+TALENT\s+AGENCY|\bUTA\b\s+(?:Music|Talent|Live)/i.test(t)) return 'UTA';
+  if (/\bThe\s+Team\b\s+(?:Talent|Agency|Booking)/i.test(t)) return 'The Team';
+  if (/INTERNATIONAL\s+ARTISTS\s+GROUP|\bIAG\b\s+(?:Music|Agency)/i.test(t)) return 'IAG';
+  if (/\bParadigm\s+(?:Talent|Agency|Music)/i.test(t)) return 'Paradigm';
+  if (/\bICM\s+Partners\b|\bICM\b\s+(?:Music|Talent)/i.test(t)) return 'ICM';
+  if (/\bAAM\b\s+(?:Music|Agency)|All\s+Access\s+Music/i.test(t)) return 'AAM';
+  if (/\bPrimary\s+Talent\b/i.test(t)) return 'Primary Talent';
+  if (/\bX-?ray\s+(?:Touring|Agency)\b/i.test(t)) return 'X-ray Touring';
+  if (/\bLive\s+Nation\b\s+(?:Touring|Promoter)/i.test(t)) return 'Live Nation';
+  if (/\bAEG\s+Presents\b/i.test(t)) return 'AEG Presents';
+  return 'unknown';
+}
+
+// Split a multi-show memo bundle into one block per show. Agencies vary
+// in how they delimit shows in a bundled PDF; we try the most common
+// markers in order and fall back to treating the whole text as one
+// show. The 200-char min length keeps us from creating tiny noise
+// blocks if the split lands inside a single show by mistake.
+function _extractGenericMemoBlocks(text) {
+  if (!text || text.length < 100) return null;
+  // Try a series of boundary patterns in priority order. Each agency
+  // tends to use ONE of these as its per-show separator.
+  const SPLIT_PATTERNS = [
+    /(?=Booking\s*#:?\s*\d+)/gi,         // CAA, WME use Booking#
+    /(?=Engagement\s*#:?\s*\d+)/gi,      // WME, UTA sometimes
+    /(?=Contract\s*#:?\s*\d+)/gi,        // Paradigm, ICM
+    /(?=Show\s*#:?\s*\d+)/gi,             // generic
+    /(?=Confirmation\s*#:?\s*\d+)/gi,    // promoter-direct
+    /\f/g,                                // PDF form-feed
+  ];
+  let blocks = [text];
+  for (const re of SPLIT_PATTERNS) {
+    const tryBlocks = text.split(re).filter(s => s.trim().length > 200);
+    if (tryBlocks.length > 1) { blocks = tryBlocks; break; }
+  }
+  const out = [];
+  for (const b of blocks) {
+    const parsed = _parseGenericMemoBlock(b);
+    if (parsed && (parsed.date || parsed.venue || parsed.city)) out.push(parsed);
+  }
+  return out.length ? out : null;
+}
+
+// Extract structured fields from a single deal-memo block using the
+// universal labels that nearly every agency template uses. When two
+// labels collide (e.g. "Show Date" AND "Engagement Date" appear), we
+// take whichever appears first — that's almost always the actual
+// performance date, with the second being a metadata duplicate.
+function _parseGenericMemoBlock(block) {
+  if (!block) return null;
+  const out = {};
+  const months = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12 };
+
+  // ── Date ────────────────────────────────────────────────────────────
+  // Look for labeled dates first (most reliable), fall back to any
+  // recognizable date in the first 600 chars of the block (the header
+  // region — body text often has unrelated dates like deposit due
+  // dates that we don't want to use as the show date).
+  const dateLabelRe = /(?:SHOW\s+DATE(?:\(?S\)?)?|Show\s+Date|Performance\s+Date|Engagement\s+Date|Date\s+of\s+(?:Show|Performance|Engagement)|Event\s+Date|Concert\s+Date|Gig\s+Date|Booking\s+Date|Date)\s*:?\s*([^\n\r]{4,80})/i;
+  const dateLabelMatch = block.match(dateLabelRe);
+  let dateLine = dateLabelMatch ? dateLabelMatch[1] : block.slice(0, 600);
+  // Try several date shapes within the line:
+  let parsedDate = '';
+  // "Sat 21 Jun, 2026" / "21 Jun 2026" / "21-Jun-2026"
+  let dm = dateLine.match(/(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*\s+)?(\d{1,2})[\s\-]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s\-,]+(\d{4})/i);
+  if (dm) {
+    const mn = months[dm[2].toLowerCase().slice(0,3)];
+    parsedDate = `${dm[3]}-${String(mn).padStart(2,'0')}-${String(dm[1]).padStart(2,'0')}`;
+  }
+  // "June 21, 2026" / "Jun 21 2026"
+  if (!parsedDate) {
+    dm = dateLine.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2}),?\s+(\d{4})/i);
+    if (dm) {
+      const mn = months[dm[1].toLowerCase().slice(0,3)];
+      parsedDate = `${dm[3]}-${String(mn).padStart(2,'0')}-${String(dm[2]).padStart(2,'0')}`;
+    }
+  }
+  // "21/06/2026" or "06/21/2026" — disambiguate by first number
+  if (!parsedDate) {
+    dm = dateLine.match(/(\d{1,2})[\/\.](\d{1,2})[\/\.](\d{4})/);
+    if (dm) {
+      const a = parseInt(dm[1], 10), b = parseInt(dm[2], 10), y = dm[3];
+      // If first > 12, it's day-first (European). Otherwise assume US (month-first).
+      const day = a > 12 ? a : b;
+      const mn  = a > 12 ? b : a;
+      if (day >= 1 && day <= 31 && mn >= 1 && mn <= 12) {
+        parsedDate = `${y}-${String(mn).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      }
+    }
+  }
+  // ISO 2026-06-21
+  if (!parsedDate) {
+    dm = dateLine.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (dm) parsedDate = `${dm[1]}-${dm[2]}-${dm[3]}`;
+  }
+  out.date = parsedDate;
+  if (parsedDate) out.dates = [parsedDate];
+
+  // ── Venue ───────────────────────────────────────────────────────────
+  // Hunt for any of the common venue labels. Take the value on the
+  // same line, OR the next non-empty line if the label is alone.
+  const venueLabelRe = /(?:^|\n)\s*(?:VENUE|Venue\s+Name|Performance\s+Venue|Engagement\s+Venue|Location|Site|Place\s+of\s+Performance)\s*:\s*([^\n\r]*)/i;
+  const venueMatch = block.match(venueLabelRe);
+  if (venueMatch) {
+    let raw = (venueMatch[1] || '').trim();
+    // Label-only line — pull the next line as the venue
+    if (!raw) {
+      const afterIdx = block.indexOf(venueMatch[0]) + venueMatch[0].length;
+      const nextLine = (block.slice(afterIdx).split(/[\r\n]+/).map(s => s.trim()).filter(Boolean)[0]) || '';
+      raw = nextLine;
+    }
+    // "Main Venue (Festival Name)" — prefer the festival name as the
+    // primary venue (more recognizable), stash the physical name as
+    // secondary. Same convention CAA parser uses.
+    const parenMatch = raw.match(/^([^(]+?)\s*\(([^)]+)\)\s*$/);
+    if (parenMatch) {
+      out.venue = parenMatch[2].trim();
+      out._venueSecondary = parenMatch[1].trim();
+    } else {
+      out.venue = raw;
+    }
+  }
+
+  // ── City / State / Country ──────────────────────────────────────────
+  // Reuse the same Unicode-aware line-based extractor we built for CAA.
+  // Look in a window centered on the venue line (or first 800 chars if
+  // no venue label was found) — the address always sits adjacent to
+  // the venue label, never deep in the body.
+  const CITY_UPPER = 'A-Z\\u00C0-\\u00D6\\u00D8-\\u00DE\\u0100-\\u024F';
+  const CITY_LOWER = 'a-z\\u00DF-\\u00F6\\u00F8-\\u00FF\\u0100-\\u024F';
+  const CITY_WORD  = `[${CITY_UPPER}][${CITY_LOWER}${CITY_UPPER}]+`;
+  const CITY_PAT   = `${CITY_WORD}(?:[\\s\\-](?:${CITY_WORD}|de|del|la|am|an|im|upon|of|on|du)){0,2}`;
+  const STREET_SUFFIX_RE = /^(?:Stra[sß]e|Strasse|Street|St|Road|Rd|Avenue|Ave|Lane|Ln|Boulevard|Blvd|Platz|Plaza|Weg|Allee|Gasse|Dr|Drive|Court|Ct|Way)\.?\s+/i;
+  let addrWindow = '';
+  if (venueMatch) {
+    const i = block.indexOf(venueMatch[0]);
+    addrWindow = block.slice(i, i + 500);
+  } else {
+    addrWindow = block.slice(0, 1200);
+  }
+  // Strip common address-label prefixes so they don't leak into the
+  // matched city (the same issue the CAA parser hit with "Venue
+  // Address"). Each agency has its own variant of this label.
+  const cleaned = addrWindow.replace(/(?:Venue\s*Address|Address|Location\s*Address|Venue\s*Location)\s*:?\s*/i, '');
+  const lines = cleaned.split(/[\r\n]+/).map(s => s.trim()).filter(Boolean);
+  const usCaRe = new RegExp(`(${CITY_PAT}),\\s*([A-Z]{2})\\s+(?:\\d{5}|[A-Z]\\d[A-Z])`);
+  const intlRe = new RegExp(`(${CITY_PAT}),\\s+(Belgium|Netherlands|Germany|France|UK|United Kingdom|Ireland|Spain|Italy|Portugal|Denmark|Sweden|Norway|Finland|Poland|Czech Republic|Czechia|Switzerland|Austria|Hungary|Greece|Romania|Estonia|Latvia|Lithuania|Slovakia|Slovenia|Croatia|Bulgaria|Serbia|Mexico|Brazil|Argentina|Chile|Japan|Australia|New Zealand|Iceland|Luxembourg|Liechtenstein|Monaco|Malta)(?:\\s+[\\w\\d\\-]+)?`, 'i');
+  for (const line of lines) {
+    const usCa = line.match(usCaRe);
+    if (usCa) {
+      out.city = usCa[1].replace(STREET_SUFFIX_RE, '').trim();
+      out.state = usCa[2].trim();
+      out.country = /^(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT)$/.test(out.state) ? 'Canada' : 'USA';
+      break;
+    }
+    const intl = line.match(intlRe);
+    if (intl) {
+      out.city = intl[1].replace(STREET_SUFFIX_RE, '').trim();
+      out.country = intl[2].trim();
+      break;
+    }
+  }
+  // Apply the same PDF-artifact recoveries we use for CAA so generic
+  // benefits from camelCase split (DoningtonDerby → Derby) and
+  // truncated-tail rescue (rnberg → Nürnberg).
+  if (out.city) out.city = _splitCamelCity(out.city);
+  if (out.city) {
+    const fix = _recoverTruncatedCity(out.city, out.country);
+    if (fix) out.city = fix;
+  }
+
+  // ── Capacity ────────────────────────────────────────────────────────
+  // Try a series of labels in priority order. "Sellable Capacity" is
+  // preferred for festivals where total cap and sellable diverge.
+  const capLabels = [
+    /Sellable\s+Capacity\s*:?\s*([\d,]+)/i,
+    /Total\s+Capacity\s*:?\s*([\d,]+)/i,
+    /(?:Venue\s+)?Capacity\s*:?\s*([\d,]+)/i,
+    /Max\s+Capacity\s*:?\s*([\d,]+)/i,
+    /\bCap(?:acity)?\s*:?\s*([\d,]+)/i,
+    /\(([\d,]+)\s*cap\)/i,
+  ];
+  for (const re of capLabels) {
+    const m = block.match(re);
+    if (m) { out.capacity = m[1].replace(/,/g, ''); break; }
+  }
+
+  // ── Promoter / Buyer ────────────────────────────────────────────────
+  // Take the value up to the first parenthetical (VAT number / address)
+  // or hyphen separator. Same cleanup as the CAA parser.
+  const promoterLabels = [
+    /BUYER\s*:\s*([^\n\r(\-]+)/i,
+    /(?:PROMOTER|Promoter)\s*:\s*([^\n\r(\-]+)/i,
+    /(?:Purchaser|PURCHASER)\s*:\s*([^\n\r(\-]+)/i,
+    /(?:Presenter|PRESENTER)\s*:\s*([^\n\r(\-]+)/i,
+    /(?:Producer|PRODUCER)\s*:\s*([^\n\r(\-]+)/i,
+  ];
+  for (const re of promoterLabels) {
+    const m = block.match(re);
+    if (m) { out.promoter = m[1].trim(); break; }
+  }
+
+  // ── Guarantee ───────────────────────────────────────────────────────
+  // Either "DEAL TERMS: 20,000 USD Flat" or a labeled "Guarantee:" /
+  // "Fee:" line. Currency can come before or after the amount and is
+  // either a symbol or a 3-letter ISO code.
+  const guarLabels = [
+    /DEAL\s+TERMS\s*:?\s*([\d,]+(?:\.\d+)?)\s*(USD|EUR|GBP|CAD|AUD|JPY|CHF|\$|£|€|¥)/i,
+    /(?:Guarantee|GUARANTEE)\s*:?\s*([\d,]+(?:\.\d+)?)\s*(USD|EUR|GBP|CAD|AUD|JPY|CHF|\$|£|€|¥)?/i,
+    /(?:Performance\s+Fee|Artist\s+Fee|Fee)\s*:?\s*([\d,]+(?:\.\d+)?)\s*(USD|EUR|GBP|CAD|AUD|JPY|CHF|\$|£|€|¥)?/i,
+    /(?:Compensation|Total\s+Compensation)\s*:?\s*([\d,]+(?:\.\d+)?)\s*(USD|EUR|GBP|CAD|AUD|JPY|CHF|\$|£|€|¥)?/i,
+    /(USD|EUR|GBP|CAD|AUD|JPY|CHF|\$|£|€|¥)\s*([\d,]+(?:\.\d+)?)\s+(?:Flat\s+)?(?:Guarantee|Fee)/i,
+  ];
+  for (const re of guarLabels) {
+    const m = block.match(re);
+    if (m) {
+      // Some patterns put currency first, amount second — normalize.
+      const amount = /^\d/.test(m[1]) ? m[1] : m[2];
+      if (amount) { out.guarantee = parseFloat(amount.replace(/,/g, '')) || 0; break; }
+    }
+  }
+
+  // ── Times: Doors / Set Time / Show Time / Curfew ────────────────────
+  const timeRe = /(\d{1,2}:\d{2}(?:\s*[AP]M)?)/i;
+  const grabTime = (labels) => {
+    for (const l of labels) {
+      const m = block.match(new RegExp(`${l}\\s*:?\\s*${timeRe.source}`, 'i'));
+      if (m) return m[1];
+    }
+    return '';
+  };
+  out.doors   = grabTime(['Doors(?:\\s+Open)?', 'Door\\s+Time']);
+  out.setTime = grabTime(['(?:Set|Stage|Artist)\\s+Time', 'Set']);
+  out.showTime = grabTime(['Show\\s+Time', 'Performance\\s+Time']);
+  out.curfew  = grabTime(['Curfew']);
+
+  return out;
+}
+
 function processTextDoc(text, file, result) {
   // First try the deal-memo path. Touring agents either bundle ALL memos
   // for a tour into one fat PDF, or send each show as its own file — many
@@ -15002,6 +15279,71 @@ function processTextDoc(text, file, result) {
     if (emails.length) result.notes.push(`Contacts · ${Math.min(emails.length, 30)} emails extracted`);
     // Even on deal-memo files, also scan for travel itinerary blocks.
     // Some agencies bundle the flights / hotels into the same PDF.
+    _extractTravelAndHotelsInto(text, result);
+    return;
+  }
+
+  // Third pass: GENERIC agency parser. Catches WME, UTA, IAG, The Team,
+  // Paradigm, ICM, AAM, X-ray, Live Nation direct, AEG, and any other
+  // agency template we haven't built a specialized parser for. Uses
+  // universal label patterns (VENUE:, CAPACITY:, GUARANTEE:, etc.)
+  // that hold across virtually every agency's memo format.
+  const detectedAgency = _detectMemoAgency(text);
+  const genericBlocks = _extractGenericMemoBlocks(text);
+  if (genericBlocks && genericBlocks.length >= 1) {
+    const filenameDate = _extractDateFromFilename(file.name);
+    let totalShows = 0;
+    genericBlocks.forEach(b => {
+      let nights = (b.dates && b.dates.length) ? b.dates : [b.date || ''];
+      if (filenameDate) {
+        nights = nights.map(d => d || filenameDate);
+        if (!b.date) b.date = filenameDate;
+      }
+      nights.forEach((d, i) => {
+        result.extracted.dates.push({
+          date: d || '',
+          city: b.city || '',
+          state: b.state || '',
+          country: b.country || '',
+          venue: b.venue || '',
+          capacity: b.capacity || '',
+          doors: b.doors || '',
+          setTime: b.setTime || b.showTime || '',
+          promoter: b.promoter || '',
+          guarantee: (b.guarantee || 0) / nights.length,
+          curfew: b.curfew || '',
+          status: 'show',
+          notes: nights.length > 1
+            ? `${detectedAgency === 'unknown' ? 'Deal memo' : detectedAgency + ' deal memo'} · night ${i + 1} of ${nights.length}`
+            : `${detectedAgency === 'unknown' ? 'Deal memo' : detectedAgency + ' deal memo'} · ${file.name}`,
+          _source: file.name,
+        });
+        totalShows++;
+      });
+    });
+    const agencyLabel = detectedAgency === 'unknown' ? 'Deal memo' : `${detectedAgency} deal memo`;
+    if (genericBlocks.length === 1) {
+      result.notes.push(`${agencyLabel} · ${totalShows} show${totalShows===1?'':'s'} extracted`);
+    } else {
+      result.notes.push(`${agencyLabel}s · ${totalShows} show${totalShows===1?'':'s'} across ${genericBlocks.length} memo${genericBlocks.length===1?'':'s'}`);
+    }
+    // Pull emails for contacts (same as CAA / Wasserman paths)
+    const emails = _extractEmails(text);
+    emails.slice(0, 30).forEach(e => {
+      const namePart = e.split('@')[0].replace(/[._]/g, ' ');
+      result.extracted.contacts.push({
+        name: titleCase(namePart),
+        email: e,
+        role: 'Promoter',
+        organization: e.split('@')[1].split('.')[0],
+        notes: 'Extracted from ' + file.name,
+      });
+    });
+    if (emails.length) result.notes.push(`Contacts · ${Math.min(emails.length, 30)} emails extracted`);
+    // Travel + hotels scan — most generic memos don't include itinerary,
+    // but some bundles do (especially promoter-direct), so we run the
+    // scanner. False positives are rare since this path only fires when
+    // labeled deal-memo fields were detected.
     _extractTravelAndHotelsInto(text, result);
     return;
   }
