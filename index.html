@@ -237,6 +237,14 @@ input,select,textarea{font:inherit;color:inherit}
   animation:trial-pulse 2.2s ease-in-out infinite}
 .trial-badge.urgent:hover{border-color:#e84545;color:#fdb3b3;
   box-shadow:inset 0 0 0 1px rgba(232,69,69,.25),0 0 18px rgba(232,69,69,.4)}
+/* Free / granted account variant — calm blue, no urgency animation */
+.trial-badge.granted{border-color:rgba(138,169,216,.5);
+  background:linear-gradient(135deg,rgba(138,169,216,.14),rgba(138,169,216,.04));
+  color:#b1c8ee;
+  box-shadow:inset 0 0 0 1px rgba(138,169,216,.08),0 0 14px rgba(138,169,216,.12);
+  animation:none}
+.trial-badge.granted:hover{border-color:#8aa9d8;color:#cdd9e8;
+  box-shadow:inset 0 0 0 1px rgba(138,169,216,.2),0 0 18px rgba(138,169,216,.3)}
 
 /* Dashboard empty-state start cards. Three paths side-by-side:
    IMPORT (primary, copper accent), MANUAL, DEMO. Always visible
@@ -4335,12 +4343,12 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
       </div>
     </div>
     <div class="right-cluster">
-      <!-- Trial badge: populated by renderTrialBadge() when the user's
-           subscription status is 'trialing'. Click opens the Stripe-hosted
-           billing portal where the TM can update card, view invoices,
-           cancel, or reactivate. Every change auto-syncs via webhook. -->
-      <button type="button" id="trialBadge" class="trial-badge" hidden onclick="openSubscriptionPortal()" title="Manage your subscription, payment method, and billing">
-        <span class="tb-icon">⌛</span>
+      <!-- Account badge: populated by renderTrialBadge() with one of:
+           - "Free trial · N days left" (paying user inside trial period)
+           - "Free account" (legacy or admin-granted access, no Stripe customer)
+           Click opens the Stripe billing portal for paying users; opens
+           an info modal for legacy/free users. Text-only, no emojis. -->
+      <button type="button" id="trialBadge" class="trial-badge" hidden onclick="_trialBadgeClick()" title="Click to manage your subscription">
         <span class="tb-text" id="trialBadgeText">Free trial</span>
       </button>
       <div class="export-dropdown" id="exportDropdown">
@@ -19763,12 +19771,24 @@ async function openSubscriptionPortal() {
     });
     if (!r.ok) {
       let msg = 'Could not open billing portal';
+      let hint = '';
+      let raw = '';
+      try { raw = await r.text(); } catch (e) {}
       try {
-        const j = await r.json();
+        const j = raw ? JSON.parse(raw) : null;
         if (j && j.error) msg = j.error;
-        if (j && j.hint) console.warn('[openSubscriptionPortal]', j.hint);
+        if (j && j.hint) hint = j.hint;
       } catch (e) {}
-      toast(msg, 'error');
+      console.error('[openSubscriptionPortal] failed', { status: r.status, body: raw, msg, hint });
+      // Common case: Stripe Customer Portal isn't enabled in Stripe
+      // Dashboard. Show actionable copy instead of the raw API message.
+      if (/portal.+configuration|configuration.+portal|No configuration/i.test(msg)) {
+        toast('Customer Portal not enabled in Stripe yet. Go to Stripe Dashboard → Settings → Billing → Customer portal → Save.', 'error');
+      } else if (/No subscription found/i.test(msg)) {
+        toast('No active subscription on file for this account.', 'error');
+      } else {
+        toast(`Billing portal error: ${msg}${hint ? ' · ' + hint : ''}`, 'error');
+      }
       return;
     }
     const j = await r.json();
@@ -19783,41 +19803,102 @@ async function openSubscriptionPortal() {
   }
 }
 
-// Trial badge in the topbar. Shows "Free trial · N days left" when the
-// current user's subscription status is 'trialing', with the badge
-// turning red/urgent when 2 days or less remain. Hidden for active
-// subscribers + free crew users. Called from renderTopBar on every
-// renderAll so the day count stays fresh.
+// Account badge in the topbar. Shows one of:
+//   - "Free trial · N days left"   → paying user with a Stripe trialing sub
+//   - "Free account"               → legacy or admin-granted access (no Stripe
+//                                     customer_id, but has active/trialing status)
+// Hidden for normal paying subscribers + free crew users. Called from
+// renderTopBar on every renderAll so the day count stays fresh.
+// Text-only — no emojis per design.
 function renderTrialBadge() {
   const badge = document.getElementById('trialBadge');
   if (!badge) return;
   const textSlot = document.getElementById('trialBadgeText');
   const u = U();
-  if (!u || u.role !== 'tm' || u.subscriptionStatus !== 'trialing') {
+  if (!u || u.role !== 'tm') {
     badge.hidden = true;
     return;
   }
-  const trialEnd = u.trialEnd ? new Date(u.trialEnd) : null;
-  if (!trialEnd || isNaN(trialEnd.getTime())) {
-    // We know they're trialing but we don't have an end date — generic copy
+
+  const status = u.subscriptionStatus;
+  const hasStripeCustomer = !!(u.stripeCustomerId && u.stripeCustomerId !== '');
+  const isPositive = status === 'active' || status === 'trialing';
+  const isLegacyOrGranted = isPositive && !hasStripeCustomer;
+
+  // Case 1 — legacy / SQL-granted account (no Stripe customer)
+  if (isLegacyOrGranted) {
     badge.hidden = false;
     badge.classList.remove('urgent');
-    if (textSlot) textSlot.textContent = 'Free trial';
+    badge.classList.add('granted');
+    badge.title = 'Free account — granted access without billing';
+    if (textSlot) textSlot.textContent = 'Free account';
     return;
   }
-  const msLeft = trialEnd.getTime() - Date.now();
-  const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
-  badge.hidden = false;
-  badge.classList.toggle('urgent', daysLeft <= 2);
-  if (textSlot) {
-    if (daysLeft === 0) {
-      textSlot.textContent = 'Trial ends today';
-    } else if (daysLeft === 1) {
-      textSlot.textContent = 'Trial · 1 day left';
-    } else {
-      textSlot.textContent = `Free trial · ${daysLeft} days left`;
+
+  // Case 2 — Stripe-trialed user (show countdown)
+  if (status === 'trialing') {
+    badge.classList.remove('granted');
+    badge.hidden = false;
+    badge.title = 'Click to manage your subscription';
+    const trialEnd = u.trialEnd ? new Date(u.trialEnd) : null;
+    if (!trialEnd || isNaN(trialEnd.getTime())) {
+      badge.classList.remove('urgent');
+      if (textSlot) textSlot.textContent = 'Free trial';
+      return;
     }
+    const msLeft = trialEnd.getTime() - Date.now();
+    const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+    badge.classList.toggle('urgent', daysLeft <= 2);
+    if (textSlot) {
+      if (daysLeft === 0) {
+        textSlot.textContent = 'Trial ends today';
+      } else if (daysLeft === 1) {
+        textSlot.textContent = 'Trial · 1 day left';
+      } else {
+        textSlot.textContent = `Free trial · ${daysLeft} days left`;
+      }
+    }
+    return;
   }
+
+  // Case 3 — fully paid subscriber → hide badge (no info needed)
+  badge.hidden = true;
+}
+
+// Click handler for the trial / free-account badge. Paying users open
+// the Stripe billing portal; legacy/granted users see a friendly info
+// modal explaining their account type (since they don't have a Stripe
+// customer to manage).
+function _trialBadgeClick() {
+  const u = U();
+  if (!u) return;
+  const hasStripeCustomer = !!(u.stripeCustomerId && u.stripeCustomerId !== '');
+  if (!hasStripeCustomer) {
+    // Legacy / granted account — no Stripe portal to open
+    openModal({
+      title: 'Free account',
+      hideFooter: true,
+      body: `
+        <div style="display:flex;flex-direction:column;gap:14px;padding:6px 0">
+          <div style="font-size:14px;line-height:1.6;color:var(--warm)">
+            You have a <b style="color:var(--hi)">free account</b> — full access without billing.
+          </div>
+          <div style="font-size:13px;line-height:1.55;color:var(--warm-mute)">
+            This account was granted access directly (legacy beta, comp account, or admin-granted seat) and isn't tied to a Stripe subscription. There's no billing portal because there's nothing to bill.
+          </div>
+          <div style="font-size:13px;line-height:1.55;color:var(--warm-mute);padding-top:10px;border-top:1px solid var(--line)">
+            Questions about your account? Email <a href="mailto:info@bandmate.art" style="color:var(--hi)">info@bandmate.art</a>.
+          </div>
+          <div style="display:flex;justify-content:flex-end;padding-top:6px">
+            <button type="button" class="btn primary" onclick="closeModal()">Got it</button>
+          </div>
+        </div>
+      `,
+    });
+    return;
+  }
+  // Stripe customer exists → open billing portal
+  openSubscriptionPortal();
 }
 
 function userIsSubscribed(user) {
@@ -23455,7 +23536,7 @@ Object.assign(window, {
   _addDateRangeNext, _bulkSetRangeType, _commitDateRange,
   _calInit, _calNavMonth, _calPickDate, _calRender,
   openGuestModal, openAllotmentModal, openSetItemModal, moveSetItem, copySetList,
-  openSettleModal, openAttachModal, _attachFilePicked, _attachScopeChange, _attachBackToPick, _attachUpdatePrimaryLabel, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport, renderLocalAttachments, renderAttachments, renderTrialBadge, openSubscriptionPortal,
+  openSettleModal, openAttachModal, _attachFilePicked, _attachScopeChange, _attachBackToPick, _attachUpdatePrimaryLabel, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport, renderLocalAttachments, renderAttachments, renderTrialBadge, openSubscriptionPortal, _trialBadgeClick,
   openChatsModal, openNewChatModal, setActiveChat, _chatComposeOnInput, _chatComposeOnKeydown, _chatComposeSend, _chatMentionPick, _chatReactToggle, _chatReactPicker, _chatSendBroadcastPrompt, _chatToggleGroup, _chatUpdatePickCount,
   openPhoneSearch, _phoneSearchRender,
   openTaskModal, openTagModal, toggleTask,
