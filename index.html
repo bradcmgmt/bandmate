@@ -13987,6 +13987,36 @@ function _parseDealMemoBlock(block) {
       if (iso && !dates.includes(iso)) { dates.push(iso); break; }
     }
   }
+  // Pattern 4 (numeric European fallback): UK/EU agency deal memos
+  // routinely use DD.MM.YYYY (or DD/MM/YYYY) for the engagement date,
+  // not English month names. Without this branch, every European
+  // festival deal memo extracted zero dates. We search near the
+  // "Date of Engagement" label first, then fall back to anywhere in
+  // the first half of the block.
+  if (!dates.length) {
+    const numRe = /\b(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})\b/g;
+    const labelIdx = block.search(/Dates? of Engagement/i);
+    const searchAreas = labelIdx >= 0
+      ? [block.slice(Math.max(0, labelIdx - 400), labelIdx + 400)]
+      : [block.slice(0, Math.min(block.length, 1500))];
+    for (const area of searchAreas) {
+      numRe.lastIndex = 0;
+      let nm;
+      while ((nm = numRe.exec(area)) !== null) {
+        const day = parseInt(nm[1], 10);
+        const mon = parseInt(nm[2], 10);
+        const yr  = parseInt(nm[3], 10);
+        // Disambiguate: if first > 12 it must be day-first (European).
+        // If both ≤ 12 we still assume day-first here since deal memos
+        // we hit this branch for are agency-template European memos.
+        if (day >= 1 && day <= 31 && mon >= 1 && mon <= 12 && yr >= 2020 && yr <= 2100) {
+          const iso = `${yr}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+          if (!dates.includes(iso)) { dates.push(iso); break; }
+        }
+      }
+      if (dates.length) break;
+    }
+  }
   out.dates = dates;
   out.date = dates[0] || '';
 
@@ -14429,15 +14459,61 @@ function _parseFlightContext(ctx, code, num, absIdx, fullText) {
   return flight;
 }
 
+// Extract a date from a filename, trying multiple common patterns
+// agencies use. Returns ISO YYYY-MM-DD or empty string.
+//
+// Handles:
+//   "Set It Off - 21.06.2026 - Graspop Metal Meeting - Deal Memo.pdf" → 2026-06-21
+//   "2026-06-21 deal memo.pdf"                                         → 2026-06-21
+//   "21-06-2026.pdf"                                                   → 2026-06-21
+//   "Detroit_03-04-2026.pdf"                                           → 2026-03-04 (assumes US)
+//   "Mar 4 2026 - Detroit.pdf"                                         → 2026-03-04
+function _extractDateFromFilename(name) {
+  if (!name) return '';
+  // Strip the file extension and any path
+  const base = name.split('/').pop().replace(/\.(pdf|docx?|xlsx?|csv|txt)$/i, '');
+  return _parseDateLoose(base);
+}
+
 function _parseDateLoose(text) {
   if (!text) return '';
   const months = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12 };
   // ISO YYYY-MM-DD
   let m = text.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-  // MM/DD/YYYY or M/D/YYYY
-  m = text.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (m) return `${m[3]}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
+  // DD.MM.YYYY — European numeric (dots). UK/EU festival deal memos use
+  // this format almost exclusively ("21.06.2026" for June 21). The dot
+  // separator is the giveaway — US format never uses dots between date
+  // parts. So whenever we see digits.digits.digits, day-first is safe.
+  m = text.match(/\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b/);
+  if (m) {
+    const day = parseInt(m[1], 10), mon = parseInt(m[2], 10);
+    if (day >= 1 && day <= 31 && mon >= 1 && mon <= 12) {
+      return `${m[3]}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    }
+  }
+  // MM/DD/YYYY (US) vs DD/MM/YYYY (EU) — disambiguate by inspecting
+  // the values. If first number > 12 it MUST be day-first (European).
+  // Otherwise default to US format since that's what most touring
+  // documents in our user base use.
+  m = text.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
+  if (m) {
+    const first = parseInt(m[1], 10), second = parseInt(m[2], 10);
+    if (first > 12 && second >= 1 && second <= 12) {
+      // Day-first European: DD/MM/YYYY
+      return `${m[3]}-${String(second).padStart(2,'0')}-${String(first).padStart(2,'0')}`;
+    }
+    // US default: MM/DD/YYYY
+    return `${m[3]}-${String(first).padStart(2,'0')}-${String(second).padStart(2,'0')}`;
+  }
+  // DD-MM-YYYY — European dashed (less common but used in some EU contracts)
+  m = text.match(/\b(\d{1,2})-(\d{1,2})-(\d{4})\b/);
+  if (m) {
+    const first = parseInt(m[1], 10), second = parseInt(m[2], 10);
+    if (first > 12 && second >= 1 && second <= 12) {
+      return `${m[3]}-${String(second).padStart(2,'0')}-${String(first).padStart(2,'0')}`;
+    }
+  }
   // Month-Day-Year — "March 4, 2026" / "Mar 4 2026"
   m = text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2}),?\s*(\d{4})/i);
   if (m) {
@@ -14466,12 +14542,23 @@ function processTextDoc(text, file, result) {
   // and fillDateGapsWithOffDays (auto-insert off-days between legs).
   const memoBlocks = _extractDealMemoBlocks(text);
   if (memoBlocks && memoBlocks.length >= 1) {
+    // Filename fallback: if a memo block came back with no date but the
+    // filename has one (very common with European agency naming like
+    // "Set It Off - 21.06.2026 - Graspop Metal Meeting - Deal Memo.pdf"),
+    // pull the date out of the filename. This catches every scanned or
+    // weirdly-formatted memo where the body text doesn't yield a date.
+    const filenameDate = _extractDateFromFilename(file.name);
     let totalShows = 0;
     memoBlocks.forEach(b => {
       // Multi-night memos (e.g. 2-night Detroit run) emit one date entry
       // per night so each night is its own tab on the dashboard. The
       // venue / city / capacity / guarantee carry across all nights.
-      const nights = (b.dates && b.dates.length) ? b.dates : [b.date || ''];
+      let nights = (b.dates && b.dates.length) ? b.dates : [b.date || ''];
+      // Apply filename fallback for ANY empty date in the nights list
+      if (filenameDate) {
+        nights = nights.map(d => d || filenameDate);
+        if (!b.date) b.date = filenameDate;
+      }
       nights.forEach((d, i) => {
         result.extracted.dates.push({
           date: d || '',
@@ -19884,7 +19971,7 @@ function _trialBadgeClick() {
             You have a <b style="color:var(--hi)">free account</b> — full access without billing.
           </div>
           <div style="font-size:13px;line-height:1.55;color:var(--warm-mute)">
-            This account was granted access directly (legacy beta, comp account, or admin-granted seat) and isn't tied to a Stripe subscription. There's no billing portal because there's nothing to bill.
+            This account was granted access directly (legacy beta tester, comp account, or team seat). There's no billing portal because there's nothing to bill.
           </div>
           <div style="font-size:13px;line-height:1.55;color:var(--warm-mute);padding-top:10px;border-top:1px solid var(--line)">
             Questions about your account? Email <a href="mailto:info@bandmate.art" style="color:var(--hi)">info@bandmate.art</a>.
