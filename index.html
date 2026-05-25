@@ -5842,13 +5842,38 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp
 
 /* ---------- persistence ---------- */
 function saveState() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-  catch (e) { toast('Save failed: ' + e.message, 'error'); }
-  // Every local save schedules a debounced cloud sync of the active tour.
-  // Nested arrays (schedule, travel, crew, contacts, tasks) ride along as
-  // JSONB columns, so most slice-3 mutation paths get cross-device sync
-  // for free without us wiring each one individually.
-  try { db.scheduleActiveTourSync(); } catch (e) { console.warn('schedule sync:', e); }
+  let localOk = true;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    localOk = false;
+    // QuotaExceededError is the killer here: when local fails the
+    // in-memory state is NEWER than what's on disk, but on disk we
+    // still have the old version. If we then push the (newer)
+    // in-memory state to the cloud and refresh, the disk reload will
+    // overwrite memory with stale data. Worse, the in-memory state
+    // probably contains whatever big blob just blew the quota, so
+    // shipping it to Supabase would also reject (oversized JSONB).
+    // Best move: tell the user clearly, skip cloud sync this round,
+    // and let them remove the offending payload before continuing.
+    const isQuota = /quota/i.test(e?.name || '') || /quota|exceeded/i.test(e?.message || '');
+    if (isQuota) {
+      toast('Save failed: storage full. Remove a large file (tech pack, attachments) before continuing.', 'error');
+      console.error('[saveState] QuotaExceeded — skipping cloud sync to avoid stale-overwrite cycle', e);
+      // Do NOT call db.scheduleActiveTourSync — we'd push the same
+      // oversized blob that just failed locally, and any partial
+      // success would leave cloud + local out of sync.
+      return;
+    }
+    toast('Save failed: ' + (e.message || e), 'error');
+  }
+  // Every successful local save schedules a debounced cloud sync of the
+  // active tour. Nested arrays (schedule, travel, crew, contacts, tasks)
+  // ride along as JSONB columns, so most slice-3 mutation paths get
+  // cross-device sync for free without us wiring each one individually.
+  if (localOk) {
+    try { db.scheduleActiveTourSync(); } catch (e) { console.warn('schedule sync:', e); }
+  }
 }
 function loadState() {
   try { state = JSON.parse(localStorage.getItem(STORAGE_KEY)); }
@@ -12523,15 +12548,21 @@ function _advanceTechPackRowHTML(tp) {
       </button>
     `;
   }
+  // A tech pack can be backed by either a Supabase Storage object
+  // (modern, what new uploads create) OR a legacy inline base64
+  // dataUrl on the JSONB (pre-Storage migration). Either is openable
+  // via View/Download. If neither is present we treat it as metadata-
+  // only and just show Replace/Remove.
+  const hasBlob = !!(tp.storagePath || tp.dataUrl);
   return `
     <div class="adv-techpack-row">
       <div class="adv-techpack-info">
         <div class="adv-techpack-name">${esc(tp.name)}</div>
-        <div class="adv-techpack-meta">${esc(tp.size || '')}${tp.dataUrl ? '' : ' · metadata only'}</div>
+        <div class="adv-techpack-meta">${esc(tp.size || '')}${hasBlob ? '' : ' · metadata only'}</div>
       </div>
       <div class="adv-techpack-actions">
-        ${tp.dataUrl ? `<button type="button" class="at-view-btn" onclick="_advanceTechPackView()">View</button>` : ''}
-        ${tp.dataUrl ? `<button type="button" class="at-dl-btn" onclick="_advanceTechPackDownload()">Download</button>` : ''}
+        ${hasBlob ? `<button type="button" class="at-view-btn" onclick="_advanceTechPackView()">View</button>` : ''}
+        ${hasBlob ? `<button type="button" class="at-dl-btn" onclick="_advanceTechPackDownload()">Download</button>` : ''}
         <button type="button" class="at-dl-btn" onclick="document.getElementById('adv_techpack_file').click()">Replace</button>
         <button type="button" class="at-dl-btn" onclick="_advanceTechPackClear()">×</button>
       </div>
@@ -12539,81 +12570,151 @@ function _advanceTechPackRowHTML(tp) {
   `;
 }
 
-// File picker handler for the tech pack slot. 25 MB inline-cap —
-// production tech packs (Pages, stage plots, input lists, lighting
-// plots, full riders) routinely run 10–20 MB once they include
-// embedded fonts and high-res figures, so the original 5 MB cap was
-// rejecting real-world files. localStorage on modern browsers (Chrome,
-// Safari, Firefox) tolerates a single 25 MB string fine; if multiple
-// tours hit the cap we can move to Supabase Storage later.
+// File picker handler for the tech pack slot. Uses Supabase Storage
+// like the regular Attachments tab — production tech packs (stage
+// plots, input lists, lighting plots, full riders) routinely run
+// 10–20 MB and the old "inline base64 in localStorage" approach blew
+// past every browser's per-origin quota, taking the rest of the tour
+// data down with it on the next save cycle.
+//
+// Now: upload binary to the `attachments` bucket, store only metadata
+// (name, size, mime, storage_path) on date.advance.techPack. View
+// and Download generate signed URLs on demand. Up to 25 MB per file.
 async function _advanceTechPackPicked(input) {
   const file = input && input.files && input.files[0];
   if (!file) return;
-  const INLINE_LIMIT = 25 * 1024 * 1024;
-  if (file.size > INLINE_LIMIT) {
-    toast(`File ${(file.size/1024/1024).toFixed(1)} MB — too large to store inline (25 MB cap).`, 'error');
+  const SIZE_LIMIT = 25 * 1024 * 1024;
+  if (file.size > SIZE_LIMIT) {
+    toast(`File ${(file.size/1024/1024).toFixed(1)} MB — too large (25 MB cap).`, 'error');
     input.value = '';
     return;
   }
+  const ad = getActiveDate();
+  const tour = T();
+  if (!ad || !tour) { input.value = ''; return; }
+  // Cloud-only path. Without a Supabase session there's nowhere to put
+  // a 16 MB binary that won't immediately blow localStorage's quota.
+  if (!sb) {
+    toast('Tech pack upload needs a cloud connection — sign in to use this.', 'error');
+    input.value = '';
+    return;
+  }
+  let workingTourId = tour.id;
+  // Tour must live in Supabase for Storage uploads to land under a
+  // real UUID path. Promote any legacy local-only tour first.
+  if (!_isUuid(workingTourId)) {
+    const newId = await db.promoteTourToCloud(workingTourId);
+    if (!newId) { toast('Could not save tour to cloud — try again or sign back in.', 'error'); input.value = ''; return; }
+    workingTourId = newId;
+  }
+  toast('Uploading tech pack…', 'info');
   try {
-    const dataUrl = await _fileToDataURL(file);
-    const ad = getActiveDate();
-    if (!ad) return;
-    if (!ad.advance) ad.advance = {};
-    ad.advance.techPack = {
+    const tpId = dbId();
+    const ext = (file.name.split('.').pop() || '').toLowerCase().slice(0, 8);
+    const storagePath = `${workingTourId}/_techpack-${ad.id}-${tpId}${ext ? '.' + ext : ''}`;
+    const contentType = file.type || _guessMimeFromName(file.name);
+    const { error: upErr } = await sb.storage.from('attachments').upload(storagePath, file, {
+      cacheControl: '3600',
+      contentType,
+      upsert: true, // tech pack is per-date single-slot, replace freely
+    });
+    if (upErr) { console.error('[techPack upload]', upErr); toast('Upload failed: ' + (upErr.message || upErr), 'error'); input.value = ''; return; }
+    // If there was a previous tech pack at a different path, clean it up
+    const previousPath = ad.advance?.techPack?.storagePath;
+    if (previousPath && previousPath !== storagePath) {
+      try { await sb.storage.from('attachments').remove([previousPath]); } catch (e) { /* non-fatal */ }
+    }
+    // The active date might have been re-keyed by promoteTourToCloud
+    const liveAd = getActiveDate();
+    if (!liveAd) { input.value = ''; return; }
+    if (!liveAd.advance) liveAd.advance = {};
+    liveAd.advance.techPack = {
+      id: tpId,
       name: file.name,
       size: formatSize(file.size),
-      mime: file.type || _guessMimeFromName(file.name),
-      dataUrl,
+      mime: contentType,
+      storagePath,
       addedAt: Date.now(),
+      // Legacy `dataUrl` field intentionally omitted — that's what
+      // killed localStorage before. Binary lives in Storage now.
     };
     saveState();
-    // Re-render the slot rather than the whole tab so the TM
-    // doesn't lose scroll position / focus elsewhere on the page.
     const slot = document.getElementById('adv_techpack_slot');
-    if (slot) slot.innerHTML = _advanceTechPackRowHTML(ad.advance.techPack);
+    if (slot) slot.innerHTML = _advanceTechPackRowHTML(liveAd.advance.techPack);
     toast('Tech pack saved', 'good');
   } catch (e) {
-    toast('Could not read file: ' + (e.message || e), 'error');
+    console.error('[techPack upload threw]', e);
+    toast('Could not upload: ' + (e.message || e), 'error');
+  } finally {
+    input.value = '';
   }
 }
 
-function _advanceTechPackView() {
+// View the tech pack. New uploads live in Supabase Storage — fetch a
+// signed URL and open it. Legacy uploads (pre-Storage migration) carry
+// an inline dataUrl on the JSONB — open that directly so existing
+// records keep working until the user re-uploads.
+async function _advanceTechPackView() {
   const ad = getActiveDate();
   const tp = ad?.advance?.techPack;
-  if (!tp || !tp.dataUrl) return;
+  if (!tp) return;
   try {
-    const url = _dataUrlToBlobUrl(tp.dataUrl, tp.mime);
+    let url = null;
+    if (tp.storagePath) {
+      url = await db.getSignedAttachmentUrl(tp.storagePath);
+      if (!url) { toast('Could not load file from cloud', 'error'); return; }
+    } else if (tp.dataUrl) {
+      url = _dataUrlToBlobUrl(tp.dataUrl, tp.mime);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } else {
+      toast('No file content available', 'error');
+      return;
+    }
     const w = window.open(url, '_blank', 'noopener,noreferrer');
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
     if (!w) toast('Allow pop-ups to view inline files', 'error');
   } catch (e) {
     toast('Could not open file: ' + (e.message || e), 'error');
   }
 }
 
-function _advanceTechPackDownload() {
+async function _advanceTechPackDownload() {
   const ad = getActiveDate();
   const tp = ad?.advance?.techPack;
-  if (!tp || !tp.dataUrl) return;
+  if (!tp) return;
   try {
-    const url = _dataUrlToBlobUrl(tp.dataUrl, tp.mime);
+    let url = null;
+    let revoke = false;
+    if (tp.storagePath) {
+      url = await db.getSignedAttachmentUrl(tp.storagePath, { download: tp.name || 'tech-pack' });
+      if (!url) { toast('Could not load file from cloud', 'error'); return; }
+    } else if (tp.dataUrl) {
+      url = _dataUrlToBlobUrl(tp.dataUrl, tp.mime);
+      revoke = true;
+    } else {
+      toast('No file content available', 'error');
+      return;
+    }
     const link = document.createElement('a');
     link.href = url;
     link.download = tp.name || 'tech-pack';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    if (revoke) setTimeout(() => URL.revokeObjectURL(url), 60000);
   } catch (e) {
     toast('Could not download: ' + (e.message || e), 'error');
   }
 }
 
-function _advanceTechPackClear() {
+async function _advanceTechPackClear() {
   const ad = getActiveDate();
   if (!ad || !ad.advance || !ad.advance.techPack) return;
   if (!confirm('Remove tech pack file?')) return;
+  const tp = ad.advance.techPack;
+  // Clean up Storage object too so we don't leave orphans in the bucket
+  if (tp.storagePath && sb) {
+    try { await sb.storage.from('attachments').remove([tp.storagePath]); } catch (e) { /* non-fatal */ }
+  }
   ad.advance.techPack = null;
   saveState();
   const slot = document.getElementById('adv_techpack_slot');
@@ -12711,7 +12812,7 @@ function _phoneAdvanceCardHTML(a) {
         <div class="ph-adv-techpack-lbl">⌜ Tech pack</div>
         <div class="ph-adv-techpack-name">${esc(a.techPack.name)}</div>
       </div>
-      ${a.techPack.dataUrl ? `
+      ${(a.techPack.storagePath || a.techPack.dataUrl) ? `
         <div class="ph-adv-techpack-actions">
           <button type="button" class="ph-adv-tp-btn" onclick="_advanceTechPackView()">View</button>
           <button type="button" class="ph-adv-tp-btn" onclick="_advanceTechPackDownload()">↓</button>
