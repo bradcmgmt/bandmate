@@ -1374,6 +1374,17 @@ input,select,textarea{font:inherit;color:inherit}
 .p-card-notes .p-notes-body b,
 .p-card-notes .p-notes-body strong{color:var(--warm);font-weight:800}
 .p-row .what{font-size:13px;font-weight:600;color:var(--warm)}
+/* "Early tomorrow" rollover section — items from the next date that
+   fire before 08:00 (overnight bus call, early flight). Subdued from
+   today's items so the eye sorts them as future-but-imminent. */
+.p-early-tmrw-hdr{display:flex;align-items:center;gap:8px;margin:12px 0 4px;padding:0 2px}
+.p-early-tmrw-hdr .petw-line{flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(138,169,216,.4),transparent)}
+.p-early-tmrw-hdr .petw-lbl{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.18em;
+  text-transform:uppercase;color:#8aa9d8;font-weight:700;white-space:nowrap;
+  text-shadow:0 0 6px rgba(138,169,216,.35)}
+.p-row.p-row-next{opacity:.78}
+.p-row.p-row-next .t{color:#8aa9d8}
+.p-row.p-row-next .what{color:#cdb8a0}
 
 /* Advance card on the crew mobile Today screen. Two-column layout
    inside — label left, value right — gives a quick scannable list
@@ -6638,11 +6649,13 @@ function _dateModalApplyStatus() {
     }
   });
   // Relabel the venue field per status. Rehearsal days reuse the same
-  // string field but call it "Rehearsal location" so it reads naturally;
-  // press days read as "Press location"; everywhere else it's "Venue".
+  // string field but call it "Rehearsal Space" so it reads naturally
+  // (and tells the TM the dropdown is sorted to surface SIR / Center
+  // Staging / etc. first); press days read as "Press location";
+  // everywhere else it's "Venue".
   const venueLbl = document.getElementById('d_venue_lbl');
   if (venueLbl) {
-    venueLbl.textContent = isRehearsal ? 'Rehearsal location'
+    venueLbl.textContent = isRehearsal ? 'Rehearsal Space'
       : isPress ? 'Press location'
       : 'Venue';
   }
@@ -7030,9 +7043,10 @@ function openDateModal(id) {
       // For non-show statuses, leave hidden fields alone (they collect ''
       // from the unrendered inputs anyway, but keep the existing value
       // when editing in case the TM toggles status back later). Rehearsal
-      // days share the venue field (relabeled "Rehearsal location" in UI)
-      // but never carry capacity / doors / set time / promoter — those
-      // belong to actual ticketed shows.
+      // days share the venue field (relabeled "Rehearsal Space" in UI,
+      // with the autocomplete sorting SIR / Center Staging / Rock Lititz
+      // to the top) but never carry capacity / doors / set time / promoter
+      // — those belong to actual ticketed shows.
       const get = (sel) => { const el = $(sel); return el ? el.value.trim() : ''; };
       // Read the structured 12-hour pickers for each time field. Each
       // returns '' when blank/invalid, which we treat as "no time
@@ -9022,6 +9036,143 @@ const TOURING_VENUES = [
   _TV('Tiivistämö','Helsinki, Finland'),_TV('Palladium Riga','Riga, Latvia'),
   _TV('Hole44','Berlin, Germany'),_TV('Luxor','Cologne, Germany'),
 ];
+
+// ─────────────────────────────────────────────────────────────────────
+// REHEARSAL_STUDIOS — industry-standard rehearsal / production spaces.
+//
+// Mixed into the venue autocomplete alongside TOURING_VENUES so they
+// surface for ANY date type (some tours actually rehearse at the show
+// venue the night before). When the date status is "rehearsal" they
+// sort to the TOP of the dropdown since they're the most likely match
+// — see _acSourceVenue's sort logic.
+//
+// Criteria for inclusion:
+//   - Multi-location chains (SIR, Pirate, The Rehearsal Factory)
+//   - Industry-standard production rehearsal facilities (Rock Lititz,
+//     Sweetwater, Center Staging) used for arena/stadium tours
+//   - Long-running independent rooms in major touring cities that any
+//     working TM would recognize (Mates, Music Bank, Soundcheck NSH)
+//
+// Add new ones as TMs encounter them in the wild — same shape as
+// TOURING_VENUES with `kind: 'rehearsal'` for downstream sorting/UI.
+const _RS = (name, city) => ({ name, city, kind: 'rehearsal' });
+const REHEARSAL_STUDIOS = [
+  // ── SIR (Studio Instrument Rentals) — the touring-industry default ──
+  _RS('SIR Hollywood','Los Angeles, CA'),
+  _RS('SIR New York','New York, NY'),
+  _RS('SIR Nashville','Nashville, TN'),
+  _RS('SIR Las Vegas','Las Vegas, NV'),
+
+  // ── Major production-rehearsal facilities (arena/stadium tours) ──
+  _RS('Rock Lititz','Lititz, PA'),
+  _RS('Sweetwater Performance Pavilion','Fort Wayne, IN'),
+  _RS('Center Staging','Burbank, CA'),
+
+  // ── LA / SoCal ──
+  _RS('Mates Rehearsal Studios','North Hollywood, CA'),
+  _RS('Bedrock.LA','Echo Park, CA'),
+  _RS('Swing House Studios','Hollywood, CA'),
+  _RS('Drum Doctor Rehearsal','Burbank, CA'),
+  _RS('The Boneyard','Hollywood, CA'),
+  _RS('Total Access Recording','Redondo Beach, CA'),
+  _RS('Sound Image Studios','Escondido, CA'),
+
+  // ── NYC ──
+  _RS('Music Bank Rehearsal Studios','New York, NY'),
+  _RS('Rivington Music Rehearsal Studios','New York, NY'),
+  _RS('The Music Building','New York, NY'),
+  _RS('Funkadelic Studios','New York, NY'),
+  _RS('Smash Studios','New York, NY'),
+  _RS('Ultra Sound Studios','New York, NY'),
+  _RS('Mission Sound','Brooklyn, NY'),
+  _RS('Tank Studios','Brooklyn, NY'),
+  _RS('The Bunker Studio','Brooklyn, NY'),
+  _RS('Vibes Studios','Brooklyn, NY'),
+  _RS('Atomic Sound','Brooklyn, NY'),
+  _RS('Pirate Studios Brooklyn','Brooklyn, NY'),
+
+  // ── Nashville ──
+  _RS('Soundcheck Nashville','Nashville, TN'),
+  _RS('Sound Stage Studios','Nashville, TN'),
+  _RS('Smash House Studios','Nashville, TN'),
+  _RS('The Production Pavilion','Nashville, TN'),
+  _RS('Backstage Nashville','Nashville, TN'),
+  _RS('Music Mill','Nashville, TN'),
+
+  // ── Atlanta ──
+  _RS('Magnet Studios','Atlanta, GA'),
+  _RS('Madison Studios','Atlanta, GA'),
+  _RS('Atlanta Rehearsal Studios','Atlanta, GA'),
+
+  // ── Boston ──
+  _RS('The Sound Museum','Allston, MA'),
+  _RS('Q Division Studios','Somerville, MA'),
+  _RS('The Record Co.','Boston, MA'),
+
+  // ── Philly ──
+  _RS('The Music Workshop','Philadelphia, PA'),
+  _RS('Cycle Studios','Philadelphia, PA'),
+  _RS('Forge Recording','Oreland, PA'),
+
+  // ── Chicago ──
+  _RS('The Practice Space','Chicago, IL'),
+  _RS('Pressure Point Recording','Chicago, IL'),
+  _RS('Bombay Studios','Chicago, IL'),
+
+  // ── Austin / Texas ──
+  _RS('Rehearsal Studios of Austin','Austin, TX'),
+  _RS('The Rehearsal Hall','Austin, TX'),
+  _RS('Premier Studios','Houston, TX'),
+  _RS('Sound Arts Recording','Houston, TX'),
+  _RS('Modern Electric Sound Recorders','Dallas, TX'),
+
+  // ── Seattle / PNW ──
+  _RS('London Bridge Studio','Shoreline, WA'),
+  _RS('Bear Creek Studio','Woodinville, WA'),
+  _RS('Robert Lang Studios','Shoreline, WA'),
+
+  // ── Portland ──
+  _RS('Tone Den Rehearsal','Portland, OR'),
+
+  // ── Denver ──
+  _RS('Mighty Fine Productions','Denver, CO'),
+  _RS('Coupe Studios','Boulder, CO'),
+
+  // ── Minneapolis ──
+  _RS('The Hideaway Studios','Minneapolis, MN'),
+  _RS('Pachyderm Studio','Cannon Falls, MN'),
+
+  // ── Detroit ──
+  _RS('Tempermill Studio','Ferndale, MI'),
+  _RS('Rustbelt Studios','Royal Oak, MI'),
+
+  // ── DC / MD / VA ──
+  _RS('Innovation Station Music','Manassas, VA'),
+  _RS('Cue Recording Studios','Falls Church, VA'),
+
+  // ── Miami / FL ──
+  _RS('The Hit Factory Criteria','Miami, FL'),
+  _RS('Circle House Studios','Miami, FL'),
+
+  // ── Las Vegas ──
+  _RS('Las Vegas Recording Studio','Las Vegas, NV'),
+
+  // ── Canada ──
+  _RS('The Rehearsal Factory (Cherry St)','Toronto, ON'),
+  _RS('The Rehearsal Factory (Geary)','Toronto, ON'),
+  _RS('The Rehearsal Factory (Logan)','Toronto, ON'),
+  _RS('Cherry Beach Sound','Toronto, ON'),
+  _RS('Studio Plateau','Montreal, QC'),
+
+  // ── UK / Europe (touring crossover) ──
+  _RS("John Henry's",'London, UK'),
+  _RS('JPC Studios','London, UK'),
+  _RS('Music Bank London','London, UK'),
+  _RS('Pirate Studios London','London, UK'),
+  _RS('Backstreet Rehearsal Studios','London, UK'),
+  _RS('Survival Studios','London, UK'),
+];
+
 function openGuestModal(guestId) {
   const ad = getActiveDate();
   if (!ad) return;
@@ -11030,6 +11181,40 @@ function _scheduleTimeDisplay(item) {
   return start || '—';
 }
 
+// _earlyNextDaySchedule(ad)
+//
+// Return schedule + travel items from the NEXT date on the tour that
+// occur at or before 8:00 AM. Touring days bleed past midnight in
+// practice — a 1:00 AM bus call after a Friday night show is part of
+// Friday's work cycle even though the clock says Saturday. Without
+// this, the crew would have to swipe to the next day to see their
+// early-morning departure, which is exactly the kind of thing people
+// miss when they're tired.
+//
+// 8:00 AM is the conventional cutoff: anything before it is "still
+// last night" in touring terms; anything after is "the new day."
+// Each returned item is tagged with `_isNextDay: true` so the UI can
+// render it with a distinct treatment (different header, dimmed,
+// time-prefixed, etc.).
+function _earlyNextDaySchedule(ad) {
+  if (!ad) return [];
+  const dates = T().dates || [];
+  const idx = dates.findIndex(d => d.id === ad.id);
+  if (idx < 0 || idx >= dates.length - 1) return []; // last day, no tomorrow
+  const nextDate = dates[idx + 1];
+  if (!nextDate) return [];
+  const EARLY_CUTOFF_MIN = 8 * 60; // 08:00 inclusive
+  return _mergedDaySchedule(nextDate)
+    .filter(s => {
+      if (s.allDay) return false; // all-day items belong to their own day
+      const m = (s.time || '').match(/^(\d{1,2}):(\d{2})/);
+      if (!m) return false;
+      const mins = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+      return mins <= EARLY_CUTOFF_MIN;
+    })
+    .map(s => ({ ...s, _isNextDay: true, _nextDateId: nextDate.id }));
+}
+
 function _mergedDaySchedule(ad) {
   if (!ad) return [];
   const sched = (ad.schedule || []).slice();
@@ -12069,11 +12254,22 @@ function _acSourceCity(query) {
 function _acSourceVenue(query, cityFilter) {
   const q = query.toLowerCase();
   const cf = (cityFilter || '').trim().toLowerCase();
+  // Detect whether the date being edited is a rehearsal day. We read
+  // the status <select> from the open date modal — if it's "rehearsal",
+  // we float rehearsal studios to the top of the dropdown so SIR /
+  // Center Staging / Rock Lititz etc. are the first match. They still
+  // appear for show dates too (some tours rehearse at the show venue
+  // the night before, or hold a press session at a studio), just not
+  // at the top.
+  const statusSel = document.getElementById('d_status');
+  const isRehearsalDate = statusSel && statusSel.value === 'rehearsal';
   const pool = [];
-  // User history first
-  _userVenueHistory().forEach(v => pool.push({ value: v.name, city: v.city, isHistory: true }));
-  // Then curated
-  TOURING_VENUES.forEach(v => pool.push({ value: v.name, city: v.city, isHistory: false }));
+  // User history first (always highest priority — what the TM actually uses)
+  _userVenueHistory().forEach(v => pool.push({ value: v.name, city: v.city, isHistory: true, isRehearsal: false }));
+  // Curated touring venues
+  TOURING_VENUES.forEach(v => pool.push({ value: v.name, city: v.city, isHistory: false, isRehearsal: false }));
+  // Curated rehearsal studios — always in the pool, sorted by date type below
+  REHEARSAL_STUDIOS.forEach(v => pool.push({ value: v.name, city: v.city, isHistory: false, isRehearsal: true }));
   // Dedupe by name+city
   const seen = new Set();
   const deduped = pool.filter(v => {
@@ -12090,9 +12286,19 @@ function _acSourceVenue(query, cityFilter) {
         return vc === cf || vc.includes(cf) || cf.includes(vc);
       })
     : deduped;
-  // Filter by query
-  return byCity.filter(v => v.value.toLowerCase().includes(q)).slice(0, 12)
-    .map(v => ({ value: v.value, sub: v.city || '' }));
+  // Filter by query first, THEN re-rank so rehearsal studios float to
+  // the top on rehearsal dates. History items always stay first; among
+  // non-history items the rehearsal flag tips the order.
+  const matched = byCity.filter(v => v.value.toLowerCase().includes(q));
+  matched.sort((a, b) => {
+    if (a.isHistory !== b.isHistory) return a.isHistory ? -1 : 1;
+    if (isRehearsalDate && a.isRehearsal !== b.isRehearsal) return a.isRehearsal ? -1 : 1;
+    return 0;
+  });
+  return matched.slice(0, 12).map(v => ({
+    value: v.value,
+    sub: (v.isRehearsal ? 'Rehearsal · ' : '') + (v.city || ''),
+  }));
 }
 function _acSourceHotel(query) {
   const q = query.toLowerCase();
@@ -13041,6 +13247,17 @@ function renderPhone() {
   // for full detail (conf/flight #/etc.) — this just gives the time
   // anchor inside the schedule.
   const myItems = _mergedDaySchedule(ad).filter(s => isItemVisibleToViewer(s, viewer, isTM));
+  // Early-tomorrow items: anything on the next date that fires at or
+  // before 08:00 (overnight bus calls, early flights, post-show drives).
+  // Audience filter applies same as today's items — TM sees all, crew
+  // sees only what's tagged for them.
+  const myEarlyTomorrow = _earlyNextDaySchedule(ad).filter(s => isItemVisibleToViewer(s, viewer, isTM));
+  // Lookup label for the "TOMORROW" header when we have early items
+  const nextDateLabel = (() => {
+    if (!myEarlyTomorrow.length) return '';
+    const nd = T().dates.find(d => d.id === myEarlyTomorrow[0]._nextDateId);
+    return nd ? `${fmtMD(nd.date)} · ${dow(nd.date).slice(0,3).toUpperCase()}` : '';
+  })();
   // Travel items visible to this viewer — same group/individual filter
   // that schedule uses. Each row in the rendered list is tappable to
   // pop a detail sheet showing flight #, conf #, person, notes.
@@ -13064,6 +13281,20 @@ function renderPhone() {
             <span class="lbl">${esc(_scheduleItemDisplayLabel(s))}</span>
           </div>
         `).join('') : `<div class="p-row"><span class="what muted" style="grid-column:1/-1">${ad.status === 'travel' ? 'Travel day — no schedule items.' : ad.status === 'off' ? 'Day off — nothing scheduled.' : isTM ? 'No schedule items on this day yet.' : 'Nothing scheduled for you on this day.'}</span></div>`}
+        ${myEarlyTomorrow.length ? `
+          <div class="p-early-tmrw-hdr">
+            <span class="petw-line"></span>
+            <span class="petw-lbl">EARLY TOMORROW${nextDateLabel ? ' · ' + nextDateLabel : ''}</span>
+            <span class="petw-line"></span>
+          </div>
+          ${myEarlyTomorrow.map(s => `
+            <div class="p-row p-row-next">
+              <span class="t">${esc(_scheduleTimeDisplay(s))}</span>
+              <span class="what">${esc(s.what)}</span>
+              <span class="lbl">${esc(_scheduleItemDisplayLabel(s))}</span>
+            </div>
+          `).join('')}
+        ` : ''}
       </div>
     </div>
 
