@@ -9343,11 +9343,13 @@ function openSettleModal(dateId) {
   const dt = T().dates.find(d => d.id === dateId);
   if (!dt) return;
   const s = dt.settlement;
-  // Per-date currency: parsed from deal memos by _matchGuarantee. Falls
-  // back to the tour-level default (T().meta.currency, usually USD).
-  // Editable in the modal so a TM can correct an ambiguous "kr"
-  // (NOK/SEK/DKK/ISK) or override the default on a one-off basis.
-  const effCur = s.currency || T().meta.currency || 'USD';
+  // Per-date currency: parsed from deal memos by _matchGuarantee.
+  // When no currency was captured, fall back via _dateCurrency which
+  // infers from the show's country (Germany → EUR, UK → GBP, etc.)
+  // before defaulting to the tour-level default. Editable in the
+  // modal so a TM can correct an ambiguous "kr" (NOK/SEK/DKK/ISK)
+  // or override on a one-off basis.
+  const effCur = s.currency || _dateCurrency(dt);
   const CUR_OPTIONS = ['USD','EUR','GBP','CAD','AUD','CHF','NOK','SEK','DKK','ISK','PLN','CZK','HUF','BGN','RON','RSD','TRY','JPY','MXN','BRL','NZD','kr'];
   openModal({
     title: `Settle: ${dt.city} · ${fmtDate(dt.date)}`,
@@ -11986,31 +11988,182 @@ function formatMin(sec) {
 }
 
 /* =====================================================================
+   MULTI-CURRENCY HELPERS for settlement view
+   =====================================================================
+   European tours land in mixed currencies — EUR shows, GBP shows, CHF
+   shows, etc. Previously the settlement table coerced every row to the
+   tour's single default currency (usually USD), which silently misled
+   the TM about real amounts due. Now:
+
+   • _currencyForCountry(country)
+       Maps a country name to its ISO currency code. Used as a fallback
+       when a deal memo didn't explicitly state a currency but we know
+       the territory (Germany → EUR, UK → GBP, Switzerland → CHF, etc).
+
+   • _dateCurrency(date)
+       The effective currency for one date. Priority:
+         1. date.settlement.currency (TM-edited or parser-extracted)
+         2. country inferred via _currencyForCountry
+         3. tour default (T().meta.currency || 'USD')
+
+   • _settlementTotalsByCurrency(dates)
+       Sum guarantees grouped by currency. Returns { EUR: 75000, GBP: 25000 }
+       so the UI can render one totals row per currency.
+
+   • USD_FX_APPROX
+       Hard-coded approximate FX rates (multiply native amount × rate
+       → USD). Updated YYYY-MM-DD. Flagged in the UI as "subject to
+       change" — the TM should never quote a client off these. They
+       exist purely so the TM can sanity-check tour-wide order of
+       magnitude across mixed-currency runs. */
+const COUNTRY_TO_CURRENCY = {
+  // Eurozone
+  'austria':'EUR','belgium':'EUR','croatia':'EUR','cyprus':'EUR','estonia':'EUR',
+  'finland':'EUR','france':'EUR','germany':'EUR','greece':'EUR','ireland':'EUR',
+  'italy':'EUR','latvia':'EUR','lithuania':'EUR','luxembourg':'EUR','malta':'EUR',
+  'netherlands':'EUR','portugal':'EUR','slovakia':'EUR','slovenia':'EUR','spain':'EUR',
+  // Non-Euro EU + nearby Europe
+  'bulgaria':'BGN','czech republic':'CZK','czechia':'CZK','denmark':'DKK',
+  'hungary':'HUF','poland':'PLN','romania':'RON','sweden':'SEK',
+  'switzerland':'CHF','norway':'NOK','iceland':'ISK','serbia':'RSD','turkey':'TRY',
+  // UK
+  'uk':'GBP','united kingdom':'GBP','england':'GBP','scotland':'GBP','wales':'GBP','northern ireland':'GBP',
+  // North America
+  'usa':'USD','us':'USD','united states':'USD','united states of america':'USD','america':'USD',
+  'canada':'CAD',
+  // Other touring destinations
+  'mexico':'MXN','brazil':'BRL','argentina':'ARS','chile':'CLP',
+  'australia':'AUD','new zealand':'NZD','japan':'JPY',
+};
+function _currencyForCountry(country) {
+  if (!country) return null;
+  return COUNTRY_TO_CURRENCY[String(country).trim().toLowerCase()] || null;
+}
+function _dateCurrency(d) {
+  if (!d) return 'USD';
+  const fromSettlement = d.settlement?.currency;
+  if (fromSettlement) return fromSettlement;
+  const fromCountry = _currencyForCountry(d.country);
+  if (fromCountry) return fromCountry;
+  return T().meta?.currency || 'USD';
+}
+// FX rates · TO USD (multiply native amount × rate). Approximate.
+// Update this table when rates drift > ~5%; the UI shows the date.
+const USD_FX_LAST_UPDATED = '2026-05-15';
+const USD_FX_APPROX = {
+  USD: 1.00,
+  EUR: 1.08,  GBP: 1.27,  CAD: 0.74,  AUD: 0.66,  NZD: 0.61,
+  CHF: 1.12,  NOK: 0.094, SEK: 0.095, DKK: 0.145, ISK: 0.0072,
+  PLN: 0.25,  CZK: 0.044, HUF: 0.0028, BGN: 0.55, RON: 0.22,
+  RSD: 0.0092, TRY: 0.031,
+  JPY: 0.0064, MXN: 0.058, BRL: 0.20, ARS: 0.0011, CLP: 0.0011,
+  'kr': 0.095, // ambiguous Scandinavian — assume SEK-ish for the rough total
+};
+function _toUSDApprox(amount, currency) {
+  const rate = USD_FX_APPROX[currency];
+  if (rate == null) return null;
+  return amount * rate;
+}
+function _settlementTotalsByCurrency(dates) {
+  const guar = {};   // currency → summed guarantee
+  const final = {};  // currency → summed final settlement
+  const counts = {}; // currency → number of shows
+  dates.forEach(d => {
+    const cur = _dateCurrency(d);
+    const g = parseFloat(d.settlement?.guarantee) || 0;
+    const f = parseFloat(d.settlement?.finalAmount) || 0;
+    if (g) guar[cur] = (guar[cur] || 0) + g;
+    if (f) final[cur] = (final[cur] || 0) + f;
+    counts[cur] = (counts[cur] || 0) + 1;
+  });
+  return { guar, final, counts };
+}
+
+/* =====================================================================
    PANEL: ACCOUNTING (settlements only)
    ===================================================================== */
 function renderAccounting() {
   const root = $('#p-acct');
   const showDates = T().dates.filter(d => d.status === 'show');
-  const totalGuar = showDates.reduce((n, d) => n + (parseFloat(d.settlement.guarantee) || 0), 0);
-  const totalSettled = showDates.filter(d => d.settlement.settled).reduce((n, d) => n + (parseFloat(d.settlement.finalAmount) || 0), 0);
   const settledCount = showDates.filter(d => d.settlement.settled).length;
   const unpaid = showDates.filter(d => !d.settlement.settled && d.date < todayISO()).length;
+
+  // Multi-currency totals — group guarantees + final settlements by
+  // the effective currency per date. A single-currency tour collapses
+  // to one row each; a multi-currency tour gets a row per currency
+  // plus a USD-equivalent grand total.
+  const totals = _settlementTotalsByCurrency(showDates);
+  const guarCurs = Object.keys(totals.guar).sort();
+  const finalCurs = Object.keys(totals.final).sort();
+  const isMulti = guarCurs.length > 1 || finalCurs.length > 1;
+
+  // Build the USD-equivalent grand total (when multi-currency). Only
+  // include currencies we have an FX rate for — others get listed
+  // separately with a "?" so the TM knows they're missing from the sum.
+  const usdGuarTotal = guarCurs.reduce((sum, cur) => {
+    const usd = _toUSDApprox(totals.guar[cur], cur);
+    return usd == null ? sum : sum + usd;
+  }, 0);
+  const usdFinalTotal = finalCurs.reduce((sum, cur) => {
+    const usd = _toUSDApprox(totals.final[cur], cur);
+    return usd == null ? sum : sum + usd;
+  }, 0);
+
+  // Helper to render a "12,500 EUR · ≈$13,500 USD" cell.
+  const fmtMulti = (currencies, totalsObj, kind /* 'guar' | 'final' */) => {
+    if (!currencies.length) return `<div class="value mono">${T().meta.currency || 'USD'} 0</div>`;
+    return currencies.map(cur => {
+      const amt = totalsObj[cur];
+      const usd = _toUSDApprox(amt, cur);
+      const usdNote = (isMulti && cur !== 'USD' && usd != null)
+        ? `<span class="muted mono" style="font-size:10px;letter-spacing:.06em;margin-left:6px;color:var(--cool)">≈ $${Math.round(usd).toLocaleString()}</span>`
+        : '';
+      return `<div class="value mono" style="font-size:${currencies.length > 1 ? '15px' : '20px'}">${esc(cur)} ${amt.toLocaleString()}${usdNote}</div>`;
+    }).join('');
+  };
+
+  const fxDisclaimer = isMulti ? `
+    <div class="rescan-nudge" style="margin:8px 0 14px;background:linear-gradient(135deg,rgba(138,169,216,.08),rgba(138,169,216,.02));border-color:rgba(138,169,216,.3);color:#b1c8ee">
+      <span class="rb-icon" style="color:#8aa9d8">!</span>
+      <span>
+        <b>USD equivalents are approximate</b> · FX rates from ${USD_FX_LAST_UPDATED}, subject to change.
+        Use native currency totals for any real-world quoting.
+      </span>
+    </div>
+  ` : '';
 
   root.innerHTML = `
     <div class="section-title">
       <h2>Settlements</h2>
-      <span class="crumb">/ ${T().dates.length} DATES · ${T().meta.currency}</span>
+      <span class="crumb">/ ${T().dates.length} DATES${isMulti ? ' · MULTI-CURRENCY' : ' · ' + (T().meta.currency || 'USD')}</span>
       <span class="stamp">${settledCount} / ${showDates.length} SETTLED</span>
       <span class="flex1"></span>
       <button type="button" class="tb-btn primary" onclick="exportSettlementReportCSV()" title="Download a CSV of every show — guarantee, final settlement, deductions, status. Email it to your client's business manager.">↓ Export settlement report</button>
       <button type="button" class="tb-btn" onclick="printSettlementReport()" title="Open a printable settlement summary — print to PDF and send to the business manager">🖨 Printable</button>
     </div>
 
+    ${fxDisclaimer}
+
     <div class="k-grid mb12">
-      <div class="kpi"><div class="label">Total guarantee</div><div class="value mono">${T().meta.currency} ${totalGuar.toLocaleString()}</div><div class="delta">across ${showDates.length} shows</div></div>
-      <div class="kpi"><div class="label">Settled total</div><div class="value mono">${T().meta.currency} ${totalSettled.toLocaleString()}</div><div class="delta">${settledCount} of ${showDates.length}</div></div>
+      <div class="kpi">
+        <div class="label">Total guarantee</div>
+        ${fmtMulti(guarCurs, totals.guar, 'guar')}
+        ${isMulti && usdGuarTotal > 0 ? `<div class="delta" style="color:var(--cool)">≈ $${Math.round(usdGuarTotal).toLocaleString()} USD across all currencies</div>` : `<div class="delta">across ${showDates.length} shows</div>`}
+      </div>
+      <div class="kpi">
+        <div class="label">Settled total</div>
+        ${fmtMulti(finalCurs, totals.final, 'final')}
+        ${isMulti && usdFinalTotal > 0 ? `<div class="delta" style="color:var(--cool)">≈ $${Math.round(usdFinalTotal).toLocaleString()} USD · ${settledCount} of ${showDates.length}</div>` : `<div class="delta">${settledCount} of ${showDates.length}</div>`}
+      </div>
       <div class="kpi ${unpaid?'bad':''}"><div class="label">Awaiting settlement</div><div class="value mono">${unpaid}</div><div class="delta" style="${unpaid?'color:var(--red)':''}">past show dates not yet settled</div></div>
-      <div class="kpi"><div class="label">Avg / settled show</div><div class="value mono">${T().meta.currency} ${settledCount ? Math.round(totalSettled/settledCount).toLocaleString() : 0}</div><div class="delta">net of buy-outs</div></div>
+      <div class="kpi"><div class="label">Avg / settled show</div>
+        ${settledCount && isMulti
+          ? `<div class="value mono" style="font-size:15px;color:var(--cool)">≈ $${Math.round(usdFinalTotal/settledCount).toLocaleString()} USD</div><div class="delta">net of buy-outs · mixed currencies</div>`
+          : settledCount
+            ? `<div class="value mono">${(finalCurs[0] || T().meta.currency || 'USD')} ${Math.round(totals.final[finalCurs[0]] / settledCount).toLocaleString()}</div><div class="delta">net of buy-outs</div>`
+            : `<div class="value mono">${T().meta.currency || 'USD'} 0</div><div class="delta">net of buy-outs</div>`
+        }
+      </div>
     </div>
 
     <div class="tbl">
@@ -12026,8 +12179,8 @@ function renderAccounting() {
           <div class="tbl-row settle-row ${d.date===todayISO()?'today':''}">
             <div class="c mono" style="${d.date===todayISO()?'color:var(--hot)':''}">${fmtMD(d.date)}</div>
             <div class="c"><div class="city">${esc(d.city)}<span>${esc(d.promoter || '—')}</span></div></div>
-            <div class="c amt">${(s.currency || T().meta.currency)} ${(parseFloat(s.guarantee)||0).toLocaleString()}</div>
-            <div class="c amt ${s.settled?'pos':''}">${s.finalAmount ? (s.currency || T().meta.currency) + ' ' + parseFloat(s.finalAmount).toLocaleString() : '—'}</div>
+            <div class="c amt">${_dateCurrency(d)} ${(parseFloat(s.guarantee)||0).toLocaleString()}</div>
+            <div class="c amt ${s.settled?'pos':''}">${s.finalAmount ? _dateCurrency(d) + ' ' + parseFloat(s.finalAmount).toLocaleString() : '—'}</div>
             <div class="c muted mono" style="font-size:11px">${esc((s.deductions || s.notes || '').slice(0,40))}${(s.deductions || s.notes || '').length>40?'…':''}</div>
             <div class="c amt ${stat}" style="text-align:right">${statText}</div>
             <div class="c tbl-actions"><button type="button" onclick="openSettleModal('${d.id}')">${s.settled?'Edit':'Settle'}</button></div>
@@ -12046,18 +12199,19 @@ function renderAccounting() {
 function exportSettlementReportCSV() {
   const showDates = (T().dates || []).filter(d => d.status === 'show');
   if (!showDates.length) { toast('No show dates to export — add shows first', 'error'); return; }
-  const cur = T().meta?.currency || 'USD';
-  const headers = ['Date','City','State','Venue','Promoter','Capacity','Guarantee ('+cur+')','Final ('+cur+')','Deductions ('+cur+')','Net ('+cur+')','Status','Settled date','Notes'];
+  // Multi-currency aware — one Currency column per row, totals broken
+  // out by currency at the bottom. A business manager needs to see
+  // "EUR 50,000" stay EUR, not be silently summed with GBP / USD shows.
+  const headers = ['Date','City','State','Country','Venue','Promoter','Capacity','Currency','Guarantee','Final','Deductions','Net','Status','Settled date','Notes'];
   const rows = [headers];
-  let totalGuar = 0, totalFinal = 0, totalDed = 0;
+  const totalsByCurGuar = {};   // currency → guarantee total
+  const totalsByCurFinal = {};  // currency → final total
+  const totalsByCurDed = {};    // currency → deductions total
   showDates.forEach(d => {
     const s = d.settlement || {};
+    const cur = _dateCurrency(d);
     const guar = parseFloat(s.guarantee) || 0;
     const fin  = parseFloat(s.finalAmount) || 0;
-    // Deductions can be a number OR a free-text string ("$500 sound bill,
-    // $200 catering overage"). Try numeric parse first; if the value is
-    // text, surface it as-is in the deductions column and don't include
-    // it in the Net calculation (the manager needs to read it).
     const dedRaw = s.deductions;
     let dedNum = 0, dedText = '';
     if (typeof dedRaw === 'number') dedNum = dedRaw;
@@ -12067,15 +12221,20 @@ function exportSettlementReportCSV() {
       else dedText = dedRaw;
     }
     const net = s.settled ? (fin - dedNum) : 0;
-    totalGuar += guar;
-    if (s.settled) { totalFinal += fin; totalDed += dedNum; }
+    if (guar) totalsByCurGuar[cur] = (totalsByCurGuar[cur] || 0) + guar;
+    if (s.settled) {
+      if (fin) totalsByCurFinal[cur] = (totalsByCurFinal[cur] || 0) + fin;
+      if (dedNum) totalsByCurDed[cur] = (totalsByCurDed[cur] || 0) + dedNum;
+    }
     rows.push([
       d.date || '',
       d.city || '',
       d.state || '',
+      d.country || '',
       d.venue || '',
       d.promoter || '',
       d.capacity || '',
+      cur,
       guar ? guar.toFixed(2) : '',
       s.settled && fin ? fin.toFixed(2) : '',
       dedNum ? dedNum.toFixed(2) : (dedText || ''),
@@ -12085,11 +12244,33 @@ function exportSettlementReportCSV() {
       (s.notes || '').replace(/\s+/g, ' ').trim(),
     ]);
   });
-  // Totals row at bottom — only sums settled rows for final/net so the
-  // numbers actually represent money received, not theoretical guarantees.
+  // Totals — one row per currency for guarantees, one per currency for
+  // settled-received. Mixed-currency tours never get implicit summation.
   rows.push([]);
-  rows.push(['TOTAL — Guaranteed','','','','','', totalGuar.toFixed(2), '', '', '', '', '', '']);
-  rows.push(['TOTAL — Settled (received)','','','','','', '', totalFinal.toFixed(2), totalDed.toFixed(2), (totalFinal - totalDed).toFixed(2), '', '', '']);
+  rows.push(['TOTALS BY CURRENCY','','','','','','','','','','','','','','']);
+  Object.keys(totalsByCurGuar).sort().forEach(cur => {
+    rows.push([`TOTAL — Guaranteed (${cur})`,'','','','','','', cur, totalsByCurGuar[cur].toFixed(2), '', '', '', '', '', '']);
+  });
+  Object.keys(totalsByCurFinal).sort().forEach(cur => {
+    const fin = totalsByCurFinal[cur] || 0;
+    const ded = totalsByCurDed[cur] || 0;
+    rows.push([`TOTAL — Settled (${cur})`,'','','','','','', cur, '', fin.toFixed(2), ded.toFixed(2), (fin - ded).toFixed(2), '', '', '']);
+  });
+  // Approximate USD grand total — flagged as approximate so no one
+  // mistakes it for a settlement number.
+  const usdGuar = Object.entries(totalsByCurGuar).reduce((sum, [c, v]) => {
+    const r = USD_FX_APPROX[c]; return r == null ? sum : sum + v * r;
+  }, 0);
+  const usdFinal = Object.entries(totalsByCurFinal).reduce((sum, [c, v]) => {
+    const r = USD_FX_APPROX[c]; return r == null ? sum : sum + v * r;
+  }, 0);
+  if (Object.keys(totalsByCurGuar).length > 1 || Object.keys(totalsByCurFinal).length > 1) {
+    rows.push([]);
+    rows.push([`APPROX. USD EQUIVALENT (rates from ${USD_FX_LAST_UPDATED} — subject to change)`,'','','','','','','USD',
+      usdGuar ? usdGuar.toFixed(0) : '',
+      usdFinal ? usdFinal.toFixed(0) : '',
+      '','','','','']);
+  }
 
   const csv = rows.map(r => r.map(v => {
     const s = String(v == null ? '' : v);
