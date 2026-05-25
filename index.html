@@ -9295,13 +9295,25 @@ function openSettleModal(dateId) {
   const dt = T().dates.find(d => d.id === dateId);
   if (!dt) return;
   const s = dt.settlement;
+  // Per-date currency: parsed from deal memos by _matchGuarantee. Falls
+  // back to the tour-level default (T().meta.currency, usually USD).
+  // Editable in the modal so a TM can correct an ambiguous "kr"
+  // (NOK/SEK/DKK/ISK) or override the default on a one-off basis.
+  const effCur = s.currency || T().meta.currency || 'USD';
+  const CUR_OPTIONS = ['USD','EUR','GBP','CAD','AUD','CHF','NOK','SEK','DKK','ISK','PLN','CZK','HUF','BGN','RON','RSD','TRY','JPY','MXN','BRL','NZD','kr'];
   openModal({
     title: `Settle: ${dt.city} · ${fmtDate(dt.date)}`,
     body: `
       <div class="form-grid">
-        <div class="field"><label>Guarantee (${T().meta.currency})</label><input type="number" step="0.01" id="se_g" value="${s.guarantee || 0}"></div>
+        <div class="field">
+          <label>Currency</label>
+          <select id="se_cur">
+            ${CUR_OPTIONS.map(c => `<option value="${c}" ${c===effCur?'selected':''}>${c}${c==='kr'?' (NOK/SEK/DKK/ISK — pick one)':''}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>Guarantee</label><input type="number" step="0.01" id="se_g" value="${s.guarantee || 0}"></div>
         <div class="field"><label>Final settlement</label><input type="number" step="0.01" id="se_final" value="${s.finalAmount || 0}"></div>
-        <div class="field full"><label>Deductions / buy-out / notes</label><textarea id="se_ded" placeholder="e.g. -$2,500 PA buyout, +$1,200 walkout">${esc(s.deductions)}</textarea></div>
+        <div class="field full"><label>Deductions / buy-out / notes</label><textarea id="se_ded" placeholder="e.g. -2,500 PA buyout, +1,200 walkout">${esc(s.deductions)}</textarea></div>
         <div class="field-row full">
           <input type="checkbox" id="se_settled" ${s.settled?'checked':''}/>
           <label for="se_settled">Marked as settled</label>
@@ -9311,6 +9323,7 @@ function openSettleModal(dateId) {
     `,
     onSubmit: () => {
       Object.assign(dt.settlement, {
+        currency: $('#se_cur').value || effCur,
         guarantee: parseFloat($('#se_g').value) || 0,
         finalAmount: parseFloat($('#se_final').value) || 0,
         deductions: $('#se_ded').value.trim(),
@@ -10543,9 +10556,20 @@ function renderDayStrip() {
       </button>
     `;
   }).join('');
-  // scroll active into view
+  // Auto-scroll the active pill into view — but ONLY when the active
+  // date actually changed since the last render. Without this guard
+  // the strip re-renders constantly (realtime echoes, saves, chat
+  // events, tab switches all trigger renderAll) and each re-render
+  // fired another smooth-scroll, which fought the user's hand-scrolling
+  // and made the strip feel "stuck" or "pushing me around" whenever
+  // they tried to look ahead at later dates.
   const active = strip.querySelector('.active');
-  try { if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' }); } catch(e) {}
+  const activeIdNow = T().activeDateId || '';
+  const activeIdPrev = strip.dataset.lastActiveId || '';
+  if (active && active.scrollIntoView && activeIdNow !== activeIdPrev) {
+    try { active.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' }); } catch(e) {}
+  }
+  strip.dataset.lastActiveId = activeIdNow;
   // Wire up edge-aware fade masking — left fades only after scrolling, right
   // fades only when more pills exist off-screen. Re-evaluate on every scroll
   // and on resize. Bind once per strip via a sentinel attr.
@@ -11184,15 +11208,16 @@ function _scheduleTimeDisplay(item) {
 // _earlyNextDaySchedule(ad)
 //
 // Return schedule + travel items from the NEXT date on the tour that
-// occur at or before 8:00 AM. Touring days bleed past midnight in
-// practice — a 1:00 AM bus call after a Friday night show is part of
-// Friday's work cycle even though the clock says Saturday. Without
-// this, the crew would have to swipe to the next day to see their
-// early-morning departure, which is exactly the kind of thing people
-// miss when they're tired.
+// occur at or before NOON (12:00). Touring days bleed past midnight in
+// practice — an overnight bus call, an early-morning lobby call, even
+// a noon hotel-checkout-then-airport run are all part of yesterday's
+// work cycle in the crew's head. Without this rollover, those items
+// would be hidden until the crew swipes to the next day, which is
+// exactly the kind of thing people miss when they're tired.
 //
-// 8:00 AM is the conventional cutoff: anything before it is "still
-// last night" in touring terms; anything after is "the new day."
+// 12:00 is the conventional touring cutoff: anything from midnight
+// through noon is "still last night's day"; anything after is "the
+// new day proper" with its own lobby call, soundcheck, etc.
 // Each returned item is tagged with `_isNextDay: true` so the UI can
 // render it with a distinct treatment (different header, dimmed,
 // time-prefixed, etc.).
@@ -11203,7 +11228,7 @@ function _earlyNextDaySchedule(ad) {
   if (idx < 0 || idx >= dates.length - 1) return []; // last day, no tomorrow
   const nextDate = dates[idx + 1];
   if (!nextDate) return [];
-  const EARLY_CUTOFF_MIN = 8 * 60; // 08:00 inclusive
+  const EARLY_CUTOFF_MIN = 12 * 60; // 12:00 inclusive (noon)
   return _mergedDaySchedule(nextDate)
     .filter(s => {
       if (s.allDay) return false; // all-day items belong to their own day
@@ -11839,8 +11864,8 @@ function renderAccounting() {
           <div class="tbl-row settle-row ${d.date===todayISO()?'today':''}">
             <div class="c mono" style="${d.date===todayISO()?'color:var(--hot)':''}">${fmtMD(d.date)}</div>
             <div class="c"><div class="city">${esc(d.city)}<span>${esc(d.promoter || '—')}</span></div></div>
-            <div class="c amt">${T().meta.currency} ${(parseFloat(s.guarantee)||0).toLocaleString()}</div>
-            <div class="c amt ${s.settled?'pos':''}">${s.finalAmount ? T().meta.currency + ' ' + parseFloat(s.finalAmount).toLocaleString() : '—'}</div>
+            <div class="c amt">${(s.currency || T().meta.currency)} ${(parseFloat(s.guarantee)||0).toLocaleString()}</div>
+            <div class="c amt ${s.settled?'pos':''}">${s.finalAmount ? (s.currency || T().meta.currency) + ' ' + parseFloat(s.finalAmount).toLocaleString() : '—'}</div>
             <div class="c muted mono" style="font-size:11px">${esc((s.deductions || s.notes || '').slice(0,40))}${(s.deductions || s.notes || '').length>40?'…':''}</div>
             <div class="c amt ${stat}" style="text-align:right">${statText}</div>
             <div class="c tbl-actions"><button type="button" onclick="openSettleModal('${d.id}')">${s.settled?'Edit':'Settle'}</button></div>
@@ -12506,7 +12531,7 @@ function _advanceTechPackRowHTML(tp) {
     return `
       <button type="button" class="adv-techpack-cta" onclick="document.getElementById('adv_techpack_file').click()">
         ↑ Pick tech pack file
-        <span class="adv-techpack-hint">PDF · DOCX · up to 5 MB · stored inline</span>
+        <span class="adv-techpack-hint">PDF · DOCX · up to 25 MB · stored inline</span>
       </button>
     `;
   }
@@ -12526,14 +12551,19 @@ function _advanceTechPackRowHTML(tp) {
   `;
 }
 
-// File picker handler for the tech pack slot. Same 5 MB inline-cap
-// rule as the Attachments tab so we don't overflow localStorage.
+// File picker handler for the tech pack slot. 25 MB inline-cap —
+// production tech packs (Pages, stage plots, input lists, lighting
+// plots, full riders) routinely run 10–20 MB once they include
+// embedded fonts and high-res figures, so the original 5 MB cap was
+// rejecting real-world files. localStorage on modern browsers (Chrome,
+// Safari, Firefox) tolerates a single 25 MB string fine; if multiple
+// tours hit the cap we can move to Supabase Storage later.
 async function _advanceTechPackPicked(input) {
   const file = input && input.files && input.files[0];
   if (!file) return;
-  const INLINE_LIMIT = 5 * 1024 * 1024;
+  const INLINE_LIMIT = 25 * 1024 * 1024;
   if (file.size > INLINE_LIMIT) {
-    toast(`File ${(file.size/1024/1024).toFixed(1)} MB — too large to store inline (5 MB cap).`, 'error');
+    toast(`File ${(file.size/1024/1024).toFixed(1)} MB — too large to store inline (25 MB cap).`, 'error');
     input.value = '';
     return;
   }
@@ -13284,7 +13314,7 @@ function renderPhone() {
         ${myEarlyTomorrow.length ? `
           <div class="p-early-tmrw-hdr">
             <span class="petw-line"></span>
-            <span class="petw-lbl">EARLY TOMORROW${nextDateLabel ? ' · ' + nextDateLabel : ''}</span>
+            <span class="petw-lbl">TOMORROW · BEFORE NOON${nextDateLabel ? ' · ' + nextDateLabel : ''}</span>
             <span class="petw-line"></span>
           </div>
           ${myEarlyTomorrow.map(s => `
@@ -14247,6 +14277,79 @@ async function extractPDFText(file) {
 // here as we encounter them in real tour data — no algorithmic guessing,
 // only confirmed mappings, so we never silently rewrite a legitimate
 // city to the wrong one.
+
+// ──────────────────────────────────────────────────────────────────────
+// Currency support for deal memo parsing.
+//
+// European tours land in 30+ currencies (EUR, GBP, PLN, CZK, HUF, NOK,
+// SEK, DKK, CHF, RON, ISK, BGN, TRY, RSD…). Before this, our regex
+// hard-coded USD/EUR/GBP/CAD which silently dropped the guarantee for
+// any show in a less-common currency. The expanded list below covers
+// every European currency + the common touring-circuit currencies.
+//
+// CURRENCY_CODES_RE — matches ISO 4217 three-letter codes.
+//
+// CURRENCY_SYMBOLS_RE — matches typeable symbols. "kr" is shared by
+// NOK / SEK / DKK / ISK so it stays ambiguous and surfaces in the UI
+// for the TM to resolve. "$" defaults to USD (the right call for the
+// overwhelming majority of "$" memos in the wild).
+//
+// _normalizeCurrencyToken(token) — maps whatever the regex captured
+// to a canonical ISO code. Unambiguous symbols map directly; "kr"
+// passes through so downstream UI can prompt for the specific country.
+const CURRENCY_CODES_RE = 'USD|EUR|GBP|CAD|AUD|NZD|CHF|NOK|SEK|DKK|ISK|PLN|CZK|HUF|BGN|RON|RSD|TRY|JPY|MXN|BRL';
+const CURRENCY_SYMBOLS_RE = '\\$|£|€|¥|kr|zł|Kč|Ft|лв|lei|₺|₣';
+function _normalizeCurrencyToken(tok) {
+  if (!tok) return null;
+  const t = String(tok).trim();
+  const codes = CURRENCY_CODES_RE.split('|');
+  if (codes.includes(t.toUpperCase())) return t.toUpperCase();
+  const SYMBOL_MAP = {
+    '$':  'USD',
+    '£':  'GBP',
+    '€':  'EUR',
+    '¥':  'JPY',
+    'zł': 'PLN',
+    'Kč': 'CZK',
+    'Ft': 'HUF',
+    'лв': 'BGN',
+    'lei':'RON',
+    '₺':  'TRY',
+    '₣':  'CHF',
+    'kr': 'kr', // ambiguous between NOK/SEK/DKK/ISK — keep for UI resolution
+  };
+  return SYMBOL_MAP[t] || null;
+}
+
+// _matchGuarantee(block) — single helper both parsers can call.
+// Tries amount-first ("20,000 EUR") AND currency-first ("EUR 20,000",
+// "€20,000") shapes. Returns { amount, currency } or null. Anchors on
+// common labels so we don't grab a random number/currency pair from a
+// capacity table or bank-account section.
+function _matchGuarantee(block) {
+  if (!block) return null;
+  const LABEL_RE = '(?:DEAL\\s+TERMS|Guarantee|Flat\\s+Guarantee|Artist\\s+Fee|Total\\s+Fee)\\s*[:\\-]?\\s*';
+  const amountFirst = new RegExp(
+    LABEL_RE + '([\\d,]+(?:\\.\\d+)?)\\s*(' + CURRENCY_CODES_RE + '|' + CURRENCY_SYMBOLS_RE + ')',
+    'i'
+  );
+  const currencyFirst = new RegExp(
+    LABEL_RE + '(' + CURRENCY_CODES_RE + '|' + CURRENCY_SYMBOLS_RE + ')\\s*([\\d,]+(?:\\.\\d+)?)',
+    'i'
+  );
+  let m = block.match(amountFirst);
+  if (m) {
+    const amount = parseFloat(m[1].replace(/,/g, '')) || 0;
+    return { amount, currency: _normalizeCurrencyToken(m[2]) };
+  }
+  m = block.match(currencyFirst);
+  if (m) {
+    const amount = parseFloat(m[2].replace(/,/g, '')) || 0;
+    return { amount, currency: _normalizeCurrencyToken(m[1]) };
+  }
+  return null;
+}
+
 // ──────────────────────────────────────────────────────────────────────
 // _splitCamelCity(city)
 //
@@ -14509,12 +14612,15 @@ function _parseCAADealMemoBlock(block) {
     out.promoter = buyerMatch[1].trim();
   }
 
-  // ── Guarantee ───────────────────────────────────────────────────────
-  // "DEAL TERMS: 20,000 EUR Flat Guarantee" or with $/£/€
-  const guarMatch = block.match(/DEAL\s+TERMS:\s*([\d,]+(?:\.\d+)?)\s*(USD|EUR|GBP|CAD|\$|£|€)/i)
-    || block.match(/Guarantee:\s*([\d,]+(?:\.\d+)?)\s*(USD|EUR|GBP|CAD)/i);
-  if (guarMatch) {
-    out.guarantee = parseFloat(guarMatch[1].replace(/,/g, '')) || 0;
+  // ── Guarantee + currency ───────────────────────────────────────────
+  // Handles every European currency + the common touring-circuit ones
+  // via _matchGuarantee. Stores BOTH the amount and the parsed ISO
+  // currency code on the block so multi-country tours don't get all
+  // their guarantees implicitly coerced to the tour-level default.
+  const guar = _matchGuarantee(block);
+  if (guar) {
+    out.guarantee = guar.amount;
+    if (guar.currency) out.currency = guar.currency;
   }
 
   // ── Set time (from the Billing block, if present) ───────────────────
@@ -14764,9 +14870,23 @@ function _parseDealMemoBlock(block) {
   if (!cap) cap = block.match(/\b(\d{3,5})\s+--\s+\$/);  // "1000 -- $" pattern
   if (!cap) cap = block.match(/Tier[^]*?(\d{3,5})/i);
   if (cap) out.capacity = cap[1];
-  // ── Guarantee ── "$12,000.00 USD Guarantee" or "$12,000 Flat Guarantee".
-  const gt = block.match(/\$\s*([0-9,]+(?:\.\d+)?)\s*(?:USD)?\s*(?:Flat\s+)?Guarantee/i);
-  if (gt) out.guarantee = parseFloat(gt[1].replace(/,/g, ''));
+  // ── Guarantee + currency ── multi-currency aware via _matchGuarantee.
+  // Wasserman defaults to USD (their US base) but they also book European
+  // tours where the memo prints "€12,000 Flat Guarantee" — same shape,
+  // different currency. Falls back to the original $-prefix pattern for
+  // the legacy "$12,000 Flat Guarantee" form some memos still use without
+  // any "Guarantee:" label.
+  const wgt = _matchGuarantee(block);
+  if (wgt) {
+    out.guarantee = wgt.amount;
+    if (wgt.currency) out.currency = wgt.currency;
+  } else {
+    const legacy = block.match(/\$\s*([0-9,]+(?:\.\d+)?)\s*(?:USD)?\s*(?:Flat\s+)?Guarantee/i);
+    if (legacy) {
+      out.guarantee = parseFloat(legacy[1].replace(/,/g, ''));
+      out.currency = 'USD';
+    }
+  }
   return out;
 }
 
@@ -22565,9 +22685,13 @@ function _applyImportResults(results) {
       if (existing.status === 'off' && d.venue && d.city) existing.status = 'show';
       if (filled > 0) stats.datesUpdated++;
       stats.fieldsFilled += filled;
-      // Guarantee on settlement
+      // Guarantee + currency on settlement. Currency carries through
+      // from the parsed deal memo so a single tour can mix USD, EUR,
+      // GBP, etc. across dates — common for tours that cross from
+      // North America into the UK / EU / Scandinavia.
       if (existing.settlement && (!existing.settlement.guarantee || existing.settlement.guarantee === 0) && d.guarantee) {
         existing.settlement.guarantee = d.guarantee;
+        if (d.currency && !existing.settlement.currency) existing.settlement.currency = d.currency;
         stats.fieldsFilled++;
       }
     } else {
@@ -22582,7 +22706,7 @@ function _applyImportResults(results) {
         promoter: d.promoter || '',
         schedule: [], travel: [], guests: [], setList: [], attachments: [],
         hotel: null,
-        settlement: { settled: false, guarantee: d.guarantee || 0, finalAmount: 0, deductions: '', notes: '' },
+        settlement: { settled: false, guarantee: d.guarantee || 0, currency: d.currency || '', finalAmount: 0, deductions: '', notes: '' },
         notes: d.notes || '',
         _imported: true,
       });
