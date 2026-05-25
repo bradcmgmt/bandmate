@@ -934,7 +934,7 @@ input,select,textarea{font:inherit;color:inherit}
    Aftershow is warm violet (post-show invite). */
 .passchip{display:inline-block;padding:4px 8px;border-radius:5px;
   font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
-  border:1px solid var(--line)}
+  border:1px solid var(--line);white-space:nowrap;line-height:1.2}
 .passchip.ga{background:rgba(122,220,151,.10);color:#7adc97;border-color:rgba(122,220,151,.32)}
 .passchip.guest{background:rgba(232,148,58,.12);color:var(--hi);border-color:rgba(232,148,58,.35)}
 .passchip.aaa{background:rgba(232,69,69,.12);color:var(--red);border-color:rgba(232,69,69,.3)}
@@ -1374,14 +1374,30 @@ input,select,textarea{font:inherit;color:inherit}
 .p-card-notes .p-notes-body b,
 .p-card-notes .p-notes-body strong{color:var(--warm);font-weight:800}
 .p-row .what{font-size:13px;font-weight:600;color:var(--warm)}
-/* "Early tomorrow" rollover section — items from the next date that
-   fire before 08:00 (overnight bus call, early flight). Subdued from
-   today's items so the eye sorts them as future-but-imminent. */
-.p-early-tmrw-hdr{display:flex;align-items:center;gap:8px;margin:12px 0 4px;padding:0 2px}
-.p-early-tmrw-hdr .petw-line{flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(138,169,216,.4),transparent)}
-.p-early-tmrw-hdr .petw-lbl{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.18em;
+/* "Tomorrow" rollover section — items from the next date that fire
+   before noon (overnight bus call, early flight) OR items flagged
+   +1-NEXT-DAY by the TM on this date. Subdued from today's items so
+   the eye sorts them as future-but-imminent.
+
+   Header: left-aligned "TOMORROW" pill + right-aligned date label,
+   separated by a thin gradient rule. Avoids the cramped feeling of
+   the old "dual fade lines around a single long label" layout that
+   wrapped or clipped on narrow mobile widths. */
+.p-early-tmrw-hdr{
+  display:flex;align-items:baseline;gap:10px;margin:16px 0 6px;
+  padding:8px 4px 4px;
+  border-top:1px solid rgba(138,169,216,.2);
+}
+.p-early-tmrw-hdr .petw-lbl{
+  font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;
   text-transform:uppercase;color:#8aa9d8;font-weight:700;white-space:nowrap;
-  text-shadow:0 0 6px rgba(138,169,216,.35)}
+  text-shadow:0 0 6px rgba(138,169,216,.35);line-height:1;
+}
+.p-early-tmrw-hdr .petw-date{
+  font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;
+  text-transform:uppercase;color:#b1c8ee;font-weight:500;white-space:nowrap;
+  margin-left:auto;opacity:.85;line-height:1;
+}
 .p-row.p-row-next{opacity:.78}
 .p-row.p-row-next .t{color:#8aa9d8}
 .p-row.p-row-next .what{color:#cdb8a0}
@@ -2216,7 +2232,7 @@ input,select,textarea{font:inherit;color:inherit}
 /* Guest list grid — single-line rows by default, with the Notes column the only
    place we allow wrap when the note is genuinely long. Action column sized so
    pending rows (3 buttons: ✓ ✗ Edit) fit comfortably without wrapping. */
-.gl-grid{grid-template-columns:1.6fr 1fr 70px 110px 1.2fr 130px;align-items:center}
+.gl-grid{grid-template-columns:1.6fr 1fr 110px 110px 1.2fr 130px;align-items:center}
 .gl-row{align-items:center;min-height:48px}
 .gl-c-truncate{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gl-c-truncate b, .gl-c-truncate span{display:inline-block;max-width:100%;overflow:hidden;
@@ -7642,6 +7658,13 @@ function openScheduleModal(itemId) {
           <label>End time <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional)</span></label>
           ${renderTime12Picker('s_end', i.endTime || '', { disabled: !!i.allDay })}
         </div>
+        <div class="field full">
+          <label>Day <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(toggle if this time happens after midnight on the next date)</span></label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <button type="button" id="s_nextday_btn" class="allday-btn ${i.nextDay ? 'on' : ''}" onclick="this.classList.toggle('on')" title="When ON, this item belongs to tomorrow's date — useful for post-show bus calls, lobby calls, etc. that happen after midnight. Dashboard shows it on both days; crew mobile shows it once.">+1 NEXT DAY</button>
+            <span class="muted mono" style="font-size:10.5px;letter-spacing:.04em">${i.nextDay ? 'This item belongs to the next date — appears on tomorrow\'s schedule.' : 'This item happens on today\'s date.'}</span>
+          </div>
+        </div>
         <div class="field full"><label>What *</label><input id="s_what" value="${esc(i.what)}" placeholder="e.g. Soundcheck, Lobby call, Doors"></div>
         <div class="field full"><label>Visible to groups <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span></label>
           ${renderGroupPicker('s_grp', i.groups && i.groups.length ? i.groups : ['All'], true)}
@@ -7685,7 +7708,13 @@ function openScheduleModal(itemId) {
       // _scheduleItemDisplayLabel(). When editing an item that still
       // has a who value (older tour data), we preserve it so it can
       // still serve as a fallback label until the TM picks audience.
-      const baseData = { time, endTime, allDay, what, notes: $('#s_notes').value.trim(), groups, individuals };
+      // nextDay: when true, this item is logically the morning of the
+      // following date (post-midnight bus calls, lobby calls, early
+      // departures). Storage stays on the current date so the TM can
+      // see all "this show's wrap-up" items together; rendering logic
+      // (dashboard + crew mobile) merges them onto the appropriate day.
+      const nextDay = document.getElementById('s_nextday_btn')?.classList.contains('on') || false;
+      const baseData = { time, endTime, allDay, what, notes: $('#s_notes').value.trim(), groups, individuals, nextDay };
       if (item && item.who && !groups.length && !individuals.length) baseData.who = item.who;
       if (item) Object.assign(item, baseData);
       else ad.schedule.push({ id: uid('s'), ...baseData });
@@ -9972,9 +10001,17 @@ function _attachBackToPick() {
 // Walk every owned tour for the attachment id. We don't restrict to
 // the active date because View/Download buttons should still work
 // even if the user is looking at a date that doesn't own the file.
+//
+// Modern storage lives on `tour.attachments[]` (the per-tour unified
+// list — each item carries a `dateId` field: null = tour-wide,
+// uuid = scoped to that date). We check that first. Falls back to
+// the legacy `tour.dates[].attachments[]` nesting for any pre-
+// migration tour data that might still have rows in the old shape.
 function _findAttachmentById(attId) {
   const tours = (state && state.tours) ? Object.values(state.tours) : [];
   for (const tour of tours) {
+    const tourLevel = (tour.attachments || []).find(x => x.id === attId);
+    if (tourLevel) return tourLevel;
     for (const d of (tour.dates || [])) {
       const hit = (d.attachments || []).find(x => x.id === attId);
       if (hit) return hit;
@@ -10946,7 +10983,24 @@ function renderDashboard() {
       ${adv.showers ? `<div class="pair"><span class="lbl">Showers</span><span class="val">${esc(adv.showers)}</span></div>` : ''}
       ${adv.runners ? `<div class="pair"><span class="lbl">Runners</span><span class="val">${esc(adv.runners)}</span></div>` : ''}
       ${adv.parking ? `<div class="pair"><span class="lbl">Parking</span><span class="val">${esc(adv.parking)}</span></div>` : ''}
-      ${adv.handsIn || adv.handsOut ? `<div class="pair"><span class="lbl">Hands</span><span class="val">${esc(adv.handsIn || '—')} → ${esc(adv.handsOut || '—')}${adv.handsAllDay ? ' · ' + esc(adv.handsAllDay) + ' all-day' : ''}</span></div>` : ''}
+      ${(() => {
+        // Dashboard "Venue" card hands display — renders every set so a
+        // multi-window day (5 hands for load-in, 8 hands for show)
+        // shows both rows. Falls back to legacy fields when handsSets
+        // isn't present.
+        const sets = _advanceReadHandsSets(adv);
+        if (!sets.length) return '';
+        return sets.map((s, i) => {
+          const lbl = sets.length === 1 ? 'Hands' : `Hands · ${i+1}`;
+          const cnt = s.count ? `${s.count}` : '';
+          let val;
+          if (s.allDay) val = `${cnt ? cnt + ' · ' : ''}all day`;
+          else if (s.inTime || s.outTime) val = `${cnt ? cnt + ' · ' : ''}${s.inTime || '—'} → ${s.outTime || '—'}`;
+          else if (cnt) val = `${cnt} confirmed`;
+          else return '';
+          return `<div class="pair"><span class="lbl">${lbl}</span><span class="val">${esc(val)}</span></div>`;
+        }).filter(Boolean).join('');
+      })()}
     </div>
   ` : '';
 
@@ -11218,6 +11272,38 @@ function _scheduleTimeDisplay(item) {
   return start || '—';
 }
 
+// _scheduleItemsForDashboard(ad)
+//
+// Return everything the DASHBOARD should show for this date. Combines:
+//   • ad.schedule items (today's items, INCLUDING ones flagged nextDay
+//     so the TM still sees the post-midnight item in this date's editor)
+//   • Previous day's items flagged nextDay (those happen chronologically
+//     on today, so the TM sees them on today's dashboard with a marker)
+//
+// Each returned item carries the original schedule fields plus:
+//   _carryover: true   — set when the item came from the previous date
+//   _sourceDate: id    — the date that owns the item (so edit clicks
+//                        can jump to the right modal)
+// nextDay items on THIS date carry _isNextDay: true so the renderer
+// can stamp a "+1" badge next to them.
+function _scheduleItemsForDashboard(ad) {
+  if (!ad) return [];
+  const dates = T().dates || [];
+  const idx = dates.findIndex(d => d.id === ad.id);
+  const prev = idx > 0 ? dates[idx - 1] : null;
+  const todays = (ad.schedule || []).map(s => ({
+    ...s,
+    _isNextDay: !!s.nextDay,
+    _sourceDate: ad.id,
+  }));
+  const carryovers = prev
+    ? (prev.schedule || [])
+        .filter(s => s.nextDay)
+        .map(s => ({ ...s, _carryover: true, _sourceDate: prev.id }))
+    : [];
+  return [...carryovers, ...todays];
+}
+
 // _earlyNextDaySchedule(ad)
 //
 // Return schedule + travel items from the NEXT date on the tour that
@@ -11238,19 +11324,44 @@ function _earlyNextDaySchedule(ad) {
   if (!ad) return [];
   const dates = T().dates || [];
   const idx = dates.findIndex(d => d.id === ad.id);
-  if (idx < 0 || idx >= dates.length - 1) return []; // last day, no tomorrow
-  const nextDate = dates[idx + 1];
-  if (!nextDate) return [];
+  const nextDate = (idx >= 0 && idx < dates.length - 1) ? dates[idx + 1] : null;
   const EARLY_CUTOFF_MIN = 12 * 60; // 12:00 inclusive (noon)
-  return _mergedDaySchedule(nextDate)
-    .filter(s => {
-      if (s.allDay) return false; // all-day items belong to their own day
+  const collected = [];
+  // (a) Items the TM explicitly flagged as "+1 NEXT DAY" while editing
+  // THIS date. They're stored on ad.schedule but logically fire on the
+  // next date — show them here in the EARLY TOMORROW rollover so the
+  // crew sees them once, in the context of tonight's wrap-up.
+  (ad.schedule || []).forEach(s => {
+    if (!s.nextDay) return;
+    collected.push({ ...s, _isNextDay: true, _nextDateId: nextDate?.id || null, _carryFromToday: true });
+  });
+  // (b) Items entered directly on the NEXT date that fire before noon.
+  // Pre-existing behavior — flights at 6am, lobby calls at 8am, etc.
+  // Filtered out of the next day's main list on crew mobile so we
+  // never double-display.
+  if (nextDate) {
+    _mergedDaySchedule(nextDate).forEach(s => {
+      if (s.allDay) return;
+      // Skip items already flagged nextDay on the next date itself —
+      // those would belong to the date AFTER tomorrow, handled by
+      // that date's own EARLY TOMORROW preview.
+      if (s.nextDay) return;
       const m = (s.time || '').match(/^(\d{1,2}):(\d{2})/);
-      if (!m) return false;
+      if (!m) return;
       const mins = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
-      return mins <= EARLY_CUTOFF_MIN;
-    })
-    .map(s => ({ ...s, _isNextDay: true, _nextDateId: nextDate.id }));
+      if (mins > EARLY_CUTOFF_MIN) return;
+      collected.push({ ...s, _isNextDay: true, _nextDateId: nextDate.id });
+    });
+  }
+  // Sort the combined list chronologically. Items missing a time
+  // sink to the bottom (shouldn't happen for nextDay items but be safe).
+  return collected.sort((a, b) => {
+    const am = (a.time || '').match(/^(\d{1,2}):(\d{2})/);
+    const bm = (b.time || '').match(/^(\d{1,2}):(\d{2})/);
+    const at = am ? parseInt(am[1],10)*60 + parseInt(am[2],10) : 99999;
+    const bt = bm ? parseInt(bm[1],10)*60 + parseInt(bm[2],10) : 99999;
+    return at - bt;
+  });
 }
 
 function _mergedDaySchedule(ad) {
@@ -11303,8 +11414,27 @@ function renderSchedule() {
   if (!ad) { root.innerHTML = noDate(); return; }
 
   // Merge schedule with travel so flights/buses/etc. appear at the
-  // right time in the Schedule tab without duplicating data.
-  const items = _mergedDaySchedule(ad);
+  // right time in the Schedule tab without duplicating data. The
+  // dashboard also includes:
+  //   • items the TM flagged "+1 NEXT DAY" on THIS date (with a "+1"
+  //     badge so the TM sees them in the night-of editor) — these come
+  //     through naturally from ad.schedule via _mergedDaySchedule
+  //   • items the TM flagged "+1 NEXT DAY" on the PREVIOUS date
+  //     (carryover — they happen chronologically today; rendered with
+  //     a "← PREV DAY" badge so the TM knows they're double-shown)
+  const dates = T().dates || [];
+  const adIdx = dates.findIndex(d => d.id === ad.id);
+  const prevDate = adIdx > 0 ? dates[adIdx - 1] : null;
+  const carryoverFromPrev = prevDate
+    ? (prevDate.schedule || [])
+        .filter(s => s.nextDay)
+        .map(s => ({ ...s, _carryover: true, _sourceDate: prevDate.id }))
+    : [];
+  const items = _mergedDaySchedule(ad).concat(carryoverFromPrev).sort((a, b) => {
+    if (a.allDay && !b.allDay) return -1;
+    if (b.allDay && !a.allDay) return 1;
+    return (a.time || '').localeCompare(b.time || '');
+  });
   const templates = (T().scheduleTemplates || []);
   root.innerHTML = `
     <div class="section-title">
@@ -11350,12 +11480,31 @@ function renderSchedule() {
           // picker is hidden for these rows because audience is managed
           // on the travel item itself.
           const isTravel = !!s._fromTravel;
-          const editFn = isTravel ? `openTravelModal('${s._travelId}')` : `openScheduleModal('${s.id}')`;
-          const labelBadge = isTravel ? `<span class="who" style="color:var(--hi);font-size:10px;letter-spacing:.16em;margin-left:6px">↗ TRAVEL</span>` : '';
+          // Carryover items belong to the previous date — clicking Edit
+          // needs to jump to that date first so the modal opens against
+          // the right ad.schedule array. Without this, edits would try
+          // to mutate today's schedule and silently no-op.
+          const editFn = isTravel
+            ? `openTravelModal('${s._travelId}')`
+            : (s._carryover
+                ? `setActive('${s._sourceDate}');setTimeout(()=>openScheduleModal('${s.id}'),50)`
+                : `openScheduleModal('${s.id}')`);
+          const travelBadge = isTravel ? `<span class="who" style="color:var(--hi);font-size:10px;letter-spacing:.16em;margin-left:6px">↗ TRAVEL</span>` : '';
+          // +1 badge: this item is flagged nextDay on the CURRENT date
+          // (TM is looking at today and sees "this fires tomorrow morning").
+          const nextDayBadge = (s.nextDay && !s._carryover)
+            ? `<span class="who" style="color:#8aa9d8;font-size:10px;letter-spacing:.16em;margin-left:6px">+1 NEXT DAY</span>`
+            : '';
+          // ← PREV badge: this item came from yesterday's schedule
+          // flagged nextDay. The TM sees it on today's dashboard with
+          // a marker explaining it's the same item shown on yesterday.
+          const carryoverBadge = s._carryover
+            ? `<span class="who" style="color:#fdba74;font-size:10px;letter-spacing:.16em;margin-left:6px">← PREV DAY</span>`
+            : '';
           return `
           <div class="item-row" style="grid-template-columns:minmax(110px,140px) minmax(160px,1fr) minmax(140px,220px) auto;align-items:flex-start">
             <span class="t" style="padding-top:8px">${esc(_scheduleTimeDisplay(s))}</span>
-            <span class="what" style="padding-top:6px;min-width:0">${esc(s.what)}${labelBadge}${s.notes ? `<span class="note">${esc(s.notes)}</span>` : ''}</span>
+            <span class="what" style="padding-top:6px;min-width:0">${esc(s.what)}${travelBadge}${nextDayBadge}${carryoverBadge}${s.notes ? `<span class="note">${esc(s.notes)}</span>` : ''}</span>
             ${isTravel ? '<span></span>' : renderVizPicker(s)}
             <div class="tbl-actions" style="padding-top:6px"><button type="button" onclick="${editFn}">Edit</button></div>
           </div>
@@ -12166,29 +12315,7 @@ function renderAdvance() {
       </div>
 
       <div class="advance-subsection">
-        <div class="advance-sub-h">Hands confirmed</div>
-        <div class="advance-sub-grid">
-          <div class="advance-field">
-            <label># of hands</label>
-            <input type="number" min="0" step="1" inputmode="numeric" id="adv_handsCount" value="${esc(a.handsCount || '')}" placeholder="e.g. 4" onchange="_advanceSave('handsCount', this.value)">
-          </div>
-          <div class="advance-field">
-            <label>In time</label>
-            ${renderTime12Picker('adv_in', a.handsIn || '', { disabled: handsAllDay })}
-          </div>
-          <div class="advance-field">
-            <label>Out time</label>
-            ${renderTime12Picker('adv_out', a.handsOut || '', { disabled: handsAllDay })}
-          </div>
-          <div class="advance-field">
-            <label>&nbsp;</label>
-            <button type="button" id="adv_hands_allday_btn" class="allday-btn ${handsAllDay ? 'on' : ''}" onclick="_advanceHandsAllDayToggle()">All day</button>
-          </div>
-          <div class="advance-field">
-            <label>&nbsp;</label>
-            <button type="button" class="allday-btn" onclick="_advanceHandsSave()">Save times</button>
-          </div>
-        </div>
+        ${_advanceHandsSectionHTML(a)}
       </div>
 
       <div class="advance-subsection">
@@ -12493,42 +12620,212 @@ function _advanceSave(key, value) {
   saveState();
 }
 
-// Save in/out hands times in one go. Reads both structured time
-// pickers, plus the all-day flag. Stores 24-hour HH:MM strings.
+// ─────────────────────────────────────────────────────────────────────
+// Multi-set hands ("HANDS CONFIRMED" section).
+//
+// A tour can need different stage-hand counts at different windows:
+// 5 hands for load-in (9am–noon), then 8 hands during the show
+// (1pm–6pm). The original UI only modeled ONE set of in/out times.
+//
+// Storage: a.handsSets = [{ count, inTime, outTime, allDay }, ...]
+//   up to 5 entries
+//
+// Backwards compat: when a.handsSets is missing but a.handsCount /
+// a.handsIn / a.handsOut / a.handsAllDay exist, we synthesize a
+// single-set array on the fly. On save we always write to handsSets
+// AND mirror the FIRST set back into the legacy fields so any other
+// surface (dashboard card, settlement export, etc.) that still reads
+// the old keys keeps showing data.
+const HANDS_MAX_SETS = 5;
+function _advanceReadHandsSets(a) {
+  if (Array.isArray(a?.handsSets) && a.handsSets.length) return a.handsSets;
+  // Legacy migration
+  if (a && (a.handsCount || a.handsIn || a.handsOut || a.handsAllDay)) {
+    return [{
+      count: a.handsCount || '',
+      inTime: a.handsIn || '',
+      outTime: a.handsOut || '',
+      allDay: !!a.handsAllDay,
+    }];
+  }
+  return [];
+}
+
+function _advanceHandsSetRowHTML(set, idx) {
+  const allDay = !!set.allDay;
+  return `
+    <div class="advance-sub-grid hands-set-row" data-hands-idx="${idx}" style="align-items:flex-end">
+      <div class="advance-field">
+        <label>${idx === 0 ? '# of hands' : '<span style="opacity:.7">Set ' + (idx+1) + ' · #</span>'}</label>
+        <input type="number" min="0" step="1" inputmode="numeric" id="adv_handsCount_${idx}" value="${esc(set.count || '')}" placeholder="e.g. 4" onchange="_advanceHandsSave()">
+      </div>
+      <div class="advance-field">
+        <label>${idx === 0 ? 'In time' : '<span style="opacity:.7">In</span>'}</label>
+        ${renderTime12Picker('adv_in_' + idx, set.inTime || '', { disabled: allDay })}
+      </div>
+      <div class="advance-field">
+        <label>${idx === 0 ? 'Out time' : '<span style="opacity:.7">Out</span>'}</label>
+        ${renderTime12Picker('adv_out_' + idx, set.outTime || '', { disabled: allDay })}
+      </div>
+      <div class="advance-field">
+        <label>&nbsp;</label>
+        <button type="button" id="adv_hands_allday_btn_${idx}" class="allday-btn ${allDay ? 'on' : ''}" onclick="_advanceHandsAllDayToggle(${idx})">All day</button>
+      </div>
+      <div class="advance-field">
+        <label>&nbsp;</label>
+        ${idx === 0
+          ? '<button type="button" class="allday-btn" onclick="_advanceHandsSave()">Save times</button>'
+          : `<button type="button" class="allday-btn" onclick="_advanceHandsRemoveSet(${idx})" title="Remove this set" style="color:var(--red);border-color:rgba(232,69,69,.35)">× Remove set</button>`}
+      </div>
+    </div>
+  `;
+}
+
+// Render the entire hands section content (subsection title + all rows
+// + "Add another set" button). Called by both initial render and by
+// "Add"/"Remove" handlers to refresh just the section without a full
+// renderAdvance() (which would lose focus on adjacent fields).
+function _advanceHandsSectionHTML(a) {
+  const sets = _advanceReadHandsSets(a);
+  const effective = sets.length ? sets : [{ count: '', inTime: '', outTime: '', allDay: false }];
+  const canAdd = effective.length < HANDS_MAX_SETS;
+  return `
+    <div class="advance-sub-h">Hands confirmed</div>
+    <div id="adv_hands_rows">
+      ${effective.map((s, i) => _advanceHandsSetRowHTML(s, i)).join('')}
+    </div>
+    ${canAdd ? `
+      <div style="margin-top:10px">
+        <button type="button" class="allday-btn" onclick="_advanceHandsAddSet()" style="border-style:dashed">
+          + Add another set ${effective.length > 0 ? `(${effective.length}/${HANDS_MAX_SETS})` : ''}
+        </button>
+        <span class="muted mono" style="font-size:10.5px;margin-left:10px;letter-spacing:.04em">Add a second / third call-time block for hands with different windows.</span>
+      </div>
+    ` : `
+      <div style="margin-top:8px">
+        <span class="muted mono" style="font-size:10.5px;letter-spacing:.04em">Maximum ${HANDS_MAX_SETS} sets. Remove one to add another.</span>
+      </div>
+    `}
+  `;
+}
+
+function _advanceHandsAddSet() {
+  const ad = getActiveDate();
+  if (!ad) return;
+  if (!ad.advance) ad.advance = {};
+  // Read current state of the form (including unsaved typing) BEFORE
+  // re-rendering, so a partially-filled row isn't blown away when
+  // we add an empty new row to the bottom.
+  const current = _advanceCollectHandsSets();
+  if (current.length >= HANDS_MAX_SETS) return;
+  current.push({ count: '', inTime: '', outTime: '', allDay: false });
+  ad.advance.handsSets = current;
+  _advanceSyncLegacyHands(ad.advance);
+  saveState();
+  _advanceRerenderHandsSection();
+}
+
+function _advanceHandsRemoveSet(idx) {
+  const ad = getActiveDate();
+  if (!ad || !ad.advance) return;
+  const current = _advanceCollectHandsSets();
+  if (idx < 0 || idx >= current.length) return;
+  current.splice(idx, 1);
+  ad.advance.handsSets = current;
+  _advanceSyncLegacyHands(ad.advance);
+  saveState();
+  _advanceRerenderHandsSection();
+}
+
+// Read every hands-set row currently rendered in the DOM, returning
+// an array of { count, inTime, outTime, allDay }. Used by Save and
+// also by add/remove so unsaved-but-typed values don't get lost.
+function _advanceCollectHandsSets() {
+  const rows = document.querySelectorAll('.hands-set-row');
+  const out = [];
+  rows.forEach(row => {
+    const i = row.dataset.handsIdx;
+    const allDayBtn = document.getElementById('adv_hands_allday_btn_' + i);
+    const allDay = !!(allDayBtn && allDayBtn.classList.contains('on'));
+    const set = {
+      count: (document.getElementById('adv_handsCount_' + i)?.value || '').trim(),
+      inTime: allDay ? '' : (readTime12Picker('adv_in_' + i) || ''),
+      outTime: allDay ? '' : (readTime12Picker('adv_out_' + i) || ''),
+      allDay,
+    };
+    out.push(set);
+  });
+  return out;
+}
+
+// Mirror the first set into the legacy single-set fields so any older
+// reader (dashboard card, exports, crew mobile fallback) keeps showing
+// data even before we update those surfaces.
+function _advanceSyncLegacyHands(advance) {
+  const sets = Array.isArray(advance.handsSets) ? advance.handsSets : [];
+  if (sets.length) {
+    const first = sets[0];
+    advance.handsCount = first.count || '';
+    advance.handsIn    = first.inTime || '';
+    advance.handsOut   = first.outTime || '';
+    advance.handsAllDay = !!first.allDay;
+  } else {
+    advance.handsCount = '';
+    advance.handsIn = '';
+    advance.handsOut = '';
+    advance.handsAllDay = false;
+  }
+}
+
+function _advanceRerenderHandsSection() {
+  const ad = getActiveDate();
+  if (!ad) return;
+  // Find the hands subsection wrapper and replace its inner HTML.
+  const rowsEl = document.getElementById('adv_hands_rows');
+  if (!rowsEl) return;
+  const subsection = rowsEl.closest('.advance-subsection');
+  if (subsection) subsection.innerHTML = _advanceHandsSectionHTML(ad.advance || {});
+}
+
+// Save every visible hands set in one pass. Walks the DOM rows so
+// each set's count + in/out + all-day flag are read at once. Stores
+// to a.handsSets[] and mirrors set #1 back into the legacy fields.
+// Validates that out > in per row (when both are set).
 function _advanceHandsSave() {
   const ad = getActiveDate();
   if (!ad) return;
   if (!ad.advance) ad.advance = {};
-  const on = document.getElementById('adv_hands_allday_btn')?.classList.contains('on');
-  if (on) {
-    ad.advance.handsAllDay = true;
-    ad.advance.handsIn = '';
-    ad.advance.handsOut = '';
-  } else {
-    ad.advance.handsAllDay = false;
-    ad.advance.handsIn = readTime12Picker('adv_in') || '';
-    ad.advance.handsOut = readTime12Picker('adv_out') || '';
-    if (ad.advance.handsIn && ad.advance.handsOut && ad.advance.handsOut <= ad.advance.handsIn) {
-      toast('Out time must be after In time', 'error');
+  const sets = _advanceCollectHandsSets();
+  for (let i = 0; i < sets.length; i++) {
+    const s = sets[i];
+    if (!s.allDay && s.inTime && s.outTime && s.outTime <= s.inTime) {
+      toast(`Set ${i+1}: Out time must be after In time`, 'error');
       return;
     }
   }
+  // Drop completely-empty trailing sets so we don't persist noise
+  while (sets.length && !sets[sets.length-1].count && !sets[sets.length-1].inTime && !sets[sets.length-1].outTime && !sets[sets.length-1].allDay) {
+    sets.pop();
+  }
+  ad.advance.handsSets = sets;
+  _advanceSyncLegacyHands(ad.advance);
   saveState();
   toast('Hands times saved', 'good');
 }
 
-// All-day toggle for the hands in/out pair. Mirrors the schedule
-// modal's behavior — disables and clears both pickers when on.
-function _advanceHandsAllDayToggle() {
-  const btn = document.getElementById('adv_hands_allday_btn');
+// All-day toggle for a specific hands-set row. Mirrors the schedule
+// modal's behavior — disables and clears both pickers in this row.
+function _advanceHandsAllDayToggle(idx) {
+  const btn = document.getElementById('adv_hands_allday_btn_' + idx);
   if (!btn) return;
   btn.classList.toggle('on');
   const on = btn.classList.contains('on');
-  ['adv_in_12','adv_out_12'].forEach(id => {
+  ['adv_in_' + idx + '_12','adv_out_' + idx + '_12'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.opacity = on ? '.5' : '';
   });
-  ['adv_in_hh','adv_in_mm','adv_in_ampm','adv_out_hh','adv_out_mm','adv_out_ampm'].forEach(id => {
+  ['adv_in_'+idx+'_hh','adv_in_'+idx+'_mm','adv_in_'+idx+'_ampm',
+   'adv_out_'+idx+'_hh','adv_out_'+idx+'_mm','adv_out_'+idx+'_ampm'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     el.disabled = on;
@@ -12732,6 +13029,10 @@ function _hasAdvanceInfo(advance) {
   if (advance.handsAllDay) return true;
   if (advance.handsIn || advance.handsOut) return true;
   if (advance.handsCount && parseInt(advance.handsCount, 10) > 0) return true;
+  // Multi-set hands: any non-empty set counts as advance content
+  if (Array.isArray(advance.handsSets) && advance.handsSets.some(s =>
+    s && (s.allDay || s.inTime || s.outTime || (parseInt(s.count, 10) > 0))
+  )) return true;
   if (advance.techPack && advance.techPack.name) return true;
   return false;
 }
@@ -12771,31 +13072,37 @@ function _phoneAdvanceCardHTML(a) {
   // empty time rows. The headcount (handsCount) is prepended to the
   // value when present — e.g. "4 hands · 09:00 – 18:00" — so the crew
   // sees the count + window in a single tidy row instead of two.
-  const handsCount = parseInt(a.handsCount, 10);
-  const countPrefix = (handsCount > 0) ? `${handsCount} ` : '';
-  if (a.handsAllDay) {
-    rows.push({ label: 'Hands', value: `${countPrefix}all day` });
-  } else if (a.handsIn || a.handsOut) {
+  // Multi-set hands: render one row per set. Single-set tours show
+  // just "Hands"; multi-set tours show "Hands · 1", "Hands · 2", etc.
+  const handsSets = _advanceReadHandsSets(a);
+  if (handsSets.length) {
     const to12 = (t) => {
       const c = _to12h(t || '');
       return c.hh ? `${c.hh}:${c.mm} ${c.ampm}` : '';
     };
-    const inT = to12(a.handsIn);
-    const outT = to12(a.handsOut);
-    const window = (inT && outT) ? `${inT} – ${outT}` : (inT || outT);
-    if (handsCount > 0) {
-      rows.push({ label: 'Hands', value: `${handsCount} · ${window}` });
-    } else if (inT && outT) {
-      rows.push({ label: 'Hands', value: `${inT} – ${outT}` });
-    } else if (inT) {
-      rows.push({ label: 'Hands in', value: inT });
-    } else if (outT) {
-      rows.push({ label: 'Hands out', value: outT });
-    }
-  } else if (handsCount > 0) {
-    // Count is set but no times — show the count alone so it doesn't
-    // disappear just because times haven't been confirmed yet.
-    rows.push({ label: 'Hands', value: `${handsCount} confirmed` });
+    handsSets.forEach((s, i) => {
+      const lbl = handsSets.length === 1 ? 'Hands' : `Hands · ${i+1}`;
+      const cnt = parseInt(s.count, 10);
+      const cntPrefix = (cnt > 0) ? `${cnt} ` : '';
+      if (s.allDay) {
+        rows.push({ label: lbl, value: `${cntPrefix}all day` });
+      } else if (s.inTime || s.outTime) {
+        const inT = to12(s.inTime);
+        const outT = to12(s.outTime);
+        const window = (inT && outT) ? `${inT} – ${outT}` : (inT || outT);
+        if (cnt > 0) {
+          rows.push({ label: lbl, value: `${cnt} · ${window}` });
+        } else if (inT && outT) {
+          rows.push({ label: lbl, value: `${inT} – ${outT}` });
+        } else if (inT) {
+          rows.push({ label: lbl + ' in', value: inT });
+        } else if (outT) {
+          rows.push({ label: lbl + ' out', value: outT });
+        }
+      } else if (cnt > 0) {
+        rows.push({ label: lbl, value: `${cnt} confirmed` });
+      }
+    });
   }
   // Wifi gets its own visual subgroup so the crew can spot it fast
   // when they're trying to get their phone on the venue network.
@@ -13365,7 +13672,15 @@ function renderPhone() {
   // Travel-derived rows are still tappable via the Travel card below
   // for full detail (conf/flight #/etc.) — this just gives the time
   // anchor inside the schedule.
-  const myItems = _mergedDaySchedule(ad).filter(s => isItemVisibleToViewer(s, viewer, isTM));
+  // Filter rules for the crew's today list:
+  //   • audience filter — TM sees all, crew sees only their assignments
+  //   • nextDay items — those belong to TOMORROW, not today, even
+  //     though they're stored on this date for TM convenience. They
+  //     surface in the EARLY TOMORROW section below so the crew sees
+  //     them exactly once.
+  const myItems = _mergedDaySchedule(ad)
+    .filter(s => !s.nextDay)
+    .filter(s => isItemVisibleToViewer(s, viewer, isTM));
   // Early-tomorrow items: anything on the next date that fires at or
   // before 08:00 (overnight bus calls, early flights, post-show drives).
   // Audience filter applies same as today's items — TM sees all, crew
@@ -13402,9 +13717,8 @@ function renderPhone() {
         `).join('') : `<div class="p-row"><span class="what muted" style="grid-column:1/-1">${ad.status === 'travel' ? 'Travel day — no schedule items.' : ad.status === 'off' ? 'Day off — nothing scheduled.' : isTM ? 'No schedule items on this day yet.' : 'Nothing scheduled for you on this day.'}</span></div>`}
         ${myEarlyTomorrow.length ? `
           <div class="p-early-tmrw-hdr">
-            <span class="petw-line"></span>
-            <span class="petw-lbl">TOMORROW · BEFORE NOON${nextDateLabel ? ' · ' + nextDateLabel : ''}</span>
-            <span class="petw-line"></span>
+            <span class="petw-lbl">↗ TOMORROW</span>
+            ${nextDateLabel ? `<span class="petw-date">${esc(nextDateLabel)}</span>` : ''}
           </div>
           ${myEarlyTomorrow.map(s => `
             <div class="p-row p-row-next">
