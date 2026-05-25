@@ -4310,20 +4310,14 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
     </div>
 
     <div class="ob-cards">
-      <button type="button" class="ob-card" onclick="onbChooseSample()">
-        <div class="ob-num">01 · DEMO</div>
-        <h3>Load a sample tour</h3>
-        <p>Pre-loaded 14-date North America run with crew, schedules, hotels, and guest lists. Best for exploring what Bandmate can do.</p>
-        <div class="ob-arrow">Use sample tour →</div>
-      </button>
       <button type="button" class="ob-card" onclick="onbChooseCSV()">
-        <div class="ob-num">02 · IMPORT</div>
+        <div class="ob-num">01 · IMPORT</div>
         <h3>Upload tour documents</h3>
         <p>Drop up to 50 files — tour grid CSVs, deal memos, contracts, contact lists, hotel blocks. Bandmate reads each one and builds as much of your tour as possible, then flags everything still missing.</p>
         <div class="ob-arrow">Import documents →</div>
       </button>
       <button type="button" class="ob-card" onclick="onbChooseScratch()">
-        <div class="ob-num">03 · MANUAL</div>
+        <div class="ob-num">02 · MANUAL</div>
         <h3>Build from scratch</h3>
         <p>Start with an empty tour. Name your run, then add dates one at a time. Best when you're still routing or have just a few dates booked.</p>
         <div class="ob-arrow">Start fresh →</div>
@@ -10680,7 +10674,7 @@ function renderDashboard() {
       </div>
       <div class="empty empty-start">
         <h3>Let's build your tour</h3>
-        <p>Pick the fastest path for how your tour is documented today. You can mix all three later — import to fill the bulk, then refine date-by-date.</p>
+        <p>Pick the fastest path for how your tour is documented today. You can mix both later — import to fill the bulk, then refine date-by-date.</p>
         <div class="start-cards">
           <button type="button" class="start-card primary" onclick="onbChooseCSV()">
             <div class="sc-num">01 · IMPORT</div>
@@ -10693,12 +10687,6 @@ function renderDashboard() {
             <div class="sc-title">Add dates one by one</div>
             <div class="sc-desc">Start with a single date and fill in details as bookings firm up. Best when you're still routing or only have a few dates booked.</div>
             <div class="sc-cta">Add first date →</div>
-          </button>
-          <button type="button" class="start-card" onclick="onbChooseSample()">
-            <div class="sc-num">03 · DEMO</div>
-            <div class="sc-title">Explore a sample tour</div>
-            <div class="sc-desc">Pre-loaded 4-date run with crew, schedules, hotels. Best for seeing what Bandmate can do before committing your real data.</div>
-            <div class="sc-cta">Load sample →</div>
           </button>
         </div>
       </div>
