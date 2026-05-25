@@ -10088,10 +10088,18 @@ function _dataUrlToBlobUrl(dataUrl, mimeHint) {
 /* =====================================================================
    CONTACTS / CREW / TASKS / TAGS CRUD
    ===================================================================== */
-const CONTACT_ROLES = ['Promoter','Venue','Hotel','Travel','Mgmt','Label','Press','Runner','Local crew','Vendor','Other'];
+// Roles surface in the contact modal dropdown AND get auto-assigned
+// by _extractStructuredContacts when it recognizes the matching label
+// in a deal memo. Keep this list aligned with the labels parser there.
+const CONTACT_ROLES = [
+  'Agent','Buyer / Signatory','Promoter','Promoter Asst','Production',
+  'Tour Manager','Tour Acct','Settlement','Stage Manager','Box Office',
+  'Marketing','Venue','Hotel','Travel','Mgmt','Label','Press','Runner',
+  'Local crew','Catering','Vendor','Other',
+];
 function openContactModal(id) {
   const c = id ? T().contacts.find(x => x.id === id) : null;
-  const v = c || { name: '', role: 'Promoter', organization: '', phone: '', email: '', city: '', notes: '' };
+  const v = c || { name: '', role: 'Promoter', organization: '', phone: '', email: '', city: '', country: '', notes: '' };
   openModal({
     title: c ? 'Edit contact' : 'Add contact',
     showDelete: !!c,
@@ -10105,7 +10113,8 @@ function openContactModal(id) {
         <div class="field full"><label>Organization</label><input id="c_org" value="${esc(v.organization)}"></div>
         <div class="field"><label>Phone</label><input id="c_phone" value="${esc(v.phone)}"></div>
         <div class="field"><label>Email</label><input id="c_email" value="${esc(v.email)}"></div>
-        <div class="field full"><label>City</label><input id="c_city" data-ac="city" autocomplete="off" value="${esc(v.city)}"></div>
+        <div class="field"><label>City</label><input id="c_city" data-ac="city" autocomplete="off" value="${esc(v.city)}" placeholder="e.g. Derby"></div>
+        <div class="field"><label>Country</label><input id="c_country" value="${esc(v.country || '')}" placeholder="e.g. United Kingdom"></div>
         <div class="field full"><label>Notes</label><textarea id="c_notes">${esc(v.notes)}</textarea></div>
       </div>
     `,
@@ -10115,7 +10124,7 @@ function openContactModal(id) {
       const data = {
         name, role: $('#c_role').value, organization: $('#c_org').value.trim(),
         phone: $('#c_phone').value.trim(), email: $('#c_email').value.trim(),
-        city: $('#c_city').value.trim(), notes: $('#c_notes').value.trim()
+        city: $('#c_city').value.trim(), country: $('#c_country').value.trim(), notes: $('#c_notes').value.trim()
       };
       if (c) Object.assign(c, data);
       else T().contacts.push({ id: uid('co'), ...data });
@@ -12010,12 +12019,15 @@ function formatMin(sec) {
        Sum guarantees grouped by currency. Returns { EUR: 75000, GBP: 25000 }
        so the UI can render one totals row per currency.
 
-   • USD_FX_APPROX
-       Hard-coded approximate FX rates (multiply native amount × rate
-       → USD). Updated YYYY-MM-DD. Flagged in the UI as "subject to
-       change" — the TM should never quote a client off these. They
-       exist purely so the TM can sanity-check tour-wide order of
-       magnitude across mixed-currency runs. */
+   • _toUSDApprox / _FX_CACHE / _fetchLiveFXRates
+       Live FX rates fetched from exchangerate-api.com (free, no auth,
+       CORS-OK), cached for 4 hours, with the hardcoded USD_FX_FALLBACK
+       table as a safety net. The UI labels the source ("Live · updated
+       12 min ago" vs "Fallback rates") and includes a manual ↻ Refresh
+       button. Rates are still flagged as ESTIMATES — the TM should
+       never quote a client off these. They exist purely so the TM can
+       sanity-check tour-wide order of magnitude across mixed-currency
+       runs. */
 const COUNTRY_TO_CURRENCY = {
   // Eurozone
   'austria':'EUR','belgium':'EUR','croatia':'EUR','cyprus':'EUR','estonia':'EUR',
@@ -12047,10 +12059,19 @@ function _dateCurrency(d) {
   if (fromCountry) return fromCountry;
   return T().meta?.currency || 'USD';
 }
-// FX rates · TO USD (multiply native amount × rate). Approximate.
-// Update this table when rates drift > ~5%; the UI shows the date.
-const USD_FX_LAST_UPDATED = '2026-05-15';
-const USD_FX_APPROX = {
+// FX rates · stored as "native → USD" (multiply native amount × rate
+// to get USD). Two sources, in priority order:
+//
+//   1. Live rates from exchangerate-api.com (free, no auth, CORS-OK).
+//      Cached in memory + localStorage, refreshed every ~4 hours.
+//   2. Fallback static table — used if the live fetch fails or hasn't
+//      run yet. Updated periodically by hand when rates drift.
+//
+// Display always tells the TM which source is in play and how old it
+// is ("Live · updated 12 min ago" vs "Fallback rates"). The disclaimer
+// is also explicit that the USD figures are estimates — touring
+// finance teams should never quote off these without verifying.
+const USD_FX_FALLBACK = {
   USD: 1.00,
   EUR: 1.08,  GBP: 1.27,  CAD: 0.74,  AUD: 0.66,  NZD: 0.61,
   CHF: 1.12,  NOK: 0.094, SEK: 0.095, DKK: 0.145, ISK: 0.0072,
@@ -12059,10 +12080,113 @@ const USD_FX_APPROX = {
   JPY: 0.0064, MXN: 0.058, BRL: 0.20, ARS: 0.0011, CLP: 0.0011,
   'kr': 0.095, // ambiguous Scandinavian — assume SEK-ish for the rough total
 };
+const USD_FX_FALLBACK_DATE = '2026-05-15';
+const FX_STALE_MS = 4 * 60 * 60 * 1000; // refetch live rates every 4 hours
+const FX_STORAGE_KEY = 'bandmate.fx.v1';
+let _FX_CACHE = {
+  rates: { ...USD_FX_FALLBACK },
+  updatedAt: 0,
+  source: 'fallback',
+  apiDate: USD_FX_FALLBACK_DATE,
+};
+// Restore previous cache from localStorage on module load so a fresh
+// tab boot has known-good rates even before the live fetch returns.
+try {
+  const stored = JSON.parse(localStorage.getItem(FX_STORAGE_KEY) || 'null');
+  if (stored && stored.rates && stored.updatedAt) _FX_CACHE = stored;
+} catch (e) { /* corrupted JSON in storage — ignore, stay with defaults */ }
+
+let _fxFetchInFlight = null;
+async function _fetchLiveFXRates(force) {
+  if (!force && (Date.now() - _FX_CACHE.updatedAt) < FX_STALE_MS) return _FX_CACHE;
+  if (_fxFetchInFlight) return _fxFetchInFlight; // dedupe parallel calls
+  _fxFetchInFlight = (async () => {
+    try {
+      // exchangerate-api.com free tier returns "1 USD = X CUR" pairs.
+      // We invert to "1 CUR = Y USD" so consumers can do amount × rate.
+      const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+      if (!res.ok) throw new Error('FX API ' + res.status);
+      const data = await res.json();
+      if (!data || !data.rates) throw new Error('FX API returned no rates');
+      const inverted = { USD: 1.00 };
+      Object.keys(data.rates).forEach(cur => {
+        const r = data.rates[cur];
+        if (typeof r === 'number' && r > 0) inverted[cur] = 1 / r;
+      });
+      // Map our ambiguous "kr" alias onto SEK so the rough total still
+      // includes it. TM resolves the real currency per-row in the
+      // settlement modal.
+      if (inverted.SEK) inverted['kr'] = inverted.SEK;
+      _FX_CACHE = {
+        rates: inverted,
+        updatedAt: Date.now(),
+        source: 'live',
+        apiDate: data.date || new Date().toISOString().slice(0, 10),
+      };
+      try { localStorage.setItem(FX_STORAGE_KEY, JSON.stringify(_FX_CACHE)); } catch (e) {}
+      return _FX_CACHE;
+    } catch (e) {
+      console.warn('[FX] live fetch failed, keeping current cache:', e.message);
+      return _FX_CACHE;
+    } finally {
+      _fxFetchInFlight = null;
+    }
+  })();
+  return _fxFetchInFlight;
+}
+
+// Convert a native amount to USD using the most recent rate we have.
+// Returns null when the currency isn't in either table — caller can
+// surface a "no rate available" indicator.
 function _toUSDApprox(amount, currency) {
-  const rate = USD_FX_APPROX[currency];
+  if (currency === 'USD') return amount;
+  const rate = (_FX_CACHE.rates && _FX_CACHE.rates[currency]) || USD_FX_FALLBACK[currency];
   if (rate == null) return null;
   return amount * rate;
+}
+
+// Human-friendly "freshness" label for the FX cache. Drives the
+// settlement footer disclaimer so the TM always knows when the
+// numbers were last touched.
+function _fxAgeLabel() {
+  if (!_FX_CACHE.updatedAt) return `Fallback rates · ${_FX_CACHE.apiDate || USD_FX_FALLBACK_DATE}`;
+  const mins = Math.floor((Date.now() - _FX_CACHE.updatedAt) / 60000);
+  const sourceLbl = _FX_CACHE.source === 'live' ? 'Live FX' : 'Cached FX';
+  if (mins < 1) return `${sourceLbl} · just updated`;
+  if (mins < 60) return `${sourceLbl} · updated ${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${sourceLbl} · updated ${hrs}h ago`;
+  return `${sourceLbl} · updated ${Math.floor(hrs/24)}d ago`;
+}
+
+// Trigger a refresh if the cache is stale; re-render the settlements
+// tab once new rates land. Called from renderAccounting itself so a
+// TM opening the tab gets a background refresh without blocking.
+function _refreshFXInBackground() {
+  const before = _FX_CACHE.updatedAt;
+  _fetchLiveFXRates().then(() => {
+    if (_FX_CACHE.updatedAt !== before) {
+      const acct = document.getElementById('p-acct');
+      if (acct && acct.innerHTML.length > 100) {
+        try { renderAccounting(); } catch (e) {}
+      }
+    }
+  }).catch(() => {});
+}
+
+// Manual "↻ Refresh rates" button handler — forces a fetch even if
+// the cache is still warm. Shows feedback so the TM knows their
+// click did something.
+async function _fxManualRefresh() {
+  toast('Fetching live exchange rates…', 'info');
+  const before = _FX_CACHE.updatedAt;
+  await _fetchLiveFXRates(true);
+  if (_FX_CACHE.updatedAt !== before) {
+    toast(`Rates refreshed · ${_fxAgeLabel()}`, 'good');
+    try { renderAccounting(); } catch (e) {}
+  } else {
+    toast('Could not reach FX provider — using cached rates', 'error');
+  }
 }
 function _settlementTotalsByCurrency(dates) {
   const guar = {};   // currency → summed guarantee
@@ -12088,18 +12212,20 @@ function renderAccounting() {
   const settledCount = showDates.filter(d => d.settlement.settled).length;
   const unpaid = showDates.filter(d => !d.settlement.settled && d.date < todayISO()).length;
 
+  // Kick off a background FX refresh if the cache is stale. This
+  // doesn't block render — if new rates land, we'll re-render
+  // automatically from inside _refreshFXInBackground.
+  _refreshFXInBackground();
+
   // Multi-currency totals — group guarantees + final settlements by
-  // the effective currency per date. A single-currency tour collapses
-  // to one row each; a multi-currency tour gets a row per currency
-  // plus a USD-equivalent grand total.
+  // the effective currency per date.
   const totals = _settlementTotalsByCurrency(showDates);
   const guarCurs = Object.keys(totals.guar).sort();
   const finalCurs = Object.keys(totals.final).sort();
   const isMulti = guarCurs.length > 1 || finalCurs.length > 1;
 
-  // Build the USD-equivalent grand total (when multi-currency). Only
-  // include currencies we have an FX rate for — others get listed
-  // separately with a "?" so the TM knows they're missing from the sum.
+  // USD-equivalent grand totals — sum across all currencies via the
+  // current FX cache. Skips any currency we lack a rate for.
   const usdGuarTotal = guarCurs.reduce((sum, cur) => {
     const usd = _toUSDApprox(totals.guar[cur], cur);
     return usd == null ? sum : sum + usd;
@@ -12109,26 +12235,41 @@ function renderAccounting() {
     return usd == null ? sum : sum + usd;
   }, 0);
 
-  // Helper to render a "12,500 EUR · ≈$13,500 USD" cell.
-  const fmtMulti = (currencies, totalsObj, kind /* 'guar' | 'final' */) => {
+  // Render a KPI cell with USD on top, then native-currency breakouts
+  // below. Single-currency tours collapse to just the native total
+  // (no USD line, since they're the same thing).
+  const fmtMultiUSDFirst = (currencies, totalsObj, usdTotal) => {
     if (!currencies.length) return `<div class="value mono">${T().meta.currency || 'USD'} 0</div>`;
-    return currencies.map(cur => {
+    if (currencies.length === 1 && currencies[0] === 'USD') {
+      return `<div class="value mono">USD ${totalsObj.USD.toLocaleString()}</div>`;
+    }
+    // Lead with the USD estimate (≈ prefix + dimmed label so it reads as estimated)
+    const usdHeader = (isMulti && usdTotal > 0)
+      ? `<div class="value mono" style="color:#cdb8a0;font-size:22px">≈ $${Math.round(usdTotal).toLocaleString()} <span style="font-size:11px;letter-spacing:.14em;color:var(--warm-mute);font-weight:600">USD · est.</span></div>`
+      : '';
+    const nativeRows = currencies.map(cur => {
       const amt = totalsObj[cur];
       const usd = _toUSDApprox(amt, cur);
-      const usdNote = (isMulti && cur !== 'USD' && usd != null)
-        ? `<span class="muted mono" style="font-size:10px;letter-spacing:.06em;margin-left:6px;color:var(--cool)">≈ $${Math.round(usd).toLocaleString()}</span>`
+      const usdSub = (cur !== 'USD' && usd != null)
+        ? `<span class="muted mono" style="font-size:10px;letter-spacing:.06em;margin-left:6px;color:#8aa9d8">≈ $${Math.round(usd).toLocaleString()}</span>`
         : '';
-      return `<div class="value mono" style="font-size:${currencies.length > 1 ? '15px' : '20px'}">${esc(cur)} ${amt.toLocaleString()}${usdNote}</div>`;
+      return `<div class="mono" style="font-size:13px;color:var(--warm);margin-top:3px;font-weight:600;letter-spacing:.04em">${esc(cur)} ${amt.toLocaleString()}${usdSub}</div>`;
     }).join('');
+    return `${usdHeader}${nativeRows}`;
   };
 
+  const fxAge = _fxAgeLabel();
+  const fxIsLive = _FX_CACHE.source === 'live';
   const fxDisclaimer = isMulti ? `
-    <div class="rescan-nudge" style="margin:8px 0 14px;background:linear-gradient(135deg,rgba(138,169,216,.08),rgba(138,169,216,.02));border-color:rgba(138,169,216,.3);color:#b1c8ee">
+    <div class="rescan-nudge" style="margin:8px 0 14px;background:linear-gradient(135deg,rgba(138,169,216,.08),rgba(138,169,216,.02));border-color:rgba(138,169,216,.3);color:#b1c8ee;flex-wrap:wrap">
       <span class="rb-icon" style="color:#8aa9d8">!</span>
-      <span>
-        <b>USD equivalents are approximate</b> · FX rates from ${USD_FX_LAST_UPDATED}, subject to change.
-        Use native currency totals for any real-world quoting.
+      <span style="flex:1">
+        <b>USD totals are estimates</b> — they're the sum of each currency converted at today's market rate, NOT a settlement figure. Quote off native-currency totals only.
       </span>
+      <span class="mono" style="font-size:10.5px;letter-spacing:.06em;color:${fxIsLive ? '#7adc97' : '#fdba74'};padding:4px 10px;border:1px solid ${fxIsLive ? 'rgba(122,220,151,.35)' : 'rgba(253,186,116,.35)'};border-radius:4px;background:${fxIsLive ? 'rgba(122,220,151,.05)' : 'rgba(253,186,116,.05)'}">
+        ${fxIsLive ? '● ' : ''}${esc(fxAge)}
+      </span>
+      <button type="button" class="tb-btn" onclick="_fxManualRefresh()" title="Pull the latest exchange rates from the market data API" style="padding:5px 10px;font-size:10px">↻ Refresh rates</button>
     </div>
   ` : '';
 
@@ -12147,18 +12288,18 @@ function renderAccounting() {
     <div class="k-grid mb12">
       <div class="kpi">
         <div class="label">Total guarantee</div>
-        ${fmtMulti(guarCurs, totals.guar, 'guar')}
-        ${isMulti && usdGuarTotal > 0 ? `<div class="delta" style="color:var(--cool)">≈ $${Math.round(usdGuarTotal).toLocaleString()} USD across all currencies</div>` : `<div class="delta">across ${showDates.length} shows</div>`}
+        ${fmtMultiUSDFirst(guarCurs, totals.guar, usdGuarTotal)}
+        <div class="delta">across ${showDates.length} show${showDates.length===1?'':'s'}</div>
       </div>
       <div class="kpi">
         <div class="label">Settled total</div>
-        ${fmtMulti(finalCurs, totals.final, 'final')}
-        ${isMulti && usdFinalTotal > 0 ? `<div class="delta" style="color:var(--cool)">≈ $${Math.round(usdFinalTotal).toLocaleString()} USD · ${settledCount} of ${showDates.length}</div>` : `<div class="delta">${settledCount} of ${showDates.length}</div>`}
+        ${fmtMultiUSDFirst(finalCurs, totals.final, usdFinalTotal)}
+        <div class="delta">${settledCount} of ${showDates.length}</div>
       </div>
       <div class="kpi ${unpaid?'bad':''}"><div class="label">Awaiting settlement</div><div class="value mono">${unpaid}</div><div class="delta" style="${unpaid?'color:var(--red)':''}">past show dates not yet settled</div></div>
       <div class="kpi"><div class="label">Avg / settled show</div>
         ${settledCount && isMulti
-          ? `<div class="value mono" style="font-size:15px;color:var(--cool)">≈ $${Math.round(usdFinalTotal/settledCount).toLocaleString()} USD</div><div class="delta">net of buy-outs · mixed currencies</div>`
+          ? `<div class="value mono" style="font-size:18px;color:#cdb8a0">≈ $${Math.round(usdFinalTotal/settledCount).toLocaleString()} <span style="font-size:11px;letter-spacing:.14em;color:var(--warm-mute)">USD · est.</span></div><div class="delta">net of buy-outs · mixed currencies</div>`
           : settledCount
             ? `<div class="value mono">${(finalCurs[0] || T().meta.currency || 'USD')} ${Math.round(totals.final[finalCurs[0]] / settledCount).toLocaleString()}</div><div class="delta">net of buy-outs</div>`
             : `<div class="value mono">${T().meta.currency || 'USD'} 0</div><div class="delta">net of buy-outs</div>`
@@ -12257,16 +12398,17 @@ function exportSettlementReportCSV() {
     rows.push([`TOTAL — Settled (${cur})`,'','','','','','', cur, '', fin.toFixed(2), ded.toFixed(2), (fin - ded).toFixed(2), '', '', '']);
   });
   // Approximate USD grand total — flagged as approximate so no one
-  // mistakes it for a settlement number.
+  // mistakes it for a settlement number. Uses the live FX cache when
+  // available; falls back to the static table otherwise.
   const usdGuar = Object.entries(totalsByCurGuar).reduce((sum, [c, v]) => {
-    const r = USD_FX_APPROX[c]; return r == null ? sum : sum + v * r;
+    const usd = _toUSDApprox(v, c); return usd == null ? sum : sum + usd;
   }, 0);
   const usdFinal = Object.entries(totalsByCurFinal).reduce((sum, [c, v]) => {
-    const r = USD_FX_APPROX[c]; return r == null ? sum : sum + v * r;
+    const usd = _toUSDApprox(v, c); return usd == null ? sum : sum + usd;
   }, 0);
   if (Object.keys(totalsByCurGuar).length > 1 || Object.keys(totalsByCurFinal).length > 1) {
     rows.push([]);
-    rows.push([`APPROX. USD EQUIVALENT (rates from ${USD_FX_LAST_UPDATED} — subject to change)`,'','','','','','','USD',
+    rows.push([`APPROX. USD EQUIVALENT — ESTIMATE ONLY · ${_fxAgeLabel()} · subject to change`,'','','','','','','USD',
       usdGuar ? usdGuar.toFixed(0) : '',
       usdFinal ? usdFinal.toFixed(0) : '',
       '','','','','']);
@@ -13527,15 +13669,23 @@ function renderContacts() {
       </div>
     ` : `
       <div class="tbl">
-        ${contacts.map(c => `
-          <div class="contact-row">
-            <div class="ini">${esc(initials(c.name))}</div>
-            <div class="nm">${esc(c.name)}<span>${esc(c.phone || '')} ${c.phone && c.email ? ' · ' : ''} ${esc(c.email || '')}</span></div>
-            <div class="org">${esc(c.organization || '')}${c.city ? ' · ' + esc(c.city) : ''}</div>
-            <div class="role">${esc(c.role || '')}</div>
-            <div class="tbl-actions"><button type="button" onclick="openContactModal('${c.id}')">Edit</button></div>
-          </div>
-        `).join('')}
+        ${contacts.map(c => {
+          // Build a "scope" pill — city + country tells the TM which
+          // show this contact belongs to. Empty if neither is set.
+          const scopeParts = [];
+          if (c.city) scopeParts.push(c.city);
+          if (c.country && c.country !== c.city) scopeParts.push(c.country);
+          const scope = scopeParts.join(', ');
+          return `
+            <div class="contact-row">
+              <div class="ini">${esc(initials(c.name))}</div>
+              <div class="nm">${esc(c.name)}<span>${esc(c.phone || '')} ${c.phone && c.email ? ' · ' : ''} ${esc(c.email || '')}</span></div>
+              <div class="org">${esc(c.organization || '—')}${scope ? `<span class="muted mono" style="display:block;font-size:10.5px;letter-spacing:.04em;color:var(--cool);margin-top:2px">⌖ ${esc(scope)}</span>` : ''}</div>
+              <div class="role">${esc(c.role || 'Other')}</div>
+              <div class="tbl-actions"><button type="button" onclick="openContactModal('${c.id}')">Edit</button></div>
+            </div>
+          `;
+        }).join('')}
       </div>
     `}
   `;
@@ -13845,6 +13995,13 @@ function renderPhone() {
 
   const viewer = getCrewById(viewerKey);
   const isTM = viewerKey === 'tm';
+  // hasMgmt: full TM-level visibility AND control. True for the literal
+  // TM view ("Tour Manager · full view") AND for any crew member tagged
+  // with the Mgmt group — they should see every schedule item, every
+  // travel item, every notification, and be able to approve/deny guest
+  // list submissions inline. Keeps `isTM` available for the narrower
+  // checks where wording differs ("Full day view" greeting, etc.).
+  const hasMgmt = isTM || _viewerHasMgmtAccess(viewer);
 
   // TODAY
   const myRoom = ad.hotel?.rooms.find(r => r.personId === viewerKey);
@@ -13861,12 +14018,12 @@ function renderPhone() {
   //     them exactly once.
   const myItems = _mergedDaySchedule(ad)
     .filter(s => !s.nextDay)
-    .filter(s => isItemVisibleToViewer(s, viewer, isTM));
+    .filter(s => isItemVisibleToViewer(s, viewer, hasMgmt));
   // Early-tomorrow items: anything on the next date that fires at or
   // before 08:00 (overnight bus calls, early flights, post-show drives).
   // Audience filter applies same as today's items — TM sees all, crew
   // sees only what's tagged for them.
-  const myEarlyTomorrow = _earlyNextDaySchedule(ad).filter(s => isItemVisibleToViewer(s, viewer, isTM));
+  const myEarlyTomorrow = _earlyNextDaySchedule(ad).filter(s => isItemVisibleToViewer(s, viewer, hasMgmt));
   // Lookup label for the "TOMORROW" header when we have early items
   const nextDateLabel = (() => {
     if (!myEarlyTomorrow.length) return '';
@@ -13876,7 +14033,7 @@ function renderPhone() {
   // Travel items visible to this viewer — same group/individual filter
   // that schedule uses. Each row in the rendered list is tappable to
   // pop a detail sheet showing flight #, conf #, person, notes.
-  const myTravel = (ad.travel || []).filter(t => isItemVisibleToViewer(t, viewer, isTM));
+  const myTravel = (ad.travel || []).filter(t => isItemVisibleToViewer(t, viewer, hasMgmt));
   const status = ad.status === 'show' ? 'SHOW NIGHT'
     : ad.status === 'travel' ? 'TRAVEL'
     : ad.status === 'off' ? 'DAY OFF'
@@ -13933,19 +14090,47 @@ function renderPhone() {
       </div>
     ` : ''}
 
-    ${myRoom || (isTM && ad.hotel) ? `
-      <div class="p-card">
-        <div class="lbl">${myRoom ? 'YOUR ROOM' : 'HOTEL'}</div>
-        <div class="h">${esc(ad.hotel.name)}${myRoom ? ' · #' + esc(myRoom.roomNum || '—') : ''}</div>
-        <div class="sub">${ad.hotel.checkOut ? 'Check-out ' + esc(ad.hotel.checkOut) : ''}${myRoom?.notes ? ' · ' + esc(myRoom.notes) : ''}</div>
-      </div>
-    ` : ad.hotel ? `
-      <div class="p-card">
-        <div class="lbl">HOTEL</div>
-        <div class="h">${esc(ad.hotel.name)}</div>
-        <div class="sub">No room assigned to ${esc(viewer?.name || 'you')} yet</div>
-      </div>
-    ` : ''}
+    ${ad.hotel ? (() => {
+      // Crew mobile Today's hotel card — show every piece of info the
+      // crew actually needs at-a-glance: name, address (for cabs / GPS),
+      // check-in / check-out times, phone (for calling ahead about
+      // late arrivals or lost keys), confirmation number, and the
+      // crew member's room assignment if one exists.
+      //
+      // Previously this card only rendered name + checkOut, which made
+      // crew swipe to the dedicated Hotel screen for anything useful —
+      // and on the Today screen the card looked half-empty next to
+      // address-rich Venue/Travel cards. Now everything fits inline.
+      const h = ad.hotel;
+      const addressLines = [];
+      if (h.address) addressLines.push(h.address);
+      const cityLine = [h.city, h.state, h.zip].filter(Boolean).join(', ');
+      if (cityLine) addressLines.push(cityLine);
+      const detailPairs = [];
+      if (h.checkIn) detailPairs.push({ k: 'Check-in', v: h.checkIn });
+      if (h.checkOut) detailPairs.push({ k: 'Check-out', v: h.checkOut });
+      if (h.phone) detailPairs.push({ k: 'Phone', v: h.phone });
+      if (h.conf) detailPairs.push({ k: 'Conf #', v: h.conf });
+      return `
+        <div class="p-card">
+          <div class="lbl">${myRoom ? 'YOUR ROOM · ' + esc(h.name) : 'HOTEL'}</div>
+          <div class="h">${myRoom ? '#' + esc(myRoom.roomNum || '—') : esc(h.name)}</div>
+          ${addressLines.length ? `<div class="sub" style="white-space:pre-line;line-height:1.45">${esc(addressLines.join('\n'))}</div>` : ''}
+          ${detailPairs.length ? `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:10px">
+              ${detailPairs.map(p => `
+                <div>
+                  <div class="lbl" style="font-size:9px">${esc(p.k)}</div>
+                  <div class="mono" style="font-size:12px;color:var(--warm);font-weight:600">${esc(p.v)}</div>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+          ${myRoom?.notes ? `<div class="sub" style="margin-top:8px;color:var(--hi)">${esc(myRoom.notes)}</div>` : ''}
+          ${!myRoom && !isTM ? `<div class="sub" style="margin-top:8px;color:var(--warm-mute);font-style:italic">No room assigned to ${esc(viewer?.name || 'you')} yet</div>` : ''}
+        </div>
+      `;
+    })() : ''}
 
     ${ad.dayNotes && ad.dayNotes.replace(/<[^>]+>/g, '').trim() ? `
       <div class="p-card p-card-notes">
@@ -13957,10 +14142,11 @@ function renderPhone() {
     <div class="p-card">
       ${(() => {
         // Notifications: show the most recent notifications targeted at this
-        // viewer. The TM in mobile-preview mode sees everything; crew see
-        // only what's targeted at their groups or them individually.
+        // viewer. The TM (and Mgmt-tagged crew, via hasMgmt) see everything;
+        // regular crew see only what's targeted at their groups or them
+        // individually.
         const allNotes = [...(T().notifications || [])].sort((a,b) => (b.sentAt||0) - (a.sentAt||0));
-        const myNotes = isTM ? allNotes : allNotes.filter(n => {
+        const myNotes = hasMgmt ? allNotes : allNotes.filter(n => {
           const aud = n.audience || {};
           if ((aud.individuals || []).includes(viewerKey)) return true;
           if ((aud.groups || []).includes('All')) return true;
@@ -13968,10 +14154,10 @@ function renderPhone() {
           return (aud.groups || []).some(g => viewer.groups.includes(g));
         });
         const recent = myNotes.slice(0, 4);
-        const lbl = isTM ? 'NOTIFICATIONS' : 'YOUR NOTIFICATIONS';
+        const lbl = hasMgmt ? 'NOTIFICATIONS' : 'YOUR NOTIFICATIONS';
         if (!recent.length) return `
           <div class="lbl">${lbl} · 0</div>
-          <div class="sub">${isTM ? 'No notifications sent yet.' : 'Nothing new for you yet.'}</div>
+          <div class="sub">${hasMgmt ? 'No notifications sent yet.' : 'Nothing new for you yet.'}</div>
         `;
         const PRIO = { standard:'●', important:'◐', urgent:'◉', silent:'○' };
         const PRIO_COLOR = { standard:'var(--warm-mute)', important:'var(--hi)', urgent:'#e88080', silent:'var(--warm-mute)' };
@@ -14004,14 +14190,15 @@ function renderPhone() {
 
     <div class="p-card">
       ${(() => {
-        // Open tasks: TM sees all open tasks for this day (or unscoped), crew
-        // sees only tasks assigned to them. Recently-completed (last 24h) tasks
-        // are shown too, with a strikethrough, so the touring party has a live
-        // "what just got done" feed.
+        // Open tasks: TM + Mgmt see all open tasks for this day (or
+        // unscoped); regular crew see only tasks assigned to them.
+        // Recently-completed (last 24h) tasks are shown too, with a
+        // strikethrough, so the touring party has a live "what just got
+        // done" feed.
         const all = T().tasks.filter(t => !t.archived && (t.dateId===ad.id || !t.dateId));
         const dayMs = 24 * 60 * 60 * 1000;
         const now = Date.now();
-        const myTasks = isTM
+        const myTasks = hasMgmt
           ? all
           : all.filter(t => t.assignee === viewerKey);
         const open = myTasks.filter(t => !t.done);
@@ -14102,19 +14289,47 @@ function renderPhone() {
   ` : `<div class="p-card"><div class="lbl">HOTEL</div><div class="sub">Not added yet for this date.</div></div>`;
 
   // GUESTS
-  const myGuests = isTM ? ad.guests : ad.guests.filter(g => g.submittedBy && viewer && g.submittedBy.toLowerCase().includes(viewer.name.toLowerCase().split(' ')[0]));
+  // TM + Mgmt see EVERY guest on this date with inline approve/deny
+  // buttons on each pending row (same controls as the dashboard Guest
+  // List tab). Regular crew see only their own submissions.
+  const myGuests = hasMgmt ? ad.guests : ad.guests.filter(g => g.submittedBy && viewer && g.submittedBy.toLowerCase().includes(viewer.name.toLowerCase().split(' ')[0]));
+  const pendingCount = ad.guests.filter(g => g.status === 'pending').length;
   $('#ph-guests').innerHTML = `
     <div class="p-card">
-      <div class="lbl">${isTM ? 'ALL GUESTS · TONIGHT' : 'YOUR GUEST LIST'}</div>
-      <div class="h">${myGuests.length} ${isTM ? 'submitted' : 'used'}</div>
-      <div class="sub">${ad.guests.filter(g=>g.status==='pending').length} pending</div>
+      <div class="lbl">${hasMgmt ? 'ALL GUESTS · TONIGHT' : 'YOUR GUEST LIST'}</div>
+      <div class="h">${myGuests.length} ${hasMgmt ? 'submitted' : 'used'}</div>
+      <div class="sub">${pendingCount} pending</div>
+      ${hasMgmt && pendingCount > 0 ? `
+        <div style="display:flex;gap:6px;margin-top:10px">
+          <button type="button" onclick="approveAllPending()" style="flex:1;padding:9px;background:rgba(122,220,151,.12);color:#7adc97;border:1px solid rgba(122,220,151,.4);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;cursor:pointer">✓ Approve all ${pendingCount}</button>
+          <button type="button" onclick="denyAllPending()" style="flex:1;padding:9px;background:rgba(232,69,69,.08);color:var(--red);border:1px solid rgba(232,69,69,.35);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;cursor:pointer">✗ Deny all</button>
+        </div>
+      ` : ''}
       <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
-        ${myGuests.slice(0, 6).map(g => `
-          <div style="display:flex;justify-content:space-between;padding:9px 11px;background:rgba(232,148,58,.04);border:1px solid var(--line-2);border-radius:9px">
-            <div><div style="font-weight:700;font-size:13px;color:var(--warm)">${esc(g.name)}${g.plus?' + '+g.plus:''}</div><div class="mono" style="font-size:10px;color:var(--warm-mute)">${esc(g.passType)} · ${esc(g.status.toUpperCase())}</div></div>
-            <div class="mono" style="font-size:10.5px;color:${g.status==='approved'?'var(--good)':g.status==='pending'?'var(--hi)':'var(--red)'};align-self:center">${g.status==='approved'?'OK':g.status==='pending'?'…':'✗'}</div>
-          </div>
-        `).join('') || `<div class="sub">No guests yet.</div>`}
+        ${myGuests.slice(0, 8).map(g => {
+          const statusColor = g.status==='approved'?'var(--good)':g.status==='pending'?'var(--hi)':'var(--red)';
+          const statusChip = g.status==='approved'?'OK':g.status==='pending'?'…':'✗';
+          // Approve/deny inline controls — only render for TM/Mgmt viewers
+          // and only on rows that can usefully change state (pending →
+          // approve or deny; approved → deny; denied → approve).
+          const canApprove = hasMgmt && (g.status === 'pending' || g.status === 'denied');
+          const canDeny    = hasMgmt && (g.status === 'pending' || g.status === 'approved');
+          const actions = hasMgmt ? `
+            <div style="display:flex;gap:4px;align-self:center">
+              ${canApprove ? `<button type="button" onclick="event.stopPropagation();approveGuest('${g.id}')" title="Approve" style="padding:5px 9px;background:rgba(122,220,151,.12);color:#7adc97;border:1px solid rgba(122,220,151,.4);border-radius:5px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;cursor:pointer;line-height:1">✓</button>` : ''}
+              ${canDeny ? `<button type="button" onclick="event.stopPropagation();denyGuest('${g.id}')" title="Deny" style="padding:5px 9px;background:rgba(232,69,69,.08);color:var(--red);border:1px solid rgba(232,69,69,.35);border-radius:5px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;cursor:pointer;line-height:1">✗</button>` : ''}
+            </div>
+          ` : `<div class="mono" style="font-size:10.5px;color:${statusColor};align-self:center">${statusChip}</div>`;
+          return `
+            <div style="display:flex;justify-content:space-between;gap:8px;padding:9px 11px;background:rgba(232,148,58,.04);border:1px solid var(--line-2);border-radius:9px">
+              <div style="min-width:0;flex:1">
+                <div style="font-weight:700;font-size:13px;color:var(--warm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.name)}${g.plus?' + '+g.plus:''}</div>
+                <div class="mono" style="font-size:10px;color:var(--warm-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.passType)} · ${esc(g.status.toUpperCase())}${hasMgmt && g.submittedBy ? ' · by ' + esc(g.submittedBy) : ''}</div>
+              </div>
+              ${actions}
+            </div>
+          `;
+        }).join('') || `<div class="sub">No guests yet.</div>`}
       </div>
       <button type="button" onclick="openGuestModalForViewer()" style="margin-top:10px;padding:11px;background:linear-gradient(135deg,var(--hi),var(--hi-2));color:#0a0705;border-radius:10px;font-weight:800;letter-spacing:.06em;border:none;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;box-shadow:0 0 14px rgba(232,148,58,.3)">+ Add Guest Request</button>
     </div>
@@ -15487,6 +15702,133 @@ function _extractEmails(text) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// _extractStructuredContacts(block, ctx)
+//
+// Smart contact extraction from a single deal-memo block. Recognizes
+// role labels that agencies use (Buyer Signatory, Promoter Contact,
+// Production Contact, Booking Agent, Tour Manager, etc.) and pairs
+// each label with the name + email that appear immediately below it.
+//
+// Returns an array of:
+//   { name, email, role, organization, city, country, phone, notes }
+//
+// All contacts are tagged with the city/country from the calling
+// memo block so the Contacts tab can show "Live Nation · Derby"
+// instead of an undifferentiated wall of "Promoter" rows. The old
+// dumb-scrape approach (grab every email, tag everything "Promoter")
+// is kept as a fallback below for emails not captured by any label.
+//
+// Tolerant to PDF.js text-extraction quirks: column-based memo
+// layouts (4 columns wide) get flattened into a linear stream, so
+// the "name then email below" pairing relies on a small look-ahead
+// window after each label rather than strict line geometry.
+function _extractStructuredContacts(block, ctx) {
+  if (!block) return [];
+  ctx = ctx || {};
+  // Label → internal role mapping. Patterns are case-insensitive and
+  // global so we catch every occurrence in a multi-block memo. Order
+  // matters: longer / more specific labels first so "Promoter Assistant"
+  // doesn't get swallowed by "Promoter Contact".
+  const ROLE_LABELS = [
+    { pattern: /\bPromoter\s+Assistant\b/g, role: 'Promoter Asst' },
+    { pattern: /\bPromoter\s+Contact\b/g,   role: 'Promoter' },
+    { pattern: /\bProduction\s+Contact\b/g, role: 'Production' },
+    { pattern: /\bBuyer\s+Signatory\b/g,    role: 'Buyer / Signatory' },
+    { pattern: /\bBooking\s+Agent\b/g,      role: 'Agent' },
+    { pattern: /\bTour\s+Manager\b/g,       role: 'Tour Manager' },
+    { pattern: /\bTour\s+Accountant\b/g,    role: 'Tour Acct' },
+    { pattern: /\bSettlement\s+Contact\b/g, role: 'Settlement' },
+    { pattern: /\bStage\s+Manager\b/g,      role: 'Stage Manager' },
+    { pattern: /\bBox\s+Office\b/g,         role: 'Box Office' },
+    { pattern: /\bMarketing\s+Contact\b/g,  role: 'Marketing' },
+    { pattern: /\bRunner\s+Contact\b/g,     role: 'Runner' },
+    { pattern: /\bCatering\s+Contact\b/g,   role: 'Catering' },
+  ];
+  // Allow Unicode names — international promoters / agents have
+  // accented characters (Müller, García, Łukasiewicz).
+  const NAME_RE = /([A-ZÀ-Þ][a-zA-ZÀ-ɏ'\-]+(?:\s+[A-ZÀ-Þ][a-zA-ZÀ-ɏ'\-]+){0,3})/;
+  const EMAIL_RE = /([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/;
+  const PHONE_RE = /(\+?\d[\d\s\-().]{7,})/;
+  const out = [];
+  const usedEmails = new Set();
+  ROLE_LABELS.forEach(({ pattern, role }) => {
+    let m;
+    while ((m = pattern.exec(block)) !== null) {
+      const labelEnd = m.index + m[0].length;
+      // Look in the 400 chars after the label for the first unused email.
+      // 400 is enough to cover a column's name + phone + email stack
+      // without bleeding into the next column's data on most layouts.
+      const window = block.slice(labelEnd, labelEnd + 400);
+      const emailMatch = window.match(EMAIL_RE);
+      if (!emailMatch) continue;
+      const email = emailMatch[0];
+      if (usedEmails.has(email.toLowerCase())) continue;
+      // Walk backwards from the email to find the name on the same
+      // column. We grab the last "Capitalized FirstLast" pair that
+      // appears before the email in the window — that's almost always
+      // the right pairing in real-world memo layouts.
+      const beforeEmail = window.slice(0, emailMatch.index);
+      let name = '';
+      const reAll = new RegExp(NAME_RE.source, 'g');
+      let nm;
+      while ((nm = reAll.exec(beforeEmail)) !== null) {
+        const candidate = nm[1].trim();
+        // Filter out label-words that match the capitalized-pair shape
+        // ("Booking Agent", "Tour Manager", "Phone Number", "Email Address")
+        if (/Agent|Manager|Contact|Signatory|Number|Address|Office|Marketing|Runner|Catering|Stage|Buyer|Tour|Promoter|Production|Settlement/i.test(candidate)) continue;
+        name = candidate;
+      }
+      if (!name) {
+        // Fall back to deriving the name from the email local-part
+        name = titleCase(emailMatch[1].replace(/[._]/g, ' '));
+      }
+      // Phone (optional) — look in the same window for a phone-shaped run
+      const phoneMatch = window.match(PHONE_RE);
+      const phone = phoneMatch ? phoneMatch[0].trim() : '';
+      usedEmails.add(email.toLowerCase());
+      out.push({
+        name,
+        email,
+        phone,
+        role,
+        organization: emailMatch[2].split('.')[0],
+        city: ctx.city || '',
+        country: ctx.country || '',
+        notes: ctx.fileName ? `From ${ctx.fileName}` : '',
+      });
+    }
+  });
+  return out;
+}
+
+// Sweep up any emails left over after structured extraction and tag
+// them with the memo block's city + a generic "Other" role. Caller
+// passes the list of already-claimed emails so this doesn't duplicate
+// people we already pulled with a specific role.
+function _extractRemainingEmails(block, ctx, claimedEmails) {
+  if (!block) return [];
+  ctx = ctx || {};
+  claimedEmails = claimedEmails || new Set();
+  const remaining = [];
+  _extractEmails(block).forEach(email => {
+    if (claimedEmails.has(email.toLowerCase())) return;
+    claimedEmails.add(email.toLowerCase());
+    const local = email.split('@')[0];
+    const domain = email.split('@')[1].split('.')[0];
+    remaining.push({
+      name: titleCase(local.replace(/[._]/g, ' ')),
+      email,
+      role: 'Other',
+      organization: domain,
+      city: ctx.city || '',
+      country: ctx.country || '',
+      notes: ctx.fileName ? `From ${ctx.fileName}` : '',
+    });
+  });
+  return remaining;
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Hotel & flight extraction from PDF / text itineraries.
 //
 // TMs often upload travel itineraries — flight tickets, hotel
@@ -16202,19 +16544,33 @@ function processTextDoc(text, file, result) {
     } else {
       result.notes.push(`CAA deal memos · ${totalShows} show${totalShows===1?'':'s'} across ${caaBlocks.length} memo${caaBlocks.length===1?'':'s'}`);
     }
-    // Pull emails for contacts
-    const emails = _extractEmails(text);
-    emails.slice(0, 30).forEach(e => {
-      const namePart = e.split('@')[0].replace(/[._]/g, ' ');
-      result.extracted.contacts.push({
-        name: titleCase(namePart),
-        email: e,
-        role: 'Promoter',
-        organization: e.split('@')[1].split('.')[0],
-        notes: 'Extracted from ' + file.name,
-      });
+    // Structured per-block contact extraction. Each block has its own
+    // city/country context, so contacts get tagged with the right show.
+    // We extract from the raw block text (not the parsed object) so the
+    // role-label patterns can see "Buyer Signatory", "Promoter Contact",
+    // etc. as they appear in the source PDF.
+    const rawBlocks = text.split(/(?=Booking#:\s*\d+)/i).filter(s => s.trim().length > 200);
+    const blocksForContacts = rawBlocks.length === caaBlocks.length ? rawBlocks : [text];
+    const claimedEmails = new Set();
+    let structuredCount = 0;
+    caaBlocks.forEach((parsed, i) => {
+      const rawBlock = blocksForContacts[i] || text;
+      const ctx = {
+        city: parsed.city || '',
+        country: parsed.country || '',
+        fileName: file.name,
+      };
+      const structured = _extractStructuredContacts(rawBlock, ctx);
+      structured.forEach(c => { claimedEmails.add(c.email.toLowerCase()); });
+      result.extracted.contacts.push(...structured);
+      structuredCount += structured.length;
+      // Catch any remaining emails in this block that didn't pair to a
+      // role — tag them with the block's city so they're still useful.
+      const leftover = _extractRemainingEmails(rawBlock, ctx, claimedEmails).slice(0, 12);
+      result.extracted.contacts.push(...leftover);
     });
-    if (emails.length) result.notes.push(`Contacts · ${Math.min(emails.length, 30)} emails extracted`);
+    if (structuredCount) result.notes.push(`Contacts · ${structuredCount} role-tagged, ${result.extracted.contacts.length - structuredCount} additional`);
+    else if (result.extracted.contacts.length) result.notes.push(`Contacts · ${result.extracted.contacts.length} emails extracted`);
     // IMPORTANT: skip _extractTravelAndHotelsInto for CAA memos — the
     // bank wire-transfer block contains addresses (JPMorgan Chase, etc.)
     // that the generic hotel/travel scanner misreads as a hotel. Real
@@ -16263,19 +16619,23 @@ function processTextDoc(text, file, result) {
     } else {
       result.notes.push(`Deal memos · ${totalShows} show${totalShows===1?'':'s'} across ${memoBlocks.length} memo${memoBlocks.length===1?'':'s'}`);
     }
-    // Still pull emails for contacts
-    const emails = _extractEmails(text);
-    emails.slice(0, 30).forEach(e => {
-      const namePart = e.split('@')[0].replace(/[._]/g, ' ');
-      result.extracted.contacts.push({
-        name: titleCase(namePart),
-        email: e,
-        role: 'Other',
-        organization: e.split('@')[1].split('.')[0],
-        notes: 'Extracted from ' + file.name,
-      });
+    // Structured per-block contact extraction with role tagging + city
+    // association — see CAA path comment for the rationale.
+    const wassClaimedEmails = new Set();
+    let wassStructuredCount = 0;
+    memoBlocks.forEach(parsed => {
+      const ctx = { city: parsed.city || '', country: parsed.country || '', fileName: file.name };
+      // Wasserman parser doesn't return per-block raw text, so fall back
+      // to the whole document — accepts that role-pairing will be best-effort.
+      const structured = _extractStructuredContacts(text, ctx);
+      structured.forEach(c => { wassClaimedEmails.add(c.email.toLowerCase()); });
+      result.extracted.contacts.push(...structured);
+      wassStructuredCount += structured.length;
     });
-    if (emails.length) result.notes.push(`Contacts · ${Math.min(emails.length, 30)} emails extracted`);
+    const leftover = _extractRemainingEmails(text, { fileName: file.name }, wassClaimedEmails).slice(0, 20);
+    result.extracted.contacts.push(...leftover);
+    if (wassStructuredCount) result.notes.push(`Contacts · ${wassStructuredCount} role-tagged, ${leftover.length} additional`);
+    else if (leftover.length) result.notes.push(`Contacts · ${leftover.length} emails extracted`);
     // Even on deal-memo files, also scan for travel itinerary blocks.
     // Some agencies bundle the flights / hotels into the same PDF.
     _extractTravelAndHotelsInto(text, result);
@@ -16326,19 +16686,22 @@ function processTextDoc(text, file, result) {
     } else {
       result.notes.push(`${agencyLabel}s · ${totalShows} show${totalShows===1?'':'s'} across ${genericBlocks.length} memo${genericBlocks.length===1?'':'s'}`);
     }
-    // Pull emails for contacts (same as CAA / Wasserman paths)
-    const emails = _extractEmails(text);
-    emails.slice(0, 30).forEach(e => {
-      const namePart = e.split('@')[0].replace(/[._]/g, ' ');
-      result.extracted.contacts.push({
-        name: titleCase(namePart),
-        email: e,
-        role: 'Promoter',
-        organization: e.split('@')[1].split('.')[0],
-        notes: 'Extracted from ' + file.name,
-      });
+    // Structured per-block contact extraction with role tagging + city
+    // association — same approach as the CAA path. Falls back to dumb
+    // email scrape for any unclaimed addresses so nothing's lost.
+    const genClaimedEmails = new Set();
+    let genStructuredCount = 0;
+    genericBlocks.forEach(parsed => {
+      const ctx = { city: parsed.city || '', country: parsed.country || '', fileName: file.name };
+      const structured = _extractStructuredContacts(text, ctx);
+      structured.forEach(c => { genClaimedEmails.add(c.email.toLowerCase()); });
+      result.extracted.contacts.push(...structured);
+      genStructuredCount += structured.length;
     });
-    if (emails.length) result.notes.push(`Contacts · ${Math.min(emails.length, 30)} emails extracted`);
+    const genLeftover = _extractRemainingEmails(text, { fileName: file.name }, genClaimedEmails).slice(0, 20);
+    result.extracted.contacts.push(...genLeftover);
+    if (genStructuredCount) result.notes.push(`Contacts · ${genStructuredCount} role-tagged, ${genLeftover.length} additional`);
+    else if (genLeftover.length) result.notes.push(`Contacts · ${genLeftover.length} emails extracted`);
     // Travel + hotels scan — most generic memos don't include itinerary,
     // but some bundles do (especially promoter-direct), so we run the
     // scanner. False positives are rare since this path only fires when
@@ -17855,6 +18218,17 @@ function migrateGroups() {
   }
 }
 
+// True when this viewer is in the "Mgmt" group on the active tour.
+// Mgmt-tagged crew get the same elevated access as the Tour Manager:
+// they see EVERY schedule item regardless of audience filter, get the
+// approve/deny controls on guest list submissions, and see all
+// notifications. Case-insensitive group match so "MGMT" / "mgmt" /
+// "Mgmt" all qualify.
+function _viewerHasMgmtAccess(viewer) {
+  if (!viewer || !Array.isArray(viewer.groups)) return false;
+  return viewer.groups.some(g => String(g || '').toLowerCase() === 'mgmt');
+}
+
 function isItemVisibleToViewer(item, viewer, isTM) {
   if (isTM) return true;
   // Imported flights start with no audience and an _audienceNeeded
@@ -18104,7 +18478,11 @@ function _phoneShowDayTravel(dateId) {
   if (!d) return;
   const viewer = getCrewById(viewerKey);
   const isTM = viewerKey === 'tm';
-  const items = (d.travel || []).filter(t => isItemVisibleToViewer(t, viewer, isTM));
+  // Mgmt-tagged crew get the same elevated access as the TM — they see
+  // every travel item on the day regardless of audience filter. See the
+  // _viewerHasMgmtAccess helper for the group-match rules.
+  const hasMgmt = isTM || _viewerHasMgmtAccess(viewer);
+  const items = (d.travel || []).filter(t => isItemVisibleToViewer(t, viewer, hasMgmt));
   const dateLabel = `${fmtMD(d.date)} · ${dow(d.date)}`;
   openModal({
     title: `Travel day · ${dateLabel}`,
@@ -25513,7 +25891,7 @@ Object.assign(window, {
   _addDateRangeNext, _bulkSetRangeType, _commitDateRange,
   _calInit, _calNavMonth, _calPickDate, _calRender,
   openGuestModal, openAllotmentModal, openSetItemModal, moveSetItem, copySetList,
-  openSettleModal, openAttachModal, _attachFilePicked, _attachScopeChange, _attachBackToPick, _attachUpdatePrimaryLabel, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport, renderLocalAttachments, renderAttachments, renderTrialBadge, openSubscriptionPortal, _trialBadgeClick,
+  openSettleModal, openAttachModal, _attachFilePicked, _attachScopeChange, _attachBackToPick, _attachUpdatePrimaryLabel, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport, renderLocalAttachments, renderAttachments, renderTrialBadge, openSubscriptionPortal, _trialBadgeClick, _fxManualRefresh,
   openChatsModal, openNewChatModal, setActiveChat, _chatComposeOnInput, _chatComposeOnKeydown, _chatComposeSend, _chatMentionPick, _chatReactToggle, _chatReactPicker, _chatSendBroadcastPrompt, _chatToggleGroup, _chatUpdatePickCount,
   openPhoneSearch, _phoneSearchRender,
   openTaskModal, openTagModal, toggleTask,
