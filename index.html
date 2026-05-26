@@ -5569,11 +5569,30 @@ _onTourChange(payload) {
     const tour = state.tours[row.tour_id];
     if (!tour) return;
     const newDate = dbMap.rowToDate(row);
-    // Preserve attachments — they live in their own table and sync via
-    // _onAttachmentChange. Without this, every dates UPDATE would wipe the
-    // local attachments array until the next full re-hydrate.
+    // Preserve in-flight local fields that may not be in the incoming
+    // cloud row yet. This is the classic race-condition guard:
+    //
+    //   • attachments — separate table, sync via _onAttachmentChange
+    //   • advance.techPack — uploaded to Storage out-of-band, metadata
+    //     gets stamped on the date right after; if a realtime echo of
+    //     a SLIGHTLY-EARLIER tour update lands AFTER the techPack
+    //     metadata was set but BEFORE its own save cycle, this echo
+    //     would wipe techPack. Symptom Tyler reported: first upload
+    //     "doesn't work" (file appears then vanishes), second upload
+    //     works because by then the realtime stream is quiet.
+    //
+    // We merge instead of replace for advance: if incoming has no
+    // techPack but local does, keep local. Same shape can extend to
+    // other fields that have the same Storage-out-of-band pattern.
     const existing = (tour.dates || []).find(d => d.id === row.id);
-    if (existing) newDate.attachments = existing.attachments || [];
+    if (existing) {
+      newDate.attachments = existing.attachments || [];
+      const incomingAdv = newDate.advance || {};
+      const localAdv = existing.advance || {};
+      if (localAdv.techPack && !incomingAdv.techPack) {
+        newDate.advance = { ...incomingAdv, techPack: localAdv.techPack };
+      }
+    }
     tour.dates = (tour.dates || []).filter(d => d.id !== row.id).concat(newDate);
     tour.dates.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
     this._safeRenderAll();
@@ -11414,7 +11433,15 @@ function _mergedDaySchedule(ad) {
     if (item.allDay) return -1;
     const m = (item.time || '').match(/^(\d{1,2}):(\d{2})/);
     if (!m) return 99999;
-    return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+    let mins = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+    // Items flagged "+1 NEXT DAY" happen AFTER midnight tomorrow.
+    // Push them past today's clock by adding 24h so a 1:00 AM bus
+    // call sorts after a 11:00 PM load-out instead of jumping to
+    // the top of the day's schedule. Items that came in as
+    // _carryover (from yesterday's +1, viewed on today) keep their
+    // actual time — they really happen at 1am TODAY.
+    if (item.nextDay && !item._carryover) mins += 24 * 60;
+    return mins;
   };
   return merged.sort((a, b) => toMin(a) - toMin(b));
 }
@@ -11441,11 +11468,22 @@ function renderSchedule() {
         .filter(s => s.nextDay)
         .map(s => ({ ...s, _carryover: true, _sourceDate: prevDate.id }))
     : [];
-  const items = _mergedDaySchedule(ad).concat(carryoverFromPrev).sort((a, b) => {
-    if (a.allDay && !b.allDay) return -1;
-    if (b.allDay && !a.allDay) return 1;
-    return (a.time || '').localeCompare(b.time || '');
-  });
+  // Chronological sort that respects "+1 NEXT DAY" semantics:
+  //   • all-day items first
+  //   • carryover items (from yesterday's +1) at their real clock time
+  //     (they happen at the START of today)
+  //   • normal today items at clock time
+  //   • +1 items entered on THIS date push to AFTER today's items
+  //     (offset +24h on the sort key)
+  const sortKey = (s) => {
+    if (s.allDay) return -1;
+    const m = (s.time || '').match(/^(\d{1,2}):(\d{2})/);
+    if (!m) return 99999;
+    let mins = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+    if (s.nextDay && !s._carryover) mins += 24 * 60;
+    return mins;
+  };
+  const items = _mergedDaySchedule(ad).concat(carryoverFromPrev).sort((a, b) => sortKey(a) - sortKey(b));
   const templates = (T().scheduleTemplates || []);
   root.innerHTML = `
     <div class="section-title">
@@ -13390,40 +13428,36 @@ function _phoneAdvanceCardHTML(a) {
   if (a.buyout && parseFloat(a.buyout) > 0) {
     rows.push({ label: 'Buyout', value: `${curSym}${parseFloat(a.buyout).toLocaleString()}` });
   }
-  // Hands in/out condense into one row when both present, otherwise
-  // separate. "All day" gets its own clean value rather than two
-  // empty time rows. The headcount (handsCount) is prepended to the
-  // value when present — e.g. "4 hands · 09:00 – 18:00" — so the crew
-  // sees the count + window in a single tidy row instead of two.
-  // Multi-set hands: render one row per set. Single-set tours show
-  // just "Hands"; multi-set tours show "Hands · 1", "Hands · 2", etc.
+  // Hands display per the TM spec:
+  //   • Label changes by SET TYPE (not by index): "Hands in/out" for
+  //     timed sets, "Hands all day" for all-day sets, "Hands" for
+  //     count-only sets.
+  //   • Value column: the count, big and readable.
+  //   • Below the count (finer print): the actual in–out window when
+  //     the TM has entered times.
+  //
+  // This makes the crew's at-a-glance read "how many hands, when".
+  // Multiple sets each get their own row.
   const handsSets = _advanceReadHandsSets(a);
   if (handsSets.length) {
     const to12 = (t) => {
       const c = _to12h(t || '');
       return c.hh ? `${c.hh}:${c.mm} ${c.ampm}` : '';
     };
-    handsSets.forEach((s, i) => {
-      const lbl = handsSets.length === 1 ? 'Hands' : `Hands · ${i+1}`;
+    handsSets.forEach(s => {
       const cnt = parseInt(s.count, 10);
-      const cntPrefix = (cnt > 0) ? `${cnt} ` : '';
+      // Skip a fully-empty row — nothing useful to display.
+      if (!cnt && !s.allDay && !s.inTime && !s.outTime) return;
+      const cntStr = cnt > 0 ? String(cnt) : '—';
       if (s.allDay) {
-        rows.push({ label: lbl, value: `${cntPrefix}all day` });
+        rows.push({ label: 'Hands all day', value: cntStr });
       } else if (s.inTime || s.outTime) {
         const inT = to12(s.inTime);
         const outT = to12(s.outTime);
-        const window = (inT && outT) ? `${inT} – ${outT}` : (inT || outT);
-        if (cnt > 0) {
-          rows.push({ label: lbl, value: `${cnt} · ${window}` });
-        } else if (inT && outT) {
-          rows.push({ label: lbl, value: `${inT} – ${outT}` });
-        } else if (inT) {
-          rows.push({ label: lbl + ' in', value: inT });
-        } else if (outT) {
-          rows.push({ label: lbl + ' out', value: outT });
-        }
-      } else if (cnt > 0) {
-        rows.push({ label: lbl, value: `${cnt} confirmed` });
+        const win = (inT && outT) ? `${inT} – ${outT}` : (inT || outT);
+        rows.push({ label: 'Hands in/out', value: cntStr, sub: win });
+      } else {
+        rows.push({ label: 'Hands', value: cntStr });
       }
     });
   }
@@ -13457,7 +13491,10 @@ function _phoneAdvanceCardHTML(a) {
         ${rows.map(r => `
           <div class="ph-adv-row">
             <span class="ph-adv-k">${esc(r.label)}</span>
-            <span class="ph-adv-v">${esc(r.value)}</span>
+            <span class="ph-adv-v">
+              ${esc(r.value)}
+              ${r.sub ? `<span style="display:block;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.04em;margin-top:2px;font-weight:500">${esc(r.sub)}</span>` : ''}
+            </span>
           </div>
         `).join('')}
       </div>
