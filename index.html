@@ -12091,11 +12091,38 @@ function _currencyForCountry(country) {
 }
 function _dateCurrency(d) {
   if (!d) return 'USD';
+  // PRIORITY: the currency parsed from the show's deal memo (stored
+  // on date.settlement.currency). The deal is the source of truth —
+  // a German venue might still pay USD if it's a US festival deal,
+  // and we should respect that. Country-inferred currency was the
+  // OLD fallback; it's now only used by _backfillMissingCurrencies()
+  // as a one-time data-cleanup, not in live display logic, so a
+  // currency only ever ends up in the settlement record if it came
+  // from the deal memo (or the TM typed it in).
   const fromSettlement = d.settlement?.currency;
   if (fromSettlement) return fromSettlement;
-  const fromCountry = _currencyForCountry(d.country);
-  if (fromCountry) return fromCountry;
   return T().meta?.currency || 'USD';
+}
+
+// One-time backfill: for dates that DON'T have settlement.currency
+// captured (old imports from before the currency-capture fix), fill
+// in a sensible default from the country. Writes the inferred value
+// to settlement.currency so it becomes proper data — after this runs
+// once on a tour, the display logic in _dateCurrency stays clean and
+// the TM can override per-row via the Settle modal if needed.
+function _backfillMissingCurrencies(tour) {
+  if (!tour || !Array.isArray(tour.dates)) return false;
+  let changed = 0;
+  tour.dates.forEach(d => {
+    if (!d.settlement) d.settlement = { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' };
+    if (d.settlement.currency) return; // already set, leave alone
+    const inferred = _currencyForCountry(d.country);
+    if (inferred) {
+      d.settlement.currency = inferred;
+      changed++;
+    }
+  });
+  return changed > 0;
 }
 // FX rates · stored as "native → USD" (multiply native amount × rate
 // to get USD). Two sources, in priority order:
@@ -12246,6 +12273,14 @@ function _settlementTotalsByCurrency(dates) {
    ===================================================================== */
 function renderAccounting() {
   const root = $('#p-acct');
+  // One-time backfill of missing currencies (legacy import data).
+  // The backfill is idempotent — only writes to dates that don't
+  // already have a settlement.currency set. After this runs once on
+  // a tour, every row has explicit currency data and the live display
+  // logic doesn't need to infer anything from country.
+  if (_backfillMissingCurrencies(T())) {
+    try { saveState(); } catch (e) {}
+  }
   const showDates = T().dates.filter(d => d.status === 'show');
   const settledCount = showDates.filter(d => d.settlement.settled).length;
   const unpaid = showDates.filter(d => !d.settlement.settled && d.date < todayISO()).length;
@@ -12302,7 +12337,7 @@ function renderAccounting() {
     <div class="rescan-nudge" style="margin:8px 0 14px;background:linear-gradient(135deg,rgba(138,169,216,.08),rgba(138,169,216,.02));border-color:rgba(138,169,216,.3);color:#b1c8ee;flex-wrap:wrap">
       <span class="rb-icon" style="color:#8aa9d8">!</span>
       <span style="flex:1">
-        <b>USD totals are estimates</b> — they're the sum of each currency converted at today's market rate, NOT a settlement figure. Quote off native-currency totals only.
+        <b>USD totals are an estimate</b> based on today's market rates (the day you're viewing the dashboard). Each guarantee stays in its deal-memo currency; the USD line is sum-of-conversions-today. Quote clients off native currency only.
       </span>
       <span class="mono" style="font-size:10.5px;letter-spacing:.06em;color:${fxIsLive ? '#7adc97' : '#fdba74'};padding:4px 10px;border:1px solid ${fxIsLive ? 'rgba(122,220,151,.35)' : 'rgba(253,186,116,.35)'};border-radius:4px;background:${fxIsLive ? 'rgba(122,220,151,.05)' : 'rgba(253,186,116,.05)'}">
         ${fxIsLive ? '● ' : ''}${esc(fxAge)}
@@ -12347,17 +12382,27 @@ function renderAccounting() {
 
     <div class="tbl">
       <div class="tbl-row head settle-row">
-        <div class="c">Date</div><div class="c">City · Promoter</div><div class="c">Guarantee</div>
+        <div class="c">Date</div><div class="c">Festival / Show</div><div class="c">Guarantee</div>
         <div class="c">Final settlement</div><div class="c">Notes</div><div class="c">Status</div><div class="c"></div>
       </div>
       ${showDates.map(d => {
         const s = d.settlement;
         const stat = s.settled ? 'pos' : (d.date < todayISO() ? 'pending' : 'muted');
         const statText = s.settled ? 'Settled' : (d.date < todayISO() ? 'Awaiting' : 'Upcoming');
+        // "Festival / Show" column — lead with the venue (which is
+        // typically the festival name for European tours like Rock am
+        // Ring, Download, Graspop) or the room name for clubs. City +
+        // promoter drop to a secondary line so the TM can still see
+        // territory + buyer at a glance.
+        const primary = d.venue || d.city || '—';
+        const secondaryParts = [];
+        if (d.venue && d.city && d.venue !== d.city) secondaryParts.push(d.city);
+        if (d.promoter) secondaryParts.push(d.promoter);
+        const secondary = secondaryParts.join(' · ');
         return `
           <div class="tbl-row settle-row ${d.date===todayISO()?'today':''}">
             <div class="c mono" style="${d.date===todayISO()?'color:var(--hot)':''}">${fmtMD(d.date)}</div>
-            <div class="c"><div class="city">${esc(d.city)}<span>${esc(d.promoter || '—')}</span></div></div>
+            <div class="c"><div class="city">${esc(primary)}${secondary ? `<span>${esc(secondary)}</span>` : ''}</div></div>
             <div class="c amt">${_dateCurrency(d)} ${(parseFloat(s.guarantee)||0).toLocaleString()}</div>
             <div class="c amt ${s.settled?'pos':''}">${s.finalAmount ? _dateCurrency(d) + ' ' + parseFloat(s.finalAmount).toLocaleString() : '—'}</div>
             <div class="c muted mono" style="font-size:11px">${esc((s.deductions || s.notes || '').slice(0,40))}${(s.deductions || s.notes || '').length>40?'…':''}</div>
@@ -23690,7 +23735,17 @@ function _applyImportResults(results) {
       // North America into the UK / EU / Scandinavia.
       if (existing.settlement && (!existing.settlement.guarantee || existing.settlement.guarantee === 0) && d.guarantee) {
         existing.settlement.guarantee = d.guarantee;
-        if (d.currency && !existing.settlement.currency) existing.settlement.currency = d.currency;
+        // Currency priority: explicit memo capture > country-inferred
+        // fallback (so even when the parser didn't catch a "EUR" /
+        // "GBP" token, a Germany show still ends up tagged EUR rather
+        // than defaulting to the tour's USD).
+        if (!existing.settlement.currency) {
+          if (d.currency) existing.settlement.currency = d.currency;
+          else {
+            const inferred = _currencyForCountry(existing.country || d.country);
+            if (inferred) existing.settlement.currency = inferred;
+          }
+        }
         stats.fieldsFilled++;
       }
     } else {
