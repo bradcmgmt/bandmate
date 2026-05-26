@@ -12038,20 +12038,16 @@ function formatMin(sec) {
    MULTI-CURRENCY HELPERS for settlement view
    =====================================================================
    European tours land in mixed currencies — EUR shows, GBP shows, CHF
-   shows, etc. Previously the settlement table coerced every row to the
-   tour's single default currency (usually USD), which silently misled
-   the TM about real amounts due. Now:
-
-   • _currencyForCountry(country)
-       Maps a country name to its ISO currency code. Used as a fallback
-       when a deal memo didn't explicitly state a currency but we know
-       the territory (Germany → EUR, UK → GBP, Switzerland → CHF, etc).
+   shows, etc. The settlement table preserves each row's currency from
+   the source deal memo and never infers from territory.
 
    • _dateCurrency(date)
-       The effective currency for one date. Priority:
-         1. date.settlement.currency (TM-edited or parser-extracted)
-         2. country inferred via _currencyForCountry
-         3. tour default (T().meta.currency || 'USD')
+       The effective currency for one date.
+         1. date.settlement.currency (captured from deal memo or TM edit)
+         2. tour default (T().meta.currency || 'USD')
+       Territory / country inference is DELIBERATELY NOT in this path —
+       we want the deal memo to be the source of truth, not a guess
+       based on where the city is.
 
    • _settlementTotalsByCurrency(dates)
        Sum guarantees grouped by currency. Returns { EUR: 75000, GBP: 25000 }
@@ -12062,10 +12058,13 @@ function formatMin(sec) {
        CORS-OK), cached for 4 hours, with the hardcoded USD_FX_FALLBACK
        table as a safety net. The UI labels the source ("Live · updated
        12 min ago" vs "Fallback rates") and includes a manual ↻ Refresh
-       button. Rates are still flagged as ESTIMATES — the TM should
-       never quote a client off these. They exist purely so the TM can
-       sanity-check tour-wide order of magnitude across mixed-currency
-       runs. */
+       button. The USD aggregate is the ONLY computed value on this
+       tab — every per-row amount is the literal deal-memo number.
+
+   • _currencyForCountry(country)
+       Static table mapping country → ISO code. Available for future
+       UI hints (e.g. "Suggest EUR for this Germany show?") but NOT
+       called by any display or save path on the Settlements tab. */
 const COUNTRY_TO_CURRENCY = {
   // Eurozone
   'austria':'EUR','belgium':'EUR','croatia':'EUR','cyprus':'EUR','estonia':'EUR',
@@ -12091,39 +12090,20 @@ function _currencyForCountry(country) {
 }
 function _dateCurrency(d) {
   if (!d) return 'USD';
-  // PRIORITY: the currency parsed from the show's deal memo (stored
-  // on date.settlement.currency). The deal is the source of truth —
-  // a German venue might still pay USD if it's a US festival deal,
-  // and we should respect that. Country-inferred currency was the
-  // OLD fallback; it's now only used by _backfillMissingCurrencies()
-  // as a one-time data-cleanup, not in live display logic, so a
-  // currency only ever ends up in the settlement record if it came
-  // from the deal memo (or the TM typed it in).
+  // STRICT: the currency parsed from the show's deal memo. No
+  // territory inference, no country-based guess. If the memo didn't
+  // give us a currency, we fall back to the tour's default — which
+  // is more honest than fabricating a value from the city. The TM
+  // can correct any row via the Settle modal's Currency dropdown,
+  // or re-import the memo to refresh from the source document.
   const fromSettlement = d.settlement?.currency;
   if (fromSettlement) return fromSettlement;
   return T().meta?.currency || 'USD';
 }
-
-// One-time backfill: for dates that DON'T have settlement.currency
-// captured (old imports from before the currency-capture fix), fill
-// in a sensible default from the country. Writes the inferred value
-// to settlement.currency so it becomes proper data — after this runs
-// once on a tour, the display logic in _dateCurrency stays clean and
-// the TM can override per-row via the Settle modal if needed.
-function _backfillMissingCurrencies(tour) {
-  if (!tour || !Array.isArray(tour.dates)) return false;
-  let changed = 0;
-  tour.dates.forEach(d => {
-    if (!d.settlement) d.settlement = { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' };
-    if (d.settlement.currency) return; // already set, leave alone
-    const inferred = _currencyForCountry(d.country);
-    if (inferred) {
-      d.settlement.currency = inferred;
-      changed++;
-    }
-  });
-  return changed > 0;
-}
+// _currencyForCountry is still defined above this function so other
+// places (e.g. settlement modal defaults, future UI hints) can use
+// it as a SUGGESTION rather than a source of truth. It is NOT called
+// in any display or save path on the Settlements tab.
 // FX rates · stored as "native → USD" (multiply native amount × rate
 // to get USD). Two sources, in priority order:
 //
@@ -12273,14 +12253,11 @@ function _settlementTotalsByCurrency(dates) {
    ===================================================================== */
 function renderAccounting() {
   const root = $('#p-acct');
-  // One-time backfill of missing currencies (legacy import data).
-  // The backfill is idempotent — only writes to dates that don't
-  // already have a settlement.currency set. After this runs once on
-  // a tour, every row has explicit currency data and the live display
-  // logic doesn't need to infer anything from country.
-  if (_backfillMissingCurrencies(T())) {
-    try { saveState(); } catch (e) {}
-  }
+  // Currency is ALWAYS sourced from the deal memo (captured at parse
+  // time into date.settlement.currency). No territory inference, no
+  // country-based fallback — only what the deal said. Anything that
+  // wasn't captured from a memo shows the tour default currency until
+  // the TM re-imports the memo or edits the row in the Settle modal.
   const showDates = T().dates.filter(d => d.status === 'show');
   const settledCount = showDates.filter(d => d.settlement.settled).length;
   const unpaid = showDates.filter(d => !d.settlement.settled && d.date < todayISO()).length;
@@ -13494,15 +13471,20 @@ function _phoneAdvanceCardHTML(a) {
       // Skip a fully-empty row — nothing useful to display.
       if (!cnt && !s.allDay && !s.inTime && !s.outTime) return;
       const cntStr = cnt > 0 ? String(cnt) : '—';
-      if (s.allDay) {
-        rows.push({ label: 'Hands all day', value: cntStr });
-      } else if (s.inTime || s.outTime) {
+      if (s.inTime || s.outTime) {
+        // The TM entered times — show the in/out window in finer print.
         const inT = to12(s.inTime);
         const outT = to12(s.outTime);
         const win = (inT && outT) ? `${inT} – ${outT}` : (inT || outT);
         rows.push({ label: 'Hands in/out', value: cntStr, sub: win });
       } else {
-        rows.push({ label: 'Hands', value: cntStr });
+        // No in/out times. Treat as "all day" — either the TM explicitly
+        // toggled the All-day button (s.allDay === true) OR they entered
+        // a count without times, which in touring convention means
+        // "they're here for the full show day." Either way the crew
+        // sees one consistent label so there's no ambiguous "Hands · 2"
+        // row that leaves them wondering when those hands are needed.
+        rows.push({ label: 'Hands all day', value: cntStr });
       }
     });
   }
@@ -23729,23 +23711,22 @@ function _applyImportResults(results) {
       if (existing.status === 'off' && d.venue && d.city) existing.status = 'show';
       if (filled > 0) stats.datesUpdated++;
       stats.fieldsFilled += filled;
-      // Guarantee + currency on settlement. Currency carries through
-      // from the parsed deal memo so a single tour can mix USD, EUR,
-      // GBP, etc. across dates — common for tours that cross from
-      // North America into the UK / EU / Scandinavia.
+      // Guarantee + currency on settlement. Both come from the deal
+      // memo — never inferred from territory. Re-importing a memo
+      // updates the currency on an existing settlement row even if
+      // its guarantee was already filled in by an earlier import,
+      // so legacy data (imported before currency capture shipped)
+      // gets corrected the next time the TM uploads the same memo.
       if (existing.settlement && (!existing.settlement.guarantee || existing.settlement.guarantee === 0) && d.guarantee) {
         existing.settlement.guarantee = d.guarantee;
-        // Currency priority: explicit memo capture > country-inferred
-        // fallback (so even when the parser didn't catch a "EUR" /
-        // "GBP" token, a Germany show still ends up tagged EUR rather
-        // than defaulting to the tour's USD).
-        if (!existing.settlement.currency) {
-          if (d.currency) existing.settlement.currency = d.currency;
-          else {
-            const inferred = _currencyForCountry(existing.country || d.country);
-            if (inferred) existing.settlement.currency = inferred;
-          }
-        }
+        stats.fieldsFilled++;
+      }
+      // Currency: always refresh from the memo when the parser caught
+      // one. Never write a territory-inferred value. If the parser
+      // missed it, the row's currency stays whatever the TM set last
+      // (or empty → tour default at display time).
+      if (existing.settlement && d.currency && existing.settlement.currency !== d.currency) {
+        existing.settlement.currency = d.currency;
         stats.fieldsFilled++;
       }
     } else {
