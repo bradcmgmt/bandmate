@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "art.bandmate.app",
+        "sha256_cert_fingerprints": ["EF:67:E9:59:01:11:5C:DA:65:17:AE:D6:FA:0E:D3:AE:00:A8:61:00:71:0C:74:66:11:55:DA:52:23:C4:2C:4C"]
+      }
+    }]
