@@ -6,12 +6,13 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "orientation": "any",
+  "orientation": "portrait",
   "background_color": "#0a0705",
   "theme_color": "#0a0705",
   "categories": ["business", "productivity", "music"],
   "icons": [
-    { "src": "/avatar-sq.png?v=3", "sizes": "any", "type": "image/png", "purpose": "any" },
-    { "src": "/avatar-sq.png?v=3", "sizes": "any", "type": "image/png", "purpose": "maskable" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

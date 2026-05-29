@@ -11,13 +11,16 @@
  * Bump CACHE_VERSION whenever the shell changes so old caches get purged.
  */
 
-const CACHE_VERSION = 'bandmate-v3-mobile';
+const CACHE_VERSION = 'bandmate-v4-app';
 const APP_SHELL = [
   '/',
   '/index.html',
   '/manifest.json',
   '/logo.png',
   '/avatar.png',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (event) => {

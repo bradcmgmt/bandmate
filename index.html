@@ -14,7 +14,7 @@
 <meta name="apple-mobile-web-app-title" content="Bandmate">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
-<link rel="apple-touch-icon" href="/avatar-sq.png?v=3">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
 <!-- Open Graph -->
 <meta property="og:type" content="website">
@@ -22,7 +22,7 @@
 <meta property="og:title" content="Bandmate — Tour Operations">
 <meta property="og:description" content="Tour management for the road. Built for tour managers, band, and crew.">
 <meta property="og:site_name" content="Bandmate">
-<meta property="og:image" content="https://bandmate.art/avatar-sq.png?v=3">
+<meta property="og:image" content="https://bandmate.art/icon-512.png">
 <meta property="og:image:width" content="512">
 <meta property="og:image:height" content="512">
 <meta property="og:image:alt" content="Bandmate rabbit icon">
@@ -31,7 +31,7 @@
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Bandmate — Tour Operations">
 <meta name="twitter:description" content="Tour management for the road. Built for tour managers, band, and crew.">
-<meta name="twitter:image" content="https://bandmate.art/avatar-sq.png?v=3">
+<meta name="twitter:image" content="https://bandmate.art/icon-512.png">
 
 <!-- Favicon · 128px rabbit-on-dark-square, inlined as data URL so the
      title bar / browser tab icon always renders correctly regardless
@@ -21742,6 +21742,20 @@ let _pendingStripeCheckoutAfterAuth = false;
 let _pricingAutoRecoverFired = false;
 
 function showPricingScreen() {
+  // App-store billing compliance: inside the installed app we NEVER
+  // show the Stripe checkout. Apple (Guideline 3.1.1) and Google both
+  // restrict selling digital subscriptions via an external processor
+  // inside the app. So an unsubscribed user in the installed app sees
+  // a "manage your subscription on the web" notice instead — they
+  // open bandmate.art in a browser to subscribe, then return to the
+  // app and log in. 100% of revenue stays on Stripe, and the binary
+  // stays review-safe. (In a normal browser tab — or a desktop-installed
+  // PWA — this guard is false and the full pricing/checkout flow runs as
+  // usual, since no app-store cut applies there.)
+  if (_isPhoneApp()) {
+    _showInstalledAppBillingNotice();
+    return;
+  }
   // Don't re-show if we're already on it — guards against renderAll
   // calling this repeatedly on every realtime echo + tick.
   const alreadyShowing = document.getElementById('pricingScreen') && !document.getElementById('pricingScreen').hidden;
@@ -21773,6 +21787,63 @@ function showPricingScreen() {
   // canceled or otherwise blocked (vs the generic landing pitch).
   if (!isPreAuth) _renderPricingStatusBanner();
   window.scrollTo(0, 0);
+}
+
+// Full-screen notice shown INSTEAD of the Stripe pricing screen when
+// an unsubscribed user is inside the installed app. Routes them to the
+// website to subscribe / manage billing (Apple + Google compliance).
+// Built as a standalone fixed overlay so it never touches the real
+// pricing DOM (which a browser-tab session still uses normally).
+function _showInstalledAppBillingNotice() {
+  // Hide every other top-level surface.
+  ['app','landingScreen','loginScreen'].forEach(id => { const el = document.getElementById(id); if (el) el.hidden = true; });
+  const ob = document.getElementById('onboarding'); if (ob) ob.classList.add('hidden');
+  const pricing = document.getElementById('pricingScreen'); if (pricing) pricing.hidden = true;
+  document.body.classList.remove('bg-video-on');
+
+  let notice = document.getElementById('installedBillingNotice');
+  if (!notice) {
+    notice = document.createElement('div');
+    notice.id = 'installedBillingNotice';
+    notice.style.cssText = 'position:fixed;inset:0;z-index:9000;background:#0a0705;display:flex;align-items:center;justify-content:center;padding:28px;overflow-y:auto';
+    document.body.appendChild(notice);
+  }
+  notice.hidden = false;
+  const u = U();
+  const lapsed = u && (u.subscriptionStatus === 'canceled' || u.subscriptionStatus === 'past_due' || u.subscriptionStatus === 'unpaid');
+  notice.innerHTML = `
+    <div style="max-width:420px;text-align:center;display:flex;flex-direction:column;gap:18px">
+      <img src="/icon-192.png" alt="Bandmate" style="width:72px;height:72px;border-radius:18px;margin:0 auto;box-shadow:0 0 30px rgba(232,148,58,.25)">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#fdba74;font-weight:700">${lapsed ? 'Subscription needed' : 'Activate Bandmate'}</div>
+      <h2 style="font-size:22px;font-weight:800;color:#f4e4cf;line-height:1.25;margin:0">${lapsed ? 'Your subscription has lapsed' : 'Set up your subscription on the web'}</h2>
+      <p style="font-size:14px;line-height:1.6;color:#b8a690;margin:0">
+        Subscriptions for Bandmate are managed on our website. Open
+        <b style="color:#fdba74">bandmate.art</b> in your browser to
+        ${lapsed ? 'reactivate your plan' : 'start your subscription'}, then return here and you're all set — your login stays the same.
+      </p>
+      <button type="button" onclick="window.open('https://bandmate.art','_blank')" style="padding:14px 18px;background:linear-gradient(135deg,#e8943a,#f5b35e);color:#0a0705;border:none;border-radius:12px;font-weight:800;letter-spacing:.06em;font-size:14px;cursor:pointer;box-shadow:0 0 18px rgba(232,148,58,.3)">Open bandmate.art →</button>
+      <button type="button" onclick="(async()=>{ if(typeof _installedBillingRecheck==='function'){await _installedBillingRecheck();} })()" style="padding:11px;background:transparent;color:#b8a690;border:1px solid rgba(232,148,58,.3);border-radius:10px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;cursor:pointer">↻ I've subscribed — check again</button>
+      <button type="button" onclick="logout()" style="padding:9px;background:transparent;color:var(--warm-mute);border:none;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer">Sign out</button>
+    </div>
+  `;
+  window.scrollTo(0, 0);
+}
+
+// Re-pull subscription state after the user says they've subscribed on
+// the web. If they're now active, tear down the notice and route into
+// the app; otherwise leave the notice up.
+async function _installedBillingRecheck() {
+  try { toast('Checking subscription…', 'info'); } catch (e) {}
+  try { if (typeof hydrateSubscription === 'function') await hydrateSubscription(); } catch (e) {}
+  const u = U();
+  if (u && userIsSubscribed(u)) {
+    const notice = document.getElementById('installedBillingNotice');
+    if (notice) { notice.hidden = true; notice.remove(); }
+    try { toast('Subscription active — welcome aboard', 'good'); } catch (e) {}
+    try { postLoginRouting(); } catch (e) {}
+  } else {
+    try { toast('No active subscription found yet — give it a moment after paying, then retry', 'error'); } catch (e) {}
+  }
 }
 
 // Show a status banner at the top of the pricing screen when the user
@@ -23336,18 +23407,74 @@ function ensureLoggedInState() {
 
 
 
+// True when Bandmate is running as an INSTALLED app rather than in a
+// regular browser tab. Covers:
+//   • iOS "Add to Home Screen" PWA          → navigator.standalone
+//   • Android installed PWA / TWA           → display-mode: standalone
+//   • Capacitor / native wrapper            → display-mode: standalone,
+//     or the wrapper can inject window.BANDMATE_NATIVE = true for a
+//     hard signal that survives any display-mode quirk.
+//
+// Used to (a) force the crew-mobile phone view for EVERY role so the
+// installed app looks + functions exactly like the dashboard's
+// right-side preview, and (b) hide the Stripe pricing/checkout UI to
+// stay compliant with Apple (Guideline 3.1.1) and Google Play billing
+// rules — installed users are routed to manage billing on the website.
+function _isInstalledApp() {
+  try {
+    if (window.BANDMATE_NATIVE === true) return true;
+    if (window.navigator && window.navigator.standalone === true) return true;
+    if (window.matchMedia) {
+      if (window.matchMedia('(display-mode: standalone)').matches) return true;
+      if (window.matchMedia('(display-mode: fullscreen)').matches) return true;
+      if (window.matchMedia('(display-mode: minimal-ui)').matches) return true;
+    }
+  } catch (e) { /* matchMedia unsupported — treat as browser tab */ }
+  return false;
+}
+
+// The phone-app experience (forced crew-mobile view + app-store billing
+// rules) applies when we're the installed app AND either explicitly a
+// native wrapper OR on a phone/tablet-sized screen. This deliberately
+// EXCLUDES a desktop-installed PWA on a large monitor: that TM keeps the
+// full dashboard and can still subscribe via Stripe, because no Apple /
+// Google in-app-purchase cut applies to desktop web. The store binaries
+// (iOS/Android) set window.BANDMATE_NATIVE = true, so they always match
+// regardless of screen size.
+function _isPhoneApp() {
+  if (window.BANDMATE_NATIVE === true) return true;
+  if (!_isInstalledApp()) return false;
+  try { return window.matchMedia('(max-width: 1024px)').matches; }
+  catch (e) { return true; }
+}
+
 function applyRoleMode() {
   const u = U();
+  // Installed app: force the crew-mobile phone experience for EVERY
+  // role so the app is a 1:1 match for the dashboard's right-side
+  // preview. TMs and Mgmt keep their elevated controls inside that
+  // view (approve/deny guests, full schedule + travel, all
+  // notifications) via the hasMgmt logic in renderPhone().
+  const installed = _isPhoneApp();
   if (!u) {
-    document.body.classList.remove('crew-mobile-only');
+    document.body.classList.toggle('crew-mobile-only', installed);
     return;
   }
-  if (u.role === 'crew') {
+  if (u.role === 'crew' || installed) {
     document.body.classList.add('crew-mobile-only');
-    // Auto-set viewer to themselves if they exist as a crew member on the current tour
     const tour = T();
-    const meCrew = (tour.crew || []).find(c => c.userId === u.id || (c.email && c.email.toLowerCase() === (u.email||'').toLowerCase()));
-    if (meCrew) viewerKey = meCrew.id;
+    if (u.role === 'tm') {
+      // A TM in the installed app always gets the full-access phone
+      // view ('tm' viewer), even if they happen to be on their own
+      // crew roster — they should never be audience-filtered out of
+      // their own tour's data.
+      viewerKey = 'tm';
+    } else {
+      // Crew: pin the viewer to their own roster record so they see
+      // exactly what's targeted at them.
+      const meCrew = (tour.crew || []).find(c => c.userId === u.id || (c.email && c.email.toLowerCase() === (u.email||'').toLowerCase()));
+      if (meCrew) viewerKey = meCrew.id;
+    }
   } else {
     document.body.classList.remove('crew-mobile-only');
   }
