@@ -5177,18 +5177,19 @@ const db = {
       const tourRow = dbMap.tourToRow(tour, state.currentUserId);
       const { error: tErr } = await sb.from('tours').upsert(tourRow, { onConflict: 'id' });
       if (tErr) {
-        // RLS rejection means the tour row in Supabase is owned by a
-        // different account than the one we're signed in as — most
-        // commonly stale local data left over from a previous login.
-        // The user can't fix this by retrying, so silently skip instead
-        // of toasting "cloud save failed" on every edit. Console keeps
-        // a breadcrumb for debugging.
+        // The tour-row upsert failed — but DO NOT bail here. Dates live in a
+        // separate table, and a hotel/room/schedule change rides on the
+        // DATE, not the tour row. The old code returned on any tour error,
+        // which silently blocked every date edit from syncing whenever the
+        // tour row had an issue (e.g. a brand-new JSONB column not yet
+        // migrated, or an RLS quirk) — that's exactly why a hotel-template
+        // apply didn't reach the crew's app. Log and fall through to the
+        // dates upsert so date edits always get their chance to sync.
         if (/row-level security|row level security/i.test(tErr.message || '')) {
-          console.warn('[db.syncTour] RLS rejection — local tour ownership disagrees with cloud, skipping:', tErr.message);
-          return;
+          console.warn('[db.syncTour] tour-row RLS rejection — continuing to date sync:', tErr.message);
+        } else {
+          console.warn('[db.syncTour] tour-row upsert failed — continuing to date sync:', tErr.message || tErr);
         }
-        this._err('syncTour', tErr);
-        return;
       }
       const dateRows = (tour.dates || [])
         .filter(d => _isUuid(d.id))
@@ -23413,28 +23414,32 @@ async function loginWithEmail() {
   toast(`Welcome back, ${state.users[userId].name.split(' ')[0]}`, 'good');
 }
 
-async function loginAsExisting(userId) {
-  if (!state) state = newEmptyState();
-  if (!state.users[userId]) { toast('Account not found', 'error'); return; }
-  if (!state.users[userId].claimed) { toast('That account hasn\'t been claimed yet — sign up to claim it', 'error'); return; }
-  state.currentUserId = userId;
-  state.users[userId].lastLoginAt = Date.now();
-  // Pending Stripe subscription? Attach it now so the existing account
-  // gets billing flipped on. Only TMs are billed, so skip for crew.
-  const pending = _readPendingSubscription();
-  if (pending && state.users[userId].role === 'tm') {
-    _attachSubscriptionToCurrentUser(pending);
-    _clearPendingSubscription();
-    setTimeout(() => {
-      toast(`Subscription attached to your account`, 'good');
-    }, 200);
+// One-tap account chip on the login screen ("Accounts on this device").
+//
+// This USED to set currentUserId locally with NO Supabase sign-in — a
+// passwordless "login" that left the user without a real session, so the
+// boot guard bounced them back to the login screen on every refresh (the
+// "this button logs me out" bug). A passwordless login is fundamentally
+// incompatible with the cloud model: every write would fail RLS and nothing
+// would sync.
+//
+// Now it's a genuine convenience shortcut: prefill the account's email and
+// drop the cursor in the password field so the user completes a REAL
+// sign-in (loginWithEmail → signInWithPassword), which persists a proper
+// session. One field to type instead of two — same convenience, no broken
+// sessionless state.
+function loginAsExisting(userId) {
+  const u = state && state.users && state.users[userId];
+  if (!u) { toast('Account not found', 'error'); return; }
+  try { showLoginForm(); } catch (e) {}
+  const emailEl = document.getElementById('li_email');
+  const pwEl = document.getElementById('li_pw');
+  if (emailEl) emailEl.value = u.email || '';
+  if (pwEl) {
+    pwEl.value = '';
+    setTimeout(() => { try { pwEl.focus(); } catch (e) {} }, 60);
   }
-  saveState();
-  // Pull fresh subscription status from Supabase before routing — same
-  // as the email-signin path. Without this, a stale local 'none' status
-  // would bounce a really-subscribed user to the pricing screen.
-  try { await hydrateSubscription(); } catch (e) { console.warn('[loginAsExisting] hydrate failed:', e); }
-  postLoginRouting();
+  toast('Enter your password to finish signing in as ' + (u.email || u.name), '');
 }
 
 // Find an existing user (claimed or unclaimed) by email — used by both signup
