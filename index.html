@@ -2872,13 +2872,26 @@ body.travel-assistant-mode #travelAssistantArea{
 .ph-tour-card .h{font-weight:800;font-size:14px;color:var(--warm);line-height:1.2}
 .ph-tour-card .other-tours{display:flex;flex-direction:column;gap:6px;margin-top:6px}
 .ph-tour-card .ot{
-  display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:9px 11px;
+  display:grid;grid-template-columns:1fr 26px;gap:10px;align-items:center;padding:10px 12px;
   background:rgba(0,0,0,.3);border:1px solid var(--line-2);border-radius:8px;cursor:pointer;
 }
 .ph-tour-card .ot:hover{border-color:#b1c8ee}
+/* min-width:0 lets the flexible text column actually shrink so the
+   ellipses below engage instead of the long name shoving the arrow. */
+.ph-tour-card .ot > div:first-child{min-width:0}
 .ph-tour-card .ot .ot-name{font-size:12.5px;font-weight:700;color:var(--warm);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ph-tour-card .ot .ot-meta{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.06em;color:var(--warm-mute);margin-top:2px}
-.ph-tour-card .ot .ot-go{color:#b1c8ee;font-size:14px}
+.ph-tour-card .ot .ot-meta{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.06em;color:var(--warm-mute);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Arrow rendered as a fixed 26px round chip in a fixed 26px column so it
+   sits flush-right and perfectly centered on every row, regardless of how
+   tall the name/meta block is. */
+.ph-tour-card .ot .ot-go{
+  width:26px;height:26px;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(138,169,216,.12);border:1px solid rgba(138,169,216,.32);
+  border-radius:50%;color:#b1c8ee;font-size:13px;line-height:1;
+  transition:background .15s ease,border-color .15s ease;
+}
+.ph-tour-card .ot:hover .ot-go{background:rgba(138,169,216,.22);border-color:#b1c8ee}
 
 
 /* ============ LOGIN / SIGNUP ============ */
@@ -23424,6 +23437,15 @@ async function logout() {
   if (!confirm('Sign out? Your tour data stays on this device.')) return;
   if (sb) {
     try { db.unsubscribeRealtime(); } catch (e) { /* non-fatal */ }
+    // Flush any pending debounced cloud sync BEFORE we drop the session.
+    // The 600ms debounce means a just-made edit may not have synced yet;
+    // if we sign out first, that write fails RLS (no session) and the
+    // stale cloud copy overwrites it on next login. Fire the final sync
+    // now, while the session is still alive, and await it.
+    try {
+      if (db._syncTimer) { clearTimeout(db._syncTimer); db._syncTimer = null; }
+      await db._runActiveTourSync();
+    } catch (e) { /* best-effort — proceed with sign-out regardless */ }
     try { await sb.auth.signOut(); } catch (e) { /* non-fatal */ }
   }
   _sentrySetUser(null);
@@ -26798,14 +26820,36 @@ window.bandmateInstallPrompt = async function() {
       resp = await sb.auth.getSession();
       session = resp?.data?.session;
     }
+    // Still nothing cached — try ONE active refresh using the persisted
+    // refresh token before giving up. This recovers the very common
+    // "access token expired but refresh token still valid" case without a
+    // false bounce, AND it definitively distinguishes a transient SDK
+    // rehydration blip (refresh succeeds → continue) from a genuinely
+    // dead session (refresh fails → must re-auth).
     if (!session) {
-      // No session after retry. Don't auto-bounce — that's been firing
-      // false positives where the user is still validly signed in (just
-      // the SDK hadn't fully rehydrated yet). Just skip cloud hydration
-      // and let local state continue to render. If the session truly is
-      // gone, cloud writes will fail RLS and be silently swallowed; the
-      // user can manually sign out when they notice things aren't syncing.
-      console.warn('[boot] No Supabase session found after retry; continuing on local state. Local user:', state.currentUserId);
+      try {
+        const ref = await sb.auth.refreshSession();
+        session = (ref && ref.data && ref.data.session) || null;
+      } catch (e) { /* genuinely dead — handled below */ }
+    }
+    if (!session) {
+      // PHANTOM-LOGIN GUARD. Local state says a user is signed in, but
+      // there is no live session and the refresh token is dead. The old
+      // behavior here was to silently keep rendering the cached dashboard
+      // — which is a DATA-INTEGRITY TRAP: every cloud write then fails RLS
+      // silently, so anything the user creates or edits never reaches the
+      // cloud and is lost on their next refresh / device / sign-out.
+      //
+      // Stop pretending they're connected. Bounce to the login screen so
+      // they re-authenticate. We intentionally do NOT wipe state.tours —
+      // on a successful re-login, hydrateUserData's orphan-promotion path
+      // pushes any unsynced local-only work back up to the cloud, so no
+      // in-progress tour is lost by this bounce.
+      console.warn('[boot] No Supabase session (refresh also failed) but local user present — bouncing to login to protect data integrity. Local user:', state.currentUserId);
+      try { db.unsubscribeRealtime(); } catch (e) {}
+      try { toast('Session expired — please sign in again to keep your tours synced to the cloud', 'error'); } catch (e) {}
+      try { showLoginScreen(); }
+      catch (e) { try { showLandingScreen(); } catch (e2) {} }
       return;
     }
     const userId = session.user?.id;
