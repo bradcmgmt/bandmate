@@ -4703,21 +4703,54 @@ html body.phone-app .phone .nav {
 /* ---------- Supabase client (auth source of truth; data layer to follow) ---------- */
 const SUPABASE_URL = 'https://xyzmxzawqmjsccxecmts.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5em14emF3cW1qc2NjeGVjbXRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4MTI2MTUsImV4cCI6MjA5NDM4ODYxNX0.SyFRvQMNmmX-vE0Ofh_6OKadhotaI1gs2JOeRglF4IM';
+
+// Breadcrumb trail for Supabase auth storage activity. Survives reloads and
+// is readable from any same-origin tab, so we can see EXACTLY what the SDK
+// does to the session token across a login → refresh cycle (was it written?
+// read back? removed?). Capped to the last 60 entries.
+function _sbDiag(msg) {
+  try {
+    const arr = JSON.parse(window.localStorage.getItem('bandmate.sb.diag') || '[]');
+    arr.push({ t: Date.now(), msg });
+    window.localStorage.setItem('bandmate.sb.diag', JSON.stringify(arr.slice(-60)));
+  } catch (e) { /* never let diagnostics break auth */ }
+}
+// Explicit localStorage adapter for the Supabase client. Passing
+// window.localStorage in directly has proven unreliable here (the session
+// was never landing in storage → logout on every reload). An explicit object
+// with arrow-bound methods guarantees correct `this` binding and error
+// handling regardless of how the SDK invokes it, and logs every auth-token
+// operation so persistence can be verified.
+const _sbStorage = {
+  getItem: (key) => {
+    let v = null;
+    try { v = window.localStorage.getItem(key); } catch (e) {}
+    if (/auth-token/.test(key)) _sbDiag('getItem ' + key + ' -> ' + (v ? 'HIT(' + v.length + ')' : 'MISS'));
+    return v;
+  },
+  setItem: (key, value) => {
+    try { window.localStorage.setItem(key, value); }
+    catch (e) { _sbDiag('setItem FAIL ' + key + ' ' + (e && e.name)); return; }
+    if (/auth-token/.test(key)) _sbDiag('setItem ' + key + ' (' + ((value || '').length) + ' chars)');
+  },
+  removeItem: (key) => {
+    try { window.localStorage.removeItem(key); } catch (e) {}
+    if (/auth-token/.test(key)) _sbDiag('removeItem ' + key);
+  },
+};
 const sb = (window.supabase && window.supabase.createClient)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        // Use Supabase's default storage key (`sb-<project-ref>-auth-token`)
-        // instead of a custom one — diagnostics showed the custom key
-        // wasn't getting written to localStorage at all. Default key works
-        // reliably across SDK versions.
-        storage: (typeof window !== 'undefined' && window.localStorage) ? window.localStorage : undefined,
+        storageKey: 'sb-xyzmxzawqmjsccxecmts-auth-token',
+        storage: _sbStorage,
       }
     })
   : null;
 if (!sb) console.warn('Supabase SDK failed to load — check the network tab. Auth will not work until this is resolved.');
+else _sbDiag('client-init');
 
 /* ---------- Sentry error monitoring ---------- */
 // Paste your Sentry DSN below to enable error monitoring. Leaving it empty
@@ -23288,20 +23321,20 @@ async function loginWithEmail() {
   // ourselves to the default Supabase key. The SDK will read this on
   // next page load and treat it as a valid session.
   if (!error && data?.session) {
+    // The SDK should have persisted via our storage adapter by now. Verify;
+    // if nothing landed, write it ourselves in the SDK's own format (the
+    // session JSON), which getItem() will hand back on the next load.
     try {
-      const projectRef = SUPABASE_URL.split('//')[1]?.split('.')[0];
-      const defaultKey = `sb-${projectRef}-auth-token`;
-      // Only write if no Supabase keys exist (i.e., SDK didn't write itself)
-      const existing = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const key = 'sb-xyzmxzawqmjsccxecmts-auth-token';
+      const existing = window.localStorage.getItem(key)
+        || Object.keys(localStorage).find(k => /^sb-.*-auth-token/.test(k));
       if (!existing) {
-        console.warn('[auth] SDK did not write session — manually persisting to', defaultKey);
-        localStorage.setItem(defaultKey, JSON.stringify(data.session));
+        _sbDiag('login: SDK did NOT persist — manual write');
+        window.localStorage.setItem(key, JSON.stringify(data.session));
       } else {
-        console.log('[auth] Session persisted by SDK under key:', existing);
+        _sbDiag('login: SDK persisted OK');
       }
-    } catch (e) {
-      console.error('[auth] Manual persist failed:', e);
-    }
+    } catch (e) { _sbDiag('login: persist check threw ' + (e && e.name)); }
   }
 
   if (error) {
