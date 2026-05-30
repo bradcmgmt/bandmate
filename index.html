@@ -4826,6 +4826,7 @@ const dbMap = {
       schedule_templates: t.scheduleTemplates || [],
       travel_templates: t.travelTemplates || [],
       setlist_templates: t.setListTemplates || [],
+      hotel_templates: t.hotelTemplates || [],
       artist_logo: t.artistLogo || null,
     };
   },
@@ -4851,6 +4852,7 @@ const dbMap = {
       scheduleTemplates: row.schedule_templates || [],
       travelTemplates: row.travel_templates || [],
       setListTemplates: row.setlist_templates || [],
+      hotelTemplates: row.hotel_templates || [],
       artistLogo: row.artist_logo || null,
       activeDateId: row.active_date_id || (dates && dates[0]?.id) || null,
       ownerId: row.owner_id,
@@ -12180,6 +12182,138 @@ function renderTravel() {
 /* =====================================================================
    PANEL: HOTELS
    ===================================================================== */
+
+/* ---------------------------------------------------------------------
+   HOTEL TEMPLATES — save a day's hotel (property details + every room
+   assignment) as a reusable, per-tour template, then drop it onto another
+   day in two clicks. The classic case: a show city whose off day(s) stay
+   at the same hotel with the same room assignments — build it once, apply
+   it forward. Room assignments keep their personId, so the same crew land
+   in the same rooms; ids are regenerated on save + apply so no two days
+   ever share a room reference. Mirrors the schedule/travel template system.
+   --------------------------------------------------------------------- */
+let _hotelTemplateMenuOpen = false;
+function toggleHotelTemplateMenu() {
+  _hotelTemplateMenuOpen = !_hotelTemplateMenuOpen;
+  const menu = document.getElementById('hotelTemplateMenu');
+  if (menu) menu.hidden = !_hotelTemplateMenuOpen;
+}
+function closeHotelTemplateMenu() {
+  _hotelTemplateMenuOpen = false;
+  const menu = document.getElementById('hotelTemplateMenu');
+  if (menu) menu.hidden = true;
+}
+
+function saveHotelAsTemplate() {
+  const ad = getActiveDate();
+  if (!ad) { closeHotelTemplateMenu(); return; }
+  if (!ad.hotel || !ad.hotel.name) {
+    toast('No hotel on this day to save', 'error');
+    closeHotelTemplateMenu();
+    return;
+  }
+  const h = ad.hotel;
+  const roomCount = (h.rooms || []).length;
+  const defaultName = `${h.name}${ad.city ? ' · ' + ad.city : ''}`;
+  const name = prompt('Hotel template name:', defaultName);
+  if (!name || !name.trim()) { closeHotelTemplateMenu(); return; }
+  if (!T().hotelTemplates) T().hotelTemplates = [];
+  // Deep-clone the whole hotel (property + rooms) and strip room ids so a
+  // fresh set is minted on apply. personId stays, so the same crew member
+  // is reassigned to "their" room when the template lands on a new day.
+  const hotelCopy = JSON.parse(JSON.stringify(h));
+  hotelCopy.rooms = (hotelCopy.rooms || []).map(r => { const { id, ...rest } = r; return rest; });
+  T().hotelTemplates.push({
+    id: uid('htpl'),
+    name: name.trim(),
+    hotel: hotelCopy,
+    createdAt: Date.now(),
+  });
+  saveState();
+  closeHotelTemplateMenu();
+  toast(`Saved hotel template "${name.trim()}" · ${roomCount} room${roomCount===1?'':'s'}`, 'good');
+  renderHotels();
+}
+
+function applyHotelTemplate(tplId) {
+  const ad = getActiveDate();
+  if (!ad) { toast('No active date to apply to', 'error'); return; }
+  const tpl = (T().hotelTemplates || []).find(t => t.id === tplId);
+  if (!tpl || !tpl.hotel) { toast('Template not found', 'error'); return; }
+  // A date holds exactly ONE hotel, so applying replaces it. If something's
+  // already there, confirm — room assignments get replaced too.
+  if (ad.hotel && ad.hotel.name) {
+    if (!confirm(`Replace the hotel on ${ad.city || 'this day'} ("${ad.hotel.name}") with "${tpl.name}"? The current room assignments will be replaced.`)) {
+      closeHotelTemplateMenu();
+      return;
+    }
+  }
+  // Deep-clone so two days never share references, and mint fresh room ids.
+  const hotelCopy = JSON.parse(JSON.stringify(tpl.hotel));
+  hotelCopy.rooms = (hotelCopy.rooms || []).map(r => ({ id: uid('room'), ...r }));
+  ad.hotel = hotelCopy;
+  saveState();
+  closeHotelTemplateMenu();
+  const rc = hotelCopy.rooms.length;
+  toast(`Applied "${tpl.name}" · ${rc} room${rc===1?'':'s'} to ${ad.city || 'this day'}`, 'good');
+  renderAll();
+}
+
+function renameHotelTemplate(tplId) {
+  const tpl = (T().hotelTemplates || []).find(t => t.id === tplId);
+  if (!tpl) return;
+  const next = prompt('Rename hotel template:', tpl.name);
+  if (next == null) return;
+  const trimmed = next.trim();
+  if (!trimmed) return;
+  tpl.name = trimmed;
+  saveState();
+  renderHotels();
+}
+
+function deleteHotelTemplate(tplId) {
+  const tpl = (T().hotelTemplates || []).find(t => t.id === tplId);
+  if (!tpl) return;
+  if (!confirm(`Delete hotel template "${tpl.name}"? This can't be undone.`)) return;
+  T().hotelTemplates = (T().hotelTemplates || []).filter(t => t.id !== tplId);
+  saveState();
+  toast('Hotel template deleted');
+  renderHotels();
+}
+
+// Shared dropdown markup for the hotels tab — "save this hotel" + the list
+// of saved templates to apply. Reuses the schedule template menu's styling
+// (.sched-template-menu / .stm-*) so there's no new CSS to maintain.
+function _hotelTemplateMenuHTML(ad) {
+  const tpls = (T().hotelTemplates || []);
+  const hasHotel = !!(ad.hotel && ad.hotel.name);
+  const roomCount = hasHotel ? (ad.hotel.rooms || []).length : 0;
+  return `
+    <div class="sched-template-wrap" id="hotelTemplateWrap" style="position:relative;margin-left:auto">
+      <button type="button" class="add-btn" onclick="toggleHotelTemplateMenu()">⌂ Hotel templates ${tpls.length ? `· ${tpls.length}` : ''} ▾</button>
+      <div class="sched-template-menu" id="hotelTemplateMenu" hidden>
+        <button type="button" class="stm-item" onclick="saveHotelAsTemplate()" ${hasHotel ? '' : 'disabled'}>
+          <span class="stm-ic">+</span>
+          <span><div class="stm-h">Save this hotel as template</div><div class="stm-s">${hasHotel ? esc(ad.hotel.name) + ' · ' + roomCount + ' room' + (roomCount===1?'':'s') : 'No hotel on this day yet'}</div></span>
+        </button>
+        ${tpls.length ? `
+          <div class="stm-divider">Saved templates</div>
+          ${tpls.map(t => `
+            <div class="stm-row">
+              <button type="button" class="stm-item stm-apply" onclick="applyHotelTemplate('${t.id}')">
+                <span class="stm-ic">↓</span>
+                <span><div class="stm-h">${esc(t.name)}</div><div class="stm-s">${esc(t.hotel?.name || 'Hotel')} · ${(t.hotel?.rooms||[]).length} room${(t.hotel?.rooms||[]).length===1?'':'s'}</div></span>
+              </button>
+              <button type="button" class="stm-mini" title="Rename" onclick="event.stopPropagation();renameHotelTemplate('${t.id}')">✎</button>
+              <button type="button" class="stm-mini stm-del" title="Delete" onclick="event.stopPropagation();deleteHotelTemplate('${t.id}')">×</button>
+            </div>
+          `).join('')}
+        ` : `<div class="stm-empty">No saved templates yet — set a hotel + rooms, then save it here to reuse on same-city days</div>`}
+      </div>
+    </div>
+  `;
+}
+
 function renderHotels() {
   const ad = getActiveDate();
   const root = $('#p-hotels');
@@ -12191,11 +12325,12 @@ function renderHotels() {
       <div class="section-title">
         <h2>Hotels · ${esc(ad.city)}</h2>
         <span class="crumb">/ ${fmtDate(ad.date).toUpperCase()}</span>
+        ${_hotelTemplateMenuHTML(ad)}
         <button type="button" class="add-btn" onclick="openHotelModal()">+ Add hotel</button>
       </div>
       <div class="empty">
         <h3>No hotel set for ${esc(ad.city)}</h3>
-        <p>Add the hotel for this date, then assign rooms to your crew. Each crew member sees their own room # on their phone.</p>
+        <p>Add the hotel for this date, then assign rooms to your crew. Each crew member sees their own room # on their phone.${(T().hotelTemplates||[]).length ? ' Or apply a saved hotel template above to reuse a same-city stay.' : ''}</p>
         <button type="button" onclick="openHotelModal()">+ Add hotel</button>
       </div>
     `;
@@ -12207,6 +12342,7 @@ function renderHotels() {
       <h2>${esc(h.name)}</h2>
       <span class="crumb">/ ${esc(ad.city.toUpperCase())} / ${fmtDate(ad.date).toUpperCase()}</span>
       <span class="stamp">${(h.rooms || []).length} ROOMS</span>
+      ${_hotelTemplateMenuHTML(ad)}
       <button type="button" class="add-btn" onclick="openHotelModal()">Edit hotel</button>
     </div>
 
@@ -25801,6 +25937,9 @@ function init() {
       }
       if (_travelTemplateMenuOpen && !e.target.closest('#travelTemplateWrap')) {
         closeTravelTemplateMenu();
+      }
+      if (_hotelTemplateMenuOpen && !e.target.closest('#hotelTemplateWrap')) {
+        closeHotelTemplateMenu();
       }
       if (_toolsMenuOpen && !e.target.closest('#toolsDropdown')) {
         closeToolsMenu();

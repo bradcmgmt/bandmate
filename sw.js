@@ -11,7 +11,7 @@
  * Bump CACHE_VERSION whenever the shell changes so old caches get purged.
  */
 
-const CACHE_VERSION = 'bandmate-v7-app';
+const CACHE_VERSION = 'bandmate-v8-app';
 const APP_SHELL = [
   '/',
   '/index.html',
