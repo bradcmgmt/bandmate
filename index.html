@@ -4976,15 +4976,10 @@ const db = {
     try {
       const getRes = await sb.auth.getSession();
       let session = getRes && getRes.data ? getRes.data.session : null;
-      // Auto-heal: if there's no live session, try a silent refresh
-      // before bailing. This recovers from the very common case of
-      // an expired access token where the refresh token is still good.
-      if (!session || !session.user || !session.user.id || !_isUuid(session.user.id)) {
-        try {
-          const refRes = await sb.auth.refreshSession();
-          if (refRes && refRes.data && refRes.data.session) session = refRes.data.session;
-        } catch (e) { /* fall through */ }
-      }
+      // NOTE: no manual refreshSession() here — it races with the SDK's
+      // auto-refresh and rotates the refresh token, which was destroying
+      // sessions on reload. getSession() returns the valid persisted
+      // session on its own; the SDK keeps the access token fresh.
       sessionDebug = session;
       authUid = session && session.user ? session.user.id : null;
     } catch (e) { /* fall through to error toast below */ }
@@ -5121,16 +5116,13 @@ const db = {
       const { data: { session } } = await sb.auth.getSession();
       _sessionUserId = session?.user?.id || null;
     } catch (e) { /* fall through */ }
-    // AUTO-HEAL: no cached session — try one refresh before giving up. This
-    // silently recovers the very common "access token expired but refresh
-    // token still valid" case, so the TM's edits keep syncing without them
-    // ever noticing a hiccup.
-    if (!_sessionUserId) {
-      try {
-        const ref = await sb.auth.refreshSession();
-        _sessionUserId = (ref && ref.data && ref.data.session && ref.data.session.user && ref.data.session.user.id) || null;
-      } catch (e) { /* genuinely dead — warned below */ }
-    }
+    // NOTE: we deliberately do NOT call sb.auth.refreshSession() here. A
+    // manual refresh from the save path races with the SDK's own auto-
+    // refresh (and with the boot path); since Supabase rotates the refresh
+    // token, the concurrent refreshes invalidate each other and nuke the
+    // session — which was logging users out on every reload. getSession()
+    // already returns the valid persisted session, so a null here means the
+    // user is genuinely signed out.
     if (!_sessionUserId) {
       // Session is genuinely gone, yet local state still thinks we're logged
       // in. Every edit is now silently failing RLS and piling up locally,
@@ -27179,26 +27171,23 @@ window.bandmateInstallPrompt = async function() {
 (async function _bootCloudSync() {
   if (!sb || !state || !state.currentUserId) return;
   try {
-    // Retry once after a short pause — the SDK can return a null session
-    // momentarily while it's still rehydrating the persisted JWT.
+    // Read the persisted session, retrying a few times with short pauses —
+    // the SDK can momentarily return null right after a reload while it's
+    // still rehydrating the stored JWT from localStorage.
+    //
+    // CRITICAL: we do NOT call sb.auth.refreshSession() here. A manual
+    // refresh races with the SDK's built-in auto-refresh; because Supabase
+    // ROTATES the refresh token on every refresh, two concurrent refreshes
+    // invalidate each other's token and the session is destroyed — which
+    // was logging users out on EVERY page reload. getSession() already
+    // returns a valid persisted session (the SDK refreshes the access token
+    // in the background), so it's all we need.
     let resp = await sb.auth.getSession();
     let session = resp?.data?.session;
-    if (!session) {
-      await new Promise(r => setTimeout(r, 400));
+    for (let i = 0; i < 3 && !session; i++) {
+      await new Promise(r => setTimeout(r, 300));
       resp = await sb.auth.getSession();
       session = resp?.data?.session;
-    }
-    // Still nothing cached — try ONE active refresh using the persisted
-    // refresh token before giving up. This recovers the very common
-    // "access token expired but refresh token still valid" case without a
-    // false bounce, AND it definitively distinguishes a transient SDK
-    // rehydration blip (refresh succeeds → continue) from a genuinely
-    // dead session (refresh fails → must re-auth).
-    if (!session) {
-      try {
-        const ref = await sb.auth.refreshSession();
-        session = (ref && ref.data && ref.data.session) || null;
-      } catch (e) { /* genuinely dead — handled below */ }
     }
     if (!session) {
       // PHANTOM-LOGIN GUARD. Local state says a user is signed in, but
