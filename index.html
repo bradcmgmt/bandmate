@@ -3621,6 +3621,16 @@ html body.phone-app .footnote,
 html body.phone-app .console-head {
   display: none !important;
 }
+/* Kill zoom in the native app: touch-action:manipulation drops the
+   double-tap-to-zoom gesture (and the 300ms tap delay). Pinch-zoom is
+   blocked separately by the gesture-event handler in JS (search
+   _isPhoneApp gesturestart). A native app should never zoom. */
+html body.phone-app,
+html body.phone-app .phone,
+html body.phone-app .phone .screen,
+html body.phone-app .p-screen {
+  touch-action: manipulation !important;
+}
 /* App + stage collapse to a single full-bleed surface */
 html body.phone-app #app { padding: 0 !important; margin: 0 !important; max-width: 100vw !important; }
 html body.phone-app .stage {
@@ -14407,11 +14417,72 @@ function renderViewerSelect() {
   $('#roleTag').textContent = `VIEWING AS ${label.toUpperCase()}`;
 }
 
+// Minimal "More" screen rendered even when there's no active date, so a
+// user on an empty tour (or no tour) can still switch tours + sign out
+// instead of being trapped on blank screens. The full More screen (with
+// profile, quick actions, permissions) renders inside renderPhone once a
+// date exists.
+function _renderPhoneMoreMinimal() {
+  const moreEl = document.getElementById('ph-more');
+  if (!moreEl) return;
+  const u = U();
+  const accessible = u
+    ? Object.values(state.tours || {}).filter(t => t && t.id !== '_empty' && (t.ownerId === u.id || (t.memberIds || []).includes(u.id)))
+    : [];
+  const current = T();
+  const others = accessible.filter(t => t.id !== current.id);
+  const tourCard = accessible.length ? `
+    <div class="ph-tour-card">
+      <div class="lbl">YOUR TOURS · ${accessible.length}</div>
+      <div class="h">Currently: ${esc(current.name || 'Untitled tour')}</div>
+      ${others.length ? `
+        <div class="other-tours">
+          ${others.map(t => `
+            <div class="ot" onclick="switchToTourFromPhone('${t.id}')">
+              <div>
+                <div class="ot-name">${esc(t.name || 'Untitled tour')}</div>
+                <div class="ot-meta">${esc(t.meta?.artist || '—')} · ${(t.dates||[]).length} dates</div>
+              </div>
+              <div class="ot-go">→</div>
+            </div>
+          `).join('')}
+        </div>
+      ` : `<div class="sub" style="color:var(--warm-mute);font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.06em;margin-top:8px">No other tours.</div>`}
+    </div>
+  ` : `<div class="p-card"><div class="lbl">TOURS</div><div class="sub" style="margin-top:6px">You haven't been added to any tours yet. Your tour manager adds you by email — once they do, your tour shows up here.</div></div>`;
+  const accountCard = u ? `
+    <div class="p-card">
+      <div class="lbl">ACCOUNT</div>
+      <div class="h" style="font-size:14px">${esc(u.name || '')}</div>
+      <div class="sub">${esc(u.email || '')}</div>
+      <button type="button" onclick="logout()" style="margin-top:10px;padding:11px;background:transparent;color:var(--red);border:1px solid rgba(232,69,69,.4);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;cursor:pointer">Sign out</button>
+    </div>
+  ` : '';
+  moreEl.innerHTML = tourCard + accountCard;
+}
+
 function renderPhone() {
   const ad = getPhoneDate();
   if (!ad) {
-    $('#phCity').innerHTML = `Bandmate<small>NO TOUR YET</small>`;
-    $$('.p-screen').forEach(s => s.innerHTML = '');
+    // No active date — either an empty tour (no dates) or no tour at all.
+    // Show a clear empty state on each screen instead of blank pages, and
+    // ALWAYS render a working More tab so the user can switch tours or
+    // sign out rather than being trapped.
+    const tour = T();
+    const hasTour = !!(tour && tour.id && tour.id !== '_empty');
+    const tourName = hasTour ? (tour.meta?.artist || tour.name || 'Your tour') : '';
+    $('#phCity').innerHTML = `${hasTour ? esc(tourName) : 'Bandmate'}<small>${hasTour ? 'NO DATES YET' : 'NO TOUR YET'}</small>`;
+    const card = (h, sub) => `<div class="p-card"><div class="lbl" style="color:#8aa9d8">${h}</div><div class="sub" style="margin-top:6px;line-height:1.55">${sub}</div></div>`;
+    const todayEl = document.getElementById('ph-today');
+    if (todayEl) todayEl.innerHTML = hasTour
+      ? card('No dates yet', `Your tour manager hasn't scheduled any dates on <b>${esc(tourName)}</b> yet. Your day-by-day schedule, hotels, and set list appear here the moment they do.`)
+      : card('No tour yet', `You're not on a tour yet. Once your tour manager adds you (by your email), everything shows up here. Tap <b>More</b> below to switch tours or sign out.`);
+    ['ph-schedule','ph-hotel','ph-guests'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = card(hasTour ? 'Nothing scheduled' : 'No tour selected', hasTour ? 'No dates on this tour yet.' : 'Tap the More tab to switch tours.');
+    });
+    _renderPhoneMoreMinimal();
+    try { renderPhoneDateMenu(); } catch (e) {}
     return;
   }
   $('#phCity').innerHTML = `${esc(ad.city || '—')}${ad.state ? ', ' + esc(ad.state) : ''}<small>DAY ${(T().dates.findIndex(d=>d.id===ad.id)+1).toString().padStart(2,'0')} / ${T().dates.length.toString().padStart(2,'0')} · ${fmtMD(ad.date)}</small>`;
@@ -26487,6 +26558,30 @@ window.addEventListener('pagehide', _flushPendingSync);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') _flushPendingSync();
 });
+
+// ────────────────────────────────────────────────────────────────────
+// No-zoom in the native app. The CSS touch-action:manipulation kills
+// double-tap-to-zoom; these gesture handlers kill iOS pinch-zoom. A
+// native band/crew app should never zoom in or out — it's a fixed
+// layout, not a document. Gated on _isPhoneApp so the desktop web (and
+// mobile-web TMs) keep normal browser zoom for accessibility.
+['gesturestart', 'gesturechange', 'gestureend'].forEach(evt => {
+  document.addEventListener(evt, (e) => {
+    try { if (_isPhoneApp()) e.preventDefault(); } catch (err) {}
+  }, { passive: false });
+});
+// Belt-and-suspenders: block the double-tap zoom that slips past
+// touch-action on some iOS builds by cancelling a second tap within
+// 300ms of the first.
+let _lastTouchEnd = 0;
+document.addEventListener('touchend', (e) => {
+  try {
+    if (!_isPhoneApp()) return;
+    const now = Date.now();
+    if (now - _lastTouchEnd <= 300) e.preventDefault();
+    _lastTouchEnd = now;
+  } catch (err) {}
+}, { passive: false });
 
 /* expose handlers used by inline onclick */
 Object.assign(window, {
