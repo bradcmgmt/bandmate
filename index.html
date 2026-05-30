@@ -19807,6 +19807,7 @@ function isPhoneOnToday() {
 function setPhoneViewDate(dateId) {
   // Phone date follows TM's active date — picking on phone moves TM too
   T().activeDateId = dateId;
+  _rememberPhoneViewDate();
   phoneDateMenuOpen = false;
   saveState();
   renderAll();
@@ -19815,6 +19816,7 @@ function setPhoneViewDate(dateId) {
 function jumpPhoneToToday() {
   const tourToday = getTourTodayDate();
   if (tourToday) T().activeDateId = tourToday.id;
+  _rememberPhoneViewDate();
   phoneDateMenuOpen = false;
   phoneScreen = 'today';
   activeTab = 'dashboard';
@@ -19822,6 +19824,46 @@ function jumpPhoneToToday() {
   applyPhoneScreenFromState();
   saveState();
   renderAll();
+}
+
+// ── Phone view-date persistence ───────────────────────────────────────
+// The phone app tracks its OWN viewed date, decoupled from the tour's
+// cloud active_date_id (which follows the TM and is overwritten on every
+// hydrate — that's what snapped the crew app back to date 1 on every
+// pull-to-refresh). We stash the viewed date in sessionStorage, which
+// survives a reload (pull-to-refresh) but is cleared when the app is fully
+// closed — giving exactly the two behaviors requested:
+//   • pull-to-refresh → keep the date you were on (restored from session)
+//   • cold app open    → jump to TODAY (session empty → getTourTodayDate)
+const _PHONE_VIEW_DATE_KEY = 'bandmate.phoneViewDate';
+function _rememberPhoneViewDate() {
+  try {
+    const tour = T();
+    if (tour && tour.id && tour.id !== '_empty' && tour.activeDateId) {
+      sessionStorage.setItem(_PHONE_VIEW_DATE_KEY, JSON.stringify({ tourId: tour.id, dateId: tour.activeDateId }));
+    }
+  } catch (e) {}
+}
+function _resolvePhoneBootDate() {
+  if (!_isPhoneApp()) return;          // only the phone app manages its own date
+  const tour = T();
+  if (!tour || !tour.dates || !tour.dates.length) return;
+  // Pull-to-refresh: a date stashed THIS session for THIS tour → keep it.
+  try {
+    const raw = sessionStorage.getItem(_PHONE_VIEW_DATE_KEY);
+    if (raw) {
+      const o = JSON.parse(raw);
+      if (o && o.tourId === tour.id && tour.dates.some(d => d.id === o.dateId)) {
+        tour.activeDateId = o.dateId;
+        return;
+      }
+    }
+  } catch (e) {}
+  // Cold open (or first time on this tour this session): land on today's
+  // date — the show happening now, or the next one coming up.
+  const today = getTourTodayDate();
+  if (today) tour.activeDateId = today.id;
+  _rememberPhoneViewDate();
 }
 
 function togglePhoneDateMenu() {
@@ -20868,6 +20910,8 @@ function switchToTourFromPhone(tourId) {
   }
   state.currentTourId = tourId;
   viewerKey = nextViewerId;
+  // Land on the new tour's today (its session date won't match), and stamp it.
+  _resolvePhoneBootDate();
   saveState();
   renderAll();
   toast(`Switched to ${target.name}`, 'good');
@@ -23828,6 +23872,9 @@ function postLoginRouting() {
     saveState();
     document.getElementById('app').hidden = false;
     document.getElementById('onboarding').classList.add('hidden');
+    // Fresh login on the phone → land on today's date (not the TM's stored
+    // active date), before the first paint.
+    try { _resolvePhoneBootDate(); } catch (e) {}
     renderAll();
     // Activate the right tab + phone screen — same rationale as the
     // crew branch above. Without these, the dashboard appears blank
@@ -27160,6 +27207,10 @@ window.bandmateInstallPrompt = async function() {
     }
     const result = await db.hydrateUserData(userId);
     if (result.tours > 0) {
+      // Hydrate just overwrote activeDateId with the cloud's (TM-followed)
+      // value. Re-assert the phone's own view date before painting so a
+      // pull-to-refresh stays put and a cold open lands on today.
+      try { _resolvePhoneBootDate(); } catch (e) {}
       try { renderAll(); } catch (e) { console.error('post-hydrate render:', e); }
     }
     await hydrateSubscription();
