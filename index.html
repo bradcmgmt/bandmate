@@ -5349,7 +5349,14 @@ _onTourChange(payload) {
         expiresAt: session ? session.expires_at : null,
         localCurrentUserId: state ? state.currentUserId : null,
       });
-      if (!authUser || !authUser.id || !_isUuid(authUser.id)) {
+      // Only attempt a refreshSession in the MANUAL (non-silent) path.
+      // Background import uploads run concurrently with the debounced
+      // tour sync — and calling refreshSession() from two places at once
+      // rotates the refresh token, which can invalidate the live session
+      // and is what tripped the "import → auto signed out" cascade. In
+      // silent mode we trust getSession's cached session (valid for a
+      // just-active user) and skip the refresh entirely.
+      if ((!authUser || !authUser.id || !_isUuid(authUser.id)) && !(meta && meta.silent)) {
         try {
           const refRes = await sb.auth.refreshSession();
           const refreshed = refRes && refRes.data ? refRes.data : null;
@@ -5369,8 +5376,19 @@ _onTourChange(payload) {
       console.error('[uploadAttachment] getSession threw:', e);
     }
     if (!authUser || !authUser.id || !_isUuid(authUser.id)) {
-      // Hard fail - surface a recovery flow. Try to derive the user's
-      // email from local state so the sign-in form pre-fills it.
+      // SILENT mode (background import attachment upload): never disrupt
+      // the user. Just skip the upload and return null — the tour itself
+      // is already saved + synced; a missing attachment binary is a soft
+      // failure, NOT a reason to throw the user out to the login screen.
+      // (This was the "import a tour → auto signed out" bug: the loop of
+      // background uploads would trip this recovery flow on any session
+      // hiccup and bounce the user to login mid-import.)
+      if (meta && meta.silent) {
+        console.warn('[uploadAttachment] silent: no valid session, skipping background upload (user NOT signed out)');
+        return null;
+      }
+      // Manual flow — surface a recovery flow. Derive the user's email
+      // from local state so the sign-in form pre-fills it.
       const localUser = state && state.currentUserId && state.users ? state.users[state.currentUserId] : null;
       const recoverEmail = localUser && localUser.email ? localUser.email : '';
       toast('Your session needs to be refreshed. Opening sign-in screen...', 'error');
@@ -17803,6 +17821,7 @@ async function _uploadImportedFilesToStorage(files, targets) {
     try {
       const result = await db.uploadAttachment(t.tourId, t.dateId, file, {
         name: file.name, type: t.type || 'Other', tags: 'imported',
+        silent: true, // background upload — never bounce the user to login
       });
       if (result) {
         // Push into tour.attachments exactly like the manual flow. Use the
@@ -18249,10 +18268,13 @@ function izApply() {
   // later. Crucially this never inlines binaries into localStorage, so
   // it can't blow the quota and wipe the tour on refresh.
   if (_importAttachTargets.length) {
+    // Delay 1.2s so the tour's initial debounced cloud sync (600ms) has
+    // settled before we start uploading attachments — avoids overlapping
+    // Supabase auth/session calls.
     setTimeout(() => {
       try { _uploadImportedFilesToStorage(s.files, _importAttachTargets); }
       catch (e) { console.warn('[izApply] background attach upload:', e); }
-    }, 500);
+    }, 1200);
   }
 
   closeModal();
@@ -24497,7 +24519,7 @@ function _applyImportResults(results, files) {
     setTimeout(() => {
       try { _uploadImportedFilesToStorage(files, _reSyncTargets); }
       catch (e) { console.warn('[reSync] background attach upload:', e); }
-    }, 500);
+    }, 1200);
   }
   if (attachmentsAdded) stats.attachmentsAdded = attachmentsAdded;
   return stats;
