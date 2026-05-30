@@ -14702,6 +14702,26 @@ function toggleTask(id) {
     t.doneById = null;
   }
   saveState(); renderAll();
+  // If the current user does NOT own this tour (a crew member), the normal
+  // tours-table sync is blocked by RLS / the ownership guard in
+  // _runActiveTourSync — the checkoff would never reach the TM. Persist it
+  // through the membership-checked RPC instead. The TM picks it up via the
+  // tours realtime subscription. (Owners fall through to the normal sync.)
+  try {
+    const u = U();
+    const tour = T();
+    if (sb && u && tour && tour.id && tour.ownerId && tour.ownerId !== u.id) {
+      sb.rpc('set_task_done', {
+        p_tour_id: tour.id,
+        p_task_id: id,
+        p_done: t.done,
+        p_done_by: t.doneBy || null,
+        p_done_by_id: t.doneById || null,
+      }).then(({ error }) => {
+        if (error) { console.warn('[set_task_done]', error); toast('Couldn\'t sync that task — check your connection', 'error'); }
+      }).catch(e => console.warn('[set_task_done] threw', e));
+    }
+  } catch (e) { console.warn('[toggleTask] rpc dispatch', e); }
 }
 
 /* =====================================================================
@@ -15059,9 +15079,15 @@ function renderPhone() {
           <div style="display:flex;flex-direction:column;gap:2px;margin-top:6px">
             ${list.slice(0,5).map(t => {
               const assignee = t.assignee ? T().crew.find(c => c.id === t.assignee) : null;
-              const meta = t.done
+              // Full-view roles (TM + Mgmt-tagged crew) always see WHO each
+              // task is assigned to — open or done — so they can chase the
+              // right person. Regular crew only ever see their own tasks, so
+              // the tag is redundant for them and omitted.
+              const assigneeLabel = assignee ? esc(assignee.name.split(' ')[0]) : (t.assignee ? '—' : 'Unassigned');
+              const assigneeTag = hasMgmt ? ` · 👤 ${assigneeLabel}` : '';
+              const meta = (t.done
                 ? `Done${t.doneBy ? ' · ' + esc(t.doneBy.split(' ')[0]) : ''}${t.doneAt ? ' · ' + fmtMD(new Date(t.doneAt).toISOString().slice(0,10)) : ''}`
-                : `${t.due ? 'Due ' + fmtMD(t.due) : 'No due date'}${isTM && assignee ? ' · ' + esc(assignee.name.split(' ')[0]) : ''}`;
+                : `${t.due ? 'Due ' + fmtMD(t.due) : 'No due date'}`) + assigneeTag;
               return `
                 <div class="phone-task ${t.done?'done':''}" onclick="event.stopPropagation();toggleTask('${t.id}')">
                   <span class="ptask-cb">${t.done?'✓':''}</span>
