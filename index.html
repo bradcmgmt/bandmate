@@ -5082,6 +5082,7 @@ const db = {
   _syncTimer: null,
   _syncInFlight: false,
   _promoteInFlight: false,
+  _sessionDeadWarned: false,
   scheduleActiveTourSync() {
     if (!sb || !state?.currentUserId) return;
     // Auto-promote on first save. If the active tour has a non-UUID id,
@@ -5119,8 +5120,31 @@ const db = {
     try {
       const { data: { session } } = await sb.auth.getSession();
       _sessionUserId = session?.user?.id || null;
-    } catch (e) { /* fall through to bail */ }
-    if (!_sessionUserId) return;
+    } catch (e) { /* fall through */ }
+    // AUTO-HEAL: no cached session — try one refresh before giving up. This
+    // silently recovers the very common "access token expired but refresh
+    // token still valid" case, so the TM's edits keep syncing without them
+    // ever noticing a hiccup.
+    if (!_sessionUserId) {
+      try {
+        const ref = await sb.auth.refreshSession();
+        _sessionUserId = (ref && ref.data && ref.data.session && ref.data.session.user && ref.data.session.user.id) || null;
+      } catch (e) { /* genuinely dead — warned below */ }
+    }
+    if (!_sessionUserId) {
+      // Session is genuinely gone, yet local state still thinks we're logged
+      // in. Every edit is now silently failing RLS and piling up locally,
+      // never reaching the cloud — this is the "it shows on my screen but
+      // not on the crew's app" trap. We DON'T auto-bounce (that would wipe
+      // the unsynced local edits on the next hydrate); instead we warn ONCE,
+      // loudly, so the TM knows to re-authenticate to push their changes up.
+      if (state && state.currentUserId && !this._sessionDeadWarned) {
+        this._sessionDeadWarned = true;
+        try { toast('You appear to be signed out — your latest changes are NOT saving to the cloud. Sign out and back in to sync them.', 'error'); } catch (e) {}
+      }
+      return;
+    }
+    this._sessionDeadWarned = false; // session healthy again
     if (tour.ownerId !== _sessionUserId) return;
     if (state.currentUserId !== _sessionUserId) return;
     this._syncInFlight = true;
