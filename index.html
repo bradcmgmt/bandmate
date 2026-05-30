@@ -23237,10 +23237,15 @@ function postLoginRouting() {
   document.body.classList.remove('bg-logo-hidden');
   document.body.classList.remove('bg-video-on');
 
-  // Band / crew users are mobile-only by design — there's no desktop
-  // experience for them. Show a download-the-mobile-app gate instead
-  // of routing into the tour preview. They can sign out from there.
-  if (u.role === 'crew') {
+  // Band / crew users are mobile-only by design. The split:
+  //   • In the native/installed PHONE APP → this IS their app. Let them
+  //     straight into the crew-mobile view (fall through to the normal
+  //     tour-resolution + render path below; applyRoleMode forces the
+  //     crew-mobile layout). This is where they see their schedule,
+  //     hotel, guest list, and accept/auto-join the tours they're on.
+  //   • On a DESKTOP browser → there's no crew desktop experience, so
+  //     show the "get the app" gate instead. They can sign out from there.
+  if (u.role === 'crew' && !_isPhoneApp()) {
     showCrewBlockScreen();
     return;
   }
@@ -25474,9 +25479,17 @@ function init() {
       // routes into the existing sign-in / sign-up overlay.
       showLandingScreen();
     } else if (state.users && state.users[state.currentUserId] && state.users[state.currentUserId].role === 'crew') {
-      // Already-logged-in crew user reloading the page — keep them on
-      // the mobile-app-download gate, never the desktop dashboard.
-      showCrewBlockScreen();
+      // Already-logged-in crew user reloading.
+      //   • In the phone app → route them into the crew-mobile view via
+      //     the normal post-login routing (handles their tours, empty
+      //     state, etc.).
+      //   • On desktop → keep the download-the-app gate; there's no
+      //     desktop crew experience.
+      if (_isPhoneApp()) {
+        postLoginRouting();
+      } else {
+        showCrewBlockScreen();
+      }
     } else if (!state.onboarded) {
       document.getElementById('onboarding').classList.remove('hidden');
       document.getElementById('app').hidden = true;
