@@ -3648,6 +3648,19 @@ body.crew-mobile-only .crew-mode-banner { display: block; }
    in the file and was built to hide the preview rig on the TM mobile
    dashboard). Without the `html` prefix that later rule would win and
    the crew screen would stay blank. */
+
+/* No focus-zoom in the native app. iOS auto-zooms into any input whose
+   font-size is < 16px; with pinch-zoom disabled that leaves the UI stuck
+   magnified after tapping a field (most painfully on the login form). Force
+   every field to 16px so focusing never triggers a zoom. Scoped to
+   html.native-app (set at the very start of init(), BEFORE login renders),
+   so it also covers the pre-login screens and never touches the TM desktop. */
+html.native-app input,
+html.native-app textarea,
+html.native-app select {
+  font-size: 16px !important;
+}
+
 html body.phone-app .topbar,
 html body.phone-app .tape-strip,
 html body.phone-app .day-strip-wrap,
@@ -6011,6 +6024,23 @@ function viewerTours(viewer) {
     t.ownerId === userId ||
     (t.memberIds || []).includes(userId) ||
     (t.crew || []).some(c => c.userId === userId || c.id === userId || (email && (c.email || '').toLowerCase() === email))
+  );
+}
+
+// Every tour the LOGGED-IN USER can switch between in the phone app —
+// tours they own PLUS tours they've joined as crew (member_ids). This is
+// user-centric, NOT scoped to their role in the currently-active tour, so
+// a user who owns Tour A and is crew on Tour B always sees BOTH in the
+// switcher — no matter which one is active. (viewerTours() is role-scoped
+// and would collapse to "owned only" when viewing an owned tour, which is
+// what stranded users on a single tour with no way back.) Pending (not-yet-
+// accepted) invites are intentionally excluded here — they render in their
+// own "Pending invites" card via _pendingTourInvites().
+function _switchableTours() {
+  const u = (typeof U === 'function') ? U() : null;
+  if (!u || !state || !state.tours) return [];
+  return Object.values(state.tours).filter(t =>
+    t && t.id !== '_empty' && (t.ownerId === u.id || (t.memberIds || []).includes(u.id))
   );
 }
 
@@ -14562,9 +14592,7 @@ function _renderPhoneMoreMinimal() {
   const moreEl = document.getElementById('ph-more');
   if (!moreEl) return;
   const u = U();
-  const accessible = u
-    ? Object.values(state.tours || {}).filter(t => t && t.id !== '_empty' && (t.ownerId === u.id || (t.memberIds || []).includes(u.id)))
-    : [];
+  const accessible = _switchableTours();
   const current = T();
   const others = accessible.filter(t => t.id !== current.id);
   const pendingHtml = _pendingInvitesHtml();
@@ -14993,7 +15021,10 @@ function renderPhone() {
   const _phPendingIds = new Set(_pendingTourInvites().map(t => t.id));
   let phTourSwitcherHtml = '';
   if (viewer) {
-    const myTours = viewerTours(viewer);
+    // Show ALL tours this user can switch between (owned + joined), not just
+    // the ones relevant to their role in the active tour — otherwise they
+    // get stuck on one tour with no way back to the others.
+    const myTours = _switchableTours();
     // Pending (not-yet-accepted) invites get their own card above — keep
     // them out of the "switch to" list so they aren't shown twice.
     const otherTours = myTours.filter(t => t.id !== state.currentTourId && !_phPendingIds.has(t.id));
@@ -20684,14 +20715,18 @@ function addFlightToTravel(idx) {
 function switchToTourFromPhone(tourId) {
   const target = state.tours[tourId];
   if (!target) return;
-  const currentViewer = T().crew.find(c => c.id === viewerKey);
-  // Map current viewer to a crew entry in the target tour by userId or email or name
+  // Resolve the viewer from the LOGGED-IN USER, not the viewer in the tour
+  // we're leaving. If they own the target tour they see the full view; if
+  // they're crew on it, they see it as their own crew member. (The old code
+  // mapped from the previous tour's viewer, which broke when leaving an
+  // owned tour — viewerKey was 'tm' with no crew record to map from — and
+  // left the user viewing a crew tour as a phantom "TM".)
+  const u = U();
   let nextViewerId = 'tm';
-  if (currentViewer) {
+  if (u && target.ownerId !== u.id) {
+    const email = (u.email || '').toLowerCase();
     const matched = (target.crew || []).find(c =>
-      (currentViewer.userId && c.userId === currentViewer.userId) ||
-      (currentViewer.email && c.email === currentViewer.email) ||
-      c.name === currentViewer.name
+      c.userId === u.id || c.id === u.id || (email && (c.email || '').toLowerCase() === email)
     );
     if (matched) nextViewerId = matched.id;
   }
@@ -25710,6 +25745,14 @@ const SAMPLE_TOUR = {
    INIT
    ===================================================================== */
 function init() {
+  // Tag the native/phone app on <html> as early as possible — BEFORE any
+  // screen (the login form included) renders. iOS auto-zooms into any input
+  // whose font-size is under 16px; because we disable pinch-zoom in the app,
+  // that focus-zoom gets stuck and the whole UI stays magnified. The CSS rule
+  // `html.native-app input{font-size:16px}` kills that on every screen,
+  // login included — which body.phone-app could not, since it's only applied
+  // post-login by applyRoleMode().
+  try { if (_isPhoneApp()) document.documentElement.classList.add('native-app'); } catch (e) {}
   try { loadState(); } catch (e) { console.error('loadState:', e); state = null; }
   try { if (state) migrateGroups(); } catch (e) { console.error('migrateGroups:', e); }
   // Run the per-date → tour-wide attachment migration once per boot, for
