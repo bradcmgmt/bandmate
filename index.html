@@ -23420,9 +23420,31 @@ function ensureLoggedInState() {
 // right-side preview, and (b) hide the Stripe pricing/checkout UI to
 // stay compliant with Apple (Guideline 3.1.1) and Google Play billing
 // rules — installed users are routed to manage billing on the website.
-function _isInstalledApp() {
+// Hard signal that we're inside a packaged STORE binary (the PWABuilder
+// iOS/macOS wrapper or a native shell), as opposed to a browser tab or
+// even a home-screen PWA. Detected without any native code editing via:
+//   • window.BANDMATE_NATIVE — explicit flag a wrapper may inject
+//   • "PWAShell" in the user-agent — PWABuilder's iOS/macOS wrapper
+//     appends this to its WKWebView user-agent string
+//   • app-platform cookie — the wrapper sets app-platform="iOS App Store"
+//     (or "Google Play") which a normal browser never has
+// These are reliable inside a WKWebView, where display-mode/navigator.
+// standalone are unreliable. This is what lets the iOS App Store build
+// force the phone view + hide Stripe with zero Xcode code changes.
+function _isNativeWrapper() {
   try {
     if (window.BANDMATE_NATIVE === true) return true;
+    const ua = (navigator && navigator.userAgent) || '';
+    if (/PWAShell/i.test(ua)) return true;
+    const ck = (typeof document !== 'undefined' && document.cookie) || '';
+    if (/app-platform=\s*(iOS App Store|Google Play)/i.test(ck)) return true;
+  } catch (e) { /* fall through */ }
+  return false;
+}
+
+function _isInstalledApp() {
+  try {
+    if (_isNativeWrapper()) return true;
     if (window.navigator && window.navigator.standalone === true) return true;
     if (window.matchMedia) {
       if (window.matchMedia('(display-mode: standalone)').matches) return true;
@@ -23442,7 +23464,14 @@ function _isInstalledApp() {
 // (iOS/Android) set window.BANDMATE_NATIVE = true, so they always match
 // regardless of screen size.
 function _isPhoneApp() {
-  if (window.BANDMATE_NATIVE === true) return true;
+  // A packaged store binary ALWAYS gets the phone-app experience (forced
+  // crew-mobile view + Stripe hidden), regardless of screen size — this
+  // is the iOS App Store / Google Play app, where Apple/Google billing
+  // rules apply and we want the 1:1 crew-view match.
+  if (_isNativeWrapper()) return true;
+  // Otherwise: only treat as a phone app when it's an installed PWA on a
+  // phone/tablet-sized screen. A desktop-installed PWA on a big monitor
+  // keeps the full dashboard and its Stripe checkout (no store cut there).
   if (!_isInstalledApp()) return false;
   try { return window.matchMedia('(max-width: 1024px)').matches; }
   catch (e) { return true; }
