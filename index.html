@@ -5959,38 +5959,34 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp
 
 /* ---------- persistence ---------- */
 function saveState() {
-  let localOk = true;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (e) {
-    localOk = false;
-    // QuotaExceededError is the killer here: when local fails the
-    // in-memory state is NEWER than what's on disk, but on disk we
-    // still have the old version. If we then push the (newer)
-    // in-memory state to the cloud and refresh, the disk reload will
-    // overwrite memory with stale data. Worse, the in-memory state
-    // probably contains whatever big blob just blew the quota, so
-    // shipping it to Supabase would also reject (oversized JSONB).
-    // Best move: tell the user clearly, skip cloud sync this round,
-    // and let them remove the offending payload before continuing.
     const isQuota = /quota/i.test(e?.name || '') || /quota|exceeded/i.test(e?.message || '');
     if (isQuota) {
-      toast('Save failed: storage full. Remove a large file (tech pack, attachments) before continuing.', 'error');
-      console.error('[saveState] QuotaExceeded — skipping cloud sync to avoid stale-overwrite cycle', e);
-      // Do NOT call db.scheduleActiveTourSync — we'd push the same
-      // oversized blob that just failed locally, and any partial
-      // success would leave cloud + local out of sync.
-      return;
+      // localStorage is full (almost always because a big inline file —
+      // tech pack, imported attachment — bloated `state`). CRITICAL: we
+      // must STILL sync to the cloud below. The cloud payload is SAFE
+      // even when localStorage is full, because dbMap.dateToRow
+      // deliberately EXCLUDES attachment binaries (their dataUrl stays
+      // local) — so the tour + dates ride to Supabase as a small JSONB
+      // upsert. This is exactly what prevents the "imported tour
+      // vanishes on refresh" data-loss bug: even if the local write
+      // fails, the tour survives in the cloud and re-hydrates next boot.
+      // (The earlier version returned here and skipped sync, which is
+      // what made a quota blow fatal for brand-new tours.)
+      toast('Storage is full — large files weren\'t saved on this device, but your tour is safely synced to the cloud.', 'error');
+      console.warn('[saveState] QuotaExceeded — local write skipped, but proceeding with cloud sync (attachments excluded from cloud payload)', e);
+      // fall through to scheduleActiveTourSync
+    } else {
+      toast('Save failed: ' + (e.message || e), 'error');
     }
-    toast('Save failed: ' + (e.message || e), 'error');
   }
-  // Every successful local save schedules a debounced cloud sync of the
-  // active tour. Nested arrays (schedule, travel, crew, contacts, tasks)
-  // ride along as JSONB columns, so most slice-3 mutation paths get
-  // cross-device sync for free without us wiring each one individually.
-  if (localOk) {
-    try { db.scheduleActiveTourSync(); } catch (e) { console.warn('schedule sync:', e); }
-  }
+  // Schedule the debounced cloud sync of the active tour. Runs whether
+  // or not the local write succeeded — the cloud is the durable store
+  // of record, and its payload never includes oversized attachment
+  // binaries, so it's always safe to attempt.
+  try { db.scheduleActiveTourSync(); } catch (e) { console.warn('schedule sync:', e); }
 }
 function loadState() {
   try { state = JSON.parse(localStorage.getItem(STORAGE_KEY)); }
@@ -13593,7 +13589,7 @@ function _advanceTechPackRowHTML(tp) {
     return `
       <button type="button" class="adv-techpack-cta" onclick="document.getElementById('adv_techpack_file').click()">
         ↑ Pick tech pack file
-        <span class="adv-techpack-hint">PDF · DOCX · up to 25 MB · stored inline</span>
+        <span class="adv-techpack-hint">PDF · DOCX · up to 50 MB · stored in the cloud</span>
       </button>
     `;
   }
@@ -13632,9 +13628,9 @@ function _advanceTechPackRowHTML(tp) {
 async function _advanceTechPackPicked(input) {
   const file = input && input.files && input.files[0];
   if (!file) return;
-  const SIZE_LIMIT = 25 * 1024 * 1024;
+  const SIZE_LIMIT = 50 * 1024 * 1024;
   if (file.size > SIZE_LIMIT) {
-    toast(`File ${(file.size/1024/1024).toFixed(1)} MB — too large (25 MB cap).`, 'error');
+    toast(`File ${(file.size/1024/1024).toFixed(1)} MB — too large (50 MB cap).`, 'error');
     input.value = '';
     return;
   }
@@ -15284,20 +15280,15 @@ async function processImportFile(file) {
     addFromFilenameHints(fnExt, file, result);
     result.notes.push('Unsupported file type — kept as attachment.');
   }
-  // Inline the file contents as a data URL so the Attachments tab can
-  // offer View / Download later. Cap at 5 MB per file — anything larger
-  // would risk blowing the localStorage quota (~5–10 MB total per
-  // origin). For oversize files we still attach the metadata, just
-  // without inline contents; the TM can re-upload or add a cloud link.
-  const INLINE_LIMIT = 5 * 1024 * 1024;
-  if (file.size <= INLINE_LIMIT) {
-    try {
-      result.dataUrl = await _fileToDataURL(file);
-      result.mime = file.type || _guessMimeFromName(file.name);
-    } catch (_) { /* swallow — attachment will just lack inline contents */ }
-  } else {
-    result.notes.push(`File ${(file.size/1024/1024).toFixed(1)} MB — too large to store inline; add a cloud link in the Attachments tab.`);
-  }
+  // NOTE: we deliberately no longer inline the file contents (base64
+  // data URL) into the result. Inlining bloated `state`, blew the
+  // localStorage quota, and triggered a misleading "file too large"
+  // message even on small files. The real binary is uploaded to
+  // Supabase Storage after the tour is saved (see izApply →
+  // _uploadImportedFilesToStorage), which supports files up to 50 MB
+  // and keeps View / Download working via signed URLs. We just record
+  // the MIME for display.
+  result.mime = file.type || _guessMimeFromName(file.name);
   return result;
 }
 
@@ -17765,34 +17756,74 @@ function _attachImportedFileToMatchingDates(r) {
     : (r.kind === 'xlsx' || r.kind === 'xlsx_unknown' || r.kind === 'xlsx_unread') ? 'Other'
     : 'Other';
 
-  // Attach to each unique (tour, date) pair, deduped per-date by filename
-  // so re-syncing the same file doesn't double up.
-  targets.forEach(key => {
-    const sep = key.indexOf('|');
-    const tourId = key.slice(0, sep);
-    const dateId = key.slice(sep + 1);
-    const tour = state.tours[tourId];
-    if (!tour) return;
-    const date = (tour.dates || []).find(d => d.id === dateId);
-    if (!date) return;
-    if (!date.attachments) date.attachments = [];
-    if (date.attachments.some(a => a.name === r.file.name)) return;
-    date.attachments.push({
-      id: uid('at'),
-      name: r.file.name,
-      type: fileType,
-      size: formatSize(r.file.size || 0),
-      link: '',
-      // Inline file contents (data URL) and detected MIME so the
-      // Attachments tab can render View / Download buttons that
-      // actually work, not just metadata. Empty when file was too
-      // large to inline — falls back to the cloud-link UX.
-      dataUrl: r.dataUrl || '',
-      mime: r.mime || '',
-      tags: 'imported',
-      addedAt: Date.now(),
-    });
-  });
+  // Pick the SINGLE most relevant date — the primary match (the show the
+  // memo is for), which is the first target inserted above. Attaching to
+  // EVERY matching date is what made the same file appear many times in
+  // the Attachments folder. We do NOT create the attachment entry here
+  // (and we never inline file contents into localStorage — that bloat
+  // blew the quota and wiped freshly-imported tours on refresh). We just
+  // return the target; the background uploader pushes the real file to
+  // Supabase Storage and adds ONE entry to tour.attachments — the exact
+  // same model the manual Attachments tab uses.
+  const primaryKey = Array.from(targets)[0];
+  if (!primaryKey) return null;
+  const sep = primaryKey.indexOf('|');
+  return {
+    tourId: primaryKey.slice(0, sep),
+    dateId: primaryKey.slice(sep + 1),
+    fileName: r.file.name,
+    type: fileType,
+  };
+}
+
+// Upload imported file binaries to Supabase Storage AFTER the tour shell
+// is saved, and add ONE metadata entry per file to tour.attachments
+// (matching the manual-upload model exactly, so realtime dedups by id and
+// View/Download work via signed URLs). Runs in the background — the tour
+// is already usable. Never writes binaries into localStorage, so it can't
+// threaten the quota. Files up to 50 MB are accepted.
+async function _uploadImportedFilesToStorage(files, targets) {
+  if (!sb || !files || !targets || !targets.length) return;
+  // Each target carries its own tourId (a single file can legitimately
+  // match a date on a different owned tour). Pre-upsert every distinct
+  // tour so attachment rows (which FK to tours.id) can insert.
+  const tourIds = Array.from(new Set(targets.map(t => t.tourId).filter(Boolean)));
+  for (const tid of tourIds) {
+    const tour = state.tours[tid];
+    if (tour) { try { await db.upsertTour(tour); } catch (e) { console.warn('[import] tour pre-upsert failed', tid, e); } }
+  }
+  let uploaded = 0;
+  for (const t of targets) {
+    const file = files[t.fileIndex];
+    if (!file || !t.tourId) continue;
+    if (file.size > 50 * 1024 * 1024) {
+      console.warn('[import attach] skipping oversize file (>50MB):', file.name, file.size);
+      continue;
+    }
+    try {
+      const result = await db.uploadAttachment(t.tourId, t.dateId, file, {
+        name: file.name, type: t.type || 'Other', tags: 'imported',
+      });
+      if (result) {
+        // Push into tour.attachments exactly like the manual flow. Use the
+        // LIVE tour (uploadAttachment may have re-keyed it via promotion).
+        const liveTour = state.tours[t.tourId] || T();
+        if (!Array.isArray(liveTour.attachments)) liveTour.attachments = [];
+        // Dedup by id (realtime may have already added it) and by
+        // name+date (guards against a double import of the same file).
+        const dup = liveTour.attachments.some(a => a.id === result.id
+          || (a.name === result.name && (a.dateId || null) === (result.dateId || null)));
+        if (!dup) liveTour.attachments.push(result);
+        uploaded++;
+      }
+    } catch (e) {
+      console.warn('[import attach] upload failed for', file.name, e);
+    }
+  }
+  if (uploaded) {
+    saveState();
+    try { renderAll(); } catch (e) {}
+  }
 }
 
 function mergeImportResults(results) {
@@ -18194,9 +18225,11 @@ function izApply() {
   // every show date its flights touch. Files that didn't match any
   // specific date (contacts-only files, crew rosters) still get
   // attached to the first date so they're recoverable.
+  let _importAttachTargets = [];
   if (T().dates.length) {
-    s.results.forEach(r => {
-      _attachImportedFileToMatchingDates(r);
+    s.results.forEach((r, i) => {
+      const target = _attachImportedFileToMatchingDates(r);
+      if (target) _importAttachTargets.push({ ...target, fileIndex: i });
     });
   }
 
@@ -18209,6 +18242,18 @@ function izApply() {
     if (state.ui) state.ui.activeTab = 'dashboard';
   } catch (e) {}
   saveState();
+
+  // Upload the imported file binaries to Supabase Storage in the
+  // background — AFTER saveState has persisted the tour shell. The tour
+  // is fully usable immediately; the files become viewable a moment
+  // later. Crucially this never inlines binaries into localStorage, so
+  // it can't blow the quota and wipe the tour on refresh.
+  if (_importAttachTargets.length) {
+    setTimeout(() => {
+      try { _uploadImportedFilesToStorage(s.files, _importAttachTargets); }
+      catch (e) { console.warn('[izApply] background attach upload:', e); }
+    }, 500);
+  }
 
   closeModal();
   $('#onboarding').classList.add('hidden');
@@ -24272,7 +24317,7 @@ async function _idzAnalyze() {
 // object so the caller can show a toast. Used by both the Tour Scan
 // → Import Data merge flow AND the per-attachment "analyze on upload"
 // option in the Attachments tab, so the two flows behave identically.
-function _applyImportResults(results) {
+function _applyImportResults(results, files) {
   const tour = T();
   if (!tour) return { datesUpdated: 0, datesAdded: 0, hotelsAttached: 0, travelAttached: 0, contactsAdded: 0, crewAdded: 0, fieldsFilled: 0, attachmentsAdded: 0 };
   const allDates = [];
@@ -24435,24 +24480,25 @@ function _applyImportResults(results) {
     }
   });
 
-  // ── Attachments: for every analyzed file, attach it to every date
-  //   (across every owned tour) that received data from it. Deduped
-  //   per-date by filename, so analyzing the same file twice doesn't
-  //   double up. Tally across all owned tours since a single file can
-  //   legitimately land on multiple tours.
+  // ── Attachments: for each analyzed file, find its single best-match
+  //   date, then upload the real binary to Supabase Storage (never inline
+  //   into localStorage). One entry per file — no more duplicates. The
+  //   `files` array (original File objects, parallel to `results`) is
+  //   passed by callers that have it; without it we still merge the data,
+  //   we just can't upload the attachment binary.
   let attachmentsAdded = 0;
-  const me = U();
-  const ownedTours = me ? Object.values(state.tours).filter(t => t.ownerId === me.id) : [tour];
-  const countAttachments = (fileName) => ownedTours.reduce((n, t) =>
-    n + (t.dates || []).reduce((m, d) => m + ((d.attachments || []).filter(a => a.name === fileName).length), 0), 0);
-  (results || []).forEach(result => {
+  const _reSyncTargets = [];
+  (results || []).forEach((result, i) => {
     if (!result || !result.file) return;
-    const fileName = result.file.name;
-    const before = countAttachments(fileName);
-    _attachImportedFileToMatchingDates(result);
-    const after = countAttachments(fileName);
-    attachmentsAdded += (after - before);
+    const target = _attachImportedFileToMatchingDates(result);
+    if (target) { _reSyncTargets.push({ ...target, fileIndex: i }); attachmentsAdded++; }
   });
+  if (files && files.length && _reSyncTargets.length) {
+    setTimeout(() => {
+      try { _uploadImportedFilesToStorage(files, _reSyncTargets); }
+      catch (e) { console.warn('[reSync] background attach upload:', e); }
+    }, 500);
+  }
   if (attachmentsAdded) stats.attachmentsAdded = attachmentsAdded;
   return stats;
 }
@@ -24480,10 +24526,10 @@ function _toastImportStats(stats) {
 function _idzMergeNow() {
   const tour = T();
   if (!tour) return;
-  const results = _importStaging
-    .filter(s => s.status === 'done' && s.result)
-    .map(s => s.result);
-  const stats = _applyImportResults(results);
+  const done = _importStaging.filter(s => s.status === 'done' && s.result);
+  const results = done.map(s => s.result);
+  const files = done.map(s => s.file);
+  const stats = _applyImportResults(results, files);
   saveState();
   _importStaging = [];
   closeModal();
