@@ -2892,6 +2892,30 @@ body.travel-assistant-mode #travelAssistantArea{
   transition:background .15s ease,border-color .15s ease;
 }
 .ph-tour-card .ot:hover .ot-go{background:rgba(138,169,216,.22);border-color:#b1c8ee}
+/* Pending tour invites — amber "action needed" card, distinct from the
+   blue tour-switcher. Crew tap Accept to join without opening their email. */
+.ph-pending-card{
+  background:linear-gradient(135deg,rgba(232,148,58,.14),rgba(232,148,58,.03));
+  border:1px solid rgba(232,148,58,.5);border-radius:14px;padding:14px;
+  display:flex;flex-direction:column;gap:8px;
+}
+.ph-pending-card .lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--hi-2);font-weight:700}
+.ph-pending-card .pi-sub{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.04em;color:var(--warm-mute);margin-top:-2px}
+.ph-pending-card .pi-row{
+  display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 12px;
+  background:rgba(0,0,0,.28);border:1px solid var(--line-2);border-radius:8px;
+}
+.ph-pending-card .pi-info{min-width:0}
+.ph-pending-card .pi-name{font-size:12.5px;font-weight:700;color:var(--warm);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ph-pending-card .pi-meta{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.06em;color:var(--warm-mute);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ph-pending-card .pi-accept{
+  flex-shrink:0;padding:8px 16px;border:none;border-radius:8px;cursor:pointer;
+  background:linear-gradient(135deg,var(--hi),var(--hi-2));color:#0a0705;
+  font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;
+  box-shadow:0 0 12px rgba(232,148,58,.3);transition:filter .15s ease;
+}
+.ph-pending-card .pi-accept:hover{filter:brightness(1.08)}
+.ph-pending-card .pi-accept:active{transform:translateY(1px)}
 
 
 /* ============ LOGIN / SIGNUP ============ */
@@ -5814,8 +5838,14 @@ _onTourChange(payload) {
   async hydrateUserData(userId) {
     if (!sb || !userId) return { tours: 0, dates: 0 };
     try {
+      // Fetch EVERY tour this user can READ — not just the ones they own.
+      // RLS (patch-013) returns tours they own PLUS tours where they're a
+      // crew member / invited by email. Dropping the owner_id filter is
+      // what finally lets a crew member's app see the TM's tour. The merge
+      // logic below is ownership-aware, so pulling in member tours here is
+      // safe (they're never deleted or promoted as if they were owned).
       const { data: tourRows, error: tourErr } = await sb
-        .from('tours').select('*').eq('owner_id', userId).order('created_at');
+        .from('tours').select('*').order('created_at');
       if (tourErr) { this._err('hydrate.tours', tourErr); return { tours: 0, dates: 0 }; }
       if (!tourRows || !tourRows.length) return { tours: 0, dates: 0 };
 
@@ -5973,7 +6003,86 @@ function viewerTours(viewer) {
   if (!state || !state.tours) return [];
   if (!viewer || viewer.id === 'tm') return userOwnedTours();
   const userId = viewer.userId || viewer.id;
-  return Object.values(state.tours).filter(t => (t.memberIds || []).includes(userId) || (t.crew || []).some(c => c.userId === userId || c.id === userId));
+  // Match by email too — when a TM adds crew by email, the crew member's
+  // auth uid isn't bound into the tour yet (that only happens on accept),
+  // so email is the reliable join key for surfacing the tour.
+  const email = (viewer.email || (state.users && state.users[userId] && state.users[userId].email) || '').toLowerCase();
+  return Object.values(state.tours).filter(t =>
+    t.ownerId === userId ||
+    (t.memberIds || []).includes(userId) ||
+    (t.crew || []).some(c => c.userId === userId || c.id === userId || (email && (c.email || '').toLowerCase() === email))
+  );
+}
+
+// Tours this user has been INVITED to (their email is in the crew roster)
+// but hasn't formally ACCEPTED yet (their uid isn't in member_ids). These
+// are surfaced as "Pending invites" with an Accept button so crew can join
+// from inside the app instead of digging up the invite email.
+function _pendingTourInvites() {
+  const u = (typeof U === 'function') ? U() : null;
+  if (!u || !state || !state.tours) return [];
+  const userId = u.id;
+  const email = (u.email || '').toLowerCase();
+  if (!email) return [];
+  return Object.values(state.tours).filter(t => {
+    if (!t || t.id === '_empty') return false;
+    if (t.ownerId === userId) return false;                 // they own it
+    if ((t.memberIds || []).includes(userId)) return false; // already accepted
+    return (t.crew || []).some(c => (c.email || '').toLowerCase() === email);
+  });
+}
+
+// Accept a pending tour invite: calls the secure accept_tour_invite RPC
+// (verifies the email is on the roster, adds the uid to member_ids, marks
+// the crew row claimed), then re-hydrates and switches to the new tour.
+async function acceptTourInvite(tourId) {
+  if (!sb) { toast('Not connected to the cloud', 'error'); return; }
+  if (!tourId) return;
+  try {
+    toast('Joining tour…', '');
+    const { error } = await sb.rpc('accept_tour_invite', { p_tour_id: tourId });
+    if (error) {
+      console.warn('[acceptTourInvite]', error);
+      toast(error.message || 'Could not accept the invite', 'error');
+      return;
+    }
+    // Re-pull so member_ids + claimed status reflect the accept.
+    if (state && state.currentUserId) await db.hydrateUserData(state.currentUserId);
+    if (state && state.tours && state.tours[tourId]) state.currentTourId = tourId;
+    try { saveState(); } catch (e) {}
+    try { (typeof renderAll === 'function' ? renderAll() : renderPhone()); } catch (e) {}
+    toast('Tour added — you\'re on the team', 'good');
+  } catch (e) {
+    console.warn('[acceptTourInvite] threw', e);
+    toast('Could not accept the invite', 'error');
+  }
+}
+
+// Shared markup for the "Pending invites" block shown in the phone More
+// tab's tour switcher. Returns '' when there are none. Each row has an
+// Accept button wired to acceptTourInvite().
+function _pendingInvitesHtml() {
+  const pending = _pendingTourInvites();
+  if (!pending.length) return '';
+  const u = (typeof U === 'function') ? U() : null;
+  const email = (u && u.email || '').toLowerCase();
+  return `
+    <div class="ph-pending-card">
+      <div class="lbl">PENDING INVITES · ${pending.length}</div>
+      <div class="pi-sub">Tap accept to join — no need to open your email.</div>
+      ${pending.map(t => {
+        const myCrew = (t.crew || []).find(c => (c.email || '').toLowerCase() === email);
+        const role = myCrew && myCrew.role ? myCrew.role : '';
+        return `
+        <div class="pi-row">
+          <div class="pi-info">
+            <div class="pi-name">${esc(t.name || 'Untitled tour')}</div>
+            <div class="pi-meta">${esc(t.meta?.artist || '—')}${role ? ' · ' + esc(role) : ''} · ${(t.dates||[]).length} dates</div>
+          </div>
+          <button type="button" class="pi-accept" onclick="acceptTourInvite('${t.id}')">Accept</button>
+        </div>`;
+      }).join('')}
+    </div>`;
 }
 
 let activeTab = 'dashboard';
@@ -14458,6 +14567,7 @@ function _renderPhoneMoreMinimal() {
     : [];
   const current = T();
   const others = accessible.filter(t => t.id !== current.id);
+  const pendingHtml = _pendingInvitesHtml();
   const tourCard = accessible.length ? `
     <div class="ph-tour-card">
       <div class="lbl">YOUR TOURS · ${accessible.length}</div>
@@ -14476,7 +14586,7 @@ function _renderPhoneMoreMinimal() {
         </div>
       ` : `<div class="sub" style="color:var(--warm-mute);font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.06em;margin-top:8px">No other tours.</div>`}
     </div>
-  ` : `<div class="p-card"><div class="lbl">TOURS</div><div class="sub" style="margin-top:6px">You haven't been added to any tours yet. Your tour manager adds you by email — once they do, your tour shows up here.</div></div>`;
+  ` : (pendingHtml ? '' : `<div class="p-card"><div class="lbl">TOURS</div><div class="sub" style="margin-top:6px">You haven't been added to any tours yet. Your tour manager adds you by email — once they do, your tour shows up here.</div></div>`);
   const accountCard = u ? `
     <div class="p-card">
       <div class="lbl">ACCOUNT</div>
@@ -14485,7 +14595,7 @@ function _renderPhoneMoreMinimal() {
       <button type="button" onclick="logout()" style="margin-top:10px;padding:11px;background:transparent;color:var(--red);border:1px solid rgba(232,69,69,.4);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;cursor:pointer">Sign out</button>
     </div>
   ` : '';
-  moreEl.innerHTML = tourCard + accountCard;
+  moreEl.innerHTML = pendingHtml + tourCard + accountCard;
 }
 
 function renderPhone() {
@@ -14879,10 +14989,14 @@ function renderPhone() {
         </div>`;
     }
   }
+  const phPendingHtml = _pendingInvitesHtml();
+  const _phPendingIds = new Set(_pendingTourInvites().map(t => t.id));
   let phTourSwitcherHtml = '';
   if (viewer) {
     const myTours = viewerTours(viewer);
-    const otherTours = myTours.filter(t => t.id !== state.currentTourId);
+    // Pending (not-yet-accepted) invites get their own card above — keep
+    // them out of the "switch to" list so they aren't shown twice.
+    const otherTours = myTours.filter(t => t.id !== state.currentTourId && !_phPendingIds.has(t.id));
     const u = U();
     if (myTours.length) {
       const crewLabel = u && u.role === 'crew';
@@ -14907,6 +15021,7 @@ function renderPhone() {
     }
   }
   $('#ph-more').innerHTML = `
+    ${phPendingHtml}
     ${phTourSwitcherHtml}
     ${profileCardHtml}
     <div class="p-card">
