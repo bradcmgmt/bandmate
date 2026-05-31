@@ -21889,6 +21889,29 @@ let amOpen = false;
 // Landing page — shown to anyone arriving without an active session. Has two
 // role-keyed CTAs (Tour Manager / Band & Crew) that route into the existing
 // login overlay with the right signup-form default.
+// The homepage background video (bg-loop.mp4) relies on autoplay, which iOS
+// WKWebView frequently refuses to honor on its own — and even once it's
+// playing, iOS pauses it whenever the app is backgrounded and won't resume by
+// itself. So we explicitly kick playback whenever an auth surface is shown and
+// whenever the app returns to the foreground. muted + loop + playsInline are
+// re-asserted because iOS only auto-plays muted inline video. A rejected play
+// promise (e.g. Low-Power Mode, which blocks autoplay outright) is swallowed —
+// there's nothing more we can do in that case.
+function _ensureBgVideoPlaying() {
+  try {
+    const v = document.getElementById('bgVideo');
+    if (!v || !document.body.classList.contains('bg-video-on')) return;
+    v.muted = true; v.loop = true; v.playsInline = true;
+    const p = v.play();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+  } catch (e) {}
+}
+try {
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) _ensureBgVideoPlaying(); });
+  window.addEventListener('focus', _ensureBgVideoPlaying);
+  window.addEventListener('pageshow', _ensureBgVideoPlaying);
+} catch (e) {}
+
 function showLandingScreen() {
   // The phone app IS the band/crew experience — there's no reason to show
   // the public marketing landing (with its TM-vs-crew "Sign in" split) on a
@@ -21910,6 +21933,7 @@ function showLandingScreen() {
   document.body.classList.add('bg-logo-hidden');
   // Show the looping homepage background video.
   document.body.classList.add('bg-video-on');
+  _ensureBgVideoPlaying();
 }
 function hideLandingScreen() {
   document.getElementById('landingScreen').hidden = true;
@@ -23653,6 +23677,7 @@ function showLoginScreen(opts) {
   // Keep the homepage background video playing on the login surface
   // too so the transition from landing → sign-in feels continuous.
   document.body.classList.add('bg-video-on');
+  _ensureBgVideoPlaying();
   renderLoginAccounts();
   // Explicit intent (from landingChoose) wins over the default. The
   // landing "Sign in for Tour Managers" / "Sign in for Band & Crew"
@@ -23691,6 +23716,7 @@ function showGetStartedScreen() {
   if (gs) gs.hidden = false;
   document.body.classList.add('bg-logo-hidden');
   document.body.classList.add('bg-video-on');
+  _ensureBgVideoPlaying();
   const info = document.getElementById('gsTMInfo'); if (info) info.hidden = true; // reset
 }
 function hideGetStarted() {
