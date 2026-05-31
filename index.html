@@ -5435,6 +5435,16 @@ _onTourChange(payload) {
     const existingAttachments = existing && Array.isArray(existing.attachments) ? existing.attachments : [];
     const remapped = dbMap.rowToTour(row, existingDates);
     remapped.attachments = existingAttachments;
+    // On the crew's PHONE APP, the viewed date is the crew member's OWN
+    // choice (tracked locally + in sessionStorage by _rememberPhoneViewDate).
+    // The tours row's active_date_id, however, follows the TOUR MANAGER as
+    // they click around their dashboard — so adopting the incoming value here
+    // would yank the crew member's screen to whatever date the TM is viewing.
+    // Keep the local activeDateId so the app and the dashboard navigate
+    // independently. (The TM's desktop still uses the cloud value as normal.)
+    if (typeof _isPhoneApp === 'function' && _isPhoneApp() && existing && existing.activeDateId) {
+      remapped.activeDateId = existing.activeDateId;
+    }
     state.tours[row.id] = remapped;
     if (!state.currentTourId) state.currentTourId = row.id;
     this._safeRenderAll();
@@ -9849,7 +9859,7 @@ function openGuestModal(guestId) {
     body: `
       <div class="form-grid">
         <div class="field"><label>Name *</label><input id="g_name" value="${esc(v.name)}"></div>
-        <div class="field"><label>+N</label><input type="number" id="g_plus" value="${esc(v.plus)}" min="0" max="9"></div>
+        <div class="field"><label>Total tickets</label><input type="number" id="g_plus" value="${esc((v.plus||0)+1)}" min="1" max="10"></div>
         <div class="field full"><label>Submitted by</label><input id="g_sub" value="${esc(v.submittedBy)}" placeholder="e.g. Sam Ortega · BAND"></div>
         <div class="field"><label>Pass type</label>
           <select id="g_pass">${PASS_TYPES.map(p => `<option ${v.passType===p?'selected':''}>${p}</option>`).join('')}</select>
@@ -9869,7 +9879,9 @@ function openGuestModal(guestId) {
       const name = $('#g_name').value.trim();
       if (!name) { toast('Guest name required', 'error'); return false; }
       const data = {
-        name, plus: Math.max(0, parseInt($('#g_plus').value) || 0),
+        // The field shows TOTAL tickets (incl. the named guest); we store the
+        // legacy "+N" extras count, so total 1 → plus 0, total 3 → plus 2.
+        name, plus: Math.max(0, (parseInt($('#g_plus').value) || 1) - 1),
         submittedBy: $('#g_sub').value.trim(), passType: $('#g_pass').value,
         status: $('#g_status').value, email: $('#g_email').value.trim(),
         notes: $('#g_notes').value.trim()
@@ -15206,7 +15218,11 @@ function renderPhone() {
   // TM + Mgmt see EVERY guest on this date with inline approve/deny
   // buttons on each pending row (same controls as the dashboard Guest
   // List tab). Regular crew see only their own submissions.
-  const myGuests = hasMgmt ? ad.guests : ad.guests.filter(g => g.submittedBy && viewer && g.submittedBy.toLowerCase().includes(viewer.name.toLowerCase().split(' ')[0]));
+  const _myUid = (U() && U().id) || '';
+  const myGuests = hasMgmt ? ad.guests : ad.guests.filter(g =>
+    (g.submittedById && _myUid && g.submittedById === _myUid) ||
+    (g.submittedBy && viewer && g.submittedBy.toLowerCase().includes((viewer.name || '').toLowerCase().split(' ')[0]))
+  );
   const pendingCount = ad.guests.filter(g => g.status === 'pending').length;
   $('#ph-guests').innerHTML = `
     <div class="p-card">
@@ -15228,12 +15244,19 @@ function renderPhone() {
           // approve or deny; approved → deny; denied → approve).
           const canApprove = hasMgmt && (g.status === 'pending' || g.status === 'denied');
           const canDeny    = hasMgmt && (g.status === 'pending' || g.status === 'approved');
+          // Crew see edit / withdraw controls on their OWN still-pending
+          // requests; approved or denied rows are locked to a status chip.
           const actions = hasMgmt ? `
             <div style="display:flex;gap:4px;align-self:center">
               ${canApprove ? `<button type="button" onclick="event.stopPropagation();approveGuest('${g.id}')" title="Approve" style="padding:5px 9px;background:rgba(122,220,151,.12);color:#7adc97;border:1px solid rgba(122,220,151,.4);border-radius:5px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;cursor:pointer;line-height:1">✓</button>` : ''}
               ${canDeny ? `<button type="button" onclick="event.stopPropagation();denyGuest('${g.id}')" title="Deny" style="padding:5px 9px;background:rgba(232,69,69,.08);color:var(--red);border:1px solid rgba(232,69,69,.35);border-radius:5px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;cursor:pointer;line-height:1">✗</button>` : ''}
             </div>
-          ` : `<div class="mono" style="font-size:10.5px;color:${statusColor};align-self:center">${statusChip}</div>`;
+          ` : (g.status === 'pending' ? `
+            <div style="display:flex;gap:4px;align-self:center">
+              <button type="button" onclick="event.stopPropagation();openGuestModalForViewer('${g.id}')" title="Edit request" style="padding:5px 9px;background:rgba(232,148,58,.1);color:var(--hi);border:1px solid rgba(232,148,58,.4);border-radius:5px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;cursor:pointer;line-height:1">✎</button>
+              <button type="button" onclick="event.stopPropagation();deleteGuestRequest('${g.id}')" title="Withdraw request" style="padding:5px 9px;background:rgba(232,69,69,.08);color:var(--red);border:1px solid rgba(232,69,69,.35);border-radius:5px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;cursor:pointer;line-height:1">✕</button>
+            </div>
+          ` : `<div class="mono" style="font-size:10.5px;color:${statusColor};align-self:center">${statusChip}</div>`);
           return `
             <div style="display:flex;justify-content:space-between;gap:8px;padding:9px 11px;background:rgba(232,148,58,.04);border:1px solid var(--line-2);border-radius:9px">
               <div style="min-width:0;flex:1">
@@ -19575,45 +19598,157 @@ function _phoneShowSetList() {
   });
 }
 
-function openGuestModalForViewer() {
+function openGuestModalForViewer(guestId) {
   const ad = getActiveDate();
   if (!ad) return;
   const viewer = getCrewById(viewerKey);
+  const g = guestId ? ad.guests.find(x => x.id === guestId) : null;
+  // A crew member can only edit a request they submitted and only while it is
+  // still pending — once the TM approves or denies it, it is locked.
+  if (g && g.status !== 'pending') { toast('That request has already been reviewed', ''); return; }
+  const v = g || { name: '', plus: 0, passType: 'Guest', email: '', notes: '' };
   openModal({
-    title: 'Add guest · ' + esc(ad.city),
+    title: (g ? 'Edit guest · ' : 'Add guest · ') + esc(ad.city),
+    showDelete: !!g,
+    onDelete: g ? () => deleteGuestRequest(g.id) : null,
     body: `
       <div class="iz-tip" style="margin-bottom:12px">
-        Your guest request will go to the Tour Manager for approval. You'll see it as <b>⌛ Pending</b> until they review it.
+        Your guest request${g ? ' update' : ''} goes to the Tour Manager for approval. You'll see it as <b>⌛ Pending</b> until they review it.
       </div>
       <div class="form-grid">
-        <div class="field"><label>Name *</label><input id="gv_name"></div>
-        <div class="field"><label>+N</label><input type="number" id="gv_plus" value="0" min="0" max="9"></div>
+        <div class="field"><label>Name *</label><input id="gv_name" value="${esc(v.name || '')}"></div>
+        <div class="field"><label>Total tickets</label><input type="number" id="gv_plus" value="${esc((v.plus||0)+1)}" min="1" max="10"></div>
         <div class="field"><label>Pass type</label>
-          <select id="gv_pass">${PASS_TYPES.map(p => `<option ${p==='Guest'?'selected':''}>${p}</option>`).join('')}</select>
+          <select id="gv_pass">${PASS_TYPES.map(p => `<option ${v.passType===p?'selected':''}>${p}</option>`).join('')}</select>
         </div>
-        <div class="field"><label>Their email / phone</label><input id="gv_email"></div>
-        <div class="field full"><label>Notes for the TM</label><input id="gv_notes" placeholder="e.g. Family · Press · Label"></div>
+        <div class="field"><label>Their email / phone</label><input id="gv_email" value="${esc(v.email || '')}"></div>
+        <div class="field full"><label>Notes for the TM</label><input id="gv_notes" value="${esc(v.notes || '')}" placeholder="e.g. Family · Press · Label"></div>
       </div>
     `,
-    submitLabel: 'Submit to TM',
+    submitLabel: g ? 'Update request' : 'Submit to TM',
     onSubmit: () => {
       const name = $('#gv_name').value.trim();
       if (!name) { toast('Guest name required', 'error'); return false; }
-      ad.guests.push({
-        id: uid('gl'),
+      const fields = {
         name,
-        plus: Math.max(0, parseInt($('#gv_plus').value) || 0),
-        submittedBy: (viewer && viewer.name) ? `${viewer.name} · ${(viewer.role || '').toUpperCase()}` : 'Crew',
+        // "Total tickets" includes the named guest; store the legacy extras
+        // count, so total 1 → plus 0.
+        plus: Math.max(0, (parseInt($('#gv_plus').value) || 1) - 1),
         passType: $('#gv_pass').value,
-        status: 'pending',
         email: $('#gv_email').value.trim(),
         notes: $('#gv_notes').value.trim(),
-        submittedAt: Date.now(),
-      });
-      saveState();
-      toast('Guest submitted to Tour Manager', 'good');
+      };
+      if (g) _updateGuestRequest(ad, g, fields);
+      else _submitGuestRequest(ad, viewer, fields);
     }
   });
+}
+
+// Persist a crew member's NEW guest request. Crew can't write the dates table
+// directly (RLS only lets the tour owner), so a plain saveState() saved the
+// request locally and the next realtime/​hydrate wiped it — the "flashed once,
+// then 0 pending" bug. We insert optimistically for instant feedback, then
+// commit through the membership-checked submit_guest_request RPC. The TM picks
+// it up via the dates realtime subscription. (Owners fall through to a normal
+// write.)
+function _submitGuestRequest(ad, viewer, fields) {
+  const tour = T();
+  const u = U();
+  const myUid = (u && u.id) || '';
+  const guest = {
+    id: uid('gl'),
+    ...fields,
+    submittedBy: (viewer && viewer.name) ? `${viewer.name} · ${(viewer.role || '').toUpperCase()}` : 'Crew',
+    submittedById: myUid,
+    status: 'pending',
+    submittedAt: Date.now(),
+  };
+  const isOwner = tour && tour.ownerId && tour.ownerId === myUid;
+  ad.guests.push(guest);            // optimistic — show it right away
+  saveState(); renderAll();
+  if (isOwner) { toast('Guest added', 'good'); return; }
+  if (!sb) { toast('Saved on this device — connect to submit to the TM', 'error'); return; }
+  sb.rpc('submit_guest_request', { p_tour_id: tour.id, p_date_id: ad.id, p_guest: guest })
+    .then(({ error }) => {
+      if (error) {
+        console.warn('[submit_guest_request]', error);
+        ad.guests = ad.guests.filter(x => x.id !== guest.id);   // roll back
+        saveState(); renderAll();
+        toast("Couldn't submit that guest — check your connection", 'error');
+      } else {
+        toast('Guest submitted to Tour Manager', 'good');
+      }
+    })
+    .catch(e => {
+      console.warn('[submit_guest_request] threw', e);
+      ad.guests = ad.guests.filter(x => x.id !== guest.id);
+      saveState(); renderAll();
+      toast("Couldn't submit that guest", 'error');
+    });
+}
+
+// Edit one of the caller's own still-pending requests (mirror of submit).
+function _updateGuestRequest(ad, g, fields) {
+  const tour = T();
+  const u = U();
+  const myUid = (u && u.id) || '';
+  const isOwner = tour && tour.ownerId && tour.ownerId === myUid;
+  const before = { name: g.name, plus: g.plus, passType: g.passType, email: g.email, notes: g.notes };
+  Object.assign(g, fields);         // optimistic
+  saveState(); renderAll();
+  if (isOwner) { toast('Guest updated', 'good'); return; }
+  if (!sb) { toast('Saved on this device — connect to sync to the TM', 'error'); return; }
+  sb.rpc('update_guest_request', { p_tour_id: tour.id, p_date_id: ad.id, p_guest_id: g.id, p_fields: fields })
+    .then(({ error }) => {
+      if (error) {
+        console.warn('[update_guest_request]', error);
+        Object.assign(g, before);   // roll back
+        saveState(); renderAll();
+        toast("Couldn't update that request", 'error');
+      } else {
+        toast('Request updated', 'good');
+      }
+    })
+    .catch(e => {
+      console.warn('[update_guest_request] threw', e);
+      Object.assign(g, before);
+      saveState(); renderAll();
+      toast("Couldn't update that request", 'error');
+    });
+}
+
+// Withdraw one of the caller's own still-pending requests.
+function deleteGuestRequest(id) {
+  const ad = getActiveDate(); if (!ad) return;
+  const g = ad.guests.find(x => x.id === id); if (!g) return;
+  if (g.status !== 'pending') { toast('Only pending requests can be withdrawn', ''); return; }
+  if (!confirm(`Withdraw your guest request for ${g.name}?`)) return;
+  const tour = T();
+  const u = U();
+  const myUid = (u && u.id) || '';
+  const isOwner = tour && tour.ownerId && tour.ownerId === myUid;
+  const snapshot = ad.guests.slice();
+  ad.guests = ad.guests.filter(x => x.id !== id);   // optimistic
+  saveState(); renderAll();
+  if (isOwner) { toast('Request removed', ''); return; }
+  if (!sb) { toast('Removed on this device — connect to sync to the TM', 'error'); return; }
+  sb.rpc('delete_guest_request', { p_tour_id: tour.id, p_date_id: ad.id, p_guest_id: id })
+    .then(({ error }) => {
+      if (error) {
+        console.warn('[delete_guest_request]', error);
+        ad.guests = snapshot;       // roll back
+        saveState(); renderAll();
+        toast("Couldn't withdraw that request", 'error');
+      } else {
+        toast('Request withdrawn', '');
+      }
+    })
+    .catch(e => {
+      console.warn('[delete_guest_request] threw', e);
+      ad.guests = snapshot;
+      saveState(); renderAll();
+      toast("Couldn't withdraw that request", 'error');
+    });
 }
 
 
@@ -27270,7 +27405,7 @@ Object.assign(window, {
   setActive, closeModal, _modalSubmit, goToTab,
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
   setCrewView, openManageGroupsModal, addGroup, renameGroup, deleteGroup, toggleGroupPick, toggleGroupExpand, toggleCrewInGroup, setAllInGroup,
-  approveGuest, denyGuest, approveAllPending, denyAllPending, openGuestModalForViewer,
+  approveGuest, denyGuest, approveAllPending, denyAllPending, openGuestModalForViewer, deleteGuestRequest,
   _phoneShowTravel, _phoneShowDayTravel, _phoneShowSetList,
   printStageCopy, closeStagePrint, printGuestList, exportGuestListCSV, exportGuestListPDF,
   openArtistLogoModal, _artistLogoPicked, _artistLogoSave, _artistLogoRemove,
