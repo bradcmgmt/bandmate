@@ -3056,9 +3056,19 @@ body.travel-assistant-mode #travelAssistantArea{
 .crew-block-content{position:relative;z-index:1;max-width:540px;width:100%;text-align:center;padding:24px 0 60px;
   display:flex;flex-direction:column;align-items:center;gap:16px}
 .crew-block-avatar{width:84px;height:auto;display:block;
-  animation:landingSpin 12s linear infinite;
-  transform-origin:50% 50%;backface-visibility:visible;
-  filter:drop-shadow(0 0 18px rgba(232,148,58,.45));margin-bottom:4px}
+  animation:crewBlockSpin 9s linear infinite;
+  transform-origin:50% 50%;backface-visibility:visible;will-change:transform,filter;
+  filter:drop-shadow(0 0 12px rgba(232,148,58,.35));margin-bottom:4px}
+/* Same 3D coin-flip as the app's top-left avatar (phoneAvatarSpin): rotateY
+   with perspective BAKED INTO the transform (so it reads as depth without
+   needing perspective on a parent), at the app's 9s pace and glow pulse. */
+@keyframes crewBlockSpin{
+  0%   {transform:perspective(600px) rotateY(0deg);   filter:drop-shadow(0 0 12px rgba(232,148,58,.35))}
+  25%  {transform:perspective(600px) rotateY(90deg);  filter:drop-shadow(0 0 20px rgba(232,148,58,.6))}
+  50%  {transform:perspective(600px) rotateY(180deg); filter:drop-shadow(0 0 12px rgba(232,148,58,.35))}
+  75%  {transform:perspective(600px) rotateY(270deg); filter:drop-shadow(0 0 20px rgba(232,148,58,.6))}
+  100% {transform:perspective(600px) rotateY(360deg); filter:drop-shadow(0 0 12px rgba(232,148,58,.35))}
+}
 @media (prefers-reduced-motion:reduce){.crew-block-avatar{animation:none}}
 .crew-block-eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.32em;
   color:var(--hi);text-transform:uppercase;font-weight:700}
@@ -7374,8 +7384,8 @@ function openDateModal(id) {
             <option value="rehearsal" ${d.status==='rehearsal'?'selected':''}>Rehearsal day</option>
           </select>
         </div>
-        <div class="field"><label>City *</label><input id="d_city" data-ac="city" autocomplete="off" value="${esc(d.city)}"></div>
-        <div class="field"><label>State / Region</label><input id="d_state" value="${esc(d.state)}" placeholder="e.g. NY, ON"></div>
+        <div class="field"><label>City *</label><input id="d_city" data-ac="city" data-ac-state-to="#d_state" autocomplete="off" value="${esc(d.city)}"></div>
+        <div class="field"><label>State / Region</label><input id="d_state" value="${esc(d.state)}" placeholder="e.g. Colorado, Ontario"></div>
         <div class="field full" data-show-day data-press-day><label id="d_venue_lbl">Venue</label><input id="d_venue" data-ac="venue" data-ac-city-from="#d_city" autocomplete="off" value="${esc(d.venue)}"></div>
         <div class="field" data-show-day><label>Capacity</label><input type="number" id="d_cap" value="${esc(d.capacity)}"></div>
         <div class="field" data-show-day><label>Promoter</label><input id="d_prom" value="${esc(d.promoter)}"></div>
@@ -13631,6 +13641,24 @@ function _acRender(input, query) {
   });
 }
 
+// US states + Canadian provinces, abbreviation → full name. Used to expand
+// the region encoded in a TOURING_CITIES entry ("Denver, CO") into the
+// State / Region field. Anything not found (e.g. international "London, UK")
+// falls back to the raw suffix.
+const _REGION_NAMES = { AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming',AB:'Alberta',BC:'British Columbia',MB:'Manitoba',NB:'New Brunswick',NL:'Newfoundland and Labrador',NS:'Nova Scotia',NT:'Northwest Territories',NU:'Nunavut',ON:'Ontario',PE:'Prince Edward Island',QC:'Quebec',SK:'Saskatchewan',YT:'Yukon' };
+// Derive the State / Region from a city string. Everything in TOURING_CITIES
+// is "City, ST" (US/Canada) or "City, Country" (international), so the region
+// is the text after the LAST comma — expanded to a full name when it's a
+// known state/province, otherwise returned as-is.
+function _regionFromCityValue(cityVal) {
+  const v = (cityVal || '').trim();
+  const i = v.lastIndexOf(',');
+  if (i === -1) return '';
+  const suffix = v.slice(i + 1).trim();
+  if (!suffix) return '';
+  return _REGION_NAMES[suffix.toUpperCase()] || suffix;
+}
+
 function _wireAutocomplete(input) {
   if (!input || input._acWired) return;
   input._acWired = true;
@@ -13696,6 +13724,21 @@ function _wireAutocomplete(input) {
     // Delay so click on a dropdown item registers before close.
     setTimeout(() => { if (_acActiveInput === input) _acClose(); }, 120);
   });
+
+  // City → State/Region auto-fill. When a city input declares a target via
+  // data-ac-state-to, fill that field from the chosen city's encoded region
+  // ("Denver, CO" → "Colorado"). Fires on autocomplete pick (the pick
+  // dispatches 'change') and on manual blur — so the TM never re-types the
+  // state. Only fires when the city actually changes, so a hand-edited state
+  // on an untouched city is preserved.
+  if (input.dataset.ac === 'city' && input.dataset.acStateTo) {
+    input.addEventListener('change', () => {
+      const target = document.querySelector(input.dataset.acStateTo);
+      if (!target) return;
+      const region = _regionFromCityValue(input.value);
+      if (region) target.value = region;
+    });
+  }
 }
 
 // Scan a root element (modal body or document) and wire any input that
