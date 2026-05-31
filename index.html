@@ -25469,12 +25469,10 @@ async function downloadDaySheetPDF() {
     toast('Pick a date first', 'error');
     return;
   }
-
-  const win = window.open('', '_blank');
-  if (!win) {
-    toast('Allow pop-ups to export the day sheet', 'error');
-    return;
-  }
+  // NOTE: we used to open the print popup up here and bail if it was blocked.
+  // That made the whole feature dead in the phone app (WKWebView blocks
+  // window.open AND has no print dialog). We now build the document first,
+  // then choose the output method per-platform at the very end.
 
   const venueLine = [ad.city, ad.state, ad.country].filter(Boolean).join(', ');
   const headerTitle = [ad.venue, venueLine, fmtDate(ad.date)].filter(Boolean).join(' · ');
@@ -25672,7 +25670,7 @@ async function downloadDaySheetPDF() {
 <body>
 <div class="sheet">
   <div class="ds-head">
-    <img src="/avatar-blk.png" alt="Bandmate">
+    <img src="${(typeof location !== 'undefined' && location.origin ? location.origin : 'https://www.bandmate.art')}/avatar-blk.png" alt="Bandmate">
     <div class="ds-tour">
       ${artistLogoUrl
         ? `<img class="ds-artist-logo" src="${esc(artistLogoUrl)}" alt="${esc(artistName || tourName)}" style="max-height:64px;max-width:200px;object-fit:contain;display:block;margin-left:auto">`
@@ -25716,6 +25714,55 @@ async function downloadDaySheetPDF() {
   // writing — the literal byte sequence would otherwise terminate the
   // surrounding script element regardless of string quoting. Inserting
   // a backslash before the slash keeps the bytes valid as HTML output.
+  // ── Output ───────────────────────────────────────────────────────────
+  const _slug = `${ad.city || tour.name || 'tour'}`.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '');
+  const fileName = `DaySheet_${_slug || 'tour'}${ad.date ? '_' + ad.date : ''}.html`;
+
+  // PHONE APP: window.open + window.print() don't work in the iOS/Android
+  // webview (popups blocked, no print dialog). Hand the day sheet to the OS
+  // share sheet as a file — the user can Save to Files, save to Notes, or
+  // AirPrint from there. The shared file drops the auto-print script so it
+  // doesn't try to print itself when saved/opened.
+  if (typeof _isPhoneApp === 'function' && _isPhoneApp()) {
+    const htmlForFile = html.replace(/<script[\s\S]*?<\/script>/gi, '');
+    try {
+      const blob = new Blob([htmlForFile], { type: 'text/html' });
+      const file = new File([blob], fileName, { type: 'text/html' });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Day Sheet', text: headerTitle });
+        return;
+      }
+      // No file-share support on this device — download it directly.
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fileName;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+      toast('Day sheet saved to your files', 'good');
+      return;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return; // user dismissed the share sheet
+      console.warn('[daySheet] phone export failed', e);
+      toast('Could not export the day sheet', 'error');
+      return;
+    }
+  }
+
+  // DESKTOP: open a print window (its dialog is where "Save as PDF" lives).
+  const win = window.open('', '_blank');
+  if (!win) {
+    // Popup blocked even on desktop — fall back to a direct file download.
+    try {
+      const blob = new Blob([html.replace(/<script[\s\S]*?<\/script>/gi, '')], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fileName;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+      toast('Day sheet downloaded', 'good');
+    } catch (e) { toast('Allow pop-ups to export the day sheet', 'error'); }
+    return;
+  }
   win.document.open();
   win.document.write(html.replace(/<\/script>/g, '<\\/script>'));
   win.document.close();
