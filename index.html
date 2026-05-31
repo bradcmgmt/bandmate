@@ -5904,21 +5904,39 @@ _onTourChange(payload) {
     const existing = (tour.dates || []).find(d => d.id === row.id);
     if (existing) {
       newDate.attachments = existing.attachments || [];
+      // ── Truncated-payload guard ──────────────────────────────────────
+      // A truncated / partial realtime record drops columns entirely (the
+      // raw value comes through as `undefined`), which rowToDate then turned
+      // into [] / null / {} — silently wiping that date's schedule, travel,
+      // guests, set list, hotel, settlement, etc. If the TM's dashboard then
+      // synced that blanked date, the empty version overwrote the cloud —
+      // which is exactly how ~27 Atlas show-day SCHEDULES were lost. (The
+      // earlier version of this guard only protected `hotel`.) For any
+      // content column strictly ABSENT from this payload, keep the existing
+      // local value. A genuine "cleared it" update sends an empty array /
+      // null (present, not undefined), which we still honor — so only the
+      // truncation case is preserved.
+      const keepIfAbsent = (appKey, col) => {
+        if (row[col] === undefined && existing[appKey] !== undefined) {
+          newDate[appKey] = existing[appKey];
+        }
+      };
+      keepIfAbsent('schedule',   'schedule');
+      keepIfAbsent('travel',     'travel');
+      keepIfAbsent('guests',     'guests');
+      keepIfAbsent('setList',    'set_list');
+      keepIfAbsent('settlement', 'settlement');
+      keepIfAbsent('allotments', 'allotments');
+      keepIfAbsent('dayNotes',   'day_notes');
+      keepIfAbsent('hotel',      'hotel');
+      keepIfAbsent('advance',    'advance');
+      // techPack binary lives in Storage out-of-band; if a (present) advance
+      // arrives without it but we still have it locally, keep it. Runs after
+      // the absent-guard so it only matters when advance IS in the payload.
       const incomingAdv = newDate.advance || {};
       const localAdv = existing.advance || {};
       if (localAdv.techPack && !incomingAdv.techPack) {
         newDate.advance = { ...incomingAdv, techPack: localAdv.techPack };
-      }
-      // Don't let a payload that arrives WITHOUT the hotel column blank an
-      // existing hotel + its room assignments. A truncated / partial realtime
-      // record (or an echo of a slightly-earlier save) drops the column
-      // entirely (row.hotel === undefined), which rowToDate turned into null —
-      // wiping every room assignment until a manual refresh (this is the
-      // "crew member keeps disappearing from the hotel rooms list" bug). A
-      // genuine "TM removed the hotel" update sends hotel as null (present),
-      // which we still honor — so only the strictly-absent case is preserved.
-      if (row.hotel === undefined && existing.hotel) {
-        newDate.hotel = existing.hotel;
       }
     }
     tour.dates = (tour.dates || []).filter(d => d.id !== row.id).concat(newDate);
