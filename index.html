@@ -4436,7 +4436,7 @@ html body.phone-app .phone .nav {
       <div class="login-field"><label>Email</label><input id="li_email" type="email" autocomplete="email"></div>
       <div class="login-field"><label>Password</label><input id="li_pw" type="password" autocomplete="current-password"></div>
       <button type="button" class="login-btn primary" onclick="loginWithEmail()">Sign in</button>
-      <div class="login-toggle">No account? <a onclick="showSignupForm()">Create one →</a></div>
+      <div class="login-toggle">New to Bandmate? <a onclick="goGetStarted()">Get started →</a></div>
       <div class="login-toggle"><a onclick="showForgotPassword()" style="color:var(--warm-mute);font-size:11px">Forgot your password?</a></div>
     </div>
 
@@ -4456,6 +4456,50 @@ html body.phone-app .phone .nav {
     </div>
 
     <div class="login-foot">Secure email + password sign-in. Your account works on every device.</div>
+  </div>
+</div>
+
+<!-- ============ GET STARTED (phone-only first-time fork) ============
+     Shown only on the phone app, when a not-yet-registered user taps
+     "Get started" from the sign-in screen. One clean fork:
+       • Tour Manager → informational only (set up on the web). No in-app
+         purchase, which keeps Apple's IAP / anti-steering rules satisfied.
+       • Band & crew → reuse the existing sign-up form, locked to the crew
+         role, to set a password against the email their TM invited.
+     Everyone still SIGNS IN through the single email + password form — this
+     screen only handles first-time setup. -->
+<div class="login-overlay" id="getStartedScreen" hidden>
+  <button type="button" class="login-back" onclick="hideGetStarted();showLoginScreen({intent:'signin'})" aria-label="Back to sign in">← Back</button>
+  <div class="login-card">
+    <div class="login-brand">
+      <img src="logo.png" class="brand-logo brand-logo-lg" alt="Bandmate" />
+    </div>
+    <h3 style="text-align:center;margin:0 0 4px">Get started</h3>
+    <p style="text-align:center;color:var(--warm-mute);font-size:13px;margin:0 0 16px">How do you use Bandmate?</p>
+
+    <button type="button" onclick="getStartedTM()" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px;margin-bottom:10px;background:rgba(232,148,58,.06);border:1px solid rgba(232,148,58,.22);border-radius:12px;cursor:pointer;color:inherit;font-family:inherit">
+      <span style="font-size:24px;line-height:1">🎚️</span>
+      <span style="flex:1;min-width:0">
+        <span style="display:block;font-weight:700;font-size:15px;color:var(--warm)">I run the tour</span>
+        <span style="display:block;font-size:12px;color:var(--warm-mute);margin-top:2px">Tour Manager · build &amp; manage tours from your computer.</span>
+      </span>
+      <span style="color:var(--warm-mute);font-size:20px">›</span>
+    </button>
+    <div id="gsTMInfo" hidden style="padding:12px 14px;margin:-2px 0 12px;background:rgba(232,148,58,.04);border:1px solid rgba(232,148,58,.18);border-radius:10px;font-size:12.5px;line-height:1.55;color:var(--warm)">
+      Bandmate for tour managers runs on the <b>desktop dashboard</b> — schedules, crew, hotels, guest lists, settlements. Open <b>bandmate.art</b> on your computer to set up your account and subscribe. Once you have one, you can sign in here too.
+    </div>
+
+    <button type="button" onclick="getStartedCrew()" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px;margin-bottom:10px;background:linear-gradient(135deg,rgba(232,148,58,.14),rgba(232,148,58,.05));border:1px solid rgba(232,148,58,.4);border-radius:12px;cursor:pointer;color:inherit;font-family:inherit">
+      <span style="font-size:24px;line-height:1">🎸</span>
+      <span style="flex:1;min-width:0">
+        <span style="display:block;font-weight:700;font-size:15px;color:var(--warm)">I'm band or crew</span>
+        <span style="display:block;font-size:12px;color:var(--warm-mute);margin-top:2px">Your TM invites you by email — set up your account with that email.</span>
+      </span>
+      <span style="color:var(--hi);font-size:20px">›</span>
+    </button>
+
+    <div class="login-foot" style="margin-top:14px">No invite yet? Ask your tour manager to add you in their dashboard, then come back here.</div>
+    <div class="login-toggle" style="margin-top:10px">Already have an account? <a onclick="hideGetStarted();showLoginScreen({intent:'signin'})">Sign in →</a></div>
   </div>
 </div>
 
@@ -21805,6 +21849,14 @@ let amOpen = false;
 // role-keyed CTAs (Tour Manager / Band & Crew) that route into the existing
 // login overlay with the right signup-form default.
 function showLandingScreen() {
+  // The phone app IS the band/crew experience — there's no reason to show
+  // the public marketing landing (with its TM-vs-crew "Sign in" split) on a
+  // device that's almost always a crew member. Open straight to the single
+  // clean sign-in form instead. Desktop still gets the full landing below.
+  if (typeof _isPhoneApp === 'function' && _isPhoneApp()) {
+    showLoginScreen({ intent: 'signin' });
+    return;
+  }
   document.getElementById('app').hidden = true;
   document.getElementById('onboarding').classList.add('hidden');
   document.getElementById('loginScreen').hidden = true;
@@ -23583,6 +23635,43 @@ function hideLoginScreen() {
   // the bg-logo-hidden class itself.
 }
 
+// ── Get Started fork (phone-only first-time setup) ─────────────────────
+function showGetStartedScreen() {
+  document.getElementById('app').hidden = true;
+  document.getElementById('onboarding')?.classList.add('hidden');
+  ['landingScreen','loginScreen','pricingScreen'].forEach(id => { const el = document.getElementById(id); if (el) el.hidden = true; });
+  const gs = document.getElementById('getStartedScreen');
+  if (gs) gs.hidden = false;
+  document.body.classList.add('bg-logo-hidden');
+  document.body.classList.add('bg-video-on');
+  const info = document.getElementById('gsTMInfo'); if (info) info.hidden = true; // reset
+}
+function hideGetStarted() {
+  const el = document.getElementById('getStartedScreen'); if (el) el.hidden = true;
+}
+// Sign-in form's "Get started →" link. Phone → the fork screen above;
+// desktop keeps its existing in-app signup form (the desktop TM funnel is
+// deliberately left untouched).
+function goGetStarted() {
+  if (typeof _isPhoneApp === 'function' && _isPhoneApp()) showGetStartedScreen();
+  else showSignupForm();
+}
+// Tour Manager card: informational only. We do NOT initiate any purchase in
+// the app (that would trip Apple's in-app-purchase / anti-steering rules) —
+// we just reveal the "set up on the web" note. TMs run the dashboard from a
+// computer anyway, so this is signage, not an onboarding dead-end.
+function getStartedTM() {
+  const info = document.getElementById('gsTMInfo');
+  if (info) info.hidden = !info.hidden;
+}
+// Band / crew card: reuse the existing sign-up form, which showSignupForm()
+// locks to the crew role on the phone. They set a password against the email
+// their TM invited; the existing email-match logic links them to the tour.
+function getStartedCrew() {
+  hideGetStarted();
+  showLoginScreen({ intent: 'signup' });
+}
+
 function renderLoginAccounts() {
   const wrap = document.getElementById('loginAccountsBlock');
   if (!wrap) return;
@@ -23623,6 +23712,14 @@ function showLoginForm() {
 function showSignupForm() {
   document.getElementById('loginForm').hidden = true;
   document.getElementById('signupForm').hidden = false;
+  // Phone app: sign-up is crew-only (tour managers set up on the web), so
+  // lock the role to crew, hide the picker, and reframe the heading. Desktop
+  // keeps the full role-choice signup untouched.
+  if (typeof _isPhoneApp === 'function' && _isPhoneApp()) {
+    const sel = document.getElementById('su_role');
+    if (sel) { sel.value = 'crew'; const fld = sel.closest('.login-field'); if (fld) fld.style.display = 'none'; }
+    const h = document.querySelector('#signupForm h3'); if (h) h.textContent = 'Set up your crew account';
+  }
   _renderSignupCheckoutBanner();
 }
 
@@ -27522,6 +27619,7 @@ Object.assign(window, {
   _ntpdStatusChange, _ntpdCityChange, _ntpdVenueChange, _ntpdBulkStatus,
   showLoginScreen, hideLoginScreen, loginWithEmail, loginAsExisting, signUp, logout, showLoginForm, showSignupForm, toggleAccountMenu, closeAccountMenu,
   showLandingScreen, hideLandingScreen, landingChoose,
+  showGetStartedScreen, hideGetStarted, goGetStarted, getStartedTM, getStartedCrew,
   showPricingScreen, hidePricingScreen, _pricingSubscribe, _pricingInquire, _pricingRecheck,
   _showCrewNoToursModal, _copyCrewEmail,
   showWelcomeScreen, hideWelcomeScreen, _welcomeContinue, _welcomeContinueAsExisting,
