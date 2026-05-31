@@ -22877,13 +22877,31 @@ function showCrewBlockScreen() {
   // drifting rabbit behind it would compete.
   document.body.classList.add('bg-logo-hidden');
   document.body.classList.remove('bg-video-on');
-  // Personalize the sub-copy with the user's first name when we have it.
+  // Reframe this screen as a SUCCESS when the user has actually joined a
+  // tour (e.g. they just accepted an invite). Instead of a "mobile-only
+  // wall," it confirms what they joined and points them to the app — so
+  // accepting an invite never dead-ends on a cold gate.
   const u = U();
   const sub = document.getElementById('crewBlockSub');
-  if (u && sub) {
-    const firstName = (u.name || '').split(/\s+/)[0];
+  const headline = document.querySelector('#crewBlockScreen .crew-block-headline');
+  const eyebrow = document.querySelector('#crewBlockScreen .crew-block-eyebrow');
+  const firstName = (u && u.name ? u.name : '').split(/\s+/)[0];
+  const email = (u && u.email ? u.email : '').toLowerCase();
+  const joined = (u && state && state.tours)
+    ? Object.values(state.tours).filter(t => t && t.id !== '_empty'
+        && (((t.memberIds || []).includes(u.id))
+            || (t.crew || []).some(c => (c.email || '').toLowerCase() === email && email)))
+    : [];
+
+  if (joined.length && eyebrow && headline && sub) {
+    const tourName = joined.length === 1 ? (joined[0].name || 'your tour') : `${joined.length} tours`;
+    eyebrow.textContent = "BANDMATE · YOU'RE IN";
+    headline.innerHTML = `You&rsquo;re on the team${firstName ? ', ' + esc(firstName) : ''}.`;
+    sub.innerHTML = `You&rsquo;ve been added to <b>${esc(tourName)}</b>. Open the <b>Bandmate</b> app on your phone to see your schedule, hotel, set list, and notifications &mdash; it&rsquo;s all ready and waiting for you.`;
+  } else if (u && sub) {
+    // No tour yet — keep the generic welcome.
     sub.textContent = firstName
-      ? `Welcome${firstName ? ', ' + firstName : ''} — your account is set up. Grab the Bandmate app on your phone to see your tour schedule, hotel, set list, and notifications.`
+      ? `Welcome, ${firstName} — your account is set up. Grab the Bandmate app on your phone to see your tour schedule, hotel, set list, and notifications.`
       : sub.textContent;
   }
   // App-store URLs are placeholders — swap in real links once the apps
