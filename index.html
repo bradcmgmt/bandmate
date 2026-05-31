@@ -23600,6 +23600,12 @@ function showLoginScreen(opts) {
   if (pricing) pricing.hidden = true;
   const screen = document.getElementById('loginScreen');
   screen.hidden = false;
+  // The phone app opens straight to this sign-in screen (there's no marketing
+  // landing behind it), so the "← Back" here has nowhere to go — hide it on
+  // the phone. Desktop keeps it (it returns to the landing page). The Get
+  // Started screen's own Back button is separate and still works.
+  const _lback = screen.querySelector('.login-back');
+  if (_lback) _lback.style.display = (typeof _isPhoneApp === 'function' && _isPhoneApp()) ? 'none' : '';
   // Suppress the ambient particle watermark on auth surfaces. The rule
   // is "no watermark until you're logged in" — landing, login, signup
   // all hide it; onboarding, dashboard, admin all show it.
