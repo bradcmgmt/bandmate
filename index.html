@@ -15083,8 +15083,8 @@ function renderPhone() {
               // task is assigned to — open or done — so they can chase the
               // right person. Regular crew only ever see their own tasks, so
               // the tag is redundant for them and omitted.
-              const assigneeLabel = assignee ? esc(assignee.name.split(' ')[0]) : (t.assignee ? '—' : 'Unassigned');
-              const assigneeTag = hasMgmt ? ` · 👤 ${assigneeLabel}` : '';
+              const assigneeLabel = assignee ? esc(assignee.name.split(' ')[0]) : '—';
+              const assigneeTag = hasMgmt ? ` · ${assigneeLabel}` : '';
               const meta = (t.done
                 ? `Done${t.doneBy ? ' · ' + esc(t.doneBy.split(' ')[0]) : ''}${t.doneAt ? ' · ' + fmtMD(new Date(t.doneAt).toISOString().slice(0,10)) : ''}`
                 : `${t.due ? 'Due ' + fmtMD(t.due) : 'No due date'}`) + assigneeTag;
@@ -18086,80 +18086,68 @@ function extractFromFilename(name) {
 // just a viewer.
 function _attachImportedFileToMatchingDates(r) {
   if (!r || !r.file) return;
-  const u = U();
-  if (!u || !state || !state.tours) return;
-  // Only attach to tours the current user is the OWNER of. A TM running
-  // multiple artists might have one file that legitimately covers more
-  // than one tour; we want to find all of those, but not silently
-  // scribble on a tour where they're only crew.
-  const ownedTours = Object.values(state.tours).filter(t => t.ownerId === u.id);
-  if (!ownedTours.length) return;
+  // Attach ONLY to the tour we're importing into / building — the CURRENT
+  // tour. The old version scanned EVERY owned tour and returned the first
+  // date-match by object order, so a deal memo whose dates happened to
+  // overlap a DIFFERENT tour could land the file on that other tour's
+  // Attachments tab (the cross-tour leak). Both import entry points
+  // (izApply builds a new tour and makes it current; _applyImportResults
+  // imports into the active tour) set T() to the right tour before calling
+  // this, so scoping to T() makes the file always land where the import is
+  // actually happening — never on a sibling tour.
+  const tour = T();
+  if (!tour || tour.id === '_empty' || !tour.dates || !tour.dates.length) return null;
 
-  // Track unique (tourId, dateId) pairs that should receive the attachment.
+  // Track unique date ids on THIS tour that should receive the attachment.
   const targets = new Set();
 
-  ownedTours.forEach(tour => {
-    if (!tour.dates || !tour.dates.length) return;
-
-    // 1. Dates extracted from this file — date+city is the strong match
-    (r.extracted.dates || []).forEach(d => {
-      const td = tour.dates.find(x =>
-        x.date === d.date && (x.city || '').toLowerCase() === (d.city || '').toLowerCase()
-      ) || tour.dates.find(x => x.date === d.date);
-      if (td) targets.add(tour.id + '|' + td.id);
-    });
-
-    // 2. Hotels extracted — match by date (preferred) or by city
-    (r.extracted.hotels || []).forEach(h => {
-      let target = null;
-      if (h.date) target = tour.dates.find(x => x.date === h.date);
-      if (!target && h.city) target = tour.dates.find(x => (x.city || '').toLowerCase() === h.city.toLowerCase());
-      if (target) targets.add(tour.id + '|' + target.id);
-    });
-
-    // 3. Travel items — exact date or closest preceding date
-    (r.extracted.travel || []).forEach(t => {
-      let target = null;
-      if (t.date) target = tour.dates.find(x => x.date === t.date);
-      if (!target && t.date) {
-        const sorted = tour.dates.filter(x => x.date && x.date <= t.date)
-          .sort((a, b) => b.date.localeCompare(a.date));
-        target = sorted[0];
-      }
-      if (target) targets.add(tour.id + '|' + target.id);
-    });
+  // 1. Dates extracted from this file — date+city is the strong match
+  (r.extracted.dates || []).forEach(d => {
+    const td = tour.dates.find(x =>
+      x.date === d.date && (x.city || '').toLowerCase() === (d.city || '').toLowerCase()
+    ) || tour.dates.find(x => x.date === d.date);
+    if (td) targets.add(td.id);
   });
 
-  // Fallback — if nothing matched on ANY tour, attach to the current
-  // tour's first date so the file is still findable.
-  if (targets.size === 0) {
-    const currentTour = T();
-    if (currentTour && currentTour.dates && currentTour.dates.length) {
-      targets.add(currentTour.id + '|' + currentTour.dates[0].id);
+  // 2. Hotels extracted — match by date (preferred) or by city
+  (r.extracted.hotels || []).forEach(h => {
+    let target = null;
+    if (h.date) target = tour.dates.find(x => x.date === h.date);
+    if (!target && h.city) target = tour.dates.find(x => (x.city || '').toLowerCase() === h.city.toLowerCase());
+    if (target) targets.add(target.id);
+  });
+
+  // 3. Travel items — exact date or closest preceding date
+  (r.extracted.travel || []).forEach(t => {
+    let target = null;
+    if (t.date) target = tour.dates.find(x => x.date === t.date);
+    if (!target && t.date) {
+      const sorted = tour.dates.filter(x => x.date && x.date <= t.date)
+        .sort((a, b) => b.date.localeCompare(a.date));
+      target = sorted[0];
     }
-  }
+    if (target) targets.add(target.id);
+  });
+
+  // Fallback — nothing matched a specific date, attach to the current
+  // tour's first date so the file is still findable.
+  if (targets.size === 0) targets.add(tour.dates[0].id);
 
   // Type guess from file kind
-  const fileType = r.kind === 'pdf' ? 'Contract'
-    : (r.kind && r.kind.startsWith('csv')) ? 'Other'
-    : (r.kind === 'xlsx' || r.kind === 'xlsx_unknown' || r.kind === 'xlsx_unread') ? 'Other'
-    : 'Other';
+  const fileType = r.kind === 'pdf' ? 'Contract' : 'Other';
 
   // Pick the SINGLE most relevant date — the primary match (the show the
   // memo is for), which is the first target inserted above. Attaching to
   // EVERY matching date is what made the same file appear many times in
   // the Attachments folder. We do NOT create the attachment entry here
-  // (and we never inline file contents into localStorage — that bloat
-  // blew the quota and wiped freshly-imported tours on refresh). We just
-  // return the target; the background uploader pushes the real file to
-  // Supabase Storage and adds ONE entry to tour.attachments — the exact
-  // same model the manual Attachments tab uses.
-  const primaryKey = Array.from(targets)[0];
-  if (!primaryKey) return null;
-  const sep = primaryKey.indexOf('|');
+  // (and we never inline file contents into localStorage). We just return
+  // the target; the background uploader pushes the real file to Supabase
+  // Storage and adds ONE entry to tour.attachments.
+  const primaryDateId = Array.from(targets)[0];
+  if (!primaryDateId) return null;
   return {
-    tourId: primaryKey.slice(0, sep),
-    dateId: primaryKey.slice(sep + 1),
+    tourId: tour.id,
+    dateId: primaryDateId,
     fileName: r.file.name,
     type: fileType,
   };
@@ -18187,6 +18175,17 @@ async function _uploadImportedFilesToStorage(files, targets) {
     if (!file || !t.tourId) continue;
     if (file.size > 50 * 1024 * 1024) {
       console.warn('[import attach] skipping oversize file (>50MB):', file.name, file.size);
+      continue;
+    }
+    // Pre-upload dedup: if this tour already has an attachment with the same
+    // name on the same date (the user re-imported the same memo, or realtime/
+    // hydrate already pulled it in), skip BEFORE uploading — don't create a
+    // duplicate Storage object + row. (The post-upload push dedups the local
+    // array too; this prevents the cloud-side duplicate entirely.)
+    const liveTourPre = state.tours[t.tourId];
+    if (liveTourPre && Array.isArray(liveTourPre.attachments)
+        && liveTourPre.attachments.some(a => a.name === file.name && (a.dateId || null) === (t.dateId || null))) {
+      console.log('[import attach] skipping duplicate (same name+date already attached):', file.name);
       continue;
     }
     try {
