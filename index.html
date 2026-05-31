@@ -27252,8 +27252,29 @@ function openNewChatModal() {
   // Build the "people we can put in a chat" list from the tour's crew
   // roster. Skip the current user.
   const crewRoster = (tour.crew || []).filter(c => c.userId && c.userId !== myId);
+  // Crew should ALWAYS be able to start a chat with their Tour Manager — even
+  // on a tour whose other crew are demo / not-yet-signed-up records (which
+  // carry no userId and so can't be chat members). The owner is a real
+  // account, so surface them as a pickable participant whenever the current
+  // user isn't the owner and they're not already in the list. This is what
+  // unblocks the "Add crew members to the tour first" dead-end crew were
+  // hitting when they were the only signed-up person on the tour.
+  if (tour.ownerId && tour.ownerId !== myId && _isUuid(tour.ownerId)
+      && !crewRoster.some(c => c.userId === tour.ownerId)) {
+    const ownerRec = (state.users && state.users[tour.ownerId]) || null;
+    crewRoster.unshift({
+      userId: tour.ownerId,
+      name: (ownerRec && ownerRec.name) || tour.meta?.presenter || 'Tour Manager',
+      role: 'Tour Manager',
+      type: 'Mgmt',
+      groups: [],
+      email: (ownerRec && ownerRec.email) || '',
+    });
+  }
   if (!crewRoster.length) {
-    toast('Add crew members to the tour first', 'error');
+    toast(isTM
+      ? 'Add crew to the tour first — they show up here once they sign up.'
+      : 'No one to chat with yet — your tour manager and signed-up crew will appear here.', 'error');
     return;
   }
   // Crew with real Supabase UUIDs can be added to chats right now.
