@@ -5852,6 +5852,17 @@ _onTourChange(payload) {
       if (localAdv.techPack && !incomingAdv.techPack) {
         newDate.advance = { ...incomingAdv, techPack: localAdv.techPack };
       }
+      // Don't let a payload that arrives WITHOUT the hotel column blank an
+      // existing hotel + its room assignments. A truncated / partial realtime
+      // record (or an echo of a slightly-earlier save) drops the column
+      // entirely (row.hotel === undefined), which rowToDate turned into null —
+      // wiping every room assignment until a manual refresh (this is the
+      // "crew member keeps disappearing from the hotel rooms list" bug). A
+      // genuine "TM removed the hotel" update sends hotel as null (present),
+      // which we still honor — so only the strictly-absent case is preserved.
+      if (row.hotel === undefined && existing.hotel) {
+        newDate.hotel = existing.hotel;
+      }
     }
     tour.dates = (tour.dates || []).filter(d => d.id !== row.id).concat(newDate);
     tour.dates.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
@@ -8418,7 +8429,7 @@ function openRoomModal(roomId) {
             <option value="__custom" ${!r.personId && r.personName ? 'selected' : ''}>+ Other (type name)</option>
           </select>
         </div>
-        <div class="field full"><label>Or type name</label><input id="r_name" value="${esc(r.personName)}" placeholder="Use only if not in crew roster"></div>
+        <div class="field full"><label>Or type name</label><input id="r_name" value="${esc(r.personId ? '' : (r.personName || ''))}" placeholder="Use only if not in crew roster"></div>
         <div class="field"><label>Room #</label><input id="r_num" value="${esc(r.roomNum)}"></div>
         <div class="field"><label>Type</label>
           <select id="r_type">
@@ -8430,10 +8441,20 @@ function openRoomModal(roomId) {
     `,
     onSubmit: () => {
       const personId = $('#r_person').value;
-      const personName = personId === '__custom' ? $('#r_name').value.trim() : '';
+      const isCrew = personId && personId !== '__custom';
+      const crewMember = isCrew ? T().crew.find(c => c.id === personId) : null;
       const data = {
-        personId: (personId && personId !== '__custom') ? personId : '',
-        personName, roomNum: $('#r_num').value.trim(),
+        personId: isCrew ? personId : '',
+        // Always snapshot the assignee's NAME onto the room. For a crew
+        // assignment this is a resilience fallback: if that crew entry is ever
+        // dropped or fails to resolve (the recurring "X disappeared from the
+        // rooms list" bug), the rooming list still shows who the room belongs
+        // to instead of going blank. For a typed/non-roster name it IS the
+        // assignment. The renderers prefer the live crew name when present, so
+        // a later rename still shows correctly; the snapshot only surfaces if
+        // the crew entry is gone.
+        personName: isCrew ? (crewMember ? crewMember.name : '') : $('#r_name').value.trim(),
+        roomNum: $('#r_num').value.trim(),
         roomType: $('#r_type').value, notes: $('#r_notes').value.trim()
       };
       if (!data.personId && !data.personName) { toast('Pick a crew member or type a name', 'error'); return false; }
