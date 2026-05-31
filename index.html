@@ -6540,8 +6540,18 @@ function dow(iso) {
   return ['SUN','MON','TUE','WED','THU','FRI','SAT'][dt.getDay()];
 }
 function todayISO() {
+  // The user's LOCAL calendar day — NOT UTC. toISOString() returns the UTC
+  // date, which rolls over to "tomorrow" during the evening for any timezone
+  // behind UTC (all of the Americas) — that's what made the phone's date bar
+  // jump to the next tour day before the user's own midnight. Building the
+  // string from local Y/M/D means "today" only changes when the device clock
+  // actually passes local midnight. (Tour dates are stored as naive local
+  // YYYY-MM-DD, so comparing against the local day is the correct match.)
   const d = new Date();
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 // Lookup of common touring-circuit cities to lat/lng so we can give the TM
 // a quick city-to-city mileage estimate without hitting any external API.
