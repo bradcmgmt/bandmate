@@ -5424,6 +5424,18 @@ _onTourChange(payload) {
       return;
     }
     if (!row || !row.id) return;
+    // ── Guard against TRUNCATED realtime payloads ──────────────────────────
+    // Supabase Realtime drops a row's non-key columns when the record exceeds
+    // its payload size limit, delivering only the primary key with everything
+    // else absent. owner_id is NOT NULL on every tour, so its absence here
+    // means we got a partial payload — applying it would map crew / contacts /
+    // tasks / templates to [] and blank the roster on the dashboard until a
+    // manual refresh (the "crew disappeared then came back on reload" bug).
+    // Ignore it; the next full update or a re-hydrate carries the complete row.
+    if (!row.owner_id) {
+      console.warn('[realtime] ignoring truncated tours payload for', row.id);
+      return;
+    }
     // Preserve existing local arrays that don't live on the tours row.
     // - dates: synced via _onDateChange separately
     // - attachments: live in their own table, synced via _onAttachmentChange
@@ -5444,6 +5456,32 @@ _onTourChange(payload) {
     // independently. (The TM's desktop still uses the cloud value as normal.)
     if (typeof _isPhoneApp === 'function' && _isPhoneApp() && existing && existing.activeDateId) {
       remapped.activeDateId = existing.activeDateId;
+    }
+    // ── Partial-truncation guard ───────────────────────────────────────────
+    // Belt-and-suspenders for the case above: if a payload arrives with
+    // owner_id present but SOME JSONB columns dropped, those columns are
+    // `undefined` in `row` and rowToTour just turned them into []. A column
+    // that is genuinely absent (undefined / null) is a truncation artifact —
+    // a real "TM cleared this list" update sends an empty array ([]), which we
+    // DO honor. So only fall back to the existing local value when the source
+    // column is actually missing, never when it's a legitimate empty array.
+    if (existing) {
+      const keepIfAbsent = (appKey, col) => {
+        if ((row[col] === undefined || row[col] === null) && existing[appKey] !== undefined) {
+          remapped[appKey] = existing[appKey];
+        }
+      };
+      keepIfAbsent('crew', 'crew');
+      keepIfAbsent('memberIds', 'member_ids');
+      keepIfAbsent('contacts', 'contacts');
+      keepIfAbsent('tasks', 'tasks');
+      keepIfAbsent('tags', 'tags');
+      keepIfAbsent('notifications', 'notifications');
+      keepIfAbsent('notificationTemplates', 'notification_templates');
+      keepIfAbsent('scheduleTemplates', 'schedule_templates');
+      keepIfAbsent('travelTemplates', 'travel_templates');
+      keepIfAbsent('setListTemplates', 'setlist_templates');
+      keepIfAbsent('hotelTemplates', 'hotel_templates');
     }
     state.tours[row.id] = remapped;
     if (!state.currentTourId) state.currentTourId = row.id;
@@ -18912,6 +18950,26 @@ function openProfileForm(crewId, isSelf=false) {
       c.profile = out;
       c.profileSubmittedAt = c.profileSubmittedAt || Date.now();
       saveState();
+      // Crew profiles live in tours.crew[] — a tours-row field a crew member
+      // can't write under RLS, so the normal sync (_runActiveTourSync) bails
+      // for non-owners and the TM never sees the submission. Route the crew's
+      // OWN profile through the membership-checked RPC instead. (The TM editing
+      // a profile owns the tour and falls through to the normal sync above.)
+      try {
+        const tour = T();
+        const u = U();
+        if (sb && u && tour && tour.id && tour.ownerId && tour.ownerId !== u.id) {
+          sb.rpc('submit_crew_profile', {
+            p_tour_id: tour.id,
+            p_crew_id: c.id,
+            p_profile: c.profile,
+            p_submitted_at: c.profileSubmittedAt,
+          }).then(({ error }) => {
+            if (error) { console.warn('[submit_crew_profile]', error); toast("Couldn't sync your profile — check your connection", 'error'); }
+          }).catch(e => console.warn('[submit_crew_profile] threw', e));
+        }
+      } catch (e) { console.warn('[openProfileForm] rpc dispatch', e); }
+      renderAll();
       toast(submitted ? 'Profile updated' : 'Profile submitted to Tour Manager', 'good');
     },
   });
