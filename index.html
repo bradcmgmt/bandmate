@@ -24360,6 +24360,9 @@ function postLoginRouting() {
   hideLoginScreen();
   const u = U();
   if (!u) { showLoginScreen(); return; }
+  // If the native shell handed us a push token before sign-in completed,
+  // register it now that we have a user. (No-op on the web / if none stashed.)
+  try { _drainStashedPushToken(); } catch (e) {}
   // We've successfully resolved a user — fade the ambient particle
   // watermark in for every subsequent surface (onboarding, app, admin).
   // Landing + login + sign-up screens are the only places the watermark
@@ -25885,9 +25888,82 @@ function _pnSend() {
   if (!T().notifications) T().notifications = [];
   T().notifications.push(note);
   saveState();
+  // Fire a real OS push for Important / Urgent priorities. Fully isolated and
+  // best-effort — wrapped so a push failure can never affect the in-app note
+  // that was just saved above. (Standard/Silent stay in-feed only.)
+  try {
+    if (note.priority === 'important' || note.priority === 'urgent') _pnDispatchPush(note);
+  } catch (e) { console.warn('[push] dispatch', e); }
   _pnDraft = { body: '', groups: [], individuals: [], priority: 'standard', when: 'now' };
   toast(`Sent to ~${_pnEstimateAudience(audience.groups, audience.individuals)} people`, 'good');
   _renderPushNotificationsModal();
+}
+
+// ── Native push bridge + dispatch (additive — see PUSH_SETUP.md) ─────────
+// The iOS/Android shell calls window.bandmatePush(token, platform) once it has
+// the device's APNs/FCM token; we store it against the signed-in user so the
+// send-push edge function can target them.
+window.bandmatePush = function (token, platform) {
+  try { _registerPushToken(token, platform || 'ios'); } catch (e) { console.warn('[push] bridge', e); }
+};
+async function _registerPushToken(token, platform) {
+  if (!token) return;
+  const u = U();
+  const uid = (u && u.id) || (state && state.currentUserId) || null;
+  if (!uid) {
+    // Not signed in yet — stash and register after login (_drainStashedPushToken).
+    try { sessionStorage.setItem('bandmate.pushToken', JSON.stringify({ token, platform })); } catch (e) {}
+    return;
+  }
+  if (!sb) return;
+  try {
+    await sb.from('device_tokens').upsert(
+      { user_id: uid, token, platform: platform || 'ios', updated_at: new Date().toISOString() },
+      { onConflict: 'token' }
+    );
+  } catch (e) { console.warn('[device_tokens] upsert', e); }
+}
+function _drainStashedPushToken() {
+  try {
+    const raw = sessionStorage.getItem('bandmate.pushToken');
+    if (!raw) return;
+    sessionStorage.removeItem('bandmate.pushToken');
+    const o = JSON.parse(raw);
+    if (o && o.token) _registerPushToken(o.token, o.platform || 'ios');
+  } catch (e) {}
+}
+// Audience (groups + individuals) → userIds of CLAIMED crew (only they have a
+// device token). 'All' = whole roster.
+function _pnResolveTargetUserIds(audience) {
+  const crew = (T().crew || []);
+  const ids = new Set();
+  const groups = (audience && audience.groups) || [];
+  const all = groups.some(g => String(g).toLowerCase() === 'all');
+  crew.forEach(c => {
+    if (!c.userId) return;
+    if (all || (c.groups || []).some(g => groups.includes(g))) ids.add(c.userId);
+  });
+  ((audience && audience.individuals) || []).forEach(cid => {
+    const c = crew.find(x => x.id === cid);
+    if (c && c.userId) ids.add(c.userId);
+  });
+  return Array.from(ids);
+}
+async function _pnDispatchPush(note) {
+  if (!sb) return;
+  const userIds = _pnResolveTargetUserIds(note.audience);
+  if (!userIds.length) return;
+  try {
+    await sb.functions.invoke('send-push', {
+      body: {
+        tourId: T().id,
+        title: T().meta?.tourName || T().name || 'Bandmate',
+        body: note.body,
+        userIds,
+        priority: note.priority,
+      },
+    });
+  } catch (e) { console.warn('[send-push] invoke', e); }
 }
 
 // ─────────────────────────────────────────────────────────────────────
