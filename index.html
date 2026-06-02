@@ -25542,11 +25542,11 @@ function openPushNotifications() {
   if (!T() || T().id === '_empty') { toast('Open a tour first', 'error'); return; }
   if (!T().notifications) T().notifications = [];
   if (!T().notificationTemplates) T().notificationTemplates = [];
-  _pnDraft = { body: '', groups: [], individuals: [], priority: 'standard', when: 'now' };
+  _pnDraft = { body: '', groups: [], individuals: [], priority: 'important', when: 'now' };
   _renderPushNotificationsModal();
 }
 
-let _pnDraft = { body: '', groups: [], individuals: [], priority: 'standard', when: 'now' };
+let _pnDraft = { body: '', groups: [], individuals: [], priority: 'important', when: 'now' };
 
 const PN_PRIORITY_OPTIONS = [
   { id: 'standard',  glyph: '●', label: 'Standard',  desc: 'Shows in feed, no buzz' },
@@ -25665,7 +25665,10 @@ function _renderPushNotificationsModal() {
               <div>
                 <div class="pn-section-lbl">PRIORITY</div>
                 <select class="pn-select" id="pn_priority" onchange="_pnDraft.priority=this.value">
-                  ${PN_PRIORITY_OPTIONS.map(p => `<option value="${p.id}" ${_pnDraft.priority===p.id?'selected':''}>${p.glyph}  ${p.label} · ${p.desc}</option>`).join('')}
+                  ${PN_PRIORITY_OPTIONS.map(p => {
+                    const isDefault = p.id === 'important';
+                    return `<option value="${p.id}" ${_pnDraft.priority===p.id?'selected':''} ${isDefault?'style="color:#e8943a;font-weight:700"':''}>${p.glyph}  ${p.label} · ${p.desc}${isDefault?' · default':''}</option>`;
+                  }).join('')}
                 </select>
               </div>
               <div>
@@ -25894,7 +25897,7 @@ function _pnSend() {
   try {
     if (note.priority === 'important' || note.priority === 'urgent') _pnDispatchPush(note);
   } catch (e) { console.warn('[push] dispatch', e); }
-  _pnDraft = { body: '', groups: [], individuals: [], priority: 'standard', when: 'now' };
+  _pnDraft = { body: '', groups: [], individuals: [], priority: 'important', when: 'now' };
   toast(`Sent to ~${_pnEstimateAudience(audience.groups, audience.individuals)} people`, 'good');
   _renderPushNotificationsModal();
 }
