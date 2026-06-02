@@ -2675,6 +2675,19 @@ body.print-tourbook-mode #tourBookArea{display:block!important;position:fixed;in
 .pn-select:focus{outline:none;border-color:var(--hi)}
 .pn-actions{display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--line);padding-top:14px;margin-top:14px}
 .pn-send-btn{box-shadow:0 0 16px -4px rgba(232,148,58,.5)}
+/* Custom priority picker — native <select> options can't be highlighted in
+   Safari, so the priority is a set of styled rows instead. The selected row
+   (Important by default) gets the orange border + a DEFAULT badge. */
+.pn-priority-picker{display:flex;flex-direction:column;gap:6px}
+.pn-prio{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:9px 12px;
+  background:rgba(20,15,11,.5);border:1px solid var(--line-2);border-radius:9px;cursor:pointer;
+  color:var(--warm);font-family:inherit;transition:border-color .12s,background .12s}
+.pn-prio:hover{border-color:var(--warm-mute)}
+.pn-prio.sel{border-color:var(--hi);background:rgba(232,148,58,.14);box-shadow:inset 0 0 0 1px var(--hi)}
+.pn-prio-glyph{font-size:13px;color:var(--hi)}
+.pn-prio-text{flex:1;font-size:12.5px}
+.pn-prio-badge{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.14em;font-weight:800;
+  padding:2px 7px;border-radius:999px;background:var(--hi);color:#0a0705}
 
 .pn-history-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .pn-history-lbl{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.18em;color:var(--hi);
@@ -25661,27 +25674,30 @@ function _renderPushNotificationsModal() {
               <button type="button" class="pn-grp pn-grp-indiv" onclick="_pnOpenIndividualPicker()">+ INDIVIDUALS${_pnDraft.individuals.length ? ` (${_pnDraft.individuals.length})` : ''}</button>
             </div>
 
-            <div class="pn-row-fields">
-              <div>
-                <div class="pn-section-lbl">PRIORITY</div>
-                <select class="pn-select" id="pn_priority" onchange="_pnDraft.priority=this.value">
-                  ${PN_PRIORITY_OPTIONS.map(p => {
-                    const isDefault = p.id === 'important';
-                    return `<option value="${p.id}" ${_pnDraft.priority===p.id?'selected':''} ${isDefault?'style="color:#e8943a;font-weight:700"':''}>${p.glyph}  ${p.label} · ${p.desc}${isDefault?' · default':''}</option>`;
-                  }).join('')}
-                </select>
+            <div style="margin-top:14px">
+              <div class="pn-section-lbl">PRIORITY</div>
+              <div class="pn-priority-picker">
+                ${PN_PRIORITY_OPTIONS.map(p => {
+                  const sel = _pnDraft.priority === p.id;
+                  const isDefault = p.id === 'important';
+                  return `<button type="button" class="pn-prio ${sel?'sel':''}" data-prio="${p.id}" onclick="_pnSetPriority('${p.id}')">
+                    <span class="pn-prio-glyph">${p.glyph}</span>
+                    <span class="pn-prio-text"><b>${esc(p.label)}</b> <span style="color:var(--warm-mute)">· ${esc(p.desc)}</span></span>
+                    ${isDefault ? '<span class="pn-prio-badge">DEFAULT</span>' : ''}
+                  </button>`;
+                }).join('')}
               </div>
-              <div>
-                <div class="pn-section-lbl">WHEN</div>
-                <select class="pn-select" id="pn_when" onchange="_pnDraft.when=this.value">
-                  <option value="now" ${_pnDraft.when === 'now' ? 'selected' : ''}>Send now</option>
-                  ${(ad?.schedule || []).map(s => {
-                    const v = `before:${s.id}:30`;
-                    return `<option value="${v}" ${_pnDraft.when === v ? 'selected' : ''}>30 min before ${esc(s.what || s.time)}</option>`;
-                  }).join('')}
-                  <option value="recurring:show" ${_pnDraft.when === 'recurring:show' ? 'selected' : ''}>Recurring · every show day</option>
-                </select>
-              </div>
+            </div>
+            <div style="margin-top:14px">
+              <div class="pn-section-lbl">WHEN</div>
+              <select class="pn-select" id="pn_when" onchange="_pnDraft.when=this.value">
+                <option value="now" ${_pnDraft.when === 'now' ? 'selected' : ''}>Send now</option>
+                ${(ad?.schedule || []).map(s => {
+                  const v = `before:${s.id}:30`;
+                  return `<option value="${v}" ${_pnDraft.when === v ? 'selected' : ''}>30 min before ${esc(s.what || s.time)}</option>`;
+                }).join('')}
+                <option value="recurring:show" ${_pnDraft.when === 'recurring:show' ? 'selected' : ''}>Recurring · every show day</option>
+              </select>
             </div>
 
             <div class="pn-actions">
@@ -25861,6 +25877,14 @@ function _pnApplySuggest() {
   // were missing the `selected` attribute, which is fixed now too).
   _pnDraft.when = 'now';
   _renderPushNotificationsModal();
+}
+
+// Set notification priority from the custom picker (native <select> options
+// can't be highlighted in Safari). Updates the draft + the selected row's
+// styling in place — no modal re-render, so the typed message is preserved.
+function _pnSetPriority(id) {
+  _pnDraft.priority = id;
+  document.querySelectorAll('.pn-prio').forEach(el => el.classList.toggle('sel', el.dataset.prio === id));
 }
 
 function _pnSend() {
@@ -27769,7 +27793,7 @@ Object.assign(window, {
   _dateModalApplyStatus, _travelModalApplyType,
   toggleToolsMenu, closeToolsMenu,
   openPushNotifications, _pnToggleGroup, _pnUseTemplate, _pnSaveCustomTemplate,
-  _pnOpenIndividualPicker, _pnSend, _pnApplySuggest, _pnNudgeTask,
+  _pnOpenIndividualPicker, _pnSend, _pnApplySuggest, _pnNudgeTask, _pnSetPriority,
   openDaySheetPDF,
   rbReflect, rbReflectReset,
   toggleSchedTemplateMenu, closeSchedTemplateMenu,
