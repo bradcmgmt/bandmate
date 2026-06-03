@@ -20376,7 +20376,7 @@ function renderPhoneDateMenu() {
         <div class="phone-date-item ${isCurrent?'current':''} ${isToday?'is-today':''}" onclick="setPhoneViewDate('${d.id}')">
           <div class="pdi-date">${fmtMD(d.date)}</div>
           <div class="pdi-info">
-            <div class="pdi-city">${esc(d.city || 'Untitled')}${d.state?', '+esc(d.state):''}</div>
+            <div class="pdi-city">${esc(d.city || '—')}${d.state?', '+esc(d.state):''}</div>
             <div class="pdi-meta">${esc((d.status||'show').toUpperCase())}${d.venue?' · '+esc(d.venue):''}</div>
           </div>
         </div>
