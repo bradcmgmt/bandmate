@@ -1,8 +1,11 @@
 [{
-      "relation": ["delegate_permission/common.handle_all_urls"],
-      "target": {
-        "namespace": "android_app",
-        "package_name": "art.bandmate.app",
-        "sha256_cert_fingerprints": ["EF:67:E9:59:01:11:5C:DA:65:17:AE:D6:FA:0E:D3:AE:00:A8:61:00:71:0C:74:66:11:55:DA:52:23:C4:2C:4C"]
-      }
-    }]
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "art.bandmate.app",
+    "sha256_cert_fingerprints": [
+      "80:BD:CC:1B:E1:B9:54:54:F1:5C:1D:D4:36:3C:D4:EB:94:1B:EC:AC:16:6E:B9:CF:F1:3A:49:E4:AF:72:2C:7E",
+      "9D:40:3F:04:DD:01:78:58:8E:84:98:F9:6E:F0:4F:C6:AC:8B:E6:EF:D0:B0:2A:CB:DD:89:3C:26:8C:31:08:2F"
+    ]
+  }
+}]
