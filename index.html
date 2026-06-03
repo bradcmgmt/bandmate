@@ -15216,7 +15216,7 @@ function renderPhone() {
       </div>
     ` : ''}
 
-    <div class="p-card">
+    <div class="p-card" style="order:2">
       ${(() => {
         // Notifications: show the most recent notifications targeted at this
         // viewer. The TM (and Mgmt-tagged crew, via hasMgmt) see everything;
@@ -15265,7 +15265,7 @@ function renderPhone() {
       })()}
     </div>
 
-    <div class="p-card">
+    <div class="p-card" style="order:1">
       ${(() => {
         // Open tasks: TM + Mgmt see all open tasks for this day (or
         // unscoped); regular crew see only tasks assigned to them.
@@ -15315,7 +15315,7 @@ function renderPhone() {
       })()}
     </div>
 
-    ${_hasAdvanceInfo(ad.advance) ? _phoneAdvanceCardHTML(ad.advance) : ''}
+    ${_hasAdvanceInfo(ad.advance) ? `<div style="order:3">${_phoneAdvanceCardHTML(ad.advance)}</div>` : ''}
   `;
 
   // SCHEDULE
