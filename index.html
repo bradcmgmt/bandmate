@@ -2442,6 +2442,7 @@ body.print-stage-mode #stagePrintArea{
   background:linear-gradient(180deg,#1a1209,#0f0a06);
   border:1px solid var(--hi);border-radius:14px;
   z-index:5;max-height:480px;overflow-y:auto;
+  -webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior:contain;
   box-shadow:0 0 26px rgba(232,148,58,.28),0 14px 36px rgba(0,0,0,.6),inset 0 1px 0 rgba(232,148,58,.15);
   padding:8px;
 }
@@ -20358,12 +20359,31 @@ function renderPhoneDateMenu() {
   if (!phoneDateMenuOpen || !state || !T().dates.length) {
     menu.hidden = true;
     bar.classList.remove('menu-open');
+    menu.dataset.sig = '';            // force a clean rebuild on next open
     return;
   }
   bar.classList.add('menu-open');
-  menu.hidden = false;
   const phoneDate = getPhoneDate();
   const tourToday = getTourTodayDate();
+
+  // renderPhone() (and therefore renderAll()) calls this on EVERY render.
+  // During the first ~30s after the app opens, realtime sync echoes fire
+  // renderAll repeatedly — and if the date menu happened to be open, each
+  // pass used to blow away menu.innerHTML, which reset scrollTop to 0 and
+  // killed the user's in-progress touch / momentum scroll. That's the
+  // "frozen, won't scroll until it settles" bug. Fix: only rebuild the DOM
+  // when the content the menu actually shows has changed. Identical renders
+  // leave the existing nodes — and the live scroll — completely untouched.
+  const sig = T().dates.map(d =>
+    `${d.id}~${d.date}~${d.city||''}~${d.state||''}~${d.status||''}~${d.venue||''}`
+  ).join('|') + `#cur:${phoneDate?.id||''}#today:${tourToday?.id||''}`;
+
+  const wasHidden = menu.hidden;     // true only on the open transition
+  menu.hidden = false;
+
+  if (menu.dataset.sig === sig && menu.firstChild) return; // nothing changed
+  menu.dataset.sig = sig;
+
   menu.innerHTML = `
     <div class="pdm-head">
       <span>Switch to date · ${T().dates.length} on tour</span>
@@ -20383,6 +20403,16 @@ function renderPhoneDateMenu() {
       `;
     }).join('')}
   `;
+
+  // iOS WKWebView: a freshly shown overflow:auto container doesn't build its
+  // scroll layer until a reflow, so the very first drag after opening can do
+  // nothing. On the open transition, force the layer alive with a reflow + a
+  // tiny scroll nudge so the first swipe always takes.
+  if (wasHidden) {
+    requestAnimationFrame(() => {
+      try { void menu.offsetHeight; menu.scrollTop = 1; menu.scrollTop = 0; } catch (e) {}
+    });
+  }
 }
 
 
