@@ -5968,29 +5968,47 @@ _onTourChange(payload) {
       || (row.email && row.email.toLowerCase() === (u.email || '').toLowerCase());
     if (!matchesUser) return;
     const wasSubscribed = userIsSubscribed(u);
-    if (payload.eventType === 'DELETE') {
-      u.subscriptionStatus = 'canceled';
-      u.subscriptionPeriodEnd = null;
-      u.trialEnd = null;
-    } else if (payload.new) {
+
+    // A user can have MORE THAN ONE subscription row — e.g. they resubscribed
+    // under a new Stripe customer, leaving a stale 'canceled' row behind
+    // (exactly Tyler's case: an active row + an older canceled one, both on
+    // his user_id). The old code blindly applied whichever row's event
+    // arrived, so a realtime echo — or a DELETE — of the STALE canceled row
+    // would stamp status='canceled', persist it via saveState(), and bounce a
+    // paying customer to the paywall. Fix: a positive event (active/trialing)
+    // applies immediately; any downgrade or DELETE is re-confirmed against ALL
+    // of the user's rows via hydrateSubscription (which prefers the active
+    // row) before we act — so a stale row can never kick out a live subscriber.
+    const isPositive = payload.eventType !== 'DELETE'
+      && payload.new
+      && ['active', 'trialing'].includes(payload.new.status);
+
+    if (isPositive) {
       u.subscriptionStatus = payload.new.status;
       u.subscriptionPeriodEnd = payload.new.current_period_end;
       u.trialEnd = payload.new.trial_end;
       u.subscriptionCancelAtPeriodEnd = !!payload.new.cancel_at_period_end;
+      saveState();
+      if (!wasSubscribed && userIsSubscribed(u)) {
+        try { hidePricingScreen(); } catch (e) {}
+        try { postLoginRouting(); } catch (e) {}
+        try { toast('Subscription active — welcome aboard', 'good'); } catch (e) {}
+      }
+      return;
     }
-    saveState();
-    const nowSubscribed = userIsSubscribed(u);
-    // Flip the gate the instant the webhook lands the upsert. If they just
-    // became subscribed, drop the pricing screen and route into the app.
-    // If they just LOST access (canceled past period end, etc.), kick back
-    // to the pricing screen on next render.
-    if (!wasSubscribed && nowSubscribed) {
-      try { hidePricingScreen(); } catch (e) {}
-      try { postLoginRouting(); } catch (e) {}
-      try { toast('Subscription active — welcome aboard', 'good'); } catch (e) {}
-    } else if (wasSubscribed && !nowSubscribed) {
-      try { showPricingScreen(); } catch (e) {}
-    }
+
+    // Downgrade / delete — don't trust this single row. Re-derive the real
+    // status from every row the user has; only bounce if there's genuinely
+    // no active subscription left anywhere.
+    hydrateSubscription().then(() => {
+      const stillSubscribed = userIsSubscribed(U());
+      if (wasSubscribed && !stillSubscribed) {
+        try { showPricingScreen(); } catch (e) {}
+      } else if (!wasSubscribed && stillSubscribed) {
+        try { hidePricingScreen(); } catch (e) {}
+        try { postLoginRouting(); } catch (e) {}
+      }
+    }).catch((e) => { console.warn('[_onSubscriptionChange] re-hydrate failed:', e); });
   },
 
   _onAttachmentChange(payload) {
