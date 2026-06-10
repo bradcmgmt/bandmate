@@ -15524,7 +15524,7 @@ function renderPhone() {
       <div class="h" style="font-size:13px">${esc(viewer?.permissions?.toUpperCase() || 'FULL ACCESS')}</div>
       <div class="sub">Set by Tour Manager</div>
     </div>` : ''}
-    ${U() && U().role === 'crew' ? `
+    ${U() ? `
       <div class="p-card">
         <div class="lbl">ACCOUNT</div>
         <div class="h" style="font-size:14px">${esc(U().name)}</div>
@@ -15555,10 +15555,11 @@ function bindTabsClick() {
 /* phone screen nav */
 function bindPhoneNav() {
   $$('.phone .nav button').forEach(b => b.onclick = () => {
-    if (b.dataset.go === 'today') {
-      jumpPhoneToToday();
-      return;
-    }
+    // Every tab — including "Today" — only switches the SCREEN, never the
+    // viewed date. The viewed date defaults to today exactly once (cold open /
+    // sign-in, via _resolvePhoneBootDate); after that it changes ONLY through
+    // the date dropdown. So tapping "Today" after browsing another date keeps
+    // you on that date's day-sheet instead of snapping back to today.
     phoneScreen = b.dataset.go;
     applyPhoneScreenFromState();
     // Also pull TM tab to matching screen
