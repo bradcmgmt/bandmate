@@ -6965,7 +6965,7 @@ function onbChooseSample() {
     ];
     tour2.activeDateId = tour2.dates[0].id;
     // Cross-tour band: include the four band members so they appear on multiple tours
-    const bandMembers = tour.crew.filter(c => c.type === 'Band');
+    const bandMembers = tour.crew.filter(c => (c.groups && c.groups.includes('Band')) || c.type === 'Band');
     bandMembers.forEach(c => {
       tour2.crew.push({ ...c, id: uid('cw') });
       if (c.userId && !tour2.memberIds.includes(c.userId)) tour2.memberIds.push(c.userId);
@@ -11057,13 +11057,10 @@ function openCrewMemberModal(id) {
     onDelete: c ? () => { T().crew = T().crew.filter(x => x.id !== c.id); saveState(); setTimeout(openCrewModal, 100); } : null,
     body: `
       <div class="form-grid">
-        <div class="field"><label>Name *</label><input id="cm_name" value="${esc(v.name)}"></div>
-        <div class="field"><label>Type</label>
-          <select id="cm_type">${CREW_TYPES.map(t => `<option ${v.type===t?'selected':''}>${t}</option>`).join('')}</select>
-        </div>
+        <div class="field full"><label>Name *</label><input id="cm_name" value="${esc(v.name)}"></div>
         <div class="field full"><label>Role *</label><input id="cm_role" value="${esc(v.role)}" placeholder="e.g. Bass, FOH, Tour Manager"></div>
-        <div class="field full"><label>Groups (controls which schedule items they see)</label>
-          ${renderGroupPicker('cm_grp', v.groups || (v.type ? [v.type] : []), false)}
+        <div class="field full"><label>Groups * <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(controls which schedule items they see)</span></label>
+          ${renderGroupPicker('cm_grp', (v.groups && v.groups.length) ? v.groups : (v.type ? [v.type] : ['Crew']), false)}
         </div>
         <div class="field"><label>Email * <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(used to send invite)</span></label><input id="cm_email" type="email" value="${esc(v.email)}" placeholder="member@band.com" oninput="checkCrewEmailMatch()" onblur="checkCrewEmailMatch()"></div>
         <div class="field"><label>Phone</label><input id="cm_phone" value="${esc(v.phone)}"></div>
@@ -11082,14 +11079,20 @@ function openCrewMemberModal(id) {
       const name = $('#cm_name').value.trim();
       const role = $('#cm_role').value.trim();
       const email = $('#cm_email').value.trim();
+      const groups = readGroupPicker('cm_grp');
       if (!name || !role) { toast('Name and role are required', 'error'); return false; }
+      if (!groups.length) { toast('Pick at least one group — it controls what they see', 'error'); return false; }
       if (!email) { toast('Email is required — it\'s how invites get sent', 'error'); return false; }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('Please enter a valid email address', 'error'); return false; }
       const data = {
-        name, role, type: $('#cm_type').value,
+        name, role,
+        // `type` is no longer a user-facing field. We keep it on the record as
+        // the primary group purely so older display fallbacks + the CSV "Type"
+        // column still read sensibly. All real logic runs off `groups`.
+        type: groups[0] || 'Crew',
         email, phone: $('#cm_phone').value.trim(),
         permissions: $('#cm_perms').value,
-        groups: readGroupPicker('cm_grp')
+        groups
       };
       if (c) Object.assign(c, data);
       else {
