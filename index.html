@@ -4935,6 +4935,7 @@ const dbMap = {
       tasks: t.tasks || [],
       tags: t.tags || [],
       member_ids: t.memberIds || [],
+      manager_ids: t.managerIds || [],
       notifications: t.notifications || [],
       notification_templates: t.notificationTemplates || [],
       schedule_templates: t.scheduleTemplates || [],
@@ -4971,6 +4972,7 @@ const dbMap = {
       activeDateId: row.active_date_id || (dates && dates[0]?.id) || null,
       ownerId: row.owner_id,
       memberIds: row.member_ids || [],
+      managerIds: row.manager_ids || [],
     };
   },
   dateToRow(tourId, d, position) {
@@ -5251,7 +5253,10 @@ const db = {
       return;
     }
     this._sessionDeadWarned = false; // session healthy again
-    if (tour.ownerId !== _sessionUserId) return;
+    // Owner OR a co-manager (managerIds) may push edits to the cloud. The
+    // server-side RLS + guard trigger (patch-028) enforce the limits: managers
+    // can edit all content but can't change owner_id / the manager list.
+    if (!_isTourManager(tour, _sessionUserId)) return;
     if (state.currentUserId !== _sessionUserId) return;
     this._syncInFlight = true;
     try {
@@ -5544,6 +5549,7 @@ _onTourChange(payload) {
       };
       keepIfAbsent('crew', 'crew');
       keepIfAbsent('memberIds', 'member_ids');
+      keepIfAbsent('managerIds', 'manager_ids');
       keepIfAbsent('contacts', 'contacts');
       keepIfAbsent('tasks', 'tasks');
       keepIfAbsent('tags', 'tags');
@@ -5754,7 +5760,7 @@ _onTourChange(payload) {
     if (!state?.currentUserId) { toast('Sign in first', 'error'); return false; }
     const tour = state.tours[state.currentTourId];
     if (!tour || !_isUuid(tour.id)) { toast('Pick a tour first (this tour was created locally and never synced)', 'error'); return false; }
-    if (tour.ownerId !== state.currentUserId) { toast('Only the tour owner can upload a logo for this tour.', 'error'); return false; }
+    if (!_isTourManager(tour, state.currentUserId)) { toast('Only a tour manager can upload a logo for this tour.', 'error'); return false; }
     if (file.type !== 'image/png') { toast('PNG files only', 'error'); return false; }
     const LIMIT = 2 * 1024 * 1024;
     if (file.size > LIMIT) { toast(`Logo must be 2 MB or smaller (yours is ${(file.size/1024/1024).toFixed(1)} MB)`, 'error'); return false; }
@@ -6240,6 +6246,15 @@ function userOwnedTours() {
   if (!state || !state.tours || !state.currentUserId) return [];
   return Object.values(state.tours).filter(t => t.ownerId === state.currentUserId);
 }
+// A user can fully CLOUD-EDIT a tour if they OWN it or are listed as a
+// co-manager (managerIds). Single source of truth for "can this account sync
+// edits to this tour" — used by the sync gate, the "⚠ local" badge, and the
+// few owner-gated edit affordances we open up to co-managers. Deleting the
+// tour and changing the manager list stay owner-only (enforced server-side).
+function _isTourManager(tour, userId) {
+  if (!tour || !userId) return false;
+  return tour.ownerId === userId || (tour.managerIds || []).includes(userId);
+}
 function viewerTours(viewer) {
   if (!state || !state.tours) return [];
   if (!viewer || viewer.id === 'tm') return userOwnedTours();
@@ -6250,6 +6265,7 @@ function viewerTours(viewer) {
   const email = (viewer.email || (state.users && state.users[userId] && state.users[userId].email) || '').toLowerCase();
   return Object.values(state.tours).filter(t =>
     t.ownerId === userId ||
+    (t.managerIds || []).includes(userId) ||
     (t.memberIds || []).includes(userId) ||
     (t.crew || []).some(c => c.userId === userId || c.id === userId || (email && (c.email || '').toLowerCase() === email))
   );
@@ -6268,7 +6284,7 @@ function _switchableTours() {
   const u = (typeof U === 'function') ? U() : null;
   if (!u || !state || !state.tours) return [];
   return Object.values(state.tours).filter(t =>
-    t && t.id !== '_empty' && (t.ownerId === u.id || (t.memberIds || []).includes(u.id))
+    t && t.id !== '_empty' && (t.ownerId === u.id || (t.managerIds || []).includes(u.id) || (t.memberIds || []).includes(u.id))
   );
 }
 
@@ -12757,7 +12773,7 @@ function renderDayNotes() {
   if (typeof ad.dayNotes !== 'string') ad.dayNotes = '';
   const isTMOwner = (() => {
     const u = U();
-    return u && u.role === 'tm' && T().ownerId === u.id;
+    return u && u.role === 'tm' && _isTourManager(T(), u.id);
   })();
   const stats = _dayNotesStats(ad.dayNotes);
   root.innerHTML = `
@@ -21461,7 +21477,7 @@ function renderTourSwitcher() {
   // Get tours visible to current user — owned (if TM) + member-of (crew)
   const u = U();
   const ownedSet = new Set(userOwnedTours().map(t => t.id));
-  const memberSet = u ? new Set(Object.values(state.tours).filter(t => (t.memberIds||[]).includes(u.id)).map(t => t.id)) : new Set();
+  const memberSet = u ? new Set(Object.values(state.tours).filter(t => (t.memberIds||[]).includes(u.id) || (t.managerIds||[]).includes(u.id)).map(t => t.id)) : new Set();
   const myTours = Object.values(state.tours).filter(t => ownedSet.has(t.id) || memberSet.has(t.id));
   menu.innerHTML = `
     <div class="ts-section">Your tours · ${myTours.length}</div>
@@ -21477,7 +21493,7 @@ function renderTourSwitcher() {
       // session (ownership disagreement, RLS would block the write).
       // The badge tells the user their work isn't safe yet so they
       // can take action (refresh, sign back in) before they lose it.
-      const isUnsynced = !!t && (!_isUuid(t.id) || (u && t.ownerId && t.ownerId !== u.id));
+      const isUnsynced = !!t && (!_isUuid(t.id) || (u && t.ownerId && !_isTourManager(t, u.id)));
       return `
         <button class="ts-tour-item ${isCurrent?'active':''}" type="button" onclick="switchToTour('${t.id}')" title="${isUnsynced ? 'This tour has not synced to the cloud yet. Edit any field to retry, or refresh the page.' : ''}">
           <span class="ts-check">${isCurrent ? '✓' : ' '}</span>
@@ -24462,7 +24478,7 @@ function postLoginRouting() {
   const owned = u.role === 'tm'
     ? Object.values(state.tours).filter(t => t.ownerId === u.id)
     : [];
-  const member = Object.values(state.tours).filter(t => (t.memberIds || []).includes(u.id));
+  const member = Object.values(state.tours).filter(t => (t.memberIds || []).includes(u.id) || (t.managerIds || []).includes(u.id));
   const accessible = [...owned];
   member.forEach(t => { if (!accessible.find(x => x.id === t.id)) accessible.push(t); });
 
