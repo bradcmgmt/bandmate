@@ -11112,6 +11112,23 @@ function openCrewMemberModal(id) {
       };
       if (c) Object.assign(c, data);
       else {
+        // Co-manager path: the owner ticked "add as co-manager" for an email
+        // that belongs to an existing Tour Manager account. Grant edit access
+        // server-side (grant_co_manager) instead of creating a crew record.
+        const _comgr = document.getElementById('cm_comanager');
+        if (_comgr && _comgr.checked) {
+          if (!sb || !U() || T().ownerId !== U().id) { toast('Only the tour owner can add co-managers', 'error'); return false; }
+          sb.rpc('grant_co_manager', { p_tour_id: T().id, p_email: email })
+            .then(({ data: r, error }) => {
+              if (error) { toast(error.message || 'Could not add co-manager', 'error'); return; }
+              toast(`${(r && r.name) || name} is now a co-manager`, 'good');
+              try { db.hydrateUserData(state.currentUserId).then(() => { try { renderAll(); } catch (e) {} }); } catch (e) { try { renderAll(); } catch (_) {} }
+            })
+            .catch(() => toast('Could not add co-manager', 'error'));
+          _comgrChecked = false; _comgrCheckedEmail = '';
+          setTimeout(openCrewModal, 100);
+          return; // skip normal crew creation
+        }
         // Detect existing user by email — if one exists, link the new crew
         // record to that account (rather than creating a parallel seeded user).
         // This way the same person across multiple tours always resolves to
@@ -11219,6 +11236,49 @@ function checkCrewEmailMatch() {
       </div>
     `;
   }
+  try { _renderCoManagerOption(email, slot); } catch (e) {}
+}
+
+// ── Co-manager invite option ──────────────────────────────────────────
+// When the OWNER types an email that belongs to an existing Tour Manager
+// account, offer to add them as a co-manager (full cloud editing) instead of
+// crew. Looked up once per email via the comanager_lookup RPC and cached so we
+// don't re-query on every keystroke; the toggle state survives the form's
+// re-renders. The actual grant happens server-side (grant_co_manager) on save.
+let _comgrCache = {};
+let _comgrChecked = false;
+let _comgrCheckedEmail = '';
+function _renderCoManagerOption(email, slot) {
+  const u = (typeof U === 'function') ? U() : null;
+  if (!u || !T() || T().ownerId !== u.id) return;   // owner-only
+  const cached = _comgrCache[email];
+  if (cached === undefined) {
+    if (!sb) return;
+    _comgrCache[email] = null;                       // in-flight marker
+    sb.rpc('comanager_lookup', { p_email: email })
+      .then(({ data, error }) => {
+        _comgrCache[email] = (error || !data) ? { found: false } : data;
+        const cur = (document.getElementById('cm_email')?.value || '').trim().toLowerCase();
+        if (cur === email) { try { checkCrewEmailMatch(); } catch (e) {} }
+      })
+      .catch(() => { _comgrCache[email] = { found: false }; });
+    return;
+  }
+  if (!cached || !cached.isManager) return;          // not a TM account
+  if (_comgrCheckedEmail !== email) _comgrChecked = false;
+  _comgrCheckedEmail = email;
+  const box = document.createElement('div');
+  box.style.cssText = 'margin-top:8px;padding:10px 12px;border:1px solid #8aa9d8;border-radius:8px;background:rgba(138,169,216,.08)';
+  box.innerHTML = `
+    <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;margin:0">
+      <input type="checkbox" id="cm_comanager" ${_comgrChecked ? 'checked' : ''} onchange="_comgrChecked = this.checked" style="margin-top:2px">
+      <span style="font-size:12.5px;line-height:1.5;color:var(--warm)">
+        <b style="color:#b1c8ee">Tour Manager account.</b> Add <b>${esc(cached.name || email)}</b> as a <b>co-manager</b> (full dashboard editing) instead of crew.
+        <span style="display:block;color:var(--warm-mute);margin-top:3px;font-size:11px">They'll manage this tour from their own dashboard — they can't delete it or change who manages it.</span>
+      </span>
+    </label>
+  `;
+  slot.appendChild(box);
 }
 
 function openTaskModal(id) {
@@ -19137,10 +19197,65 @@ function openProfileForm(crewId, isSelf=false) {
 let crewView = 'grid';   // 'grid' | 'list'
 function setCrewView(v) { crewView = v; saveUIPrefs(); renderCrewProfiles(); }
 
+// Managers card — the owner + any co-managers, with a Revoke control the
+// owner can use to pull a co-manager's edit access (revoke_co_manager RPC).
+function renderManagersCard() {
+  const tour = T();
+  const u = U();
+  const isOwner = !!(u && tour.ownerId === u.id);
+  const managers = (tour.crew || []).filter(c => c.isManager);
+  const ownerName = (state.users && state.users[tour.ownerId] && state.users[tour.ownerId].name)
+    || (isOwner && u ? u.name : '') || 'Tour owner';
+  const ownerEmail = (state.users && state.users[tour.ownerId] && state.users[tour.ownerId].email)
+    || (isOwner && u ? u.email : '') || '';
+  const ownerRow = `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
+      <div class="pt-ini" style="background:rgba(232,148,58,.15);color:var(--hi)">${esc(initials(ownerName))}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13.5px">${esc(ownerName)} <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.16em;color:var(--hi);border:1px solid rgba(232,148,58,.4);padding:1px 6px;border-radius:4px;margin-left:4px">OWNER</span></div>
+        <div style="font-size:11px;color:var(--warm-mute)">${esc(ownerEmail)}</div>
+      </div>
+    </div>`;
+  const managerRows = managers.map(m => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
+      <div class="pt-ini" style="background:rgba(138,169,216,.15);color:#b1c8ee">${esc(initials(m.name || m.email || '?'))}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13.5px">${esc(m.name || 'Co-manager')} <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.16em;color:#b1c8ee;border:1px solid rgba(138,169,216,.4);padding:1px 6px;border-radius:4px;margin-left:4px">CO-MANAGER</span></div>
+        <div style="font-size:11px;color:var(--warm-mute)">${esc(m.email || '')}</div>
+      </div>
+      ${isOwner ? `<button type="button" class="tb-btn" style="color:var(--red);border-color:rgba(232,69,69,.35)" onclick="revokeCoManager('${esc(m.userId || '')}','${esc((m.name || 'this manager').replace(/['\\]/g,''))}')">Revoke</button>` : ''}
+    </div>`).join('');
+  const hint = isOwner
+    ? `<div style="font-size:11px;color:var(--warm-mute);margin-top:8px">Add a co-manager from <b>Crew Roster</b> — enter a Tour Manager's email and tick "co-manager". They can edit everything but can't delete the tour or change who manages it.</div>`
+    : '';
+  return `
+    <div style="border:1px solid var(--line-2);border-radius:10px;padding:12px 14px;margin-bottom:14px;background:rgba(138,169,216,.04)">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#b1c8ee;font-weight:700;margin-bottom:6px">Managers · ${managers.length + 1}</div>
+      ${ownerRow}${managerRows}${hint}
+    </div>`;
+}
+
+function revokeCoManager(userId, name) {
+  if (!userId) return;
+  if (!confirm(`Remove ${name || 'this co-manager'}'s access to this tour? They'll no longer be able to edit it.`)) return;
+  if (!sb) { toast('Cloud service not available', 'error'); return; }
+  sb.rpc('revoke_co_manager', { p_tour_id: T().id, p_user_id: userId })
+    .then(({ error }) => {
+      if (error) { toast(error.message || 'Could not remove co-manager', 'error'); return; }
+      toast('Co-manager removed', 'good');
+      try { db.hydrateUserData(state.currentUserId).then(() => { try { renderAll(); } catch (e) {} }); }
+      catch (e) { try { renderAll(); } catch (_) {} }
+    })
+    .catch(() => toast('Could not remove co-manager', 'error'));
+}
+
 function renderCrewProfiles() {
   const root = document.getElementById('p-profiles');
-  const submitted = T().crew.filter(c => isProfileSubmitted(c));
-  const pending = T().crew.filter(c => !isProfileSubmitted(c));
+  // Co-managers live in crew[] (flagged isManager) for display + revoke, but
+  // they're managers, not crew filling out profiles — keep them out of the grid.
+  const roster = T().crew.filter(c => !c.isManager);
+  const submitted = roster.filter(c => isProfileSubmitted(c));
+  const pending = roster.filter(c => !isProfileSubmitted(c));
 
   if (!T().crew.length) {
     root.innerHTML = `
@@ -19156,11 +19271,13 @@ function renderCrewProfiles() {
   root.innerHTML = `
     <div class="section-title">
       <h2>Crew</h2>
-      <span class="crumb">/ ${T().crew.length} CREW · ${submitted.length} SUBMITTED · ${pending.length} PENDING</span>
+      <span class="crumb">/ ${roster.length} CREW · ${submitted.length} SUBMITTED · ${pending.length} PENDING</span>
     </div>
 
+    ${renderManagersCard()}
+
     <div class="profiles-toolbar">
-      <span class="stat"><b>${submitted.length}</b> / ${T().crew.length} profiles submitted</span>
+      <span class="stat"><b>${submitted.length}</b> / ${roster.length} profiles submitted</span>
       ${pending.length ? `<span class="stat" style="color:var(--hi)">⚠ ${pending.length} pending</span>` : ''}
       <div class="view-toggle">
         <button type="button" class="${crewView==='grid'?'on':''}" onclick="setCrewView('grid')">Grid</button>
@@ -19174,7 +19291,7 @@ function renderCrewProfiles() {
     </div>
 
     ${crewView === 'list' ? renderCrewListTable() : `<div class="profiles-grid">
-      ${T().crew.map(c => {
+      ${roster.map(c => {
         const sub = isProfileSubmitted(c);
         const p = c.profile || {};
         const cls = sub ? 'submitted' : 'pending';
@@ -19222,7 +19339,7 @@ function renderCrewListTable() {
       <table class="crew-list-table">
         <thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
         <tbody>
-          ${T().crew.map(c => {
+          ${T().crew.filter(c => !c.isManager).map(c => {
             const p = c.profile || {};
             const submitted = isProfileSubmitted(c);
             const cells = [
@@ -19286,7 +19403,7 @@ function renderCrewListTable() {
 }
 
 function remindAllPending() {
-  const pending = T().crew.filter(c => !isProfileSubmitted(c));
+  const pending = T().crew.filter(c => !c.isManager && !isProfileSubmitted(c));
   if (!pending.length) { toast('All profiles already submitted', 'good'); return; }
   toast(`Reminders queued for ${pending.length} crew member${pending.length===1?'':'s'} (would send via email/SMS in production)`, '');
 }
@@ -25068,9 +25185,10 @@ function scanTour(tour) {
   if (!tour.crew || !tour.crew.length) {
     scan.globalGaps.push({ what: 'No crew roster', fix: 'Add band + crew via Crew Roster button — invites are sent to their email' });
   } else {
-    const total = tour.crew.length;
-    const unsubmitted = tour.crew.filter(c => !c.profileSubmittedAt);
-    const noEmail = tour.crew.filter(c => !c.email || !c.email.trim());
+    const crewOnly = tour.crew.filter(c => !c.isManager);   // co-managers don't fill crew profiles
+    const total = crewOnly.length;
+    const unsubmitted = crewOnly.filter(c => !c.profileSubmittedAt);
+    const noEmail = crewOnly.filter(c => !c.email || !c.email.trim());
     if (noEmail.length) {
       scan.globalGaps.push({ what: `${noEmail.length} crew member${noEmail.length===1?'':'s'} missing email`, fix: 'Crew Roster → add an email so invites can be sent' });
     }
@@ -25083,7 +25201,7 @@ function scanTour(tour) {
       scan.completeGlobal.push(`Crew roster · ${total} ${total===1?'person':'people'} · all profiles submitted`);
     }
     // Group-assignment status (only surface as warning if it's the only crew issue)
-    const crewNoGroup = tour.crew.filter(c => !c.groups || !c.groups.length);
+    const crewNoGroup = crewOnly.filter(c => !c.groups || !c.groups.length);
     if (crewNoGroup.length && !unsubmitted.length) {
       scan.globalGaps.push({ what: `${crewNoGroup.length} crew member${crewNoGroup.length===1?'':'s'} not assigned to a group`, fix: 'Crew tab → Manage Groups → expand groups and add members' });
     } else if (!crewNoGroup.length && !unsubmitted.length) {
@@ -27845,7 +27963,7 @@ Object.assign(window, {
   openTaskModal, openTagModal, toggleTask,
   setActive, closeModal, _modalSubmit, goToTab,
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
-  setCrewView, openManageGroupsModal, addGroup, renameGroup, deleteGroup, toggleGroupPick, toggleGroupExpand, toggleCrewInGroup, setAllInGroup,
+  setCrewView, revokeCoManager, openManageGroupsModal, addGroup, renameGroup, deleteGroup, toggleGroupPick, toggleGroupExpand, toggleCrewInGroup, setAllInGroup,
   approveGuest, denyGuest, approveAllPending, denyAllPending, openGuestModalForViewer, deleteGuestRequest,
   _phoneShowTravel, _phoneShowDayTravel, _phoneShowSetList,
   printStageCopy, closeStagePrint, printGuestList, exportGuestListCSV, exportGuestListPDF,
