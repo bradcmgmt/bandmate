@@ -23021,6 +23021,29 @@ let _pendingStripeCheckoutAfterAuth = false;
 // showPricingScreen calls skip it.
 let _pricingAutoRecoverFired = false;
 
+// Open the web subscription flow. window.open is a NO-OP inside the native
+// iOS/Android WebView shell (no UI delegate to spawn a window), which is
+// exactly why the "Open bandmate.art" button looked dead on the installed
+// app. Try window.open first (works in real browsers); fall back to a real
+// anchor-click, which goes through the app's navigation delegate and opens
+// the out-of-scope apex domain in the system browser (Safari), where the
+// website's Stripe checkout actually works.
+function _openSubscribeWeb() {
+  const url = 'https://bandmate.art';
+  try {
+    const w = window.open(url, '_blank', 'noopener,noreferrer');
+    if (w) return;
+  } catch (e) {}
+  try {
+    const a = document.createElement('a');
+    a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch (e) {
+    try { window.location.href = url; } catch (_) {}
+  }
+}
+window._openSubscribeWeb = _openSubscribeWeb;
+
 function showPricingScreen() {
   // App-store billing compliance: inside the installed app we NEVER
   // show the Stripe checkout. Apple (Guideline 3.1.1) and Google both
@@ -23101,7 +23124,7 @@ function _showInstalledAppBillingNotice() {
         <b style="color:#fdba74">bandmate.art</b> in your browser to
         ${lapsed ? 'reactivate your plan' : 'start your subscription'}, then return here and you're all set — your login stays the same.
       </p>
-      <button type="button" onclick="window.open('https://bandmate.art','_blank')" style="padding:14px 18px;background:linear-gradient(135deg,#e8943a,#f5b35e);color:#0a0705;border:none;border-radius:12px;font-weight:800;letter-spacing:.06em;font-size:14px;cursor:pointer;box-shadow:0 0 18px rgba(232,148,58,.3)">Open bandmate.art →</button>
+      <button type="button" onclick="_openSubscribeWeb()" style="padding:14px 18px;background:linear-gradient(135deg,#e8943a,#f5b35e);color:#0a0705;border:none;border-radius:12px;font-weight:800;letter-spacing:.06em;font-size:14px;cursor:pointer;box-shadow:0 0 18px rgba(232,148,58,.3)">Open bandmate.art →</button>
       <button type="button" onclick="(async()=>{ if(typeof _installedBillingRecheck==='function'){await _installedBillingRecheck();} })()" style="padding:11px;background:transparent;color:#b8a690;border:1px solid rgba(232,148,58,.3);border-radius:10px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;cursor:pointer">↻ I've subscribed — check again</button>
       <button type="button" onclick="logout()" style="padding:9px;background:transparent;color:var(--warm-mute);border:none;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer">Sign out</button>
     </div>
