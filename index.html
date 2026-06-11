@@ -15468,6 +15468,19 @@ function renderPhone() {
         }).join('')}
       </div>
     </div>
+
+    <div class="p-card">
+      <div class="lbl">${esc(fmtMD(ad.date))} ${esc(dow(ad.date).slice(0,3).toUpperCase())} · ${status}${ad.city && ad.status !== 'off' ? ' · ' + esc(ad.city.toUpperCase()) : ''}</div>
+      <div style="margin-top:8px">
+        ${myItems.length ? myItems.map(s => `
+          <div class="p-row">
+            <span class="t">${esc(_scheduleTimeDisplay(s))}</span>
+            <span class="what">${esc(s.what)}</span>
+            <span class="lbl">${esc(_scheduleItemDisplayLabel(s))}</span>
+          </div>
+        `).join('') : `<div class="p-row"><span class="what muted" style="grid-column:1/-1">${ad.status === 'travel' ? 'Travel day — no schedule items logged.' : ad.status === 'off' ? 'Day off — nothing scheduled.' : 'Nothing scheduled for you on this day yet.'}</span></div>`}
+      </div>
+    </div>
   `;
 
   // HOTEL
