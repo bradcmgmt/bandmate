@@ -11486,17 +11486,29 @@ function renderDayStrip() {
   const strip = $('#dayStrip');
   if (!T().dates.length) {
     strip.innerHTML = `<div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;color:var(--warm-mute);padding:8px 14px">No dates yet — add your first show →</div>`;
+    strip.dataset.sig = '';
     return;
   }
-  strip.innerHTML = T().dates.map(d => {
-    const isActive = d.id === T().activeDateId;
-    const isToday = d.date === todayISO();
+  // Build the pill HTML + a signature of everything it depends on, and only
+  // touch the DOM when that signature changes. Rebuilding recreates the pills,
+  // which RESTARTS the warning-pulse animation — harmless once, but the
+  // load-time render storm (boot + hydrate + realtime echoes all fire
+  // renderAll) restarted it a dozen times, reading as a fast/aggressive
+  // flicker before it settled. Skipping no-op rebuilds keeps the pulse smooth
+  // from first paint (and saves needless DOM thrash on every render).
+  const today = todayISO();
+  const activeId = T().activeDateId;
+  let sig = '';
+  const html = T().dates.map(d => {
+    const isActive = d.id === activeId;
+    const isToday = d.date === today;
     const liveGaps = calcLiveDateGaps(d);
     const onlyOr = liveGaps.length === 1 && liveGaps[0] === 'hotel or travel';
     const hardGaps = liveGaps.filter(g => g !== 'hotel or travel').length > 0;
     const isOff = (d.status === 'off') || (d.city || '').toUpperCase() === 'OFF';
     const cityLabel = isOff ? 'Day off' : (d.city || '—');
     const reviewClass = hardGaps ? ' needs-review' : (onlyOr ? ' needs-or' : '');
+    sig += `${d.id}~${d.date}~${d.status || ''}~${cityLabel}~${isActive ? 'A' : ''}~${isToday ? 'T' : ''}~${liveGaps.join(',')}|`;
     return `
       <button type="button" class="day-pill s-${d.status || 'show'} ${isActive ? 'active' : ''} ${isToday ? 'is-today' : ''}${reviewClass}" onclick="setActive('${d.id}')" title="${liveGaps.length ? 'Needs: ' + liveGaps.join(', ') : 'Complete'}">
         <span class="pdate">${fmtMD(d.date)}</span>
@@ -11506,6 +11518,10 @@ function renderDayStrip() {
       </button>
     `;
   }).join('');
+  if (strip.dataset.sig !== sig) {
+    strip.innerHTML = html;
+    strip.dataset.sig = sig;
+  }
   // Auto-scroll the active pill into view — but ONLY when the active
   // date actually changed since the last render. Without this guard
   // the strip re-renders constantly (realtime echoes, saves, chat
