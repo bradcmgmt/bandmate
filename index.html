@@ -3920,10 +3920,16 @@ html body.phone-app .phone .nav {
 .chat-new-form .field label{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--warm-mute);font-weight:700;margin-bottom:5px;display:block}
 .chat-member-grid{display:flex;flex-direction:column;gap:4px;max-height:240px;overflow-y:auto;
   border:1px solid var(--line);border-radius:8px;padding:6px;background:rgba(10,7,5,.4)}
-.chat-member-pick{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;cursor:pointer;
-  transition:background .12s}
+.chat-member-pick{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:7px;cursor:pointer;
+  border:1px solid transparent;transition:background .12s,border-color .12s}
 .chat-member-pick:hover{background:rgba(232,148,58,.05)}
-.chat-member-pick input{margin:0;accent-color:var(--hi)}
+/* Selection is shown by HIGHLIGHTING the row (tap to toggle) rather than a
+   checkbox. The checkbox stays in the DOM — hidden — so the save + group-pick
+   logic keeps reading it; a .selected class (synced in _chatUpdatePickCount)
+   drives the highlight. */
+.chat-member-pick input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;margin:0}
+.chat-member-pick.selected{background:rgba(232,148,58,.14);border-color:var(--hi)}
+.chat-member-pick.selected .mp-name{color:var(--hi);font-weight:700}
 .chat-member-pick .mp-name{font-size:13px;color:var(--warm);flex:1}
 .chat-member-pick .mp-role{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.08em}
 /* Group quick-pick chips inside the New Chat modal — same source of
@@ -27694,7 +27700,7 @@ function openNewChatModal() {
           <label>Chat name</label>
           <input type="text" id="newChatName" placeholder="e.g. Production team" maxlength="60" />
         </div>
-        ${groups.length && claimedCount > 0 ? `
+        ${!_isPhoneApp() && groups.length && claimedCount > 0 ? `
           <div class="field">
             <label>Quick-pick by group</label>
             <div class="chat-group-row">
@@ -27818,6 +27824,11 @@ function _chatUpdatePickCount() {
   const n = checked.length;
   const slot = document.getElementById('chatPickCount');
   if (slot) slot.textContent = n === 0 ? '0 selected' : `${n} selected`;
+  // Reflect each pick as a highlighted row (tap-to-select, no visible checkbox).
+  document.querySelectorAll('.chat-member-pick').forEach(row => {
+    const cb = row.querySelector('input[name="newChatMember"]');
+    row.classList.toggle('selected', !!(cb && cb.checked));
+  });
   // Sync group chip active states
   Object.keys(_chatNewModalGroupMap).forEach(g => {
     const userIds = _chatNewModalGroupMap[g];
