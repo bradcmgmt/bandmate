@@ -1667,9 +1667,9 @@ input,select,textarea{font:inherit;color:inherit}
 
 /* day pill flag for imported dates needing review */
 .day-pill.needs-review{box-shadow:inset 0 0 0 1px rgba(232,69,69,.5)}
-.day-pill.needs-review .pcity::after{content:" ⚠";color:var(--red)}
+.day-pill.needs-review .pcity::after{content:" ⚠";color:var(--red);text-shadow:0 0 6px rgba(232,69,69,.6);animation:tabwarn 2s ease-in-out infinite}
 .day-pill.needs-or{box-shadow:inset 0 0 0 1px rgba(138,169,216,.5)}
-.day-pill.needs-or .pcity::after{content:" !";color:#8aa9d8;font-family:'JetBrains Mono',monospace;font-weight:900}
+.day-pill.needs-or .pcity::after{content:" !";color:#8aa9d8;font-family:'JetBrains Mono',monospace;font-weight:900;text-shadow:0 0 6px rgba(138,169,216,.7);animation:tabwarn 2s ease-in-out infinite}
 
 /* dashboard top banner for review */
 /* Tour-header artist-logo upload CTA — sits in the date-range slot when
@@ -1842,11 +1842,11 @@ input,select,textarea{font:inherit;color:inherit}
 @keyframes tabwarn{0%,100%{opacity:.7}50%{opacity:1}}
 .field-warn{position:relative}
 .field-warn::after{content:"⚠";position:absolute;top:0;right:0;font-size:11px;color:#fdba74;
-  text-shadow:0 0 6px rgba(253,186,116,.6)}
+  text-shadow:0 0 6px rgba(253,186,116,.6);animation:tabwarn 2s ease-in-out infinite}
 .field-warn > label{color:#fdba74 !important}
 .field-warn-or{position:relative}
 .field-warn-or::after{content:"!";position:absolute;top:0;right:2px;font-size:12px;color:#8aa9d8;
-  font-weight:900;font-family:'JetBrains Mono',monospace;text-shadow:0 0 6px rgba(138,169,216,.7)}
+  font-weight:900;font-family:'JetBrains Mono',monospace;text-shadow:0 0 6px rgba(138,169,216,.7);animation:tabwarn 2s ease-in-out infinite}
 .field-warn-or > label{color:#8aa9d8 !important}
 /* Inline warning glyph next to a dashboard card heading — fires when the
    whole section has a gap (e.g. no venue at all, no schedule, no hotel)
@@ -12004,7 +12004,7 @@ function renderDashboard() {
 
       <div class="bm-cards">
         <div class="bm-card span-2">
-          <div class="card-h"><span class="ic">⌚</span><span class="h">Schedule</span>${isMissing('schedule') ? `<span class="card-h-warn" title="Schedule is empty — add at least one item">⚠</span>` : ''}<span class="count">${sched.length} ${sched.length === 1 ? 'item' : 'items'}</span><a class="card-link" onclick="_dashGoTab('schedule')">Edit →</a></div>
+          <div class="card-h"><span class="ic">◷</span><span class="h">Schedule</span>${isMissing('schedule') ? `<span class="card-h-warn" title="Schedule is empty — add at least one item">⚠</span>` : ''}<span class="count">${sched.length} ${sched.length === 1 ? 'item' : 'items'}</span><a class="card-link" onclick="_dashGoTab('schedule')">Edit →</a></div>
           <div class="card-body">${schedCardHtml}</div>
         </div>
         ${(ad.status === 'travel' || ad.status === 'off') ? '' : `
