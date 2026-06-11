@@ -4213,6 +4213,25 @@ html body.phone-app .phone .nav {
 </head>
 <body>
 
+<!-- ============ APP BOOT / LOADING SPLASH ============
+     Shown instantly on launch so the WebView never flashes a bare dark page
+     while the web app initializes. The orange rabbit does the same 3D flip as
+     the in-app avatar; removed the moment the first real screen renders
+     (showLandingScreen / showLoginScreen / postLoginRouting), with a 6s hard
+     cap so it can never get stuck. -->
+<style>
+#appBoot{position:fixed;inset:0;z-index:99999;background:#0a0705;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;perspective:600px;transition:opacity .45s ease}
+#appBoot.hide{opacity:0;pointer-events:none}
+#appBoot img{height:104px;width:auto;filter:drop-shadow(0 0 16px rgba(232,148,58,.45));animation:bootSpin 3s linear infinite;transform-origin:50% 50%}
+#appBoot .bm{font-family:'JetBrains Mono','SFMono-Regular',ui-monospace,monospace;font-size:14px;letter-spacing:.36em;color:#f4e4cf;font-weight:500}
+@keyframes bootSpin{0%{transform:rotateY(0)}50%{transform:rotateY(180deg)}100%{transform:rotateY(360deg)}}
+</style>
+<div id="appBoot"><img src="avatar.png" alt="Bandmate"><span class="bm">BANDMATE</span></div>
+<script>
+window._hideAppBoot=function(){var b=document.getElementById('appBoot');if(!b||b.classList.contains('hide'))return;b.classList.add('hide');setTimeout(function(){try{b.remove();}catch(e){}},480);};
+setTimeout(window._hideAppBoot,6000);
+</script>
+
 <!-- ============ AMBIENT BACKGROUND PARTICLES ============
      Cursor-reactive particle render of the Bandmate avatar. Lives behind
      every working surface (dashboard, admin, onboarding, pricing, mobile
@@ -22146,6 +22165,7 @@ try {
 } catch (e) {}
 
 function showLandingScreen() {
+  if (window._hideAppBoot) window._hideAppBoot();
   // The phone app IS the band/crew experience — there's no reason to show
   // the public marketing landing (with its TM-vs-crew "Sign in" split) on a
   // device that's almost always a crew member. Open straight to the single
@@ -23913,6 +23933,7 @@ function landingChoose(role) {
 }
 
 function showLoginScreen(opts) {
+  if (window._hideAppBoot) window._hideAppBoot();
   document.getElementById('app').hidden = true;
   document.getElementById('onboarding').classList.add('hidden');
   document.getElementById('landingScreen').hidden = true;
@@ -24613,6 +24634,7 @@ async function logout() {
 }
 
 function postLoginRouting() {
+  if (window._hideAppBoot) window._hideAppBoot();
   hideLoginScreen();
   const u = U();
   if (!u) { showLoginScreen(); return; }
