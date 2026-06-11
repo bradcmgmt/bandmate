@@ -27971,7 +27971,15 @@ document.addEventListener('touchend', (e) => {
   try {
     if (!_isPhoneApp()) return;
     const now = Date.now();
-    if (now - _lastTouchEnd <= 300) e.preventDefault();
+    if (now - _lastTouchEnd <= 300) {
+      e.preventDefault();
+      // Double-tap the bottom-left "Today" tab → jump to the current day.
+      // (A single tap just shows the Today screen on whatever date you're
+      // viewing; double-tapping is the explicit "take me back to today".)
+      if (e.target.closest && e.target.closest('.phone .nav button[data-go="today"]')) {
+        try { jumpPhoneToToday(); } catch (err) {}
+      }
+    }
     _lastTouchEnd = now;
   } catch (err) {}
 }, { passive: false });
