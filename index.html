@@ -1118,7 +1118,7 @@ input,select,textarea{font:inherit;color:inherit}
 @keyframes at-spin{to{transform:rotate(360deg)}}
 
 /* Multi-file picker list rendered when 2+ files are selected. Each
-   row shows a status glyph (⌛ pending, ✓ done, ✗ failed), filename
+   row shows a status glyph (⧖ pending, ✓ done, ✗ failed), filename
    (truncated), and size. Uploading row pulses to draw attention. */
 .at-multi-row{display:grid;grid-template-columns:24px 1fr auto;align-items:center;
   gap:8px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;
@@ -2227,7 +2227,7 @@ input,select,textarea{font:inherit;color:inherit}
 
 /* ============ GUEST LIST APPROVAL ============ */
 .gl-row.pending{background:linear-gradient(90deg, rgba(232,148,58,.07), rgba(232,148,58,.02))}
-.gl-row.pending .name b::after{content:" ⌛";color:var(--hi);font-size:11px;letter-spacing:0}
+.gl-row.pending .name b::after{content:" ⧖";color:var(--hi);font-size:11px;letter-spacing:0}
 
 /* Guest list grid — single-line rows by default, with the Notes column the only
    place we allow wrap when the note is genuinely long. Action column sized so
@@ -10704,7 +10704,7 @@ async function _attachFilePicked(input) {
       </div>
       ${files.map((f, i) => `
         <div class="at-multi-row" id="at_multi_row_${i}">
-          <span class="amr-status" id="at_multi_status_${i}">⌛</span>
+          <span class="amr-status" id="at_multi_status_${i}">⧖</span>
           <span class="amr-name">${esc(f.name)}</span>
           <span class="amr-size">${formatSize(f.size)}</span>
         </div>
@@ -10826,7 +10826,7 @@ function _attachBackToPick() {
             </div>
             ${pickedFiles.map((f, i) => `
               <div class="at-multi-row" id="at_multi_row_${i}">
-                <span class="amr-status" id="at_multi_status_${i}">⌛</span>
+                <span class="amr-status" id="at_multi_status_${i}">⧖</span>
                 <span class="amr-name">${esc(f.name)}</span>
                 <span class="amr-size">${formatSize(f.size)}</span>
               </div>
@@ -11050,7 +11050,7 @@ function renderCrewList() {
     if (accepted) {
       return '<span class="crew-status accepted" title="This person has signed up with the invited email">✓ ACCEPTED</span>';
     }
-    return '<span class="crew-status pending" title="Invite sent — waiting for them to sign up">⌛ PENDING</span>';
+    return '<span class="crew-status pending" title="Invite sent — waiting for them to sign up">⧖ PENDING</span>';
   };
   wrap.innerHTML = `<div class="tbl">
     ${T().crew.map(c => `
@@ -12783,7 +12783,7 @@ function renderGuestList() {
     <div class="section-title">
       <h2>Guest list · ${esc(ad.city)}</h2>
       <span class="crumb">/ ${fmtDate(ad.date).toUpperCase()}</span>
-      <span class="stamp">${approvedCount} ✓ · ${pendingCount} ⌛ · ${deniedCount} ✗</span>
+      <span class="stamp">${approvedCount} ✓ · ${pendingCount} ⧖ · ${deniedCount} ✗</span>
       <button type="button" class="tb-btn primary" onclick="openGuestModal()">+ Add guest</button>
       <button type="button" class="tb-btn" onclick="openAllotmentModal()">Allotments</button>
       <button type="button" class="tb-btn" onclick="exportGuestListCSV()">↓ Excel</button>
@@ -12793,7 +12793,7 @@ function renderGuestList() {
 
     ${pendingCount ? `
       <div class="gl-pending-banner">
-        <span class="pb-icon">⌛</span>
+        <span class="pb-icon">⧖</span>
         <span class="pb-text"><b>${pendingCount}</b> guest request${pendingCount===1?'':'s'} pending your approval</span>
         <div class="pb-actions">
           <button type="button" class="tb-btn primary" onclick="approveAllPending()">Approve all</button>
@@ -12844,7 +12844,7 @@ function renderGuestList() {
               <div class="c name gl-c-truncate"><b style="color:var(--warm)">${esc(g.name)}${g.plus ? ' + ' + g.plus : ''}</b><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute)">${esc(g.email || '')}</span></div>
               <div class="c gl-c-truncate" style="color:var(--warm-mute);font-size:12px">${esc(g.submittedBy || '—')}</div>
               <div class="c"><span class="passchip ${passClass}">${esc(g.passType)}</span></div>
-              <div class="c"><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;white-space:nowrap;color:${isApproved?'var(--good)':isPending?'var(--hi)':'var(--red)'}">${isApproved?'✓ Approved':isPending?'⌛ Pending':'✗ Denied'}</span></div>
+              <div class="c"><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;white-space:nowrap;color:${isApproved?'var(--good)':isPending?'var(--hi)':'var(--red)'}">${isApproved?'✓ Approved':isPending?'⧖ Pending':'✗ Denied'}</span></div>
               <div class="c muted mono gl-c-notes" style="font-size:11px">${esc(g.notes || '')}</div>
               <div class="c gl-actions">
                 ${isPending || isDenied ? `<button type="button" class="gl-act-btn approve" title="Approve" onclick="approveGuest('${g.id}')">✓</button>` : ''}
@@ -13370,7 +13370,7 @@ function renderAccounting() {
       <span class="stamp">${settledCount} / ${showDates.length} SETTLED</span>
       <span class="flex1"></span>
       <button type="button" class="tb-btn primary" onclick="exportSettlementReportCSV()" title="Download a CSV of every show — guarantee, final settlement, deductions, status. Email it to your client's business manager.">↓ Export settlement report</button>
-      <button type="button" class="tb-btn" onclick="printSettlementReport()" title="Open a printable settlement summary — print to PDF and send to the business manager">🖨 Printable</button>
+      <button type="button" class="tb-btn" onclick="printSettlementReport()" title="Open a printable settlement summary — print to PDF and send to the business manager">Printable</button>
     </div>
 
     ${fxDisclaimer}
@@ -14917,7 +14917,7 @@ function renderTasks() {
       ? ` · ✓ Done by ${esc(t.doneBy.split(' ')[0])}${t.doneAt ? ' · ' + fmtMD(new Date(t.doneAt).toISOString().slice(0,10)) : ''}`
       : '';
     const archivedNote = isArchived && t.archivedAt
-      ? ` · 📦 Archived ${fmtMD(new Date(t.archivedAt).toISOString().slice(0,10))}`
+      ? ` · Archived ${fmtMD(new Date(t.archivedAt).toISOString().slice(0,10))}`
       : '';
     const subParts = [];
     if (linked) subParts.push(esc(linked.city) + ' · ' + fmtMD(linked.date));
@@ -14933,7 +14933,7 @@ function renderTasks() {
       ? `<button type="button" onclick="unarchiveTask('${t.id}')" title="Move back to active list">Unarchive</button>
          <button type="button" onclick="openTaskModal('${t.id}')">Edit</button>`
       : t.done
-      ? `<button type="button" class="archive-btn" onclick="archiveTask('${t.id}')" title="Move out of the working list — kept for the record">📦 Archive</button>
+      ? `<button type="button" class="archive-btn" onclick="archiveTask('${t.id}')" title="Move out of the working list — kept for the record">Archive</button>
          <button type="button" onclick="openTaskModal('${t.id}')">Edit</button>`
       : `<button type="button" onclick="openTaskModal('${t.id}')">Edit</button>`;
     return `
@@ -14951,7 +14951,7 @@ function renderTasks() {
     <div class="section-title">
       <h2>Tasks</h2>
       <span class="crumb">/ ${open} OPEN · ${dueToday} DUE TODAY${completedNotArchived ? ' · ' + completedNotArchived + ' DONE' : ''}</span>
-      ${completedNotArchived > 1 ? `<button type="button" class="add-btn" onclick="archiveAllCompleted()" title="Archive every completed task in one click">📦 Archive all done</button>` : ''}
+      ${completedNotArchived > 1 ? `<button type="button" class="add-btn" onclick="archiveAllCompleted()" title="Archive every completed task in one click">Archive all done</button>` : ''}
       <button type="button" class="add-btn" onclick="openTaskModal()">+ Add task</button>
     </div>
 
@@ -19350,7 +19350,7 @@ function renderCrewProfiles() {
         const sub = isProfileSubmitted(c);
         const p = c.profile || {};
         const cls = sub ? 'submitted' : 'pending';
-        const stat = sub ? '✓ SUBMITTED' : '⌛ PENDING';
+        const stat = sub ? '✓ SUBMITTED' : '⧖ PENDING';
         const subText = sub ? `Submitted ${fmtDate(new Date(c.profileSubmittedAt).toISOString().slice(0,10))}` : 'Not yet submitted';
         return `
           <div class="profile-tile ${cls}">
@@ -19402,7 +19402,7 @@ function renderCrewListTable() {
               esc(c.role || ''),
               esc(c.type || ''),
               (c.groups || []).map(g => `<span class="group-chip">${esc(g)}</span>`).join('') || '<span class="muted mono">none</span>',
-              `<span class="stat-cell ${submitted?'sub':'pend'}">${submitted ? '✓ DONE' : '⌛ PEND'}</span>`,
+              `<span class="stat-cell ${submitted?'sub':'pend'}">${submitted ? '✓ DONE' : '⧖ PEND'}</span>`,
               esc(p.cell || ''),
               esc(p.email || ''),
               esc(p.address || ''),
@@ -20001,7 +20001,7 @@ function openGuestModalForViewer(guestId) {
     onDelete: g ? () => deleteGuestRequest(g.id) : null,
     body: `
       <div class="iz-tip" style="margin-bottom:12px">
-        Your guest request${g ? ' update' : ''} goes to the Tour Manager for approval. You'll see it as <b>⌛ Pending</b> until they review it.
+        Your guest request${g ? ' update' : ''} goes to the Tour Manager for approval. You'll see it as <b>⧖ Pending</b> until they review it.
       </div>
       <div class="form-grid">
         <div class="field"><label>Name *</label><input id="gv_name" value="${esc(v.name || '')}"></div>
@@ -27667,12 +27667,22 @@ function _chatReactPicker(messageId, e) {
   document.getElementById(popId)?.remove();
   const pop = document.createElement('div');
   pop.id = popId;
-  pop.style.cssText = 'position:absolute;background:rgba(20,13,7,.98);border:1px solid var(--hi);border-radius:8px;padding:4px;display:flex;gap:2px;z-index:100;box-shadow:0 4px 14px rgba(0,0,0,.5)';
+  pop.style.cssText = 'position:fixed;background:rgba(20,13,7,.98);border:1px solid var(--hi);border-radius:8px;padding:4px;display:flex;gap:2px;flex-wrap:wrap;max-width:min(320px,92vw);z-index:1100;box-shadow:0 4px 14px rgba(0,0,0,.5)';
   pop.innerHTML = _CHAT_EMOJIS.map(em => `<button type="button" style="background:transparent;border:none;font-size:18px;padding:4px 6px;cursor:pointer;border-radius:5px" onmouseover="this.style.background='rgba(232,148,58,.15)'" onmouseout="this.style.background='transparent'" onclick="_chatReactToggle('${messageId}','${em.replace(/'/g,"\\'")}');this.parentElement.remove()">${em}</button>`).join('');
   document.body.appendChild(pop);
-  const rect = e.target.getBoundingClientRect();
-  pop.style.top = (rect.top - 44) + 'px';
-  pop.style.left = (rect.left - 8) + 'px';
+  // Position next to the + button, clamped inside the viewport. position:fixed
+  // means getBoundingClientRect() coords are already viewport-relative.
+  const rect = (e?.target?.getBoundingClientRect)
+    ? e.target.getBoundingClientRect()
+    : { top: 80, bottom: 80, left: 20 };
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let top = rect.top - ph - 6;                       // prefer above the button
+  if (top < 8) top = Math.min(rect.bottom + 6, vh - ph - 8); // else below
+  let left = rect.left - 8;
+  if (left + pw > vw - 8) left = vw - pw - 8;        // don't overflow right
+  pop.style.top = Math.max(8, top) + 'px';
+  pop.style.left = Math.max(8, left) + 'px';
   // Auto-dismiss on outside click
   setTimeout(() => {
     const off = (ev) => { if (!pop.contains(ev.target)) { pop.remove(); document.removeEventListener('click', off); } };
@@ -27777,7 +27787,7 @@ function openNewChatModal() {
                   <input type="checkbox" name="newChatMember" value="${esc(c.userId)}" data-email="${esc(c.email || '')}" data-claimed="${claimed ? '1' : '0'}" onchange="_chatUpdatePickCount()" />
                   <span class="mp-name">${esc(c.name)}</span>
                   ${groupBits ? `<span class="mp-groups">${groupBits}</span>` : ''}
-                  ${claimed ? `<span class="mp-role">${esc(c.role || c.type || '')}</span>` : `<span class="mp-pending-tag">⌛ PENDING INVITE</span>`}
+                  ${claimed ? `<span class="mp-role">${esc(c.role || c.type || '')}</span>` : `<span class="mp-pending-tag">⧖ PENDING INVITE</span>`}
                 </label>
               `;
             }).join('')}
