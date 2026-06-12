@@ -4228,7 +4228,8 @@ html body.phone-app .phone .nav {
 </style>
 <div id="appBoot"><img src="avatar.png" alt="Bandmate"><span class="bm">BANDMATE</span></div>
 <script>
-window._hideAppBoot=function(){var b=document.getElementById('appBoot');if(!b||b.classList.contains('hide'))return;b.classList.add('hide');setTimeout(function(){try{b.remove();}catch(e){}},480);};
+var _bootShownAt=Date.now();
+window._hideAppBoot=function(){var b=document.getElementById('appBoot');if(!b||b._hiding)return;b._hiding=true;var wait=Math.max(0,1000-(Date.now()-_bootShownAt));setTimeout(function(){b.classList.add('hide');setTimeout(function(){try{b.remove();}catch(e){}},480);},wait);};
 setTimeout(window._hideAppBoot,6000);
 </script>
 
