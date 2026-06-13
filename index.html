@@ -5585,6 +5585,15 @@ _onTourChange(payload) {
       keepIfAbsent('travelTemplates', 'travel_templates');
       keepIfAbsent('setListTemplates', 'setlist_templates');
       keepIfAbsent('hotelTemplates', 'hotel_templates');
+      // artist_logo is a single nullable value, not an array — so unlike the
+      // lists above we must distinguish a TRUNCATED column (key absent →
+      // undefined → keep the local logo) from a genuine "logo removed" update
+      // (key present, value null → honor it). Only restore on a truly absent
+      // column; otherwise a large-tour truncation nulls the logo locally and
+      // the next sync persists that null, losing the logo for everyone.
+      if (row.artist_logo === undefined && existing.artistLogo !== undefined) {
+        remapped.artistLogo = existing.artistLogo;
+      }
     }
     state.tours[row.id] = remapped;
     if (!state.currentTourId) state.currentTourId = row.id;
@@ -10868,6 +10877,26 @@ function _findAttachmentById(attId) {
   return null;
 }
 
+// Open a URL in a new tab / the system browser. In the native WKWebView (iOS)
+// and TWA (Android) wrappers window.open() is a NO-OP — there's no UI delegate
+// — so a bare window.open silently fails and the attachment never opens. Fall
+// back to a synthesized anchor click (the navigation delegate routes that out
+// to Safari/Chrome), then to a same-window navigation. Returns true if a path
+// was taken. (Generalized from _openSubscribeWeb.)
+function _openExternalUrl(url) {
+  if (!url) return false;
+  try { const w = window.open(url, '_blank', 'noopener,noreferrer'); if (w) return true; } catch (e) {}
+  try {
+    const a = document.createElement('a');
+    a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    document.body.appendChild(a); a.click(); a.remove();
+    return true;
+  } catch (e) {
+    try { window.location.href = url; return true; } catch (_) {}
+  }
+  return false;
+}
+
 // Open a cloud-stored attachment for viewing. Fetches a short-lived signed
 // URL from Supabase Storage and opens it in a new tab. PDFs and images
 // render natively; Word/Excel/etc the browser will offer to download.
@@ -10876,14 +10905,13 @@ async function _viewAttachment(attId) {
   if (!a) { toast('Attachment not found', 'error'); return; }
   // No stored file but we have a cloud link the TM pasted — just open that.
   if (!a.storagePath && a.link) {
-    window.open(a.link, '_blank', 'noopener,noreferrer');
+    _openExternalUrl(a.link);
     return;
   }
   if (!a.storagePath) { toast('No file stored for this attachment', 'error'); return; }
   const url = await db.getSignedAttachmentUrl(a.storagePath);
   if (!url) { toast('Could not generate view link', 'error'); return; }
-  const w = window.open(url, '_blank', 'noopener,noreferrer');
-  if (!w) toast('Allow pop-ups to view this attachment', 'error');
+  if (!_openExternalUrl(url)) toast('Could not open this attachment', 'error');
 }
 
 // Trigger a file download with the original filename. Asks Storage for a
@@ -10893,7 +10921,7 @@ async function _downloadAttachment(attId) {
   if (!a) { toast('Attachment not found', 'error'); return; }
   if (!a.storagePath && a.link) {
     // External cloud link — can't force download, just open it.
-    window.open(a.link, '_blank', 'noopener,noreferrer');
+    _openExternalUrl(a.link);
     return;
   }
   if (!a.storagePath) { toast('No file stored for this attachment', 'error'); return; }
@@ -10987,7 +11015,7 @@ function openCrewModal() {
     hideFooter: true,
     body: `
       <div class="row-flex" style="margin-bottom:14px">
-        <div class="muted mono" style="font-size:11px;letter-spacing:.16em">${T().crew.length} PEOPLE ON THIS RUN</div>
+        <div class="muted mono" style="font-size:11px;letter-spacing:.16em">${(T().crew || []).filter(c => !c.isManager).length} PEOPLE ON THIS RUN</div>
         <div class="flex1"></div>
         <button type="button" class="btn primary" style="padding:7px 12px;border:1px solid var(--hi);background:linear-gradient(135deg,var(--hi),var(--hi-2));color:#0a0705;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700" onclick="openCrewMemberModal()">+ Add person</button>
       </div>
@@ -11036,7 +11064,14 @@ async function refreshCrewAcceptance() {
 function renderCrewList() {
   const wrap = $('#crewListWrap');
   if (!wrap) return;
-  if (!T().crew.length) {
+  // Co-managers live in crew[] (flagged isManager) so the Managers card can
+  // list them — but they are NOT roster crew. Exclude them here so they never
+  // show up as a deletable crew row: deleting from the roster only mutates the
+  // local list and would NOT revoke their cloud access (and the row reappears
+  // on reload). The only correct way to remove a co-manager is the "Revoke"
+  // button in the Managers card.
+  const roster = (T().crew || []).filter(c => !c.isManager);
+  if (!roster.length) {
     wrap.innerHTML = `<div class="empty"><h3>No crew yet</h3><p>Add your band, crew, and production team. They'll show up in the room assignments and the crew mobile preview.</p></div>`;
     return;
   }
@@ -11053,7 +11088,7 @@ function renderCrewList() {
     return '<span class="crew-status pending" title="Invite sent — waiting for them to sign up">⧖ PENDING</span>';
   };
   wrap.innerHTML = `<div class="tbl">
-    ${T().crew.map(c => `
+    ${roster.map(c => `
       <div class="contact-row" style="grid-template-columns:46px 1fr 1.2fr 110px 180px">
         <div class="ini">${esc(initials(c.name))}</div>
         <div class="nm">${esc(c.name)}<span>${esc(c.email || c.phone || '')} ${_crewStatusBadge(c)}</span></div>
@@ -12768,7 +12803,9 @@ function renderGuestList() {
   const guests = ad.guests || [];
 
   const stats = PASS_TYPES.map(p => {
-    const used = guests.filter(g => g.passType === p).reduce((n, g) => n + 1 + (g.plus || 0), 0);
+    // Denied guests aren't coming, so they don't consume allotment. (Approved
+    // + still-pending both count toward the cap so the TM sees real exposure.)
+    const used = guests.filter(g => g.passType === p && g.status !== 'denied').reduce((n, g) => n + 1 + (g.plus || 0), 0);
     const max = allots[p] || 0;
     const pct = max ? Math.min(100, (used / max) * 100) : 0;
     const over = max && used > max;
@@ -27507,7 +27544,12 @@ function _chatRenderBody(body, mentions, myId) {
   tourMembers.forEach(u => {
     if (!u.name) return;
     const first = u.name.split(/\s+/)[0];
-    const re = new RegExp(`@${first}\\b`, 'gi');
+    // Escape regex metacharacters in the name first — a member named "J+",
+    // "[Lead]" or "C*" would otherwise make new RegExp throw a SyntaxError,
+    // which (with no try/catch up the render chain) crashes the ENTIRE chat
+    // thread for everyone in it.
+    const reFirst = first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`@${reFirst}\\b`, 'gi');
     const isYou = (u.id === myId);
     html = html.replace(re, `<span class="mention${isYou ? ' you' : ''}">@${esc(first)}</span>`);
   });
