@@ -5240,6 +5240,30 @@ const db = {
     if (this._syncTimer) clearTimeout(this._syncTimer);
     this._syncTimer = setTimeout(() => this._runActiveTourSync(), 600);
   },
+  // ── Per-tour "sync shadow" ───────────────────────────────────────────────
+  // Our best knowledge of what the cloud currently holds for each tour, so a
+  // save upserts ONLY the rows that actually changed. Without it, every save
+  // re-pushed the whole tour + EVERY date row — so one manager's save clobbered
+  // a co-manager's edits to OTHER dates (last-write-wins across the tour). A
+  // row is pushed only when its content signature differs from the shadow; the
+  // shadow is refreshed on hydrate, on realtime apply (so we never re-push what
+  // we just received from someone else), and after each successful push.
+  _syncShadow: {},
+  _sigTour(tour) {
+    try { return JSON.stringify(dbMap.tourToRow(tour, (state && state.currentUserId) || tour.ownerId)); }
+    catch (e) { return null; }
+  },
+  // position is normalized out — dates load ordered by calendar date, never by
+  // position, so a reorder/insert must not make every date look "changed".
+  _sigDate(tourId, d) {
+    try { return JSON.stringify(dbMap.dateToRow(tourId, d, 0)); } catch (e) { return null; }
+  },
+  seedSyncShadow(tour) {
+    if (!tour || !tour.id) return;
+    const shadow = { tour: this._sigTour(tour), dates: {} };
+    (tour.dates || []).forEach(d => { if (_isUuid(d.id)) shadow.dates[d.id] = this._sigDate(tour.id, d); });
+    this._syncShadow[tour.id] = shadow;
+  },
   async _runActiveTourSync() {
     if (!sb || !state?.currentUserId) return;
     if (this._syncInFlight) {
@@ -5286,36 +5310,57 @@ const db = {
     if (state.currentUserId !== _sessionUserId) return;
     this._syncInFlight = true;
     try {
+      const shadow = this._syncShadow[tour.id]
+        || (this._syncShadow[tour.id] = { tour: null, dates: {} });
+
+      // ── Tour row — push only when its content signature changed ──────────
       const tourRow = dbMap.tourToRow(tour, state.currentUserId);
-      const { error: tErr } = await sb.from('tours').upsert(tourRow, { onConflict: 'id' });
-      if (tErr) {
-        // The tour-row upsert failed — but DO NOT bail here. Dates live in a
-        // separate table, and a hotel/room/schedule change rides on the
-        // DATE, not the tour row. The old code returned on any tour error,
-        // which silently blocked every date edit from syncing whenever the
-        // tour row had an issue (e.g. a brand-new JSONB column not yet
-        // migrated, or an RLS quirk) — that's exactly why a hotel-template
-        // apply didn't reach the crew's app. Log and fall through to the
-        // dates upsert so date edits always get their chance to sync.
-        if (/row-level security|row level security/i.test(tErr.message || '')) {
-          console.warn('[db.syncTour] tour-row RLS rejection — continuing to date sync:', tErr.message);
+      const tourSig = JSON.stringify(tourRow);
+      if (tourSig !== shadow.tour) {
+        const { error: tErr } = await sb.from('tours').upsert(tourRow, { onConflict: 'id' });
+        if (tErr) {
+          // The tour-row upsert failed — but DO NOT bail here. Dates live in a
+          // separate table, and a hotel/room/schedule change rides on the
+          // DATE, not the tour row. Bailing on a tour error silently blocked
+          // every date edit from syncing (e.g. a not-yet-migrated JSONB column
+          // or an RLS quirk) — exactly why a hotel-template apply once didn't
+          // reach the crew's app. Log and fall through; leave shadow.tour
+          // unchanged so the tour row is retried on the next save.
+          if (/row-level security|row level security/i.test(tErr.message || '')) {
+            console.warn('[db.syncTour] tour-row RLS rejection — continuing to date sync:', tErr.message);
+          } else {
+            console.warn('[db.syncTour] tour-row upsert failed — continuing to date sync:', tErr.message || tErr);
+          }
         } else {
-          console.warn('[db.syncTour] tour-row upsert failed — continuing to date sync:', tErr.message || tErr);
+          shadow.tour = tourSig;
         }
       }
-      const dateRows = (tour.dates || [])
-        .filter(d => _isUuid(d.id))
-        .map((d, i) => dbMap.dateToRow(tour.id, d, i));
-      if (dateRows.length) {
-        const { error: dErr } = await sb.from('dates').upsert(dateRows, { onConflict: 'id' });
+
+      // ── Dates — push ONLY the rows whose content actually changed ────────
+      // This is the fix for co-manager last-write-wins: a save no longer
+      // re-uploads every date, so editing one date can't clobber a co-manager's
+      // edits to the others. A genuine local edit always changes the row's
+      // signature, so it's always pushed; only true no-ops are skipped.
+      const changed = [];
+      (tour.dates || []).forEach((d, i) => {
+        if (!_isUuid(d.id)) return;
+        const sig = this._sigDate(tour.id, d);
+        if (sig !== shadow.dates[d.id]) {
+          changed.push({ id: d.id, sig, row: dbMap.dateToRow(tour.id, d, i) });
+        }
+      });
+      if (changed.length) {
+        const { error: dErr } = await sb.from('dates')
+          .upsert(changed.map(c => c.row), { onConflict: 'id' });
         if (dErr) {
           if (/row-level security|row level security/i.test(dErr.message || '')) {
             console.warn('[db.syncDates] RLS rejection — skipping:', dErr.message);
             return;
           }
           this._err('syncDates', dErr);
-          return;
+          return; // leave shadow untouched → these dates retry on the next save
         }
+        changed.forEach(c => { shadow.dates[c.id] = c.sig; });
       }
     } finally {
       this._syncInFlight = false;
@@ -5516,6 +5561,7 @@ _onTourChange(payload) {
     if (!state) return;
     if (eventType === 'DELETE') {
       const id = old?.id;
+      if (id) delete this._syncShadow[id];
       if (id && state.tours[id]) {
         delete state.tours[id];
         if (state.currentTourId === id) {
@@ -5596,6 +5642,12 @@ _onTourChange(payload) {
       }
     }
     state.tours[row.id] = remapped;
+    // Refresh the tour's shadow signature so our next save doesn't re-push
+    // (and thereby clobber) this state we just received from the cloud.
+    {
+      const sh = this._syncShadow[row.id] || (this._syncShadow[row.id] = { tour: null, dates: {} });
+      sh.tour = this._sigTour(remapped);
+    }
     if (!state.currentTourId) state.currentTourId = row.id;
     this._safeRenderAll();
   },
@@ -5928,6 +5980,7 @@ _onTourChange(payload) {
     if (eventType === 'DELETE') {
       const id = old?.id;
       const tourId = old?.tour_id;
+      if (id && tourId && this._syncShadow[tourId]) delete this._syncShadow[tourId].dates[id];
       if (id && tourId && state.tours[tourId]) {
         state.tours[tourId].dates = (state.tours[tourId].dates || []).filter(d => d.id !== id);
         if (state.tours[tourId].activeDateId === id) {
@@ -5996,6 +6049,12 @@ _onTourChange(payload) {
     }
     tour.dates = (tour.dates || []).filter(d => d.id !== row.id).concat(newDate);
     tour.dates.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    // Refresh this date's shadow signature so our next save won't re-push (and
+    // clobber) the value we just received from the cloud.
+    {
+      const sh = this._syncShadow[row.tour_id] || (this._syncShadow[row.tour_id] = { tour: null, dates: {} });
+      sh.dates[row.id] = this._sigDate(row.tour_id, newDate);
+    }
     this._safeRenderAll();
   },
 
@@ -6199,6 +6258,9 @@ _onTourChange(payload) {
         const tour = dbMap.rowToTour(row, dates);
         tour.attachments = attachByTour[row.id] || [];
         state.tours[tour.id] = tour;
+        // Seed the sync shadow to the just-loaded cloud state so the first edit
+        // after load only pushes the row that changed, not the whole tour.
+        this.seedSyncShadow(tour);
       });
       // Pick a current tour if none set, or if current is gone
       if (!state.currentTourId || !state.tours[state.currentTourId]) {
