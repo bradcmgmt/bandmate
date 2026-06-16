@@ -22262,6 +22262,21 @@ try {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) _ensureBgVideoPlaying(); });
   window.addEventListener('focus', _ensureBgVideoPlaying);
   window.addEventListener('pageshow', _ensureBgVideoPlaying);
+  // In-app browsers (Instagram, Facebook, etc.) are gesture-gated WKWebViews
+  // that frequently refuse autoplay until the user has touched the page once.
+  // Kick the muted loop off on the first tap/scroll, then stop listening once
+  // it's actually rolling. (OS-level Low-Power Mode still blocks it outright —
+  // there's nothing we can do about that case.)
+  const _bgVideoKick = () => {
+    _ensureBgVideoPlaying();
+    const v = document.getElementById('bgVideo');
+    if (v && !v.paused) {
+      document.removeEventListener('pointerdown', _bgVideoKick);
+      document.removeEventListener('touchstart', _bgVideoKick);
+    }
+  };
+  document.addEventListener('pointerdown', _bgVideoKick, { passive: true });
+  document.addEventListener('touchstart', _bgVideoKick, { passive: true });
 } catch (e) {}
 
 function showLandingScreen() {
