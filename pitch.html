@@ -43,7 +43,7 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 .rail button{width:9px;height:9px;border-radius:50%;border:1px solid var(--line-2);background:transparent;padding:0;cursor:pointer;transition:all .3s}
 .rail button.on{background:var(--hi);border-color:var(--hi);box-shadow:0 0 10px rgba(232,148,58,.6)}
 
-.deck{position:relative;z-index:10;height:100vh;height:100dvh;overflow-y:scroll;scroll-behavior:smooth;scroll-snap-type:y mandatory;scrollbar-width:none}
+.deck{position:relative;z-index:10;height:100vh;height:100dvh;overflow-y:scroll;overflow-x:clip;scroll-behavior:smooth;scroll-snap-type:y mandatory;scrollbar-width:none}
 .deck::-webkit-scrollbar{display:none}
 .slide{scroll-snap-align:start;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;justify-content:center;
   padding:96px clamp(22px,7vw,120px) 90px;position:relative}
@@ -55,7 +55,7 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 .lead .mut{color:var(--warm-mute)}
 .kick{font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.06em;color:var(--warm-mute);margin-top:26px}
 
-.cta{display:inline-flex;align-items:center;gap:8px;margin-top:32px;padding:15px 26px;border-radius:12px;
+.cta{display:inline-flex;align-items:center;gap:8px;margin-top:32px;padding:15px 26px;border-radius:12px;border:none;cursor:pointer;font-family:inherit;
   background:linear-gradient(135deg,var(--hi),var(--hi-2));color:#0a0705;text-decoration:none;font-weight:800;
   letter-spacing:.03em;font-size:clamp(15px,1.8vw,17px);box-shadow:0 0 24px rgba(232,148,58,.28);transition:transform .15s,box-shadow .3s}
 .cta:hover{transform:translateY(-2px);box-shadow:0 0 38px rgba(232,148,58,.45)}
@@ -70,7 +70,8 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 .slide.in .reveal:nth-child(5){transition-delay:.32s}
 
 .cover{align-items:center;text-align:center;justify-content:center}
-.cover .mark{height:clamp(112px,18vw,184px);width:auto;filter:drop-shadow(0 0 34px rgba(232,148,58,.4));animation:float 6s ease-in-out infinite}
+.cover .cmark{display:inline-block;perspective:1000px;animation:float 6s ease-in-out infinite}
+.cover .mark{height:clamp(112px,18vw,184px);width:auto;filter:drop-shadow(0 0 34px rgba(232,148,58,.4));animation:spin 4s linear infinite}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
 .cover .word{height:clamp(44px,6.5vw,70px);width:auto;margin-top:28px;filter:drop-shadow(0 0 18px rgba(232,148,58,.28))}
 .cover .tag{font-family:'Bebas Neue','Inter',sans-serif;font-size:clamp(28px,5.4vw,60px);line-height:.96;letter-spacing:.012em;margin-top:30px;max-width:16ch}
@@ -93,10 +94,10 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 .pillar .ph{font-family:'Bebas Neue','Inter',sans-serif;font-size:30px;color:var(--warm);margin:10px 0 8px;letter-spacing:.01em}
 .pillar .pb{font-size:14px;line-height:1.55;color:var(--warm-mute)}
 
-.features{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:34px;width:100%;max-width:940px}
-.feat{border:1px solid var(--line-2);border-radius:13px;padding:18px 20px;background:linear-gradient(180deg,rgba(31,22,16,.55),rgba(17,12,8,.4))}
-.feat .fh{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.15em;text-transform:uppercase;color:var(--hi);font-weight:700;margin-bottom:7px}
-.feat .fb{font-size:14px;line-height:1.5;color:var(--warm-mute)}
+.features{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:34px;width:100%;max-width:940px}
+.feat{min-width:0;border:1px solid var(--line-2);border-radius:13px;padding:18px 20px;background:linear-gradient(180deg,rgba(31,22,16,.55),rgba(17,12,8,.4))}
+.feat .fh{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.15em;text-transform:uppercase;color:var(--hi);font-weight:700;margin-bottom:7px;overflow-wrap:break-word}
+.feat .fb{font-size:14px;line-height:1.5;color:var(--warm-mute);overflow-wrap:break-word}
 
 .dash{border:1px solid var(--line-2);border-radius:16px;overflow:hidden;background:linear-gradient(180deg,#1a1209,#0f0a06);box-shadow:0 30px 70px rgba(0,0,0,.55)}
 .dash .top{display:flex;justify-content:space-between;align-items:flex-start;padding:22px 24px 16px}
@@ -144,11 +145,51 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 @media (max-width:820px){
   .rail{display:none}
   .two{grid-template-columns:1fr;gap:26px}
-  .pillars,.features{grid-template-columns:1fr}
-  .slide{padding:90px 22px 84px}
+  .pillars{grid-template-columns:1fr}
+  .slide{padding:84px 22px 40px}
+}
+/* Phones — compact every slide so each fits on ONE screen (no in-slide scroll) */
+@media (max-width:560px){
+  .slide{padding:72px 20px 26px}
+  /* flex children default to min-width:auto and won't shrink below content —
+     this is what let the 2-col features grid push past the screen edge. */
+  .slide>*{min-width:0;max-width:100%}
+  .slide:not(.cover) .display{font-size:clamp(30px,8.2vw,42px)!important}
+  .eyebrow{margin-bottom:12px;letter-spacing:.26em}
+  .lead{font-size:15px;line-height:1.5;margin-top:15px}
+  .bul{gap:11px;margin-top:18px}
+  .bul li{font-size:14.5px}
+  .bigquote{font-size:clamp(31px,8.4vw,46px)}
+  /* how it works — compact pillars */
+  .pillars{gap:9px;margin-top:18px}
+  .pillar{padding:13px 16px}
+  .pillar .pn{font-size:10.5px}
+  .pillar .ph{font-size:23px;margin:5px 0}
+  .pillar .pb{font-size:12.5px;line-height:1.42}
+  /* features — 2-up via flex-wrap so a card is an explicit half-width and
+     can never push the slide past the screen edge (grid was blowing out). */
+  .features{display:flex;flex-wrap:wrap;gap:9px;margin-top:18px}
+  .feat{width:calc(50% - 4.5px);padding:12px 13px}
+  .feat .fh{font-size:10.5px;margin-bottom:5px;letter-spacing:.1em}
+  .feat .fb{font-size:12px;line-height:1.38}
+  /* app phone mockup — smaller so all rows fit under the copy */
+  .two{gap:16px}
+  .phone{width:clamp(192px,56%,228px);padding:11px}
+  .phone .ph-city{font-size:25px}
+  .phone .ph-day{padding:4px 6px 9px}
+  .phone .ph-row{padding:8px 11px;margin:5px 0}
+  .phone .ph-row .t{font-size:14px}
+  /* pricing card — full width, tighter */
+  .price{padding:20px;margin-top:18px;max-width:none}
+  .price .pa{font-size:clamp(46px,13vw,58px)}
+  .price .pp{font-size:13.5px;margin-bottom:13px}
+  .price ul{gap:8px;margin-bottom:13px}
+  .price li{font-size:13.5px;padding-left:22px}
+  .price .pf{font-size:10px;margin-top:11px}
+  .cta{margin-top:22px;padding:13px 22px}
 }
 @media (prefers-reduced-motion:reduce){
-  .cover .mark,.close .mark{animation:none}.scrollhint{animation:none}.deck{scroll-behavior:auto}
+  .cover .cmark,.cover .mark,.close .mark{animation:none}.scrollhint{animation:none}.deck{scroll-behavior:auto}
   .reveal{transition:none;opacity:1;transform:none}
 }
 </style>
@@ -166,11 +207,11 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 
   <!-- 01 · COVER -->
   <section class="slide cover" data-label="Cover">
-    <img class="mark reveal" src="/avatar.png" alt="" />
+    <span class="cmark reveal"><img class="mark" src="/avatar.png" alt="" /></span>
     <img class="word reveal" src="/logo.png" alt="Bandmate" />
     <h1 class="tag reveal display">Run your tour from one place.</h1>
     <p class="sub reveal">The road book your whole crew actually opens.</p>
-    <a class="cta reveal" href="https://bandmate.art">Start free →</a>
+    <button type="button" class="cta reveal" onclick="document.querySelectorAll('.slide')[1].scrollIntoView({behavior:'smooth'})">Continue →</button>
     <div class="meta"><span>For Tour Managers</span><span><b>bandmate.art</b></span></div>
     <div class="scrollhint">SCROLL ↓</div>
   </section>
