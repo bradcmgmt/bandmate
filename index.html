@@ -15751,12 +15751,14 @@ function renderPhone() {
   }
   // Teal nudge for Tour Managers: the phone is a read-only road view, so a TM
   // who owns/manages the current tour is reminded that editing happens on the
-  // desktop/website. Gated to role 'tm' + owner-or-manager of THIS tour, so
-  // crew (and TMs merely viewing someone else's tour) never see it.
+  // desktop/website. Gated to: previewing/viewing AS the TM (isTM, i.e.
+  // viewerKey==='tm') + the logged-in account is actually role 'tm' +
+  // owner-or-manager of THIS tour. The isTM check is what keeps it OUT of the
+  // desktop "Crew mobile preview" when the TM is viewing AS a crew member.
   let tmEditNoticeHtml = '';
   {
     const _u = U();
-    if (_u && _u.role === 'tm' && _isTourManager(T(), state.currentUserId)) {
+    if (isTM && _u && _u.role === 'tm' && _isTourManager(T(), state.currentUserId)) {
       tmEditNoticeHtml = `
         <div class="ph-tm-notice">
           <span class="ic"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.5"></rect><path d="M8 20h8M12 16v4"></path></svg></span>
