@@ -145,16 +145,15 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 .dresult .drc{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
 .dresult .drc span{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.06em;color:#7adc97;
   border:1px solid rgba(109,207,139,.4);border-radius:6px;padding:4px 9px}
-.ph-push{border:1px solid rgba(232,148,58,.45);background:rgba(232,148,58,.09);border-radius:11px;
-  padding:11px 13px;margin:8px 6px 12px;font-size:13px;line-height:1.4;color:var(--warm)}
-.ph-push b{display:block;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.14em;color:var(--hi);margin-bottom:4px}
-.chatwrap{height:170px;overflow:hidden;padding:0 6px 2px;display:flex;flex-direction:column;justify-content:flex-end}
+.chatwrap{height:204px;overflow:hidden;padding:0 6px 2px;display:flex;flex-direction:column;justify-content:flex-end}
 .chatfeed{display:flex;flex-direction:column;gap:7px;will-change:transform}
 .cbub{font-size:12.5px;line-height:1.35;padding:8px 11px;border-radius:11px;max-width:86%;animation:cbubin .5s ease both}
 @keyframes cbubin{from{opacity:0}to{opacity:1}}
 .cbub b{display:block;font-size:9px;font-family:'JetBrains Mono',monospace;letter-spacing:.1em;color:var(--warm-mute);margin-bottom:3px}
 .cbub.them{align-self:flex-start;background:rgba(0,0,0,.35);border:1px solid var(--line-2);color:var(--warm)}
 .cbub.me{align-self:flex-end;background:rgba(232,148,58,.14);border:1px solid rgba(232,148,58,.35);color:#fbe3c4}
+.cbub.alert{align-self:stretch;max-width:none;background:rgba(232,148,58,.12);border:1px solid rgba(232,148,58,.5);color:var(--warm)}
+.cbub.alert b{color:var(--hi);letter-spacing:.14em;margin-bottom:4px}
 
 .bigquote{font-family:'Bebas Neue','Inter',sans-serif;font-size:clamp(40px,7vw,90px);line-height:1;color:var(--warm);max-width:18ch}
 .bigquote .amb{color:var(--hi)}
@@ -379,7 +378,6 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
       <div class="reveal" style="order:2">
         <div class="phone">
           <div class="ph-top"><span>9:41</span><span>5G ▰▰▰</span></div>
-          <div class="ph-push"><b>BANDMATE · NOW</b>Doors moved to 8:00 — soundcheck pushed to 6:30.</div>
           <div class="chatwrap"><div class="chatfeed" id="chatfeed"></div></div>
         </div>
       </div>
@@ -504,21 +502,21 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
   var feed = document.getElementById('chatfeed');
   if (!feed) return;
   var POOL = [
+    {s:'alert', w:'BANDMATE · NOW', t:'Doors moved to 8:00 — soundcheck pushed to 6:30.'},
     {w:'MAYA · TM', s:'them', t:'Bus call is 30 after load-out tonight'},
     {s:'me', t:'Copy — telling the band now'},
     {w:'DEV · FOH', s:'them', t:'👍 see you at the dock'},
     {w:'SAM · MERCH', s:'them', t:'Need 2 more reps for load-in'},
     {s:'me', t:'On it — sending Theo + Priya'},
-    {w:'MAYA · TM', s:'them', t:'Doors pushed to 8 — soundcheck 6:30'},
-    {w:'JJ · DRUMS', s:'them', t:'Lobby call still 4:15?'},
-    {s:'me', t:'Yep, 4:15 sharp 🚐'},
+    {s:'alert', w:'BANDMATE · NOW', t:'Lobby call updated to 4:15 — pushed to everyone.'},
+    {w:'JJ · DRUMS', s:'them', t:'Got it, thanks'},
     {w:'MAYA · TM', s:'them', t:'Hotel keys at front desk under Atlas'},
     {w:'DEV · FOH', s:'them', t:'Stage power confirmed — we\'re good'}
   ];
   var i = 0;
   function mk(m){
     var b = document.createElement('div');
-    b.className = 'cbub ' + (m.s === 'me' ? 'me' : 'them');
+    b.className = 'cbub ' + (m.s === 'me' ? 'me' : m.s === 'alert' ? 'alert' : 'them');
     b.innerHTML = (m.w ? '<b>' + m.w + '</b>' : '') + m.t;
     return b;
   }
