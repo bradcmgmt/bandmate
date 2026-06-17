@@ -121,6 +121,28 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 .phone .ph-row.now{border-color:rgba(232,148,58,.5);background:rgba(232,148,58,.06)}
 .phone .ph-row.now .t{color:var(--hi-bright)}
 
+.docflow{display:flex;flex-direction:column;gap:13px;width:100%}
+.docrow{display:flex;flex-wrap:wrap;gap:8px}
+.dchip{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.03em;color:var(--warm);
+  padding:9px 13px;border:1px solid var(--line-2);border-radius:9px;background:rgba(0,0,0,.3)}
+.dflowarrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--hi);font-weight:700;display:flex;align-items:center;gap:8px;padding-left:2px}
+.dresult{border:1px solid rgba(232,148,58,.4);border-radius:14px;padding:18px 20px;
+  background:linear-gradient(180deg,rgba(232,148,58,.10),rgba(17,12,8,.4));box-shadow:0 0 26px rgba(232,148,58,.12)}
+.dresult .drh{font-family:'Bebas Neue','Inter',sans-serif;font-size:30px;color:var(--warm);letter-spacing:.02em;line-height:1}
+.dresult .drb{font-size:13.5px;color:var(--warm-mute);line-height:1.5;margin-top:7px}
+.dresult .drc{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.dresult .drc span{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.06em;color:#7adc97;
+  border:1px solid rgba(109,207,139,.4);border-radius:6px;padding:4px 9px}
+.ph-push{border:1px solid rgba(232,148,58,.45);background:rgba(232,148,58,.09);border-radius:11px;
+  padding:11px 13px;margin:8px 6px 12px;font-size:13px;line-height:1.4;color:var(--warm)}
+.ph-push b{display:block;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.14em;color:var(--hi);margin-bottom:4px}
+.chatwrap{display:flex;flex-direction:column;gap:7px;padding:0 6px 4px}
+.cbub{font-size:12.5px;line-height:1.35;padding:8px 11px;border-radius:11px;max-width:86%}
+.cbub b{display:block;font-size:9px;font-family:'JetBrains Mono',monospace;letter-spacing:.1em;color:var(--warm-mute);margin-bottom:3px}
+.cbub.them{align-self:flex-start;background:rgba(0,0,0,.35);border:1px solid var(--line-2);color:var(--warm)}
+.cbub.me{align-self:flex-end;background:rgba(232,148,58,.14);border:1px solid rgba(232,148,58,.35);color:#fbe3c4}
+
 .bigquote{font-family:'Bebas Neue','Inter',sans-serif;font-size:clamp(40px,7vw,90px);line-height:1;color:var(--warm);max-width:18ch}
 .bigquote .amb{color:var(--hi)}
 
@@ -199,7 +221,7 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 
 <div class="topbar">
   <img src="/logo.png" alt="Bandmate" />
-  <div class="counter"><b id="cnum">01</b> / 14</div>
+  <div class="counter"><b id="cnum">01</b> / <b id="ctot">16</b></div>
 </div>
 <div class="rail" id="rail"></div>
 
@@ -266,6 +288,32 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     </div>
   </section>
 
+  <!-- 05b · BUILD FROM DOCS -->
+  <section class="slide" data-label="From your docs">
+    <div class="two">
+      <div>
+        <div class="eyebrow reveal">Barely any data entry</div>
+        <h2 class="display reveal" style="font-size:clamp(36px,5.6vw,78px)">Build a tour from<br>the docs you<br>already have.</h2>
+        <p class="lead reveal">Your agent sends an advance, an itinerary, a rooming list. Hand them to Bandmate and it <b>reads them and drafts the whole run</b> — shows, schedules, travel, hotels, contacts. You fine-tune, instead of typing it all in by hand.</p>
+      </div>
+      <div class="reveal">
+        <div class="docflow">
+          <div class="docrow">
+            <span class="dchip">Advance.pdf</span>
+            <span class="dchip">Itinerary.xlsx</span>
+            <span class="dchip">Rooming.pdf</span>
+          </div>
+          <div class="dflowarrow">↓&nbsp;&nbsp;Bandmate reads them</div>
+          <div class="dresult">
+            <div class="drh">TOUR, DRAFTED</div>
+            <div class="drb">Your run, built from your own paperwork.</div>
+            <div class="drc"><span>42 shows</span><span>schedules</span><span>travel</span><span>hotels</span><span>contacts</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- 06 · APP -->
   <section class="slide" data-label="The app">
     <div class="two">
@@ -310,6 +358,28 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     <p class="lead reveal">Doors moved? Bus call slipped? Update it in one place — no blast text, no “did everyone get the memo?” Everyone just <b>knows.</b></p>
   </section>
 
+  <!-- 08b · PUSH + MESSAGING -->
+  <section class="slide" data-label="Push & chat">
+    <div class="two">
+      <div class="reveal" style="order:2">
+        <div class="phone">
+          <div class="ph-top"><span>9:41</span><span>5G ▰▰▰</span></div>
+          <div class="ph-push"><b>BANDMATE · NOW</b>Doors moved to 8:00 — soundcheck pushed to 6:30.</div>
+          <div class="chatwrap">
+            <div class="cbub them"><b>MAYA · TM</b>Bus call is 30 after load-out tonight</div>
+            <div class="cbub me">Copy — telling the band now</div>
+            <div class="cbub them"><b>DEV · FOH</b>👍 see you at the dock</div>
+          </div>
+        </div>
+      </div>
+      <div style="order:1">
+        <div class="eyebrow reveal">Nobody misses it</div>
+        <h2 class="display reveal" style="font-size:clamp(40px,6vw,82px)">Everyone gets<br>the word.</h2>
+        <p class="lead reveal">Push a change and it <b>pings every band and crew phone</b> — load-in moved, lobby call, bus leaving. And when you need to talk, <b>in-app messaging</b> keeps the whole tour in one thread instead of a hundred lost texts.</p>
+      </div>
+    </div>
+  </section>
+
   <!-- 09 · CREW FREE -->
   <section class="slide" data-label="Crew free">
     <div class="eyebrow reveal">Bring the whole crew</div>
@@ -329,7 +399,7 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     <div class="eyebrow reveal">Easy to start</div>
     <h2 class="display reveal">Switch in<br>an afternoon.</h2>
     <ul class="bul reveal">
-      <li>Coming from spreadsheets or other touring applications? <b>The import wizard + Travel Assistant</b> get you running fast.</li>
+      <li>Coming from spreadsheets or other touring applications? <b>Hand over your tour docs</b> — the import wizard + Travel Assistant build the run for you.</li>
       <li><b>Your data stays yours</b> <span class="mut">— export anytime, no lock-in.</span></li>
       <li>Works on the web and as <b>native iOS &amp; Android apps.</b></li>
     </ul>
@@ -378,6 +448,7 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
   var cnum = document.getElementById('cnum');
   var rail = document.getElementById('rail');
   var pad = function(n){ return (n<10?'0':'')+n; };
+  var ctot = document.getElementById('ctot'); if (ctot) ctot.textContent = pad(slides.length);
 
   slides.forEach(function(s, i){
     var b = document.createElement('button');
