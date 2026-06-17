@@ -33,6 +33,14 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     var(--ink);}
 .bg::after{content:"";position:absolute;inset:0;mix-blend-mode:overlay;opacity:.5;
   background:repeating-linear-gradient(0deg,rgba(232,148,58,.03) 0 1px,transparent 1px 4px);}
+/* Twinkling dots — 3 sparse, offset dot-fields each fading in/out on its own
+   clock, so scattered points shimmer across the whole fixed background at any
+   screen size. Pure CSS (no images/JS); freezes under reduced-motion. */
+.twk{position:fixed;inset:0;z-index:0;pointer-events:none;will-change:opacity}
+.twk1{background:radial-gradient(circle,rgba(255,179,90,.70) .6px,rgba(255,179,90,.22) 1.6px,transparent 2.8px) 10px 22px/128px 110px;animation:twinkle 3.4s ease-in-out infinite}
+.twk2{background:radial-gradient(circle,rgba(255,179,90,.60) .6px,rgba(255,179,90,.20) 1.6px,transparent 2.8px) 64px 74px/150px 132px;animation:twinkle 4.3s ease-in-out infinite;animation-delay:1.3s}
+.twk3{background:radial-gradient(circle,rgba(232,148,58,.60) .7px,rgba(232,148,58,.20) 1.7px,transparent 3px) 104px 40px/182px 148px;animation:twinkle 5.1s ease-in-out infinite;animation-delay:2.5s}
+@keyframes twinkle{0%,100%{opacity:.07}50%{opacity:.92}}
 
 .topbar{position:fixed;top:0;left:0;right:0;z-index:30;display:flex;justify-content:space-between;align-items:center;
   padding:20px clamp(20px,5vw,54px);pointer-events:none}
@@ -213,11 +221,13 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 @media (prefers-reduced-motion:reduce){
   .cover .cmark,.cover .mark,.close .mark{animation:none}.scrollhint{animation:none}.deck{scroll-behavior:auto}
   .reveal{transition:none;opacity:1;transform:none}
+  .twk{animation:none;opacity:.3}
 }
 </style>
 </head>
 <body>
 <div class="bg"></div>
+<div class="twk twk1"></div><div class="twk twk2"></div><div class="twk twk3"></div>
 
 <div class="topbar">
   <img src="/logo.png" alt="Bandmate" />
