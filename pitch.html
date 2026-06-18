@@ -56,6 +56,9 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
   padding:96px clamp(22px,7vw,120px) 90px;position:relative}
 
 .eyebrow{font-family:'JetBrains Mono',monospace;font-size:clamp(11px,1.3vw,13px);font-weight:700;letter-spacing:.34em;text-transform:uppercase;color:var(--hi);margin-bottom:20px}
+/* Typewriter caret — blinks at the end of an eyebrow while it types / sits active */
+.tw-caret{display:inline-block;width:2px;height:1em;background:currentColor;margin-left:4px;vertical-align:-0.1em;animation:tw-blink .7s step-end infinite}
+@keyframes tw-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
 .display{font-family:'Bebas Neue','Inter',sans-serif;font-weight:400;line-height:.92;letter-spacing:.01em;color:var(--warm);font-size:clamp(46px,8.2vw,110px)}
 .display .amb{color:var(--hi)}
 .lead{font-size:clamp(16px,2.1vw,21px);line-height:1.6;color:var(--warm);max-width:780px;margin-top:24px;font-weight:400}
@@ -467,6 +470,34 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
   });
   var dots = Array.prototype.slice.call(rail.children);
 
+  // Typewriter: type an eyebrow out left-to-right with a blinking caret.
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function typewrite(el){
+    if (el._twText == null) el._twText = el.textContent;
+    var text = el._twText;
+    if (reduceMotion){ el.textContent = text; return; }
+    if (el._twTimer){ clearInterval(el._twTimer); el._twTimer = null; }
+    el.textContent = '';
+    var caret = document.createElement('span');
+    caret.className = 'tw-caret';
+    el.appendChild(caret);
+    var i = 0;
+    el._twTimer = setInterval(function(){
+      if (i < text.length){ caret.insertAdjacentText('beforebegin', text.charAt(i)); i++; }
+      else { clearInterval(el._twTimer); el._twTimer = null; }
+    }, 28);
+  }
+  // Type EVERY copper-mono header in a slide (eyebrow + section/card labels),
+  // staggered top-to-bottom so multi-label slides cascade like a console booting.
+  function typeHeaders(slide){
+    if (slide._twT) slide._twT.forEach(clearTimeout);
+    slide._twT = [];
+    Array.prototype.slice.call(slide.querySelectorAll('.eyebrow, .tlab, .pn, .fh, .pt'))
+      .forEach(function(el, idx){
+        slide._twT.push(setTimeout(function(){ typewrite(el); }, idx * 80));
+      });
+  }
+
   var io = new IntersectionObserver(function(entries){
     entries.forEach(function(e){
       if (e.isIntersecting){
@@ -474,6 +505,7 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
         var i = slides.indexOf(e.target);
         cnum.textContent = pad(i+1);
         dots.forEach(function(d,di){ d.classList.toggle('on', di===i); });
+        typeHeaders(e.target);
       }
     });
   }, { threshold: 0.55 });
