@@ -75,6 +75,13 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 .cta:hover{transform:translateY(-2px);box-shadow:0 0 38px rgba(232,148,58,.45)}
 .cta.ghost{background:transparent;color:var(--hi);border:1px solid var(--hi-2);box-shadow:none;font-weight:700}
 .cta.ghost:hover{border-color:var(--hi);background:rgba(232,148,58,.06)}
+/* Cover "Continue" — underlined text link (option C): minimal, no box. */
+.cta-link{display:inline-flex;align-items:center;gap:9px;margin-top:28px;padding:6px 1px 9px;background:none;border:none;cursor:pointer;
+  color:var(--hi-bright);font-family:'Inter',sans-serif;font-weight:700;font-size:clamp(16px,2.1vw,18px);letter-spacing:.01em;position:relative}
+.cta-link::after{content:"";position:absolute;left:0;bottom:2px;height:2px;width:100%;background:var(--hi-2);transition:background .25s,box-shadow .25s}
+.cta-link:hover::after{background:var(--hi);box-shadow:0 0 10px rgba(232,148,58,.6)}
+.cta-link .ar{transition:transform .2s}
+.cta-link:hover .ar{transform:translateX(5px)}
 
 .reveal{opacity:0;transform:translateY(20px);transition:opacity .7s ease,transform .7s ease}
 .slide.in .reveal{opacity:1;transform:none}
@@ -253,7 +260,7 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     <img class="word reveal" src="/logo.png" alt="Bandmate" />
     <h1 class="tag reveal display">Run your tour from one place.</h1>
     <p class="sub reveal">The road book your whole crew actually opens.</p>
-    <button type="button" class="cta reveal" onclick="document.querySelectorAll('.slide')[1].scrollIntoView({behavior:'smooth'})">Continue →</button>
+    <button type="button" class="cta-link reveal" onclick="document.querySelectorAll('.slide')[1].scrollIntoView({behavior:'smooth'})">Continue <span class="ar">→</span></button>
     <div class="meta"><span>For Tour Managers</span><span><b>bandmate.art</b></span></div>
     <div class="scrollhint">SCROLL ↓</div>
   </section>
