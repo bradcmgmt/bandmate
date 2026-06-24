@@ -5078,6 +5078,11 @@ const dbMap = {
 
 const _UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const _isUuid = id => typeof id === 'string' && _UUID_RE.test(id);
+// Tombstones — ids of tours the user EXPLICITLY deleted (only deleteCurrentTour
+// writes here). Every re-creation path (boot orphan-promotion, upsert, promote,
+// realtime) checks this so a deleted tour can never be re-uploaded. This is the
+// fix for "deleted tours keep coming back."
+const _isTombstoned = (id) => !!(id && state && Array.isArray(state.deletedTourIds) && state.deletedTourIds.includes(id));
 
 const db = {
   _err(op, error) {
@@ -5096,6 +5101,7 @@ const db = {
   },
   async upsertTour(tour) {
     if (!sb || !state?.currentUserId) return;
+    if (_isTombstoned(tour && tour.id)) { console.warn('[db] skip upsertTour — tombstoned (deleted) tour:', tour && tour.id); return; }
     // Leftover local-only tour from the prototype era — id isn't a UUID, so
     // Postgres will reject it. Skip silently; this tour lives in localStorage
     // until the user re-creates it (or until promoteTourToCloud runs).
@@ -5116,6 +5122,7 @@ const db = {
   // Returns the new UUID on success, null on failure.
   async promoteTourToCloud(localTourId) {
     if (!sb) return null;
+    if (_isTombstoned(localTourId)) { console.warn('[db] skip promoteTourToCloud — tombstoned (deleted) tour:', localTourId); return null; }
     if (_isUuid(localTourId)) {
       console.warn('[db.promoteTourToCloud] already a UUID, nothing to do:', localTourId);
       return localTourId;
@@ -5284,6 +5291,7 @@ const db = {
     }
     const tour = state.tours[state.currentTourId];
     if (!tour || tour.id === '_empty' || !_isUuid(tour.id)) return;
+    if (_isTombstoned(tour.id)) return; // never sync a deleted tour back up
     // Require a live Supabase session AND matching ownership — both client-
     // and server-side. Without a session, auth.uid() is null in the DB and
     // every upsert is rejected by RLS. Without local ownership match, the
@@ -5583,6 +5591,10 @@ _onTourChange(payload) {
       return;
     }
     if (!row || !row.id) return;
+    // A tour the user deleted must never reappear via a realtime echo (e.g. a
+    // stale device re-promoted it). Ignore the row locally; hydrate re-issues
+    // the cloud delete to clean it up.
+    if (_isTombstoned(row.id)) return;
     // ── Guard against TRUNCATED realtime payloads ──────────────────────────
     // Supabase Realtime drops a row's non-key columns when the record exceeds
     // its payload size limit, delivering only the primary key with everything
@@ -6260,6 +6272,10 @@ _onTourChange(payload) {
         // skipped for some structural reason — either way, never delete.
       });
       tourRows.forEach(row => {
+        // A deleted tour that resurrected in the cloud (re-promoted by stale
+        // state before this fix). Don't re-add it locally; re-issue the cloud
+        // delete so it's gone for good.
+        if (_isTombstoned(row.id)) { try { this.deleteTour(row.id); } catch (e) {} return; }
         const dates = (datesByTour[row.id] || []).map(d => {
           // Legacy: keep an empty date.attachments array for back-compat
           // with any code that still reads it. New code reads tour.attachments.
@@ -6273,6 +6289,9 @@ _onTourChange(payload) {
         // after load only pushes the row that changed, not the whole tour.
         this.seedSyncShadow(tour);
       });
+      // Belt-and-suspenders: drop any tombstoned (deleted) tour still lingering
+      // in local state so it never shows in the switcher or gets re-promoted.
+      Object.keys(state.tours).forEach(tid => { if (_isTombstoned(tid)) delete state.tours[tid]; });
       // Pick a current tour if none set, or if current is gone
       if (!state.currentTourId || !state.tours[state.currentTourId]) {
         state.currentTourId = tourRows[0]?.id || state.currentTourId;
@@ -6285,7 +6304,7 @@ _onTourChange(payload) {
       // the UI isn't blocked.
       const orphans = Object.keys(state.tours).filter(tid => {
         const t = state.tours[tid];
-        return t && t.ownerId === userId && !cloudTourIds.has(tid);
+        return t && t.ownerId === userId && !cloudTourIds.has(tid) && !_isTombstoned(tid);
       });
       if (orphans.length) {
         console.log(`[hydrateUserData] ${orphans.length} unsynced local tour(s) — queueing for promotion`);
@@ -6345,6 +6364,7 @@ function newEmptyState() {
     currentUserId: null,
     ui: {},
     onboarded: false,
+    deletedTourIds: [],
   };
 }
 function newDefaultTM() {
@@ -22249,6 +22269,11 @@ function deleteCurrentTour() {
     danger: true,
     onConfirm: () => {
       const _deletedId = t.id;
+      // Tombstone it FIRST so no boot/sync/realtime path can ever re-create it
+      // (the "deleted tours keep coming back" fix). Only real UUIDs need a cloud
+      // delete; local-only ids just need to be remembered as deleted.
+      if (!Array.isArray(state.deletedTourIds)) state.deletedTourIds = [];
+      if (!state.deletedTourIds.includes(_deletedId)) state.deletedTourIds.push(_deletedId);
       delete state.tours[_deletedId];
       state.currentTourId = others[0].id;
       saveState();
