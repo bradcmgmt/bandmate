@@ -6276,12 +6276,24 @@ _onTourChange(payload) {
       // cloud row re-deleted). Degrades gracefully if the table doesn't exist.
       try {
         const cloudTomb = await this.fetchDeletedTourIds();
+        const cloudSet = new Set(cloudTomb);
+        const localTomb = Array.isArray(state.deletedTourIds) ? state.deletedTourIds : [];
+        // Merge cloud → local (honor deletes from other devices)…
         if (cloudTomb.length) {
-          const tset = new Set(Array.isArray(state.deletedTourIds) ? state.deletedTourIds : []);
+          const tset = new Set(localTomb);
           cloudTomb.forEach(id => tset.add(id));
           state.deletedTourIds = Array.from(tset);
         }
-      } catch (e) { console.warn('[hydrate] deleted_tours merge', e); }
+        // …and push local-only tombstones UP so this device's past deletions
+        // (e.g. an earlier local cleanup) become global and every other device
+        // honors them too. Idempotent upsert; self-heals the multi-device gap.
+        const toPush = localTomb.filter(id => id && !cloudSet.has(id));
+        if (toPush.length) {
+          sb.from('deleted_tours')
+            .upsert(toPush.map(id => ({ tour_id: String(id), owner_id: userId })), { onConflict: 'tour_id' })
+            .then(() => {}, e => console.warn('[hydrate] push local tombstones', e));
+        }
+      } catch (e) { console.warn('[hydrate] deleted_tours sync', e); }
       // SAFE MERGE — never delete a local tour unless cloud has the same
       // row to replace it with. The previous logic blindly wiped every
       // local tour owned by this user before re-populating from cloud,
