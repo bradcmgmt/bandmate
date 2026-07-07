@@ -19474,7 +19474,8 @@ function renderManagersCard() {
       ${isOwner ? `<button type="button" class="tb-btn" style="color:var(--red);border-color:rgba(232,69,69,.35)" onclick="revokeCoManager('${esc(m.userId || '')}','${esc((m.name || 'this manager').replace(/['\\]/g,''))}')">Revoke</button>` : ''}
     </div>`).join('');
   const hint = isOwner
-    ? `<div style="font-size:11px;color:var(--warm-mute);margin-top:8px">Add a co-manager from <b>Crew Roster</b> — enter a Tour Manager's email and tick "co-manager". They can edit everything but can't delete the tour or change who manages it.</div>`
+    ? `<button type="button" onclick="openCoManagerModal()" style="margin-top:10px;width:100%;padding:9px 12px;border:1px solid rgba(138,169,216,.5);background:rgba(138,169,216,.1);color:#b1c8ee;border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">+ Add co-manager</button>
+       <div style="font-size:10.5px;color:var(--warm-mute);margin-top:8px;line-height:1.5">A co-manager can edit everything on the tour but can't delete it or change who manages it. They must already have their own Tour Manager account.</div>`
     : '';
   return `
     <div style="border:1px solid var(--line-2);border-radius:10px;padding:12px 14px;margin-bottom:14px;background:rgba(138,169,216,.04)">
@@ -19495,6 +19496,91 @@ function revokeCoManager(userId, name) {
       catch (e) { try { renderAll(); } catch (_) {} }
     })
     .catch(() => toast('Could not remove co-manager', 'error'));
+}
+
+// ── Add co-manager · dedicated flow ───────────────────────────────────
+// A focused modal reachable from the "+ Add co-manager" button on the Managers
+// card. Replaces the old hidden toggle buried in the Add-Crew form (which only
+// appeared if you happened to type a registered TM's email). Validates the
+// email live via comanager_lookup, then grants edit access via grant_co_manager
+// on submit. Reuses the same shared _comgrCache as the crew-form path.
+let _cmgrLookupTimer = null;
+function openCoManagerModal() {
+  const tour = T();
+  const u = U();
+  if (!u || tour.ownerId !== u.id) { toast('Only the tour owner can add co-managers', 'error'); return; }
+  if (!sb) { toast('Cloud service not available — sign in to add co-managers', 'error'); return; }
+  openModal({
+    title: 'Add co-manager',
+    body: `
+      <div style="font-size:12.5px;line-height:1.6;color:var(--warm-mute);margin-bottom:14px">
+        A co-manager helps you run this tour from their own dashboard. They can
+        <b style="color:var(--warm)">edit everything</b> — schedule, travel, hotels, guests, settlements, crew — but
+        <b style="color:var(--warm)">can't delete the tour or change who manages it</b>.
+        They must already have their own <b style="color:#b1c8ee">Tour Manager account</b> (they use their own subscription).
+      </div>
+      <div class="field full">
+        <label>Tour Manager's email *</label>
+        <input id="cmgr_email" type="email" autocomplete="off" placeholder="manager@email.com" oninput="_coManagerLookup()" onblur="_coManagerLookup()">
+      </div>
+      <div id="cmgr_status" style="margin-top:6px;min-height:18px"></div>
+    `,
+    submitLabel: 'Add co-manager',
+    onSubmit: () => {
+      const email = (document.getElementById('cmgr_email')?.value || '').trim().toLowerCase();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('Enter a valid email', 'error'); return false; }
+      if (u.email && email === String(u.email).trim().toLowerCase()) { toast('You already own this tour', 'error'); return false; }
+      const cached = _comgrCache[email];
+      if (cached && cached.found && !cached.isManager) {
+        toast("That account isn't a Tour Manager — they need their own TM account first", 'error'); return false;
+      }
+      if (cached && cached.found === false) {
+        toast('No Tour Manager account found for that email yet', 'error'); return false;
+      }
+      sb.rpc('grant_co_manager', { p_tour_id: tour.id, p_email: email })
+        .then(({ data: r, error }) => {
+          if (error) { toast(error.message || 'Could not add co-manager', 'error'); return; }
+          toast(`${(r && r.name) || email} is now a co-manager`, 'good');
+          try { db.hydrateUserData(state.currentUserId).then(() => { try { renderAll(); } catch (e) {} }); }
+          catch (e) { try { renderAll(); } catch (_) {} }
+        })
+        .catch(() => toast('Could not add co-manager', 'error'));
+      return true;  // grant is async — close the modal now
+    }
+  });
+}
+
+// Live email validation inside the Add-co-manager modal.
+function _coManagerLookup() {
+  const input = document.getElementById('cmgr_email');
+  const slot = document.getElementById('cmgr_status');
+  if (!input || !slot) return;
+  const email = (input.value || '').trim().toLowerCase();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { slot.innerHTML = ''; return; }
+  const paint = (data) => {
+    const cur = (document.getElementById('cmgr_email')?.value || '').trim().toLowerCase();
+    if (cur !== email) return;  // field changed while we waited — ignore stale result
+    if (!data || data.found === false) {
+      slot.innerHTML = `<div style="font-size:11.5px;color:var(--warm-mute)">No account found for that email yet — they'll need to sign up as a Tour Manager first.</div>`;
+    } else if (data.found && !data.isManager) {
+      slot.innerHTML = `<div style="font-size:11.5px;color:#f0a35e">That account exists but isn't a Tour Manager. Co-managers need their own TM account.</div>`;
+    } else {
+      slot.innerHTML = `<div style="font-size:11.5px;color:#7fd18a">&#10003; <b>${esc(data.name || email)}</b> has a Tour Manager account — ready to add.</div>`;
+    }
+  };
+  const cached = _comgrCache[email];
+  if (cached !== undefined && cached !== null) { paint(cached); return; }
+  slot.innerHTML = `<div style="font-size:11.5px;color:var(--warm-mute)">Checking…</div>`;
+  clearTimeout(_cmgrLookupTimer);
+  _cmgrLookupTimer = setTimeout(() => {
+    if (!sb) { slot.innerHTML = ''; return; }
+    sb.rpc('comanager_lookup', { p_email: email })
+      .then(({ data, error }) => {
+        _comgrCache[email] = (error || !data) ? { found: false } : data;
+        paint(_comgrCache[email]);
+      })
+      .catch(() => { _comgrCache[email] = { found: false }; paint({ found: false }); });
+  }, 300);
 }
 
 function renderCrewProfiles() {
@@ -28286,7 +28372,7 @@ Object.assign(window, {
   openTaskModal, openTagModal, toggleTask,
   setActive, closeModal, _modalSubmit, goToTab,
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
-  setCrewView, revokeCoManager, openManageGroupsModal, addGroup, renameGroup, deleteGroup, toggleGroupPick, toggleGroupExpand, toggleCrewInGroup, setAllInGroup,
+  setCrewView, revokeCoManager, openCoManagerModal, _coManagerLookup, openManageGroupsModal, addGroup, renameGroup, deleteGroup, toggleGroupPick, toggleGroupExpand, toggleCrewInGroup, setAllInGroup,
   approveGuest, denyGuest, approveAllPending, denyAllPending, openGuestModalForViewer, deleteGuestRequest,
   _phoneShowTravel, _phoneShowDayTravel, _phoneShowSetList,
   printStageCopy, closeStagePrint, printGuestList, exportGuestListCSV, exportGuestListPDF,
