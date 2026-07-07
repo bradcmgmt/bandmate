@@ -5215,6 +5215,27 @@ const db = {
     const { error } = await sb.from('tours').delete().eq('id', tourId);
     if (error) this._err('deleteTour', error);
   },
+  // Cloud tombstone — record that this tour was deleted so EVERY device honors
+  // it (not just the one it was deleted on). Idempotent; owner-scoped by RLS.
+  // Safe to call before patch-031 exists — errors are swallowed.
+  async tombstoneTour(tourId) {
+    if (!sb || !state?.currentUserId || !tourId) return;
+    try {
+      await sb.from('deleted_tours')
+        .upsert({ tour_id: String(tourId), owner_id: state.currentUserId }, { onConflict: 'tour_id' });
+    } catch (e) { console.warn('[db.tombstoneTour]', e); }
+  },
+  // Every tour id this user has deleted on ANY device. Merged into the local
+  // tombstone list at hydrate so deletions are global. Empty on any error
+  // (e.g. table not created yet) so the app degrades gracefully.
+  async fetchDeletedTourIds() {
+    if (!sb) return [];
+    try {
+      const { data, error } = await sb.from('deleted_tours').select('tour_id');
+      if (error) { console.warn('[db.fetchDeletedTourIds]', error.message); return []; }
+      return (data || []).map(r => r.tour_id).filter(Boolean);
+    } catch (e) { console.warn('[db.fetchDeletedTourIds]', e); return []; }
+  },
   async upsertDate(tourId, d, position) {
     if (!sb) return;
     if (!_isUuid(tourId) || !_isUuid(d.id)) { console.warn('[db] skip upsertDate (non-UUID id):', tourId, d.id); return; }
@@ -6249,6 +6270,18 @@ _onTourChange(payload) {
       });
 
       if (!state) state = newEmptyState();
+      // GLOBAL tombstones: merge tours deleted on ANY device into the local
+      // tombstone set BEFORE the merge/promotion below reads it — so a delete
+      // made anywhere is honored here (dropped from local, never re-promoted,
+      // cloud row re-deleted). Degrades gracefully if the table doesn't exist.
+      try {
+        const cloudTomb = await this.fetchDeletedTourIds();
+        if (cloudTomb.length) {
+          const tset = new Set(Array.isArray(state.deletedTourIds) ? state.deletedTourIds : []);
+          cloudTomb.forEach(id => tset.add(id));
+          state.deletedTourIds = Array.from(tset);
+        }
+      } catch (e) { console.warn('[hydrate] deleted_tours merge', e); }
       // SAFE MERGE — never delete a local tour unless cloud has the same
       // row to replace it with. The previous logic blindly wiped every
       // local tour owned by this user before re-populating from cloud,
@@ -22278,6 +22311,7 @@ function deleteCurrentTour() {
       state.currentTourId = others[0].id;
       saveState();
       db.deleteTour(_deletedId);
+      db.tombstoneTour(_deletedId); // cloud tombstone → every device honors it
       renderAll();
       toast('Tour deleted');
     }
