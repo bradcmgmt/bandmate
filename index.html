@@ -15299,20 +15299,42 @@ function renderTags() {
    ===================================================================== */
 function renderViewerSelect() {
   const sel = $('#whoSelect');
-  const opts = [
-    `<option value="tm">Tour Manager · full view</option>`,
-    ...T().crew.map(c => `<option value="${c.id}">${esc(c.name)} — ${esc(c.role)}</option>`)
-  ];
+  const crew = T().crew || [];
+  const comanagers = crew.filter(c => c.isManager);
+  const members = crew.filter(c => !c.isManager);
+  const tmOpt = `<option value="tm">Tour Manager · full view</option>`;
+  let opts;
+  if (comanagers.length) {
+    // With co-managers present, group the list so it's clear who has FULL
+    // access (managers) vs a group-filtered crew view. Co-managers already
+    // render a correct full-access preview (their crew record carries the
+    // Mgmt group) — this just makes the hierarchy legible instead of blending
+    // them into the flat crew list.
+    opts = [
+      tmOpt,
+      `<optgroup label="Co-managers · full access">`,
+      ...comanagers.map(c => `<option value="${c.id}">${esc(c.name)} · co-manager</option>`),
+      `</optgroup>`,
+      `<optgroup label="Crew">`,
+      ...members.map(c => `<option value="${c.id}">${esc(c.name)} — ${esc(c.role)}</option>`),
+      `</optgroup>`
+    ];
+  } else {
+    // No co-managers — keep the simple flat list.
+    opts = [tmOpt, ...members.map(c => `<option value="${c.id}">${esc(c.name)} — ${esc(c.role)}</option>`)];
+  }
   sel.innerHTML = opts.join('');
-  if (!T().crew.find(c => c.id === viewerKey)) viewerKey = 'tm';
+  if (!crew.find(c => c.id === viewerKey)) viewerKey = 'tm';
   sel.value = viewerKey;
   sel.onchange = e => { viewerKey = e.target.value; saveUIPrefs(); renderPhone(); };
-  // Reflect whatever's selected in the dropdown above — show the actual name
-  // of the crew member (or "Tour Manager") rather than a generic role label.
+  // Reflect whatever's selected — a co-manager gets a FULL ACCESS tag so it's
+  // unmistakable they see everything the TM does; crew show their role. The
+  // 'tm' key maps to a synthesized {name:'Tour Manager', role:'Tour Manager'}
+  // object, so special-case it to avoid a doubled "Tour Manager — Tour Manager".
   const v = getCrewById(viewerKey);
-  const label = v
-    ? `${v.name}${v.role ? ' — ' + v.role : ''}`
-    : 'Tour Manager';
+  const label = (viewerKey === 'tm' || !v)
+    ? 'Tour Manager'
+    : (v.isManager ? `${v.name} · co-manager (full access)` : `${v.name}${v.role ? ' — ' + v.role : ''}`);
   $('#roleTag').textContent = `VIEWING AS ${label.toUpperCase()}`;
 }
 
