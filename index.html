@@ -18040,7 +18040,149 @@ function _parseGenericMemoBlock(block) {
   return out;
 }
 
+// ════════════════════════════════════════════════════════════════════
+// ITINERARY-GRID PARSER  (UTA / Prism / Master Tour "itinerary" exports)
+//
+// Agencies also send a whole run as a single multi-show ITINERARY — a
+// table with columns Date | Venue | Event Contacts | Event Info |
+// Ticketing, one row per show. This is NOT a deal memo: there are no
+// VENUE:/BUYER:/DEAL TERMS:/CAPACITY: labels, so all the memo parsers
+// miss it. Worse, the Wasserman parser false-matches the first row and
+// staples its venue onto the "Created On:" export date — so a 5-show
+// run imported as ONE mis-dated show. (Reported by a TM.)
+//
+// PDF.js lays each show out as a vertical block led by a date line like
+// "Tue. 07/21/26" (day-abbrev + M/D/YY), then a fixed preamble
+// (Billing: / Announce Date: / On Sale Date:), then the venue name,
+// street, "City, ST ZIP", phone, contacts, Doors/Show times, and
+// "Sellable Capacity: N". We split on the date lines and pull each
+// show's fields. Returns [] when the text isn't an itinerary grid so
+// the normal deal-memo chain runs unchanged.
+function _extractItineraryGridBlocks(text) {
+  if (!text) return [];
+  const lines = text.split(/\n+/).map(l => l.trim()).filter(Boolean);
+  // A show row starts with "Tue. 07/21/26" — day-abbrev + M/D/YY(YY).
+  const dateRe = /^(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?\s+(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/i;
+  const hasGridHeader = /Date\s+Venue\s+Event\s+Contacts\s+Event\s+Info\s+Ticketing/i.test(text);
+  const dateIdx = [];
+  lines.forEach((l, i) => { if (dateRe.test(l)) dateIdx.push(i); });
+  // Gate: only treat as an itinerary grid when we're confident — either the
+  // column header is present, or there are ≥2 of these slash-dated rows
+  // (a real deal memo has neither). Otherwise bail to the memo chain.
+  if (!hasGridHeader && dateIdx.length < 2) return [];
+  if (!dateIdx.length) return [];
+
+  const toISO = (mm, dd, yy) => {
+    let y = parseInt(yy, 10); if (y < 100) y += 2000;
+    const m = parseInt(mm, 10), d = parseInt(dd, 10);
+    if (m < 1 || m > 12 || d < 1 || d > 31) return '';
+    return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  };
+  const cityStateRe = /^(.+?),\s*([A-Z]{2})\b(?:\s+\d{5}(?:-\d{4})?)?/;   // "Seattle, WA 98122"
+  const streetRe = /^\d+\s+\S/;                                          // "925 E Pike St"
+  const timeRe = '(\\d{1,2}:\\d{2}\\s*[ap]\\.?m\\.?)';
+  const grabTime = (label, block) => {
+    const m = block.match(new RegExp('\\b' + label + '\\s+' + timeRe, 'i'));
+    return m ? m[1].replace(/\s+/g, '').toLowerCase() : '';
+  };
+
+  const blocks = [];
+  for (let k = 0; k < dateIdx.length; k++) {
+    const start = dateIdx[k];
+    const stop = (k + 1 < dateIdx.length) ? dateIdx[k + 1] : lines.length;
+    const bl = lines.slice(start, stop);
+    const btext = bl.join('\n');
+    const dm = bl[0].match(dateRe);
+    const date = dm ? toISO(dm[1], dm[2], dm[3]) : '';
+
+    // Venue name + city/state: the venue block runs from just after the
+    // "On Sale Date:" value up to the first street / city-state line.
+    let venue = '', city = '', state = '';
+    const osIdx = bl.findIndex(l => /^On Sale Date:/i.test(l));
+    if (osIdx !== -1) {
+      const venueLines = [];
+      for (let j = osIdx + 1; j < bl.length; j++) {
+        const l = bl[j];
+        if (/^-+$/.test(l) || dateRe.test(l)) continue;          // skip the "--" value
+        if (streetRe.test(l) || cityStateRe.test(l)) break;      // hit the address → venue done
+        if (/^(Purchaser Company|Production|Marketing|Contracts|Ticket Counts|Purchaser|Accounting|Doors|Show|Ages|Merchandising|Billing:|Announce Date:)/i.test(l)) break;
+        venueLines.push(l);
+        if (venueLines.length >= 3) break;                        // safety cap
+      }
+      venue = venueLines.join(' ').trim();
+    }
+    // First "City, ST [ZIP]" line in the block = the venue's city (it appears
+    // before the purchaser's address).
+    for (const l of bl) {
+      const cm = l.match(cityStateRe);
+      if (cm) { city = cm[1].trim(); state = cm[2]; break; }
+    }
+    // Promoter = the line after "Purchaser Company".
+    let promoter = '';
+    const pcIdx = bl.findIndex(l => /^Purchaser Company\b/i.test(l));
+    if (pcIdx !== -1 && bl[pcIdx + 1]) promoter = bl[pcIdx + 1].trim();
+
+    const capM = btext.match(/Sellable Capacity:\s*([\d,]+)/i);
+    let capacity = capM ? capM[1].replace(/,/g, '') : '';
+    if (capacity === '0') capacity = '';                          // festival rows show 0 — treat as unknown
+
+    const doors = grabTime('Doors', btext);
+    const setTime = grabTime('Show', btext);
+    const curfew = grabTime('Curfew', btext);
+
+    // Only keep rows that actually look like a show (guards against a stray
+    // date line in some other document type sneaking through the gate).
+    if (date && (venue || city)) {
+      blocks.push({ date, venue, city, state, capacity, doors, setTime, curfew, promoter });
+    }
+  }
+  return blocks;
+}
+
 function processTextDoc(text, file, result) {
+  // Itinerary grids (UTA / Prism / Master Tour multi-show exports) come
+  // FIRST — they'd otherwise false-match the Wasserman deal-memo parser and
+  // collapse a whole run into one mis-dated show. Tightly gated so real
+  // deal memos fall straight through to the chain below.
+  const itinBlocks = _extractItineraryGridBlocks(text);
+  if (itinBlocks && itinBlocks.length >= 1) {
+    itinBlocks.forEach(b => {
+      result.extracted.dates.push({
+        date: b.date || '',
+        city: b.city || '',
+        state: b.state || '',
+        country: '',
+        venue: b.venue || '',
+        capacity: b.capacity || '',
+        doors: b.doors || '',
+        setTime: b.setTime || '',
+        curfew: b.curfew || '',
+        promoter: b.promoter || '',
+        guarantee: 0,
+        status: 'show',
+        notes: 'Itinerary · ' + file.name,
+        _source: file.name,
+      });
+    });
+    result.notes.push(`Itinerary · ${itinBlocks.length} show${itinBlocks.length===1?'':'s'} extracted`);
+    // Contacts: itineraries carry role-labelled contacts per show. Run the
+    // structured extractor over the whole doc, then sweep leftover emails.
+    const itinClaimed = new Set();
+    let itinStructured = 0;
+    try {
+      const structured = _extractStructuredContacts(text, { fileName: file.name });
+      structured.forEach(c => itinClaimed.add(c.email.toLowerCase()));
+      result.extracted.contacts.push(...structured);
+      itinStructured = structured.length;
+    } catch (e) { /* structured pass is best-effort */ }
+    const itinLeftover = _extractRemainingEmails(text, { fileName: file.name }, itinClaimed).slice(0, 30);
+    result.extracted.contacts.push(...itinLeftover);
+    if (itinStructured) result.notes.push(`Contacts · ${itinStructured} role-tagged, ${itinLeftover.length} additional`);
+    else if (itinLeftover.length) result.notes.push(`Contacts · ${itinLeftover.length} emails extracted`);
+    _extractTravelAndHotelsInto(text, result);
+    return;
+  }
+
   // First try the deal-memo path. Touring agents either bundle ALL memos
   // for a tour into one fat PDF, or send each show as its own file — many
   // TMs end up uploading 30+ individual PDFs in one session. We use the
