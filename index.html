@@ -13159,13 +13159,14 @@ function renderDayNotes() {
           <button type="button" class="dn-swatch" style="background:#f5d76e" title="Yellow" onclick="_dnExec('foreColor','#f5d76e')"></button>
         </div>
         <span class="dn-sep"></span>
-        <button type="button" class="dn-btn dn-clear" title="Clear formatting" onclick="_dnExec('removeFormat')">⌫ Clear</button>
+        <button type="button" class="dn-btn dn-clear" title="Clear formatting (removes highlights/colors)" onclick="_dnClearFormatting()">⌫ Clear</button>
         <span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;color:var(--warm-mute);text-transform:uppercase">${isTMOwner ? 'Editable · auto-saves' : 'Read-only'}</span>
       </div>
       <div id="dn_editor" class="day-notes-editor"
            contenteditable="${isTMOwner ? 'true' : 'false'}"
            data-placeholder="Add anything important for this day — call sheets, advance notes, crew reminders, anything the day sheet doesn't cover. Use the toolbar above for bold, bullets, color, etc."
            oninput="_dnPersist()"
+           onpaste="_dnPaste(event)"
            onblur="_dnPersist(true)">${ad.dayNotes || ''}</div>
     </div>
   `;
@@ -13208,6 +13209,90 @@ function _dayNotesStats(html) {
   if (!stripped) return { label: 'EMPTY' };
   const words = stripped.split(/\s+/).filter(Boolean).length;
   return { label: `${words} ${words === 1 ? 'WORD' : 'WORDS'}` };
+}
+
+// ── Paste sanitizer ────────────────────────────────────────────────────
+// Pasting Day Notes from an email (Gmail/Outlook) drags in the email's
+// exact styling — background fills, highlight spans, fonts, colors — which
+// then bleed onto the dashboard + crew phones (the cyan-highlight report).
+// We reformat pasted content to the dashboard's own look: keep only the
+// STRUCTURE and emphasis (bold / italic / underline / strike / headings /
+// lists / paragraphs / line breaks) and drop everything else. The toolbar's
+// own color swatches still work because they apply AFTER paste — we only
+// clean what comes in from outside.
+const _DN_ALLOWED_TAGS = new Set(['B','STRONG','I','EM','U','S','STRIKE','DEL','P','BR','DIV','UL','OL','LI','H1','H2','H3','BLOCKQUOTE']);
+const _DN_DROP_TAGS = new Set(['SCRIPT','STYLE','META','LINK','HEAD','TITLE','IMG','SVG','IFRAME','OBJECT','VIDEO','AUDIO','NOSCRIPT','BUTTON','INPUT','FORM','TABLE','THEAD','TBODY','TR','TD','TH']);
+function _dnSanitizeHTML(html) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = String(html || '');
+  const clean = (node) => {
+    Array.from(node.childNodes).forEach(child => {
+      if (child.nodeType === 8) { child.remove(); return; }          // comment
+      if (child.nodeType !== 1) return;                              // keep text nodes
+      const tag = child.tagName.toUpperCase();
+      if (_DN_DROP_TAGS.has(tag)) { child.remove(); return; }        // drop with contents (e.g. <style>)
+      clean(child);                                                  // clean descendants first
+      if (_DN_ALLOWED_TAGS.has(tag)) {
+        // Keep the tag for structure/emphasis but strip ALL attributes —
+        // that removes style="background/color/font", class, bgcolor, align, etc.
+        while (child.attributes.length) child.removeAttribute(child.attributes[0].name);
+      } else {
+        // Unknown/inline styling wrapper (span, font, mark, a, o:p…) — unwrap
+        // it, keeping its (already-cleaned) children so text + emphasis survive.
+        const parent = child.parentNode;
+        while (child.firstChild) parent.insertBefore(child.firstChild, child);
+        parent.removeChild(child);
+      }
+    });
+  };
+  clean(tpl.content);
+  const out = document.createElement('div');
+  out.appendChild(tpl.content.cloneNode(true));
+  return out.innerHTML;
+}
+
+// Plain-text fallback → HTML, preserving line breaks (spacing) only.
+function _dnTextToHTML(txt) {
+  return esc(String(txt || '')).replace(/\r\n?/g, '\n').split('\n').join('<br>');
+}
+
+// Intercept paste into the Day Notes editor and insert the sanitized version
+// at the caret instead of the browser's default (styled) paste.
+function _dnPaste(e) {
+  const ed = document.getElementById('dn_editor');
+  if (!ed || ed.contentEditable !== 'true') return;
+  const cd = e.clipboardData || window.clipboardData;
+  if (!cd) return;                                                    // no data → let default run
+  e.preventDefault();
+  const html = cd.getData('text/html');
+  let clean;
+  if (html && html.trim()) clean = _dnSanitizeHTML(html);
+  else clean = _dnTextToHTML(cd.getData('text/plain') || '');
+  try {
+    if (clean) document.execCommand('insertHTML', false, clean);
+  } catch (err) {
+    try { document.execCommand('insertText', false, cd.getData('text/plain') || ''); } catch (e2) {}
+  }
+  _dnPersist();
+}
+
+// "Clear" button. removeFormat handles bold/italic/color on the selection,
+// but it notoriously leaves background highlights behind — and this app has
+// no highlight tool, so a background fill is always paste cruft. Strip it
+// across the editor so an already-pasted note (with email highlights) cleans
+// up in one click.
+function _dnClearFormatting() {
+  const ed = document.getElementById('dn_editor');
+  if (!ed || ed.contentEditable !== 'true') return;
+  ed.focus();
+  try { document.execCommand('removeFormat'); } catch (e) {}
+  ed.querySelectorAll('[style]').forEach(el => {
+    el.style.backgroundColor = '';
+    el.style.background = '';
+    if (!el.getAttribute('style')) el.removeAttribute('style');
+  });
+  ed.querySelectorAll('[bgcolor]').forEach(el => el.removeAttribute('bgcolor'));
+  _dnPersist();
 }
 
 /* =====================================================================
@@ -28641,7 +28726,7 @@ Object.assign(window, {
   saveTravelAsTemplate, applyTravelTemplate, renameTravelTemplate, deleteTravelTemplate,
   openContactUpload, handleContactUpload, toggleAllDay, _schedToggleAllDay, _travelToggleAllDay,
   _liftScheduleToDashboardFields, _refreshTourScanIfOpen, _to12h, _to24h,
-  renderDayNotes, _dnExec, _dnPersist, _dayNotesStats,
+  renderDayNotes, _dnExec, _dnPersist, _dayNotesStats, _dnPaste, _dnClearFormatting,
   checkCrewEmailMatch, findUserByEmail, findCrewMatchesByEmail,
   confirmTyped,
   archiveTask, unarchiveTask, archiveAllCompleted, toggleTasksArchive,
