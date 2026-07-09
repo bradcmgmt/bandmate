@@ -1363,16 +1363,25 @@ input,select,textarea{font:inherit;color:inherit}
    from the rich-text editor — bold, color, lists, etc. all carry
    over so crew see the formatting the TM intended. */
 .p-card-notes{border-color:rgba(245,215,110,.3)}
-.p-card-notes .p-notes-body{
+/* Notes body styles are unscoped so they apply both to the standalone
+   DAY NOTES card (travel days) AND the TODAY hero card (.p-card.hi) where
+   day notes lead on show days. */
+.p-notes-body{
   font-size:13px;line-height:1.6;color:var(--warm);margin-top:4px;
   word-wrap:break-word;overflow-wrap:anywhere}
-.p-card-notes .p-notes-body h1,
-.p-card-notes .p-notes-body h2,
-.p-card-notes .p-notes-body h3{color:#f5d76e;font-size:14px;margin:8px 0 4px;font-weight:800}
-.p-card-notes .p-notes-body ul,
-.p-card-notes .p-notes-body ol{padding-left:20px;margin:6px 0}
-.p-card-notes .p-notes-body b,
-.p-card-notes .p-notes-body strong{color:var(--warm);font-weight:800}
+.p-notes-body h1,
+.p-notes-body h2,
+.p-notes-body h3{color:#f5d76e;font-size:14px;margin:8px 0 4px;font-weight:800}
+.p-notes-body ul,
+.p-notes-body ol{padding-left:20px;margin:6px 0}
+.p-notes-body b,
+.p-notes-body strong{color:var(--warm);font-weight:800}
+/* "Full schedule →" link on the TODAY day-notes hero — jumps to SCHED. */
+.ph-sched-link{margin-top:14px;display:inline-flex;align-items:center;gap:6px;
+  background:transparent;border:1px solid rgba(232,148,58,.4);color:var(--hi);
+  font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;font-weight:700;padding:9px 14px;border-radius:8px;cursor:pointer}
+.ph-sched-link:active{background:rgba(232,148,58,.1)}
 .p-row .what{font-size:13px;font-weight:600;color:var(--warm)}
 /* "Tomorrow" rollover section — items from the next date that fire
    before noon (overnight bus call, early flight) OR items flagged
@@ -15544,6 +15553,45 @@ function _renderPhoneMoreMinimal() {
   moreEl.innerHTML = pendingHtml + tourCard + accountCard;
 }
 
+// Shared schedule-rows renderer for the phone — today's items PLUS the
+// "↗ TOMORROW" early-next-day overlap. Used by the SCHED tab (all items) and,
+// when the schedule leads the TODAY tab (travel days / days with no notes),
+// the TODAY hero (capped). One source keeps the two screens in exact sync so
+// the next-day overlap can never go missing on one of them again.
+function _phoneScheduleRowsHTML(items, earlyTomorrow, nextDateLabel, emptyMsg, limit) {
+  const shown = (typeof limit === 'number') ? items.slice(0, limit) : items;
+  const row = (s, cls) => `
+    <div class="p-row${cls || ''}">
+      <span class="t">${esc(_scheduleTimeDisplay(s))}</span>
+      <span class="what">${esc(s.what)}</span>
+      <span class="lbl">${esc(_scheduleItemDisplayLabel(s))}</span>
+    </div>`;
+  return `
+    ${shown.length ? shown.map(s => row(s, '')).join('') : `<div class="p-row"><span class="what muted" style="grid-column:1/-1">${esc(emptyMsg)}</span></div>`}
+    ${(earlyTomorrow && earlyTomorrow.length) ? `
+      <div class="p-early-tmrw-hdr">
+        <span class="petw-lbl">↗ TOMORROW</span>
+        ${nextDateLabel ? `<span class="petw-date">${esc(nextDateLabel)}</span>` : ''}
+      </div>
+      ${earlyTomorrow.map(s => row(s, ' p-row-next')).join('')}
+    ` : ''}
+  `;
+}
+
+// Programmatically switch the phone to another bottom-nav screen (used by the
+// "Full schedule →" link on the TODAY day-notes hero). Mirrors bindPhoneNav so
+// the TM's desktop tab follows along too.
+function _phoneGoScreen(screen) {
+  phoneScreen = screen;
+  try { applyPhoneScreenFromState(); } catch (e) {}
+  const targetTab = (typeof PHONE_SCREEN_TO_TAB !== 'undefined') ? PHONE_SCREEN_TO_TAB[screen] : null;
+  if (targetTab && targetTab !== activeTab) {
+    activeTab = targetTab;
+    try { applyTabFromState(); renderActivePanel(); } catch (e) {}
+  }
+  try { saveUIPrefs(); } catch (e) {}
+}
+
 function renderPhone() {
   const ad = getPhoneDate();
   if (!ad) {
@@ -15617,34 +15665,43 @@ function renderPhone() {
     : ad.status === 'rehearsal' ? 'REHEARSAL'
     : 'PRESS';
 
-  $('#ph-today').innerHTML = `
+  // TODAY hero: day notes lead (highlighted) on show/rehearsal/press/off days
+  // that HAVE notes; the schedule leads on travel days and on any day with no
+  // notes. Either way the full schedule (with the ↗ TOMORROW overlap) always
+  // lives on the SCHED tab below, so it has one canonical, easy-to-find home.
+  const _hasDayNotes = !!(ad.dayNotes && ad.dayNotes.replace(/<[^>]+>/g, '').trim());
+  const _scheduleLeadsToday = (ad.status === 'travel') || !_hasDayNotes;
+  const _heroTitle = isTM ? 'Full day view' : (viewer ? 'Hey ' + esc(viewer.name.split(' ')[0]) : 'Your day');
+  const _heroDoorsSet = ad.status === 'show'
+    ? [ad.doors ? 'Doors ' + esc(ad.doors) : '', ad.setTime ? 'Set ' + esc(ad.setTime) : ''].filter(Boolean).join(' · ')
+    : ad.status === 'travel' ? 'Travel day'
+    : ad.status === 'off' ? 'Day off'
+    : ad.status === 'rehearsal' ? 'Rehearsal day'
+    : 'Press day';
+  const _heroItemCount = myItems.length ? (_heroDoorsSet ? ' · ' : '') + myItems.length + ' items' : '';
+  const _heroEmptyMsg = ad.status === 'travel' ? 'Travel day — no schedule items.' : ad.status === 'off' ? 'Day off — nothing scheduled.' : isTM ? 'No schedule items on this day yet.' : 'Nothing scheduled for you on this day.';
+  const _todayHeroCard = _scheduleLeadsToday ? `
     <div class="p-card hi">
       <div class="lbl">${status}${ad.venue ? ' · ' + esc(ad.venue.toUpperCase()) : ''}</div>
-      <div class="h">${isTM ? 'Full day view' : (viewer ? 'Hey ' + esc(viewer.name.split(' ')[0]) : 'Your day')}</div>
-      <div class="sub">${ad.status === 'show' ? `${ad.doors ? 'Doors ' + esc(ad.doors) : ''}${ad.setTime ? ' · Set ' + esc(ad.setTime) : ''}${myItems.length ? ' · ' + myItems.length + ' items' : ''}` : ad.status === 'travel' ? `Travel day${myItems.length ? ' · ' + myItems.length + ' items' : ''}` : ad.status === 'off' ? 'Day off' : ad.status === 'rehearsal' ? `Rehearsal day${myItems.length ? ' · ' + myItems.length + ' items' : ''}` : 'Press day'}</div>
+      <div class="h">${_heroTitle}</div>
+      <div class="sub">${_heroDoorsSet}${_heroItemCount}</div>
       <div style="margin-top:8px">
-        ${myItems.length ? myItems.slice(0, 8).map(s => `
-          <div class="p-row">
-            <span class="t">${esc(_scheduleTimeDisplay(s))}</span>
-            <span class="what">${esc(s.what)}</span>
-            <span class="lbl">${esc(_scheduleItemDisplayLabel(s))}</span>
-          </div>
-        `).join('') : `<div class="p-row"><span class="what muted" style="grid-column:1/-1">${ad.status === 'travel' ? 'Travel day — no schedule items.' : ad.status === 'off' ? 'Day off — nothing scheduled.' : isTM ? 'No schedule items on this day yet.' : 'Nothing scheduled for you on this day.'}</span></div>`}
-        ${myEarlyTomorrow.length ? `
-          <div class="p-early-tmrw-hdr">
-            <span class="petw-lbl">↗ TOMORROW</span>
-            ${nextDateLabel ? `<span class="petw-date">${esc(nextDateLabel)}</span>` : ''}
-          </div>
-          ${myEarlyTomorrow.map(s => `
-            <div class="p-row p-row-next">
-              <span class="t">${esc(_scheduleTimeDisplay(s))}</span>
-              <span class="what">${esc(s.what)}</span>
-              <span class="lbl">${esc(_scheduleItemDisplayLabel(s))}</span>
-            </div>
-          `).join('')}
-        ` : ''}
+        ${_phoneScheduleRowsHTML(myItems, myEarlyTomorrow, nextDateLabel, _heroEmptyMsg, 8)}
       </div>
     </div>
+  ` : `
+    <div class="p-card hi">
+      <div class="lbl">${status}${ad.venue ? ' · ' + esc(ad.venue.toUpperCase()) : ''}</div>
+      <div class="h">${_heroTitle}</div>
+      <div class="sub">${_heroDoorsSet}</div>
+      <div class="lbl" style="color:#f5d76e;margin-top:14px">DAY NOTES</div>
+      <div class="p-notes-body">${ad.dayNotes}</div>
+      <button type="button" class="ph-sched-link" onclick="_phoneGoScreen('schedule')">Full schedule →</button>
+    </div>
+  `;
+
+  $('#ph-today').innerHTML = `
+    ${_todayHeroCard}
 
     ${myTravel.length ? `
       <div class="p-card">
@@ -15709,7 +15766,7 @@ function renderPhone() {
       `;
     })() : ''}
 
-    ${ad.dayNotes && ad.dayNotes.replace(/<[^>]+>/g, '').trim() ? `
+    ${(_scheduleLeadsToday && _hasDayNotes) ? `
       <div class="p-card p-card-notes">
         <div class="lbl" style="color:#f5d76e">DAY NOTES</div>
         <div class="p-notes-body">${ad.dayNotes}</div>
@@ -15858,13 +15915,7 @@ function renderPhone() {
     <div class="p-card">
       <div class="lbl">${esc(fmtMD(ad.date))} ${esc(dow(ad.date).slice(0,3).toUpperCase())} · ${status}${ad.city && ad.status !== 'off' ? ' · ' + esc(ad.city.toUpperCase()) : ''}</div>
       <div style="margin-top:8px">
-        ${myItems.length ? myItems.map(s => `
-          <div class="p-row">
-            <span class="t">${esc(_scheduleTimeDisplay(s))}</span>
-            <span class="what">${esc(s.what)}</span>
-            <span class="lbl">${esc(_scheduleItemDisplayLabel(s))}</span>
-          </div>
-        `).join('') : `<div class="p-row"><span class="what muted" style="grid-column:1/-1">${ad.status === 'travel' ? 'Travel day — no schedule items logged.' : ad.status === 'off' ? 'Day off — nothing scheduled.' : 'Nothing scheduled for you on this day yet.'}</span></div>`}
+        ${_phoneScheduleRowsHTML(myItems, myEarlyTomorrow, nextDateLabel, (ad.status === 'travel' ? 'Travel day — no schedule items logged.' : ad.status === 'off' ? 'Day off — nothing scheduled.' : 'Nothing scheduled for you on this day yet.'))}
       </div>
     </div>
   `;
@@ -28701,7 +28752,7 @@ Object.assign(window, {
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
   setCrewView, revokeCoManager, openCoManagerModal, _coManagerLookup, openManageGroupsModal, addGroup, renameGroup, deleteGroup, toggleGroupPick, toggleGroupExpand, toggleCrewInGroup, setAllInGroup,
   approveGuest, denyGuest, approveAllPending, denyAllPending, openGuestModalForViewer, deleteGuestRequest,
-  _phoneShowTravel, _phoneShowDayTravel, _phoneShowSetList,
+  _phoneShowTravel, _phoneShowDayTravel, _phoneShowSetList, _phoneGoScreen,
   printStageCopy, closeStagePrint, printGuestList, exportGuestListCSV, exportGuestListPDF,
   openArtistLogoModal, _artistLogoPicked, _artistLogoSave, _artistLogoRemove,
   renderAdvance, _advanceSave, _advanceHandsSave, _advanceHandsAllDayToggle,
