@@ -6636,6 +6636,30 @@ function loadState() {
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
     }
   }
+  // One-time: fold the legacy per-date plain `notes` field into `dayNotes`,
+  // the single canonical rich Day Notes (now edited ONLY on the Day Notes tab,
+  // since the date-edit modal's Notes textarea was removed). Idempotent and
+  // multi-device-safe: we only migrate when dayNotes is empty, so once a date
+  // has dayNotes it never re-migrates — even if the old `notes` column lingers
+  // in the cloud. Nothing is lost: the plain text becomes the starting Day Note,
+  // editable/clearable on the Day Notes tab.
+  if (state && state.tours) {
+    let didNotesMigrate = false;
+    Object.values(state.tours).forEach(tour => {
+      (tour.dates || []).forEach(d => {
+        const legacy = (typeof d.notes === 'string') ? d.notes : '';
+        const dnStripped = (typeof d.dayNotes === 'string') ? d.dayNotes.replace(/<[^>]+>/g, '').trim() : '';
+        if (legacy.trim() && !dnStripped) {
+          d.dayNotes = '<p>' + esc(legacy).replace(/\r\n?/g, '\n').replace(/\n/g, '<br>') + '</p>';
+          d.notes = '';
+          didNotesMigrate = true;
+        }
+      });
+    });
+    if (didNotesMigrate) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+    }
+  }
   return state;
 }
 
@@ -7767,7 +7791,6 @@ function openDateModal(id) {
         <div class="field" data-show-day><label>Set time</label>${renderTime12Picker('d_set', d.setTime)}</div>
         <div class="field" data-show-day><label>Load-in</label>${renderTime12Picker('d_load', d.loadIn)}</div>
         <div class="field" data-show-day><label>Soundcheck</label>${renderTime12Picker('d_sc', d.soundcheck)}</div>
-        <div class="field full"><label>Notes</label><textarea id="d_notes">${esc(d.notes)}</textarea></div>
         ${editing ? _dateModalTemplatesHTML(editing) : ''}
       </div>
     `,
@@ -7799,7 +7822,10 @@ function openDateModal(id) {
         setTime: isShow ? readTime12Picker('d_set') : (editing ? editing.setTime : ''),
         loadIn: isShow ? readTime12Picker('d_load') : (editing ? editing.loadIn : ''),
         soundcheck: isShow ? readTime12Picker('d_sc') : (editing ? editing.soundcheck : ''),
-        notes: $('#d_notes').value.trim(),
+        // The Notes field moved to the Day Notes tab — preserve any legacy
+        // value here (migrated to dayNotes on load) rather than reading a
+        // field that no longer exists in the modal.
+        notes: editing ? (editing.notes || '') : '',
       };
       // Date is always required; city is required for surfaces that
       // actually need a place (show / press / rehearsal). Off days and
@@ -12245,7 +12271,7 @@ function renderDashboard() {
   const dayNotesHtml = (typeof ad.dayNotes === 'string' && ad.dayNotes.trim())
     ? `<div style="font-size:12.5px;line-height:1.5;color:var(--warm)">${ad.dayNotes}</div>`
     : (ad.notes ? `<div style="font-size:12.5px;line-height:1.5;color:var(--warm);white-space:pre-wrap">${esc(ad.notes)}</div>`
-                : `<div class="card-empty">No notes for today. <a onclick="openDateModal('${ad.id}')">Add notes →</a></div>`);
+                : `<div class="card-empty">No notes for today. <a onclick="_dashGoTab('notes')">Add notes →</a></div>`);
 
   // Hero strip · 4 tiles that summarize the most time-pressure info
   const heroTilesHtml = `
@@ -12344,7 +12370,7 @@ function renderDashboard() {
           <div class="card-body">${todayFlagsHtml}</div>
         </div>
         <div class="bm-card${advHasContent ? '' : ' span-2'}">
-          <div class="card-h"><span class="ic">✎</span><span class="h">Day notes</span><a class="card-link" onclick="openDateModal('${ad.id}')">Edit →</a></div>
+          <div class="card-h"><span class="ic">✎</span><span class="h">Day notes</span><a class="card-link" onclick="_dashGoTab('notes')">Edit →</a></div>
           <div class="card-body">${dayNotesHtml}</div>
         </div>
       </div>
@@ -15875,8 +15901,16 @@ function renderPhone() {
     ${_hasAdvanceInfo(ad.advance) ? `<div style="order:3">${_phoneAdvanceCardHTML(ad.advance)}</div>` : ''}
   `;
 
-  // SCHEDULE
+  // SCHEDULE — today's full schedule (including the ↗ TOMORROW past-midnight
+  // overlap) leads; the multi-day UPCOMING list sits BELOW it.
   $('#ph-schedule').innerHTML = `
+    <div class="p-card">
+      <div class="lbl">${esc(fmtMD(ad.date))} ${esc(dow(ad.date).slice(0,3).toUpperCase())} · ${status}${ad.city && ad.status !== 'off' ? ' · ' + esc(ad.city.toUpperCase()) : ''}</div>
+      <div style="margin-top:8px">
+        ${_phoneScheduleRowsHTML(myItems, myEarlyTomorrow, nextDateLabel, (ad.status === 'travel' ? 'Travel day — no schedule items logged.' : ad.status === 'off' ? 'Day off — nothing scheduled.' : 'Nothing scheduled for you on this day yet.'))}
+      </div>
+    </div>
+
     <div class="p-card">
       <div class="lbl">UPCOMING — ${T().dates.length - T().dates.findIndex(d=>d.id===ad.id)} DAYS</div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
@@ -15909,13 +15943,6 @@ function renderPhone() {
             </div>
           `;
         }).join('')}
-      </div>
-    </div>
-
-    <div class="p-card">
-      <div class="lbl">${esc(fmtMD(ad.date))} ${esc(dow(ad.date).slice(0,3).toUpperCase())} · ${status}${ad.city && ad.status !== 'off' ? ' · ' + esc(ad.city.toUpperCase()) : ''}</div>
-      <div style="margin-top:8px">
-        ${_phoneScheduleRowsHTML(myItems, myEarlyTomorrow, nextDateLabel, (ad.status === 'travel' ? 'Travel day — no schedule items logged.' : ad.status === 'off' ? 'Day off — nothing scheduled.' : 'Nothing scheduled for you on this day yet.'))}
       </div>
     </div>
   `;
@@ -21365,7 +21392,7 @@ function _csvDownload(name, headers, rows) {
 function downloadTourGridCSV() {
   if (!T().dates.length) { toast('No dates to export', 'error'); return; }
   const headers = ['Date','City','State','Venue','Capacity','Status','Doors','SetTime','LoadIn','Soundcheck','Promoter','Notes'];
-  const rows = T().dates.map(d => [d.date, d.city, d.state, d.venue, d.capacity, d.status, d.doors, d.setTime, d.loadIn, d.soundcheck, d.promoter, d.notes]);
+  const rows = T().dates.map(d => [d.date, d.city, d.state, d.venue, d.capacity, d.status, d.doors, d.setTime, d.loadIn, d.soundcheck, d.promoter, ((typeof d.dayNotes === 'string' && d.dayNotes.trim()) ? d.dayNotes.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : (d.notes || ''))]);
   _csvDownload('tour-grid', headers, rows);
 }
 
