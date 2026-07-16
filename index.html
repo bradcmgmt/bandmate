@@ -3122,6 +3122,18 @@ body.travel-assistant-mode #travelAssistantArea{
 .crew-block-store .cbs-eyebrow{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.18em;
   color:var(--warm-mute);text-transform:uppercase;font-weight:700;line-height:1}
 .crew-block-store .cbs-name{font-size:18px;font-weight:700;color:var(--warm);margin-top:3px;line-height:1.1}
+/* Highlight the badge for the viewer's own platform (phone visitors). */
+.crew-block-store.store-hi{border-color:var(--hi);background:rgba(232,148,58,.09)}
+/* Muted "coming soon" chip — not a live link (Google Play until it ships). */
+.crew-block-store.store-soon{opacity:.5;cursor:default}
+.crew-block-store.store-soon:hover{border-color:var(--line-2);background:rgba(0,0,0,.5)}
+/* "Get the app" block on the band/crew sign-in card. */
+.login-getapp{margin:0 0 14px;padding:14px;border:1px solid rgba(232,148,58,.28);
+  border-radius:12px;background:rgba(232,148,58,.05);text-align:center}
+.login-getapp .lga-eyebrow{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--hi);font-weight:700}
+.login-getapp .lga-sub{font-size:12px;line-height:1.5;color:var(--warm-mute);margin:6px 0 12px}
+.login-getapp .crew-block-store{min-width:150px;padding:9px 16px}
 
 .crew-block-fineprint{font-size:12.5px;color:var(--warm-mute);line-height:1.7;margin-top:14px;max-width:440px}
 .crew-block-signout{color:var(--hi);font-weight:700;cursor:pointer;text-decoration:none}
@@ -4498,6 +4510,8 @@ setTimeout(window._hideAppBoot,6000);
     <div class="login-brand">
       <img src="logo.png" class="brand-logo brand-logo-lg" alt="Bandmate" />
     </div>
+
+    <div id="loginGetApp"></div>
 
     <div id="loginAccountsBlock"></div>
 
@@ -24293,6 +24307,62 @@ function hideWelcomeScreen() {
   if (el) el.hidden = true;
 }
 
+// ── App-store install links ────────────────────────────────────────────
+// One source of truth for the store URLs, shared by every "get the app"
+// surface: the crew mobile-only gate, the account-menu "Install Bandmate"
+// button, and the band/crew sign-in screen. iOS is live. Android is empty
+// until the Google Play listing goes public — set _STORE_ANDROID_URL to the
+// play.google.com/store/apps/details?id=… link and every Google Play button
+// lights up at once (no other edits needed).
+const _STORE_IOS_URL = 'https://apps.apple.com/app/id6774863837';
+const _STORE_ANDROID_URL = '';   // e.g. 'https://play.google.com/store/apps/details?id=art.bandmate'
+
+// iOS / Android / desktop. Used to guide the user to their store: on a phone
+// we deep-link straight to the right store; on desktop we show both.
+function _appPlatform() {
+  const ua = navigator.userAgent || '';
+  if (/iPhone|iPad|iPod/i.test(ua)) return 'ios';
+  // iPadOS 13+ masquerades as a Mac — a touch-capable "Mac" is really an iPad.
+  if (/Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1) return 'ios';
+  if (/Android/i.test(ua)) return 'android';
+  return 'desktop';
+}
+
+// The two store badges (reuses the .crew-block-store styling). Puts the
+// viewer's own platform first + highlights it, and renders Google Play as a
+// muted "coming soon" chip while _STORE_ANDROID_URL is empty.
+function _storeBadgesHTML() {
+  const plat = _appPlatform();
+  const ios = `<a href="${_STORE_IOS_URL}" target="_blank" rel="noopener" class="crew-block-store${plat==='ios'?' store-hi':''}" aria-label="Download on the App Store"><span class="cbs-eyebrow">DOWNLOAD ON THE</span><span class="cbs-name">App Store</span></a>`;
+  const android = _STORE_ANDROID_URL
+    ? `<a href="${_STORE_ANDROID_URL}" target="_blank" rel="noopener" class="crew-block-store${plat==='android'?' store-hi':''}" aria-label="Get it on Google Play"><span class="cbs-eyebrow">GET IT ON</span><span class="cbs-name">Google Play</span></a>`
+    : `<span class="crew-block-store store-soon" aria-disabled="true" title="Coming soon to Google Play"><span class="cbs-eyebrow">COMING SOON TO</span><span class="cbs-name">Google Play</span></span>`;
+  return `<div class="crew-block-stores">${plat==='android' ? android+ios : ios+android}</div>`;
+}
+
+// Account-menu "Install Bandmate". On a phone we skip the chooser and deep-
+// link straight to that platform's store; on desktop (the TM dashboard) we
+// pop a small chooser with both badges — they'll install on their phone.
+function openGetAppModal() {
+  const plat = _appPlatform();
+  if (plat === 'ios') { try { window.open(_STORE_IOS_URL, '_blank', 'noopener'); } catch (e) {} return; }
+  if (plat === 'android') {
+    if (_STORE_ANDROID_URL) { try { window.open(_STORE_ANDROID_URL, '_blank', 'noopener'); } catch (e) {} }
+    else { try { toast('Bandmate for Android is coming soon', 'good'); } catch (e) {} }
+    return;
+  }
+  openModal({
+    title: 'Get the Bandmate app',
+    hideFooter: true,
+    body: `
+      <div style="text-align:center">
+        <p style="font-size:13px;line-height:1.55;color:var(--warm-mute);margin:0 0 16px">The Bandmate mobile app is where your crew lives — schedule, hotel, set list, and push notifications, right on their phones. Grab it on yours:</p>
+        ${_storeBadgesHTML()}
+        ${_STORE_ANDROID_URL ? '' : '<div style="font-size:11px;color:var(--warm-mute);margin-top:14px">Now on iPhone — Android coming soon.</div>'}
+      </div>`,
+  });
+}
+
 // Show the crew "download the mobile app" gate. This is the ONLY thing
 // a band / crew user sees once authenticated — Bandmate is intentionally
 // mobile-only for crew so they're not stuck navigating a desktop
@@ -24337,8 +24407,19 @@ function showCrewBlockScreen() {
       ? `Welcome, ${firstName} — your account is set up. Grab the Bandmate app on your phone to see your tour schedule, hotel, set list, and notifications.`
       : sub.textContent;
   }
-  // App-store URLs are placeholders — swap in real links once the apps
-  // ship. For now they're inert (href="#") and won't navigate away.
+  // Wire the store links from the shared config so this gate, the account
+  // menu, and the sign-in screen all stay in lockstep. iOS is live; Android
+  // shows a muted "Coming soon" chip until _STORE_ANDROID_URL is set.
+  const iosLink = document.getElementById('crewBlockIos');
+  const andLink = document.getElementById('crewBlockAndroid');
+  if (iosLink) iosLink.href = _STORE_IOS_URL;
+  if (andLink) {
+    andLink.href = _STORE_ANDROID_URL || '#';
+    andLink.classList.toggle('store-soon', !_STORE_ANDROID_URL);
+    const eb = andLink.querySelector('.cbs-eyebrow');
+    if (eb) eb.textContent = _STORE_ANDROID_URL ? 'GET IT ON' : 'COMING SOON TO';
+    andLink.onclick = _STORE_ANDROID_URL ? null : (e => e.preventDefault());
+  }
 }
 
 function hideCrewBlockScreen() {
@@ -24706,7 +24787,7 @@ function landingChoose(role) {
   // here. Pass intent: 'signin' so showLoginScreen honors it even when
   // no users are claimed locally (which would otherwise default to
   // showing the signup form for fresh-browser visitors / teammates).
-  showLoginScreen({ intent: 'signin' });
+  showLoginScreen({ intent: 'signin', role });
   // Pre-fill the role on the signup form so if the user toggles over
   // to "New here? Sign up →" they don't have to pick again.
   setTimeout(() => {
@@ -24715,7 +24796,9 @@ function landingChoose(role) {
   }, 30);
 }
 
+let _loginRole = '';
 function showLoginScreen(opts) {
+  _loginRole = (opts && opts.role) || '';
   if (window._hideAppBoot) window._hideAppBoot();
   document.getElementById('app').hidden = true;
   document.getElementById('onboarding').classList.add('hidden');
@@ -24739,6 +24822,19 @@ function showLoginScreen(opts) {
   document.body.classList.add('bg-video-on');
   _ensureBgVideoPlaying();
   renderLoginAccounts();
+  // Band & crew are mobile-only, so when someone arrives via the landing
+  // page's "Band & Crew · Sign in" path, surface the app-store badges right
+  // on the sign-in card — they should grab the app, not sign in on desktop.
+  const gaEl = document.getElementById('loginGetApp');
+  if (gaEl) {
+    gaEl.innerHTML = (_loginRole === 'crew')
+      ? `<div class="login-getapp">
+           <div class="lga-eyebrow">BAND &amp; CREW · GET THE APP</div>
+           <div class="lga-sub">Bandmate for band &amp; crew lives on your phone — your schedule, hotel, set list &amp; alerts.</div>
+           ${_storeBadgesHTML()}
+         </div>`
+      : '';
+  }
   // Explicit intent (from landingChoose) wins over the default. The
   // landing "Sign in for Tour Managers" / "Sign in for Band & Crew"
   // buttons pass intent: 'signin' so they always land on the sign-in
@@ -25551,7 +25647,7 @@ function renderAccountMenu() {
         <div class="am-meta">${esc(me?.email || '')} · ${me?.role === 'tm' ? 'Tour Manager' : 'Crew'}</div>
       </div>
     </div>
-    <button class="am-item" type="button" onclick="closeAccountMenu();window.bandmateInstallPrompt()">
+    <button class="am-item" type="button" onclick="closeAccountMenu();openGetAppModal()">
       <span class="am-ic">↧</span><span>Install Bandmate</span>
     </button>
     <button class="am-item danger" type="button" onclick="logout()">
@@ -28856,7 +28952,7 @@ Object.assign(window, {
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
   setCrewView, revokeCoManager, openCoManagerModal, _coManagerLookup, openManageGroupsModal, addGroup, renameGroup, deleteGroup, toggleGroupPick, toggleGroupExpand, toggleCrewInGroup, setAllInGroup,
   approveGuest, denyGuest, approveAllPending, denyAllPending, openGuestModalForViewer, deleteGuestRequest,
-  _phoneShowTravel, _phoneShowDayTravel, _phoneShowSetList, _phoneGoScreen,
+  _phoneShowTravel, _phoneShowDayTravel, _phoneShowSetList, _phoneGoScreen, openGetAppModal,
   printStageCopy, closeStagePrint, printGuestList, exportGuestListCSV, exportGuestListPDF,
   openArtistLogoModal, _artistLogoPicked, _artistLogoSave, _artistLogoRemove,
   renderAdvance, _advanceSave, _advanceHandsSave, _advanceHandsAllDayToggle,
