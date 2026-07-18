@@ -1363,6 +1363,35 @@ input,select,textarea{font:inherit;color:inherit}
   font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--warm-mute);
   letter-spacing:.04em;font-weight:600}
 .ph-travel-row .ptr-chev{color:var(--warm-mute);font-size:14px;line-height:1;opacity:.6}
+.ph-travel-row .ptr-who{color:var(--warm-mute);font-weight:500}
+.ph-travel-row.mine{border-color:rgba(232,148,58,.5);background:rgba(232,148,58,.09)}
+
+/* phone Today — dedicated flight card */
+.ph-flight{display:block;width:100%;text-align:left;font-family:inherit;color:inherit;cursor:pointer;
+  border:1px solid var(--line-2);border-radius:11px;padding:12px 13px;background:rgba(138,169,216,.05);
+  transition:border-color .12s,background .12s,transform .08s}
+.ph-flight:hover{border-color:rgba(138,169,216,.45);background:rgba(138,169,216,.09)}
+.ph-flight:active{transform:scale(.99)}
+.ph-flight.mine{border-color:rgba(232,148,58,.55);background:rgba(232,148,58,.08);box-shadow:0 0 0 1px rgba(232,148,58,.25)}
+.ph-flight .phf-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}
+.ph-flight .phf-badge{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;letter-spacing:.06em;color:#b1c8ee}
+.ph-flight.mine .phf-badge{color:var(--hi)}
+.ph-flight .phf-you{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:800;letter-spacing:.14em;
+  color:#0a0705;background:var(--hi);border-radius:5px;padding:2px 7px;text-transform:uppercase}
+.ph-flight .phf-route{font-size:13.5px;color:var(--warm);font-weight:700;line-height:1.3;margin-bottom:8px}
+.ph-flight .phf-times{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:8px}
+.ph-flight .phf-times>span{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--warm);font-weight:700}
+.ph-flight .phf-k{font-size:8.5px;letter-spacing:.16em;color:var(--warm-mute);font-weight:700;margin-right:4px;vertical-align:1px}
+.ph-flight .phf-pax{font-size:12px;color:var(--warm-mute);line-height:1.45;border-top:1px dashed rgba(138,169,216,.15);padding-top:7px}
+.ph-flight .phf-pax b{color:var(--hi)}
+
+/* travel modal — free-text passenger chips (crew not on the roster yet) */
+.pax-chips{display:flex;flex-wrap:wrap;gap:6px}
+.pax-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--warm);
+  background:rgba(232,148,58,.08);border:1px solid rgba(232,148,58,.35);border-radius:6px;padding:4px 4px 4px 9px}
+.pax-chip button{width:16px;height:16px;display:grid;place-items:center;border:none;background:transparent;
+  color:var(--warm-mute);cursor:pointer;font-size:13px;line-height:1;border-radius:4px}
+.pax-chip button:hover{color:var(--red)}
 
 /* Day Notes card on the crew mobile TODAY screen. Yellow eyebrow
    matches the TM-side tab color. Body renders any HTML the TM saved
@@ -8624,13 +8653,89 @@ function openScheduleModal(itemId) {
 /* =====================================================================
    TRAVEL CRUD
    ===================================================================== */
+// Resolve a travel item's PASSENGER names — roster crew (from `individuals`)
+// PLUS free-text names typed for people not yet on the roster (stored in the
+// legacy `person` field, comma/semicolon separated). Group-ish tokens like
+// "ALL" are ignored so a legacy person="ALL" doesn't read as a passenger name.
+function _travelPassengers(t) {
+  const crew = T().crew || [];
+  const names = [];
+  (t.individuals || []).forEach(id => { const c = crew.find(x => x.id === id); if (c && c.name) names.push(c.name); });
+  (t.person || '').split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(n => {
+    if (!/^all$/i.test(n) && !names.some(x => x.toLowerCase() === n.toLowerCase())) names.push(n);
+  });
+  return names;
+}
+
+function _tvPaxChipHTML(name) {
+  return `<span class="pax-chip" data-name="${esc(name)}">${esc(name)}<button type="button" title="Remove" onclick="this.parentElement.remove()">✕</button></span>`;
+}
+// Add a free-text passenger (someone not on the crew roster yet) as a chip.
+function _tvAddPax() {
+  const inp = document.getElementById('tv_pax_input');
+  const wrap = document.getElementById('tv_pax_chips');
+  if (!inp || !wrap) return;
+  // Accept comma-separated entry in one go too.
+  inp.value.split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(name => {
+    const exists = [...wrap.querySelectorAll('.pax-chip')].some(c => (c.dataset.name || '').toLowerCase() === name.toLowerCase());
+    if (!exists) wrap.insertAdjacentHTML('beforeend', _tvPaxChipHTML(name));
+  });
+  inp.value = '';
+  inp.focus();
+}
+
+// One phone Today travel item. Flights render as a rich card (dep → arr,
+// flight #, conf, passenger list, and a YOUR FLIGHT highlight when the viewer
+// is on it); ground transport stays a compact tappable row with a who-line.
+function _phoneTravelItemHTML(t, viewer, viewerKey) {
+  const pax = _travelPassengers(t);
+  const viewerIsPax = !!(viewerKey && (t.individuals || []).includes(viewerKey));
+  const viewerName = (viewer && viewer.name) || '';
+  const paxHtml = pax.length
+    ? pax.map(n => (viewerName && n.toLowerCase() === viewerName.toLowerCase()) ? `<b>${esc(n)}</b>` : esc(n)).join(', ')
+    : 'No passengers assigned yet';
+  if ((t.type || '') === 'flight') {
+    const flt = t.flightNumber || 'Flight';
+    const dep = t.allDay ? 'All day' : (t.time || '—');
+    return `
+      <button type="button" class="ph-flight ${viewerIsPax ? 'mine' : ''}" onclick="_phoneShowTravel('${esc(t.id)}')">
+        <div class="phf-top">
+          <span class="phf-badge">✈ ${esc(flt)}</span>
+          ${viewerIsPax ? '<span class="phf-you">Your flight</span>' : ''}
+        </div>
+        ${t.description ? `<div class="phf-route">${esc(t.description)}</div>` : ''}
+        <div class="phf-times">
+          <span><span class="phf-k">DEP</span>${esc(dep)}</span>
+          ${t.arriveTime ? `<span><span class="phf-k">ARR</span>${esc(t.arriveTime)}</span>` : ''}
+          ${t.conf ? `<span><span class="phf-k">CONF</span>${esc(t.conf)}</span>` : ''}
+        </div>
+        <div class="phf-pax"><span class="phf-k">PAX</span>${paxHtml}</div>
+      </button>`;
+  }
+  const typeLabel = ({ bus: 'BUS', van: 'VAN', car: 'CAR', train: 'TRAIN' })[t.type] || (t.type || '').toUpperCase();
+  const who = pax.length ? pax.join(', ') : ((t.groups || []).filter(g => g && g !== 'All').join(' · ') || 'Everyone');
+  const codeLabel = t.conf || '';
+  return `
+    <button type="button" class="ph-travel-row ${viewerIsPax ? 'mine' : ''}" onclick="_phoneShowTravel('${esc(t.id)}')">
+      <span class="ptr-type">${esc(typeLabel)}</span>
+      <span class="ptr-time">${t.allDay ? 'ALL' : esc(t.time || '—')}</span>
+      <span class="ptr-desc">${esc(t.description || '—')}<span class="ptr-who"> · ${esc(who)}</span></span>
+      ${codeLabel ? `<span class="ptr-code">${esc(codeLabel)}</span>` : ''}
+      <span class="ptr-chev">›</span>
+    </button>`;
+}
+
 function openTravelModal(itemId) {
   const ad = getActiveDate();
   if (!ad) return;
   const item = itemId ? ad.travel.find(i => i.id === itemId) : null;
-  const i = item || { type: 'bus', description: '', time: '', conf: '', person: '', notes: '', allDay: false, groups: ['All'], individuals: [], flightNumber: '' };
+  const i = item || { type: 'bus', description: '', time: '', arriveTime: '', conf: '', person: '', notes: '', allDay: false, groups: ['All'], individuals: [], flightNumber: '' };
+  const isFlight = i.type === 'flight';
+  // Pre-seed free-text passenger chips from the legacy `person` field.
+  const seedPax = (i.person || '').split(/[,;]/).map(s => s.trim()).filter(s => s && !/^all$/i.test(s));
   openModal({
     title: item ? 'Edit travel' : 'Add travel item',
+    size: 'lg',
     showDelete: !!item,
     onDelete: item ? () => { ad.travel = ad.travel.filter(x => x.id !== item.id); saveState(); } : null,
     body: `
@@ -8644,58 +8749,80 @@ function openTravelModal(itemId) {
             <option value="train" ${i.type==='train'?'selected':''}>Train</option>
           </select>
         </div>
-        <div class="field"><label>Time ${i.allDay ? '' : '*'}</label>
+        <div class="field"><label id="tv_time_lbl">${isFlight ? 'Departs' : 'Time'} ${i.allDay ? '' : '*'}</label>
           <div class="time-row">
             ${renderTime12Picker('tv_time', i.time, { disabled: !!i.allDay })}
-            <button type="button" id="tv_allday_btn" class="allday-btn ${i.allDay ? 'on' : ''}" onclick="_travelToggleAllDay()">All day</button>
+            <button type="button" id="tv_allday_btn" class="allday-btn ${i.allDay ? 'on' : ''}" onclick="_travelToggleAllDay()" ${isFlight ? 'hidden' : ''}>All day</button>
           </div>
         </div>
+        <div class="field" data-flight-only ${isFlight ? '' : 'hidden'}><label>Lands <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional)</span></label>
+          <div class="time-row">${renderTime12Picker('tv_arrive', i.arriveTime || '')}</div>
+        </div>
         <div class="field full"><label>Description *</label><input id="tv_desc" value="${esc(i.description)}" placeholder="e.g. Sleeper bus → Chicago"></div>
-        <div class="field"><label>Conf #</label><input id="tv_conf" value="${esc(i.conf)}"></div>
-        <div class="field"><label>Person <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(legacy / free text)</span></label><input id="tv_person" value="${esc(i.person)}" placeholder="e.g. ALL, Riley P."></div>
-        <div class="field full" data-flight-only ${i.type === 'flight' ? '' : 'hidden'}>
+        <div class="field"><label id="tv_conf_lbl">Conf # ${isFlight ? '*' : ''}</label><input id="tv_conf" value="${esc(i.conf)}"></div>
+        <div class="field" data-flight-only ${isFlight ? '' : 'hidden'}>
           <label>Flight # <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional)</span></label>
-          <input id="tv_flight" value="${esc(i.flightNumber || '')}" placeholder="e.g. AA 484 · DL 1290 · UA 422">
+          <input id="tv_flight" value="${esc(i.flightNumber || '')}" placeholder="e.g. AA 484 · DL 1290">
         </div>
+
         <div class="field full">
-          <label>Visible to groups <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span>${i._audienceNeeded ? ' <span class="mono" style="color:#fdba74;font-size:10px;letter-spacing:.18em;text-transform:uppercase;margin-left:6px">! Imported — pick who&apos;s flying</span>' : ''}</label>
-          ${renderGroupPicker('tv_grp', i.groups && i.groups.length ? i.groups : (i._audienceNeeded ? [] : ['All']), true)}
-        </div>
-        <div class="field full"><label>+ Specific individuals <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(in addition to groups)</span></label>
+          <label><span id="tv_pax_lbl">${isFlight ? 'Passengers' : '+ Specific individuals'}</span> <span id="tv_pax_req" class="mono" style="color:var(--hi);${isFlight ? '' : 'display:none'}">*</span>
+            <span class="muted mono" id="tv_pax_hint" style="font-size:10px;letter-spacing:.1em">${isFlight ? "— who's actually on this flight" : '(optional — groups below are the main assignment)'}</span>
+          </label>
           <div class="group-picker" id="tv_ind_picker">
             ${T().crew.length ? T().crew.map(c => `
               <button type="button" class="group-pick ${(i.individuals||[]).includes(c.id) ? 'on' : ''}" data-cid="${c.id}" onclick="this.classList.toggle('on')">${esc(c.name)}</button>
-            `).join('') : '<div class="muted mono" style="font-size:10.5px">No crew on roster yet</div>'}
+            `).join('') : '<div class="muted mono" style="font-size:10.5px">No crew on roster yet — add names below.</div>'}
           </div>
+          <div style="margin-top:8px">
+            <div class="pax-chips" id="tv_pax_chips">${seedPax.map(_tvPaxChipHTML).join('')}</div>
+            <div style="display:flex;gap:6px;margin-top:${seedPax.length ? '8px' : '0'}">
+              <input id="tv_pax_input" placeholder="Add a name not on the roster yet…" onkeydown="if(event.key==='Enter'){event.preventDefault();_tvAddPax();}" style="flex:1">
+              <button type="button" class="add-btn" onclick="_tvAddPax()">+ Add name</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="field full">
+          <label>Visible to groups <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span>${i._audienceNeeded ? ' <span class="mono" style="color:#fdba74;font-size:10px;letter-spacing:.18em;text-transform:uppercase;margin-left:6px">! Imported — pick who&apos;s flying</span>' : ''}</label>
+          ${renderGroupPicker('tv_grp', i.groups && i.groups.length ? i.groups : (i._audienceNeeded ? [] : ['All']), true)}
+          <div class="muted mono" id="tv_grp_hint" style="font-size:10px;letter-spacing:.06em;margin-top:6px;line-height:1.5;${isFlight ? '' : 'display:none'}">Flights are visible to <b style="color:var(--warm)">everyone</b> by default — change this only to hide the flight from some groups. The passengers above are who's flying.</div>
         </div>
         <div class="field full"><label>Notes</label><textarea id="tv_notes">${esc(i.notes)}</textarea></div>
       </div>
     `,
     onSubmit: () => {
+      const type = $('#tv_type').value;
+      const isFlt = type === 'flight';
       const description = $('#tv_desc').value.trim();
       if (!description) { toast('Description required', 'error'); return false; }
-      const allDay = document.getElementById('tv_allday_btn')?.classList.contains('on') || false;
+      const allDay = !isFlt && (document.getElementById('tv_allday_btn')?.classList.contains('on') || false);
       const groups = readGroupPicker('tv_grp');
       const indivPicker = document.getElementById('tv_ind_picker');
       const individuals = indivPicker ? [...indivPicker.querySelectorAll('.group-pick.on')].map(b => b.dataset.cid) : [];
-      const type = $('#tv_type').value;
-      // Flight number is only persisted when Type is Flight — switching
-      // away from Flight and saving wipes the value, so a future bus/van
-      // doesn't carry a stale flight # in its data.
-      const flightNumber = type === 'flight' ? ($('#tv_flight')?.value.trim() || '') : '';
-      // Read the structured 12-hour picker; '' when the TM left both
-      // hh and mm blank, which we accept only when All Day is on.
+      // Free-text passengers (crew not on the roster) → stored comma-joined in `person`.
+      const paxChips = [...document.querySelectorAll('#tv_pax_chips .pax-chip')].map(c => c.dataset.name).filter(Boolean);
+      // Flight number is only persisted when Type is Flight — switching away
+      // from Flight and saving wipes it so a future bus doesn't carry a stale #.
+      const flightNumber = isFlt ? ($('#tv_flight')?.value.trim() || '') : '';
+      const conf = $('#tv_conf').value.trim();
       const time = allDay ? '' : readTime12Picker('tv_time');
-      if (!allDay && !time) { toast('Set a time or mark as All day', 'error'); return false; }
+      if (!allDay && !time) { toast(isFlt ? 'Set a departure time' : 'Set a time or mark as All day', 'error'); return false; }
+      // Flight-specific requirements: a confirmation # and at least one passenger
+      // (a roster pick OR a typed name). Landing time stays optional.
+      if (isFlt) {
+        if (!conf) { toast('Confirmation # is required for flights', 'error'); return false; }
+        if (!individuals.length && !paxChips.length) { toast('Add at least one passenger — pick crew or type a name', 'error'); return false; }
+      }
+      const arriveTime = isFlt ? readTime12Picker('tv_arrive') : '';
       const data = {
-        type, description, time, allDay,
-        person: $('#tv_person').value.trim(), conf: $('#tv_conf').value.trim(), notes: $('#tv_notes').value.trim(),
+        type, description, time, arriveTime, allDay,
+        person: paxChips.join(', '), conf, notes: $('#tv_notes').value.trim(),
         groups, individuals, flightNumber,
       };
-      // Clear the audience-needed flag once the TM picks anyone —
-      // groups or individuals. This drops the bright ! warning chip
-      // and removes the entry from the tour scan gap list.
-      if (groups.length || individuals.length) data._audienceNeeded = false;
+      // Clear the audience-needed flag once anyone is assigned (group, roster
+      // individual, or free-text passenger).
+      if (groups.length || individuals.length || paxChips.length) data._audienceNeeded = false;
       if (item) Object.assign(item, data);
       else ad.travel.push({ id: uid('tv'), ...data });
       // All-day items sort first, then by time
@@ -8707,19 +8834,33 @@ function openTravelModal(itemId) {
       saveState();
     }
   });
+  _travelModalApplyType();
 }
 
-// Flight # field only applies to type=flight travel items, so it
-// shows/hides based on the Type select. Wired up via the select's
-// onchange. Called once on modal open too (the field starts hidden
-// or visible based on the existing item's type when editing).
+// Reshape the travel form when Type changes. Flights reveal a Lands (arrival)
+// time + Flight # field, require a Conf # and passengers, hide the All-day
+// toggle (a flight has a clock time), and swap the passenger/visibility copy.
 function _travelModalApplyType() {
   const sel = document.getElementById('tv_type');
   if (!sel) return;
   const isFlight = sel.value === 'flight';
-  document.querySelectorAll('[data-flight-only]').forEach(el => {
-    el.hidden = !isFlight;
+  document.querySelectorAll('[data-flight-only]').forEach(el => { el.hidden = !isFlight; });
+  const set = (id, fn) => { const el = document.getElementById(id); if (el) fn(el); };
+  // Departure/Time label
+  set('tv_time_lbl', el => {
+    const allDay = document.getElementById('tv_allday_btn')?.classList.contains('on');
+    el.textContent = (isFlight ? 'Departs' : 'Time') + (allDay ? '' : ' *');
   });
+  // Conf # required marker
+  set('tv_conf_lbl', el => { el.textContent = 'Conf # ' + (isFlight ? '*' : ''); });
+  // All-day toggle hidden for flights
+  set('tv_allday_btn', el => { el.hidden = isFlight; });
+  // Passenger section copy + required marker
+  set('tv_pax_lbl', el => { el.textContent = isFlight ? 'Passengers' : '+ Specific individuals'; });
+  set('tv_pax_req', el => { el.style.display = isFlight ? '' : 'none'; });
+  set('tv_pax_hint', el => { el.textContent = isFlight ? "— who's actually on this flight" : '(optional — groups below are the main assignment)'; });
+  // Visibility hint (flight-only)
+  set('tv_grp_hint', el => { el.style.display = isFlight ? '' : 'none'; });
 }
 
 // Shared helpers used by schedule + travel modals
@@ -13283,19 +13424,21 @@ function renderTravel() {
           // an import without an explicit passenger list. Renders a
           // bright ! exclamation badge prompting the TM to pick who's
           // on the flight before broadcasting it to the crew.
-          const audienceNeeded = !!t._audienceNeeded || (((t.type || '').toLowerCase() === 'flight') && !grps.length && !indivs.length);
+          // Free-text passengers (crew typed in but not on the roster yet).
+          const freeNames = (t.person || '').split(/[,;]/).map(s => s.trim()).filter(s => s && !/^all$/i.test(s));
+          const audienceNeeded = !!t._audienceNeeded || (((t.type || '').toLowerCase() === 'flight') && !grps.length && !indivs.length && !freeNames.length);
           let sharedHtml;
           if (audienceNeeded) {
             sharedHtml = `<div class="travel-share"><span class="viz-chip warn-chip" title="Needs audience — pick who's on this flight">! NEEDS AUDIENCE</span></div>`;
-          } else if (grps.length || indivs.length) {
-            sharedHtml = `<div class="travel-share">${grps.map(g => `<span class="viz-chip group ${g==='All'?'all':''}">${esc(g)}</span>`).join('')}${indivCrew.map(c => `<span class="viz-chip indiv">${esc(c.name.split(' ')[0])}</span>`).join('')}</div>`;
+          } else if (grps.length || indivs.length || freeNames.length) {
+            sharedHtml = `<div class="travel-share">${grps.map(g => `<span class="viz-chip group ${g==='All'?'all':''}">${esc(g)}</span>`).join('')}${indivCrew.map(c => `<span class="viz-chip indiv">${esc(c.name.split(' ')[0])}</span>`).join('')}${freeNames.map(n => `<span class="viz-chip indiv" title="Not on roster yet">${esc(n.split(' ')[0])}</span>`).join('')}</div>`;
           } else {
             sharedHtml = `<div class="travel-share muted-share">Visible to all — set audience in Edit</div>`;
           }
           return `
           <div class="item-row${audienceNeeded ? ' travel-needs-audience' : ''}" style="grid-template-columns:60px 80px 1fr 110px 80px;align-items:flex-start">
             <span class="who" style="color:var(--hi);padding-top:6px">${esc(TRAVEL_BADGE[t.type] || t.type.toUpperCase())}</span>
-            <span class="t" style="padding-top:6px">${t.allDay ? 'ALL DAY' : esc(t.time || '—')}</span>
+            <span class="t" style="padding-top:6px">${t.allDay ? 'ALL DAY' : esc(t.time || '—')}${t.type === 'flight' && t.arriveTime ? `<span style="display:block;color:var(--warm-mute);font-weight:400;font-size:10px">↓ ${esc(t.arriveTime)}</span>` : ''}</span>
             <span class="what" style="padding-top:6px">${esc(t.description)}${t.notes ? `<span class="note">${esc(t.notes)}</span>` : ''}${sharedHtml}</span>
             <span class="who" style="color:var(--warm-mute);padding-top:6px">${esc(t.conf || '')}</span>
             <div class="tbl-actions" style="padding-top:6px"><button type="button" onclick="openTravelModal('${t.id}')">Edit</button></div>
@@ -16178,6 +16321,10 @@ function renderPhone() {
   // that schedule uses. Each row in the rendered list is tappable to
   // pop a detail sheet showing flight #, conf #, person, notes.
   const myTravel = (ad.travel || []).filter(t => isItemVisibleToViewer(t, viewer, hasMgmt));
+  // Put the travel the viewer is personally on (their own flight / ride) first,
+  // keeping each partition in the existing time order.
+  const _viewerOnTravel = t => !!(viewerKey && (t.individuals || []).includes(viewerKey));
+  const travelOrdered = [...myTravel.filter(_viewerOnTravel), ...myTravel.filter(t => !_viewerOnTravel(t))];
   const status = ad.status === 'show' ? 'SHOW NIGHT'
     : ad.status === 'travel' ? 'TRAVEL'
     : ad.status === 'off' ? 'DAY OFF'
@@ -16225,20 +16372,8 @@ function renderPhone() {
     ${myTravel.length ? `
       <div class="p-card">
         <div class="lbl">TRAVEL · ${myTravel.length} ${myTravel.length === 1 ? 'move' : 'moves'}</div>
-        <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">
-          ${myTravel.map(t => {
-            const typeLabel = ({bus:'BUS',flight:'FLT',van:'VAN',car:'CAR',train:'TRAIN'})[t.type] || (t.type || '').toUpperCase();
-            const codeLabel = t.flightNumber || t.conf || '';
-            return `
-              <button type="button" class="ph-travel-row" onclick="_phoneShowTravel('${esc(t.id)}')">
-                <span class="ptr-type">${esc(typeLabel)}</span>
-                <span class="ptr-time">${t.allDay ? 'ALL' : esc(t.time || '—')}</span>
-                <span class="ptr-desc">${esc(t.description || '—')}</span>
-                ${codeLabel ? `<span class="ptr-code">${esc(codeLabel)}</span>` : ''}
-                <span class="ptr-chev">›</span>
-              </button>
-            `;
-          }).join('')}
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+          ${travelOrdered.map(t => _phoneTravelItemHTML(t, viewer, viewerKey)).join('')}
         </div>
       </div>
     ` : ''}
@@ -21105,11 +21240,13 @@ function _phoneShowTravel(itemId) {
     body: `
       <div style="display:flex;flex-direction:column;gap:0">
         ${t.description ? detailRow('Description', t.description) : ''}
+        ${t.type === 'flight' && !t.allDay ? detailRow('Departs', t.time || '—', true) : ''}
+        ${t.type === 'flight' && t.arriveTime ? detailRow('Lands', t.arriveTime, true, 'var(--hi)') : ''}
         ${t.flightNumber ? detailRow('Flight number', t.flightNumber, true, 'var(--hi)') : ''}
         ${t.conf ? detailRow('Confirmation #', t.conf, true) : ''}
-        ${t.person ? detailRow('Person', t.person) : ''}
+        ${(() => { const pax = _travelPassengers(t); return pax.length ? detailRow(t.type === 'flight' ? 'Passengers' : 'Who', pax.join(', ')) : ''; })()}
         ${t.notes ? detailRow('Notes', t.notes) : ''}
-        ${!t.flightNumber && !t.conf && !t.person && !t.notes ? `
+        ${!t.flightNumber && !t.conf && !_travelPassengers(t).length && !t.notes && !(t.type === 'flight' && t.arriveTime) ? `
           <div class="muted" style="padding:18px 0;font-size:12.5px;color:var(--warm-mute);font-style:italic;text-align:center">No additional details added for this travel item yet.</div>
         ` : ''}
         <div style="display:flex;justify-content:flex-end;border-top:1px solid var(--line);padding-top:14px;margin-top:14px">
