@@ -1473,6 +1473,17 @@ input,select,textarea{font:inherit;color:inherit}
 .modal-foot .btn.danger{color:var(--red);border-color:rgba(232,69,69,.4)}
 .modal-foot .btn.danger:hover{background:rgba(232,69,69,.1)}
 
+/* multi-add rows (set list "add several at once") */
+.sl-add-row{border:1px solid var(--line-2);border-radius:10px;padding:12px 14px;margin-bottom:12px;background:rgba(232,148,58,.02)}
+.sl-add-row-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.sl-add-row-num{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.16em;color:var(--hi);text-transform:uppercase;
+  background:rgba(232,148,58,.1);border:1px solid rgba(232,148,58,.3);border-radius:5px;padding:2px 8px}
+.sl-add-row-x{width:24px;height:24px;display:grid;place-items:center;border:1px solid var(--line-2);border-radius:6px;background:transparent;color:var(--warm-mute);cursor:pointer;font-size:12px;line-height:1}
+.sl-add-row-x:hover{color:var(--red);border-color:rgba(232,69,69,.5)}
+.sl-add-more{width:100%;padding:11px;border:1px dashed var(--line-glow);border-radius:9px;background:rgba(232,148,58,.04);color:var(--hi);
+  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;cursor:pointer;margin-bottom:10px}
+.sl-add-more:hover{background:rgba(232,148,58,.1);border-color:var(--hi)}
+
 /* ============ FORMS ============ */
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .form-grid.one{grid-template-columns:1fr}
@@ -10759,41 +10770,129 @@ function openAllotmentModal() {
 /* =====================================================================
    SET LIST CRUD
    ===================================================================== */
-function openSetItemModal(itemId, atIndex) {
-  const ad = getActiveDate();
-  if (!ad) return;
-  const item = itemId ? ad.setList.find(s => s.id === itemId) : null;
-  const v = item || { kind: 'song', title: '', length: '', feat: '' };
-  openModal({
-    title: item ? 'Edit set list item' : 'Add to set list',
-    showDelete: !!item,
-    onDelete: item ? () => { ad.setList = ad.setList.filter(x => x.id !== item.id); saveState(); } : null,
-    body: `
+// One editable row in the "Add to set list" multi-add form. Fields are keyed
+// by CLASS (not id) so an arbitrary number of rows can coexist; onSubmit reads
+// them back per-row. Enter in the Title field adds the next row for fast entry.
+let _slRowSeq = 0;
+function _slRowHTML(v) {
+  v = v || { kind: 'song', title: '', length: '', feat: '' };
+  const rid = 'slrow' + (++_slRowSeq);
+  return `
+    <div class="sl-add-row" id="${rid}">
+      <div class="sl-add-row-head">
+        <span class="sl-add-row-num"></span>
+        <button type="button" class="sl-add-row-x" onclick="_slRemoveRow('${rid}')" title="Remove this row">✕</button>
+      </div>
       <div class="form-grid">
         <div class="field"><label>Type</label>
-          <select id="sl_kind">
+          <select class="sl-kind">
             <option value="song" ${v.kind==='song'?'selected':''}>Song</option>
             <option value="tag" ${v.kind==='tag'?'selected':''}>Tag / Note</option>
           </select>
         </div>
-        <div class="field"><label>Length</label><input id="sl_len" value="${esc(v.length)}" placeholder="3:42"></div>
-        <div class="field full"><label>Title / Note *</label><input id="sl_title" value="${esc(v.title)}"></div>
-        <div class="field full"><label>Feature / Notes</label><input id="sl_feat" value="${esc(v.feat)}" placeholder="e.g. solo / acoustic, guest: ..."></div>
+        <div class="field"><label>Length</label><input class="sl-len" value="${esc(v.length)}" placeholder="3:42"></div>
+        <div class="field full"><label>Title / Note *</label><input class="sl-title" value="${esc(v.title)}" onkeydown="if(event.key==='Enter'){event.preventDefault();_slAddRow();}"></div>
+        <div class="field full"><label>Feature / Notes</label><input class="sl-feat" value="${esc(v.feat)}" placeholder="e.g. solo / acoustic, guest: ..."></div>
       </div>
+    </div>`;
+}
+function _slRenumber() {
+  const rows = document.querySelectorAll('#sl_rows .sl-add-row');
+  rows.forEach((r, i) => {
+    const num = r.querySelector('.sl-add-row-num');
+    if (num) num.textContent = '#' + (i + 1);
+    // Never let the user remove the last remaining row.
+    const x = r.querySelector('.sl-add-row-x');
+    if (x) x.style.visibility = rows.length > 1 ? 'visible' : 'hidden';
+  });
+}
+function _slAddRow() {
+  const wrap = document.getElementById('sl_rows');
+  if (!wrap) return;
+  wrap.insertAdjacentHTML('beforeend', _slRowHTML());
+  _slRenumber();
+  const rows = wrap.querySelectorAll('.sl-add-row');
+  const last = rows[rows.length - 1];
+  const t = last && last.querySelector('.sl-title');
+  if (t) t.focus();
+  if (last && last.scrollIntoView) last.scrollIntoView({ block: 'nearest' });
+}
+function _slRemoveRow(rid) {
+  const wrap = document.getElementById('sl_rows');
+  const row = document.getElementById(rid);
+  if (!wrap || !row) return;
+  if (wrap.querySelectorAll('.sl-add-row').length <= 1) return; // keep at least one
+  row.remove();
+  _slRenumber();
+}
+
+function openSetItemModal(itemId, atIndex) {
+  const ad = getActiveDate();
+  if (!ad) return;
+  const item = itemId ? ad.setList.find(s => s.id === itemId) : null;
+
+  // ── EDIT mode — a single existing item ───────────────────────────────
+  if (item) {
+    const v = item;
+    openModal({
+      title: 'Edit set list item',
+      showDelete: true,
+      onDelete: () => { ad.setList = ad.setList.filter(x => x.id !== item.id); saveState(); },
+      body: `
+        <div class="form-grid">
+          <div class="field"><label>Type</label>
+            <select id="sl_kind">
+              <option value="song" ${v.kind==='song'?'selected':''}>Song</option>
+              <option value="tag" ${v.kind==='tag'?'selected':''}>Tag / Note</option>
+            </select>
+          </div>
+          <div class="field"><label>Length</label><input id="sl_len" value="${esc(v.length)}" placeholder="3:42"></div>
+          <div class="field full"><label>Title / Note *</label><input id="sl_title" value="${esc(v.title)}"></div>
+          <div class="field full"><label>Feature / Notes</label><input id="sl_feat" value="${esc(v.feat)}" placeholder="e.g. solo / acoustic, guest: ..."></div>
+        </div>
+      `,
+      onSubmit: () => {
+        const title = $('#sl_title').value.trim();
+        if (!title) { toast('Title required', 'error'); return false; }
+        Object.assign(item, { kind: $('#sl_kind').value, title, length: $('#sl_len').value.trim(), feat: $('#sl_feat').value.trim() });
+        saveState();
+      }
+    });
+    return;
+  }
+
+  // ── ADD mode — one OR many rows in a single save ─────────────────────
+  _slRowSeq = 0;
+  openModal({
+    title: 'Add to set list',
+    size: 'lg',
+    body: `
+      <div id="sl_rows">${_slRowHTML()}</div>
+      <button type="button" class="sl-add-more" onclick="_slAddRow()">+ Add another song</button>
+      <div class="help">Add as many as you like — press Enter in a title to jump to the next row. Blank rows are skipped; everything saves to this show's set list in order.</div>
     `,
     onSubmit: () => {
-      const title = $('#sl_title').value.trim();
-      if (!title) { toast('Title required', 'error'); return false; }
-      const data = { kind: $('#sl_kind').value, title, length: $('#sl_len').value.trim(), feat: $('#sl_feat').value.trim() };
-      if (item) Object.assign(item, data);
-      else {
-        const newItem = { id: uid('sl'), ...data };
-        if (typeof atIndex === 'number') ad.setList.splice(atIndex, 0, newItem);
-        else ad.setList.push(newItem);
+      const rows = [...document.querySelectorAll('#sl_rows .sl-add-row')];
+      const items = [];
+      for (const r of rows) {
+        const title = r.querySelector('.sl-title').value.trim();
+        if (!title) continue; // skip empty rows
+        items.push({
+          id: uid('sl'),
+          kind: r.querySelector('.sl-kind').value,
+          title,
+          length: r.querySelector('.sl-len').value.trim(),
+          feat: r.querySelector('.sl-feat').value.trim(),
+        });
       }
+      if (!items.length) { toast('Add at least one title', 'error'); return false; }
+      if (typeof atIndex === 'number') ad.setList.splice(atIndex, 0, ...items);
+      else ad.setList.push(...items);
       saveState();
+      if (items.length > 1) toast(`Added ${items.length} items to the set list`, 'good');
     }
   });
+  _slRenumber();
 }
 
 function moveSetItem(id, dir) {
