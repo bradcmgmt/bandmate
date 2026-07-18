@@ -902,6 +902,12 @@ input,select,textarea{font:inherit;color:inherit}
 .item-row .who{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--hi)}
 
 /* hotels */
+.hs-who{font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--hi);background:rgba(232,148,58,.1);border:1px solid rgba(232,148,58,.35);border-radius:5px;padding:2px 7px}
+.hs-badge{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.12em;border-radius:5px;padding:2px 7px}
+.hs-badge.hs-in{color:#7fd1a8;background:rgba(90,200,140,.1);border:1px solid rgba(90,200,140,.35)}
+.hs-badge.hs-out{color:#e88080;background:rgba(232,128,128,.1);border:1px solid rgba(232,128,128,.35)}
+.hs-badge.hs-mid{color:#8aa9d8;background:rgba(138,169,216,.1);border:1px solid rgba(138,169,216,.35)}
 .hotel-room-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:10px}
 .room{background:linear-gradient(135deg,rgba(232,148,58,.05),rgba(232,148,58,.01));
   border:1px solid var(--line-2);border-radius:9px;padding:11px 12px;
@@ -5102,7 +5108,12 @@ const dbMap = {
       travel:     d.travel     || [],
       guests:     d.guests     || [],
       set_list:   d.setList    || [],
-      hotel:      d.hotel      || null,
+      // Hotels: `hotels` (array) is canonical; `hotel` (object) is a legacy
+      // mirror of the first stay so an older app version never reads an array.
+      hotels:     (d.hotels && d.hotels.length) ? d.hotels
+                    : (d.hotel ? [_normStay(d.hotel, d.date)] : null),
+      hotel:      (d.hotels && d.hotels.length) ? _legacyHotelObj(d.hotels[0])
+                    : (d.hotel ? _legacyHotelObj(_normStay(d.hotel, d.date)) : null),
       settlement: d.settlement || { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' },
       advance:    d.advance    || {},
       allotments: d.allotments || {},
@@ -5131,7 +5142,7 @@ const dbMap = {
       guests:   row.guests   || [],
       setList:  row.set_list || [],
       attachments: [], // local-only this slice
-      hotel: row.hotel || null,
+      hotels: _coerceHotels(row.hotels, row.hotel, row.date),
       settlement: row.settlement || { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' },
       advance: row.advance || {},
       allotments: row.allotments || {},
@@ -6144,7 +6155,12 @@ _onTourChange(payload) {
       keepIfAbsent('settlement', 'settlement');
       keepIfAbsent('allotments', 'allotments');
       keepIfAbsent('dayNotes',   'day_notes');
-      keepIfAbsent('hotel',      'hotel');
+      // Hotels live in the `hotels` array column with a legacy `hotel` object
+      // mirror. Only treat as truncated (and keep local) when BOTH columns are
+      // absent from the payload — otherwise honor whichever the sender wrote.
+      if (row.hotels === undefined && row.hotel === undefined && existing.hotels !== undefined) {
+        newDate.hotels = existing.hotels;
+      }
       keepIfAbsent('advance',    'advance');
       // techPack binary lives in Storage out-of-band; if a (present) advance
       // arrives without it but we still have it locally, keep it. Runs after
@@ -6766,6 +6782,28 @@ function loadState() {
       });
     });
     if (didNotesMigrate) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+    }
+  }
+  // One-time: fold the legacy single `date.hotel` object into the new
+  // `date.hotels[]` array of date-spanning stays. A pre-migration hotel had
+  // no date range, so it becomes a single-night stay checking in and out on
+  // its own date (who = Everyone). Idempotent: skipped once `hotels` exists.
+  if (state && state.tours) {
+    let didHotelMigrate = false;
+    Object.values(state.tours).forEach(tour => {
+      (tour.dates || []).forEach(d => {
+        if (Array.isArray(d.hotels)) { if (d.hotel) delete d.hotel; return; }
+        if (d.hotel && typeof d.hotel === 'object' && d.hotel.name) {
+          d.hotels = [_normStay(d.hotel, d.date)];
+          didHotelMigrate = true;
+        } else {
+          d.hotels = [];
+        }
+        if (d.hotel) delete d.hotel;
+      });
+    });
+    if (didHotelMigrate) {
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
     }
   }
@@ -8822,54 +8860,195 @@ function readTime12Picker(prefix) {
 /* =====================================================================
    HOTEL CRUD
    ===================================================================== */
-function openHotelModal() {
+// ── Multi-hotel model ────────────────────────────────────────────────
+// A date used to hold exactly ONE hotel (`date.hotel`). It now holds an
+// ARRAY of *stays* (`date.hotels[]`). Each stay spans a date RANGE
+// (check-in date → check-out date, inclusive) and is stored ONCE, on its
+// check-in date. Multiple stays can cover the same day — a split party
+// (band / crew / talent at different hotels) or a same-day check-out +
+// new check-in after travel. The helpers below resolve which stays cover
+// any given day and locate a stay for editing wherever it's stored.
+const _HOTEL_WHO = ['Everyone', 'Band', 'Crew', 'Talent', 'Management', 'Openers'];
+
+// Coerce any hotel-ish object (legacy single hotel, template, import row)
+// into the canonical stay shape. Non-destructive — unknown fields survive.
+function _normStay(s, fallbackDateISO) {
+  s = s || {};
+  const out = {
+    id: s.id || uid('hs'),
+    name: s.name || '', address: s.address || '', conf: s.conf || '',
+    phone: s.phone || '', checkIn: s.checkIn || '', checkOut: s.checkOut || '',
+    checkInDate: s.checkInDate || fallbackDateISO || '',
+    checkOutDate: s.checkOutDate || s.checkInDate || fallbackDateISO || '',
+    who: s.who || 'Everyone', notes: s.notes || '',
+    rooms: Array.isArray(s.rooms) ? s.rooms : [],
+  };
+  if (out.checkOutDate && out.checkInDate && out.checkOutDate < out.checkInDate) out.checkOutDate = out.checkInDate;
+  return out;
+}
+
+// Reading a date row: prefer the new `hotels` array column; fall back to the
+// legacy singular `hotel` object (older data / older client writes).
+function _coerceHotels(hotelsCol, legacyHotel, dateISO) {
+  if (Array.isArray(hotelsCol)) return hotelsCol.map(s => _normStay(s, dateISO));
+  if (legacyHotel && typeof legacyHotel === 'object' && legacyHotel.name) return [_normStay(legacyHotel, dateISO)];
+  return [];
+}
+
+// Old-client mirror written to the singular `hotel` JSONB column so an app
+// version that predates multi-hotel never sees an array (which would crash
+// its `hotel.rooms.find`). Old clients only read name/address/conf/times/rooms.
+function _legacyHotelObj(stay) {
+  if (!stay) return null;
+  return {
+    name: stay.name || '', address: stay.address || '', conf: stay.conf || '',
+    phone: stay.phone || '', checkIn: stay.checkIn || '', checkOut: stay.checkOut || '',
+    notes: stay.notes || '', rooms: stay.rooms || [],
+  };
+}
+
+// Every stay (from anywhere in the tour) that covers date object `d`,
+// annotated with span role: 'in' (check-in day), 'out' (check-out day),
+// 'mid' (staying), 'single' (one-nighter).
+function _hotelsForDate(d) {
+  if (!d || !d.date) return [];
+  const target = d.date;
+  const out = [];
+  (T().dates || []).forEach(dd => {
+    (dd.hotels || []).forEach(s => {
+      const ci = s.checkInDate || dd.date;
+      const co = s.checkOutDate || ci;
+      if (target >= ci && target <= co) {
+        out.push(Object.assign({}, s, {
+          _srcDateId: dd.id, _ci: ci, _co: co,
+          _role: ci === co ? 'single' : target === ci ? 'in' : target === co ? 'out' : 'mid',
+        }));
+      }
+    });
+  });
+  const rank = { in: 0, single: 0, mid: 1, out: 2 };
+  out.sort((a, b) => (rank[a._role] - rank[b._role]) || (a.name || '').localeCompare(b.name || ''));
+  return out;
+}
+
+// Does ANY stay cover this date? (cheap check for gap analysis / flags)
+function _dateHasHotel(d) { return _hotelsForDate(d).length > 0; }
+
+// Locate the live stay object (and its host date) for editing — regardless
+// of which date it's stored on. Returns {stay, date} or null.
+function _findStay(stayId) {
+  if (!stayId) return null;
+  for (const dd of (T().dates || [])) {
+    const s = (dd.hotels || []).find(x => x.id === stayId);
+    if (s) return { stay: s, date: dd };
+  }
+  return null;
+}
+
+// Whole nights between check-in and check-out dates.
+function _stayNights(stay) {
+  const ci = stay.checkInDate, co = stay.checkOutDate;
+  if (!ci || !co || ci === co) return 1;
+  const a = new Date(ci + 'T00:00:00'), b = new Date(co + 'T00:00:00');
+  return Math.max(1, Math.round((b - a) / 86400000));
+}
+
+function _hotelWhoToggle(sel) {
+  const custom = sel.value === '__custom';
+  const inp = document.getElementById('h_who_custom');
+  const lbl = document.getElementById('h_who_custom_lbl');
+  if (inp) inp.hidden = !custom;
+  if (lbl) lbl.hidden = !custom;
+}
+
+function openHotelModal(stayId) {
   const ad = getActiveDate();
   if (!ad) return;
-  const h = ad.hotel || { name: '', address: '', conf: '', checkIn: '', checkOut: '', phone: '', notes: '', rooms: [] };
+  const found = stayId ? _findStay(stayId) : null;
+  const editing = found ? found.stay : null;
+  const h = editing || {
+    name: '', address: '', conf: '', phone: '', checkIn: '', checkOut: '',
+    checkInDate: ad.date, checkOutDate: ad.date, who: 'Everyone', notes: '', rooms: [],
+  };
+  const whoIsCustom = _HOTEL_WHO.indexOf(h.who) < 0;
+  const whoOptions = _HOTEL_WHO.map(w => `<option ${!whoIsCustom && h.who === w ? 'selected' : ''}>${w}</option>`).join('')
+    + `<option value="__custom" ${whoIsCustom ? 'selected' : ''}>+ Custom…</option>`;
   openModal({
-    title: ad.hotel ? 'Edit hotel' : 'Add hotel for ' + ad.city,
+    title: editing ? 'Edit hotel' : 'Add hotel for ' + ad.city,
     size: 'lg',
-    showDelete: !!ad.hotel,
-    onDelete: ad.hotel ? () => { ad.hotel = null; saveState(); } : null,
+    showDelete: !!editing,
+    onDelete: editing ? () => {
+      const f = _findStay(stayId);
+      if (f) f.date.hotels = (f.date.hotels || []).filter(x => x.id !== stayId);
+      saveState();
+    } : null,
     body: `
       <div class="form-grid">
         <div class="field full"><label>Hotel name *</label><input id="h_name" data-ac="hotel" autocomplete="off" value="${esc(h.name)}"></div>
         <div class="field full"><label>Address</label><input id="h_addr" value="${esc(h.address)}"></div>
+        <div class="field"><label>Check-in date *</label><input id="h_indate" type="date" value="${esc(h.checkInDate || ad.date)}"></div>
+        <div class="field"><label>Check-out date *</label><input id="h_outdate" type="date" value="${esc(h.checkOutDate || h.checkInDate || ad.date)}"></div>
+        <div class="field"><label>Check-in time</label><input id="h_in" value="${esc(h.checkIn)}" placeholder="e.g. 15:00"></div>
+        <div class="field"><label>Check-out time</label><input id="h_out" value="${esc(h.checkOut)}" placeholder="e.g. 11:00"></div>
+        <div class="field"><label>Who's staying here</label>
+          <select id="h_who" onchange="_hotelWhoToggle(this)">${whoOptions}</select>
+        </div>
+        <div class="field"><label id="h_who_custom_lbl" ${whoIsCustom ? '' : 'hidden'}>Custom group</label><input id="h_who_custom" ${whoIsCustom ? '' : 'hidden'} value="${whoIsCustom ? esc(h.who) : ''}" placeholder="e.g. Support act"></div>
         <div class="field"><label>Confirmation #</label><input id="h_conf" value="${esc(h.conf)}"></div>
         <div class="field"><label>Phone</label><input id="h_phone" value="${esc(h.phone)}"></div>
-        <div class="field"><label>Check-in</label><input id="h_in" value="${esc(h.checkIn)}" placeholder="HH:MM or '15:00 day-of'"></div>
-        <div class="field"><label>Check-out</label><input id="h_out" value="${esc(h.checkOut)}" placeholder="HH:MM"></div>
         <div class="field full"><label>Notes</label><textarea id="h_notes">${esc(h.notes)}</textarea></div>
       </div>
-      <div class="help">Add room assignments after saving the hotel.</div>
+      <div class="help">This hotel shows on every day from check-in through check-out. Add more than one hotel on a day for a split party (band / crew / talent) or a same-day check-out + check-in after travel. Add room assignments after saving.</div>
     `,
     onSubmit: () => {
       const name = $('#h_name').value.trim();
       if (!name) { toast('Hotel name required', 'error'); return false; }
-      ad.hotel = ad.hotel || { rooms: [] };
-      Object.assign(ad.hotel, {
+      const inDate = $('#h_indate').value || ad.date;
+      const outDate = $('#h_outdate').value || inDate;
+      if (outDate < inDate) { toast('Check-out date can’t be before check-in', 'error'); return false; }
+      let who = $('#h_who').value;
+      if (who === '__custom') who = ($('#h_who_custom').value.trim() || 'Everyone');
+      const data = {
         name, address: $('#h_addr').value.trim(), conf: $('#h_conf').value.trim(),
         phone: $('#h_phone').value.trim(), checkIn: $('#h_in').value.trim(), checkOut: $('#h_out').value.trim(),
-        notes: $('#h_notes').value.trim()
-      });
-      if (!ad.hotel.rooms) ad.hotel.rooms = [];
+        checkInDate: inDate, checkOutDate: outDate, who, notes: $('#h_notes').value.trim(),
+      };
+      if (editing) {
+        const f = _findStay(stayId);
+        if (f) {
+          Object.assign(f.stay, data);
+          // If check-in moved to a different day, relocate the stay so it's
+          // still stored on its (new) check-in date.
+          if (f.date.date !== inDate) {
+            const host = T().dates.find(x => x.date === inDate);
+            if (host && host !== f.date) {
+              f.date.hotels = (f.date.hotels || []).filter(x => x.id !== stayId);
+              (host.hotels = host.hotels || []).push(f.stay);
+            }
+          }
+        }
+      } else {
+        const host = T().dates.find(x => x.date === inDate) || ad;
+        (host.hotels = host.hotels || []).push(_normStay({ ...data, id: uid('hs'), rooms: [] }, inDate));
+      }
       saveState();
     }
   });
 }
 
-function openRoomModal(roomId) {
-  const ad = getActiveDate();
-  if (!ad?.hotel) return;
-  const room = roomId ? ad.hotel.rooms.find(r => r.id === roomId) : null;
+function openRoomModal(stayId, roomId) {
+  const found = _findStay(stayId);
+  if (!found) return;
+  const stay = found.stay;
+  const room = roomId ? (stay.rooms || []).find(r => r.id === roomId) : null;
   const r = room || { personId: '', personName: '', roomNum: '', roomType: 'King', notes: '' };
   const crewOptions = T().crew.map(c =>
     `<option value="${c.id}" ${r.personId === c.id ? 'selected' : ''}>${esc(c.name)} — ${esc(c.role)}</option>`
   ).join('');
   openModal({
-    title: room ? 'Edit room' : 'Add room assignment',
+    title: room ? 'Edit room' : 'Add room assignment · ' + esc(stay.name || ''),
     showDelete: !!room,
-    onDelete: room ? () => { ad.hotel.rooms = ad.hotel.rooms.filter(x => x.id !== room.id); saveState(); } : null,
+    onDelete: room ? () => { stay.rooms = (stay.rooms || []).filter(x => x.id !== room.id); saveState(); } : null,
     body: `
       <div class="form-grid">
         <div class="field full"><label>Crew member</label>
@@ -8909,7 +9088,7 @@ function openRoomModal(roomId) {
       };
       if (!data.personId && !data.personName) { toast('Pick a crew member or type a name', 'error'); return false; }
       if (room) Object.assign(room, data);
-      else ad.hotel.rooms.push({ id: uid('rm'), ...data });
+      else (stay.rooms = stay.rooms || []).push({ id: uid('rm'), ...data });
       saveState();
     }
   });
@@ -12197,8 +12376,10 @@ function renderDashboard() {
       `).join('')
     : `<div class="row"><span class="what muted" style="grid-column:1/-1">No schedule yet for this day. <a onclick="activeTab='schedule';bindTabs();$$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab==='schedule'));$$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel==='schedule'));renderSchedule()" style="color:var(--hi);cursor:pointer">Add an item →</a></span></div>`;
 
-  const hotel = ad.hotel;
-  const hotelMeta = hotel ? `${esc(hotel.name)}${hotel.checkOut ? ' · check-out ' + esc(hotel.checkOut) : ''}` : 'Not added yet';
+  const _dayHotels = _hotelsForDate(ad);
+  const hotelMeta = _dayHotels.length
+    ? `${esc(_dayHotels[0].name)}${_dayHotels[0].checkOut ? ' · check-out ' + esc(_dayHotels[0].checkOut) : ''}${_dayHotels.length > 1 ? ` · +${_dayHotels.length - 1} more` : ''}`
+    : 'Not added yet';
   const promoter = ad.promoter || 'Not set';
   const nextDate = T().dates[T().dates.findIndex(d => d.id === ad.id) + 1];
   // City-to-city mileage estimate (Haversine on a built-in city lookup —
@@ -12353,10 +12534,14 @@ function renderDashboard() {
     </div>
   ` : `<div class="card-empty">No venue set. <a onclick="openDateModal('${ad.id}')">Edit date →</a></div>`;
 
-  // HOTEL CARD content
-  const hotelCardHtml = hotel ? `
-    <div class="bm-info">
-      <div class="name">${esc(hotel.name || 'Hotel')}</div>
+  // HOTEL CARD content — one block per stay covering this day.
+  const hotelCardHtml = _dayHotels.length ? _dayHotels.map((hotel, i) => {
+    const roleTxt = hotel._role === 'out' ? 'Check-out' : hotel._role === 'mid' ? 'Staying' : hotel._role === 'in' ? 'Check-in' : '';
+    const whoTxt = (hotel.who && hotel.who !== 'Everyone') ? esc(hotel.who) : '';
+    const tag = [whoTxt, roleTxt].filter(Boolean).join(' · ');
+    return `
+    <div class="bm-info"${i ? ' style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)"' : ''}>
+      <div class="name">${esc(hotel.name || 'Hotel')}${tag ? ` <span class="lbl" style="font-weight:400;letter-spacing:.06em">${tag}</span>` : ''}</div>
       ${hotel.address ? `<div class="line">${esc(hotel.address)}</div>` : ''}
       ${hotel.city ? `<div class="line">${esc([hotel.city, hotel.state, hotel.zip].filter(Boolean).join(', '))}</div>` : ''}
       <div style="margin-top:8px">
@@ -12365,8 +12550,8 @@ function renderDashboard() {
         ${hotel.checkOut ? `<div class="pair"><span class="lbl">Check-out</span><span class="val">${esc(hotel.checkOut)}</span></div>` : ''}
         ${(hotel.rooms && hotel.rooms.length) ? `<div class="pair"><span class="lbl">Rooms</span><span class="val">${hotel.rooms.length}</span></div>` : ''}
       </div>
-    </div>
-  ` : `<div class="card-empty">No hotel set${isOrGap('hotel or travel') ? ' (or travel)' : ''}. <a onclick="_dashGoTab('hotels')">Add hotel →</a></div>`;
+    </div>`;
+  }).join('') : `<div class="card-empty">No hotel set${isOrGap('hotel or travel') ? ' (or travel)' : ''}. <a onclick="_dashGoTab('hotels')">Add hotel →</a></div>`;
 
   // KEY CONTACTS CARD — pulled from T().contacts (tour-level address book)
   const contacts = (T().contacts || []).slice(0, 5);
@@ -12607,7 +12792,7 @@ function _dashGoTab(tabName) {
 // Variant of renderTodayFlags that emits the new .bm-flag-row markup
 function renderTodayFlagRows(ad) {
   const flags = [];
-  if (!ad.hotel) flags.push({ kind: 'amb', h: 'No hotel set', s: 'Add hotel + room block in <b>Hotels</b>.' });
+  if (!_dateHasHotel(ad)) flags.push({ kind: 'amb', h: 'No hotel set', s: 'Add hotel + room block in <b>Hotels</b>.' });
   if (!ad.schedule.length) flags.push({ kind: 'amb', h: 'No schedule yet', s: 'Build your day in <b>Schedule</b>.' });
   ad.guests.forEach(g => {
     if (g.status === 'pending') flags.push({ kind: 'amb', h: `Pending: ${esc(g.name)}`, s: `${esc(g.passType)} · submitted by ${esc(g.submittedBy || '—')}` });
@@ -12631,7 +12816,7 @@ function renderTodayFlagRows(ad) {
 
 function renderTodayFlags(ad) {
   const flags = [];
-  if (!ad.hotel) flags.push({ kind: 'amb', h: 'No hotel set', s: 'Add hotel + room block in <b>Hotels</b>.' });
+  if (!_dateHasHotel(ad)) flags.push({ kind: 'amb', h: 'No hotel set', s: 'Add hotel + room block in <b>Hotels</b>.' });
   if (!ad.schedule.length) flags.push({ kind: 'amb', h: 'No schedule yet', s: 'Build your day in <b>Schedule</b>.' });
   ad.guests.forEach(g => {
     if (g.status === 'pending') flags.push({ kind: 'amb', h: `Pending: ${esc(g.name)}`, s: `${esc(g.passType)} · submitted by ${esc(g.submittedBy || '—')}` });
@@ -13050,12 +13235,14 @@ function closeHotelTemplateMenu() {
 function saveHotelAsTemplate() {
   const ad = getActiveDate();
   if (!ad) { closeHotelTemplateMenu(); return; }
-  if (!ad.hotel || !ad.hotel.name) {
+  // Save the first hotel covering this day. (Days can now stack several; the
+  // template captures the primary one — apply it elsewhere and tweak dates.)
+  const h = _hotelsForDate(ad)[0];
+  if (!h || !h.name) {
     toast('No hotel on this day to save', 'error');
     closeHotelTemplateMenu();
     return;
   }
-  const h = ad.hotel;
   const roomCount = (h.rooms || []).length;
   const defaultName = `${h.name}${ad.city ? ' · ' + ad.city : ''}`;
   const name = prompt('Hotel template name:', defaultName);
@@ -13065,6 +13252,9 @@ function saveHotelAsTemplate() {
   // fresh set is minted on apply. personId stays, so the same crew member
   // is reassigned to "their" room when the template lands on a new day.
   const hotelCopy = JSON.parse(JSON.stringify(h));
+  // Templates are date-agnostic and get fresh ids on apply — strip the stay's
+  // own id, date range, and the transient span annotations from _hotelsForDate.
+  ['id', 'checkInDate', 'checkOutDate', '_srcDateId', '_ci', '_co', '_role'].forEach(k => delete hotelCopy[k]);
   hotelCopy.rooms = (hotelCopy.rooms || []).map(r => { const { id, ...rest } = r; return rest; });
   T().hotelTemplates.push({
     id: uid('htpl'),
@@ -13083,22 +13273,16 @@ function applyHotelTemplate(tplId) {
   if (!ad) { toast('No active date to apply to', 'error'); return; }
   const tpl = (T().hotelTemplates || []).find(t => t.id === tplId);
   if (!tpl || !tpl.hotel) { toast('Template not found', 'error'); return; }
-  // A date holds exactly ONE hotel, so applying replaces it. If something's
-  // already there, confirm — room assignments get replaced too.
-  if (ad.hotel && ad.hotel.name) {
-    if (!confirm(`Replace the hotel on ${ad.city || 'this day'} ("${ad.hotel.name}") with "${tpl.name}"? The current room assignments will be replaced.`)) {
-      closeHotelTemplateMenu();
-      return;
-    }
-  }
-  // Deep-clone so two days never share references, and mint fresh room ids.
+  // Applying ADDS a new stay to this day (days can stack several) as a single
+  // night; open Edit to extend the check-out date across a longer stay.
   const hotelCopy = JSON.parse(JSON.stringify(tpl.hotel));
   hotelCopy.rooms = (hotelCopy.rooms || []).map(r => ({ id: uid('room'), ...r }));
-  ad.hotel = hotelCopy;
+  const stay = _normStay({ ...hotelCopy, id: uid('hs'), checkInDate: ad.date, checkOutDate: ad.date }, ad.date);
+  (ad.hotels = ad.hotels || []).push(stay);
   saveState();
   closeHotelTemplateMenu();
-  const rc = hotelCopy.rooms.length;
-  toast(`Applied "${tpl.name}" · ${rc} room${rc===1?'':'s'} to ${ad.city || 'this day'}`, 'good');
+  const rc = (stay.rooms || []).length;
+  toast(`Added "${tpl.name}" · ${rc} room${rc===1?'':'s'} to ${ad.city || 'this day'}`, 'good');
   renderAll();
 }
 
@@ -13129,15 +13313,16 @@ function deleteHotelTemplate(tplId) {
 // (.sched-template-menu / .stm-*) so there's no new CSS to maintain.
 function _hotelTemplateMenuHTML(ad) {
   const tpls = (T().hotelTemplates || []);
-  const hasHotel = !!(ad.hotel && ad.hotel.name);
-  const roomCount = hasHotel ? (ad.hotel.rooms || []).length : 0;
+  const _primary = _hotelsForDate(ad)[0];
+  const hasHotel = !!(_primary && _primary.name);
+  const roomCount = hasHotel ? (_primary.rooms || []).length : 0;
   return `
     <div class="sched-template-wrap" id="hotelTemplateWrap" style="position:relative;margin-left:auto">
       <button type="button" class="add-btn" onclick="toggleHotelTemplateMenu()">⌂ Hotel templates ${tpls.length ? `· ${tpls.length}` : ''} ▾</button>
       <div class="sched-template-menu" id="hotelTemplateMenu" hidden>
         <button type="button" class="stm-item" onclick="saveHotelAsTemplate()" ${hasHotel ? '' : 'disabled'}>
           <span class="stm-ic">+</span>
-          <span><div class="stm-h">Save this hotel as template</div><div class="stm-s">${hasHotel ? esc(ad.hotel.name) + ' · ' + roomCount + ' room' + (roomCount===1?'':'s') : 'No hotel on this day yet'}</div></span>
+          <span><div class="stm-h">Save this hotel as template</div><div class="stm-s">${hasHotel ? esc(_primary.name) + ' · ' + roomCount + ' room' + (roomCount===1?'':'s') : 'No hotel on this day yet'}</div></span>
         </button>
         ${tpls.length ? `
           <div class="stm-divider">Saved templates</div>
@@ -13157,77 +13342,91 @@ function _hotelTemplateMenuHTML(ad) {
   `;
 }
 
+function _hotelStayCardHTML(s) {
+  const nights = _stayNights(s);
+  const spanTxt = s._ci === s._co
+    ? `${fmtMD(s._ci)} · 1 night`
+    : `${fmtMD(s._ci)} → ${fmtMD(s._co)} · ${nights} night${nights === 1 ? '' : 's'}`;
+  const roleBadge = s._role === 'out' ? '<span class="hs-badge hs-out">CHECK-OUT</span>'
+    : s._role === 'mid' ? '<span class="hs-badge hs-mid">STAYING</span>'
+    : s._role === 'in' ? '<span class="hs-badge hs-in">CHECK-IN</span>'
+    : '<span class="hs-badge hs-in">1 NIGHT</span>';
+  const rooms = s.rooms || [];
+  const cell = (lbl, val, mono, hi) =>
+    `<div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.18em;text-transform:uppercase">${lbl}</div><div class="${mono ? 'mono ' : ''}" style="font-size:13px;margin-top:3px${hi ? ';color:var(--hi)' : ''}">${esc(val || '—')}</div></div>`;
+  return `
+    <div class="card mb12">
+      <div class="row-flex" style="align-items:flex-start;gap:10px">
+        <div class="flex1">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-size:16px;font-weight:800">${esc(s.name)}</span>
+            <span class="hs-who">${esc(s.who || 'Everyone')}</span>
+            ${roleBadge}
+          </div>
+          <div class="mono" style="font-size:11px;color:var(--warm-mute);margin-top:4px;letter-spacing:.04em">${esc(spanTxt)}</div>
+        </div>
+        <button type="button" class="add-btn" onclick="openHotelModal('${s.id}')">Edit hotel</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-top:12px">
+        ${cell('Address', s.address)}
+        ${cell('Conf #', s.conf, true, true)}
+        ${cell('Check-in / out', `${s.checkIn || '—'} / ${s.checkOut || '—'}`, true)}
+        ${cell('Phone', s.phone, true)}
+      </div>
+      ${s.notes ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:13px;color:var(--warm-mute)">${esc(s.notes)}</div>` : ''}
+
+      <div class="row-flex" style="margin-top:14px">
+        <div class="muted mono" style="font-size:11px;letter-spacing:.18em">ROOM ASSIGNMENTS · ${rooms.length}</div>
+        <div class="flex1"></div>
+        <button type="button" class="add-btn" onclick="openRoomModal('${s.id}')">+ Add room</button>
+      </div>
+      ${rooms.length === 0
+        ? `<div class="sub muted" style="margin-top:8px;font-style:italic">No rooms assigned yet — crew see their own room # on their phone.</div>`
+        : `<div class="hotel-room-grid">
+            ${rooms.map(r => {
+              const person = r.personId ? T().crew.find(c => c.id === r.personId) : null;
+              const name = person ? person.name : (r.personName || 'Unassigned');
+              return `
+                <div class="room">
+                  <div class="occ"><div class="n">${esc(name)}</div><div class="r">${esc(r.roomType || '')}${r.notes ? ' · ' + esc(r.notes) : ''}</div></div>
+                  <div class="num">${esc(r.roomNum || '—')}</div>
+                  <div class="ractions"><button type="button" onclick="openRoomModal('${s.id}','${r.id}')">✎</button></div>
+                </div>
+              `;
+            }).join('')}
+          </div>`}
+    </div>`;
+}
+
 function renderHotels() {
   const ad = getActiveDate();
   const root = $('#p-hotels');
   if (!ad) { root.innerHTML = noDate(); return; }
 
-  const h = ad.hotel;
-  if (!h) {
-    root.innerHTML = `
-      <div class="section-title">
-        <h2>Hotels · ${esc(ad.city)}</h2>
-        <span class="crumb">/ ${fmtDate(ad.date).toUpperCase()}</span>
-        ${_hotelTemplateMenuHTML(ad)}
-        <button type="button" class="add-btn" onclick="openHotelModal()">+ Add hotel</button>
-      </div>
+  const stays = _hotelsForDate(ad);
+  const totalRooms = stays.reduce((n, s) => n + (s.rooms || []).length, 0);
+
+  const header = `
+    <div class="section-title">
+      <h2>Hotels · ${esc(ad.city)}</h2>
+      <span class="crumb">/ ${fmtDate(ad.date).toUpperCase()}</span>
+      ${stays.length ? `<span class="stamp">${stays.length} HOTEL${stays.length === 1 ? '' : 'S'} · ${totalRooms} ROOM${totalRooms === 1 ? '' : 'S'}</span>` : ''}
+      ${_hotelTemplateMenuHTML(ad)}
+      <button type="button" class="add-btn" onclick="openHotelModal()">+ Add hotel</button>
+    </div>`;
+
+  if (!stays.length) {
+    root.innerHTML = header + `
       <div class="empty">
         <h3>No hotel set for ${esc(ad.city)}</h3>
-        <p>Add the hotel for this date, then assign rooms to your crew. Each crew member sees their own room # on their phone.${(T().hotelTemplates||[]).length ? ' Or apply a saved hotel template above to reuse a same-city stay.' : ''}</p>
+        <p>Add a hotel with its check-in and check-out dates — it appears automatically on every day of the stay. Stack more than one per day for a split party (band / crew / talent) or a same-day check-out + check-in after travel.${(T().hotelTemplates||[]).length ? ' Or apply a saved hotel template above.' : ''}</p>
         <button type="button" onclick="openHotelModal()">+ Add hotel</button>
-      </div>
-    `;
+      </div>`;
     return;
   }
 
-  root.innerHTML = `
-    <div class="section-title">
-      <h2>${esc(h.name)}</h2>
-      <span class="crumb">/ ${esc(ad.city.toUpperCase())} / ${fmtDate(ad.date).toUpperCase()}</span>
-      <span class="stamp">${(h.rooms || []).length} ROOMS</span>
-      ${_hotelTemplateMenuHTML(ad)}
-      <button type="button" class="add-btn" onclick="openHotelModal()">Edit hotel</button>
-    </div>
-
-    <div class="card mb12">
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px">
-        <div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.18em;text-transform:uppercase">Address</div><div style="font-size:13px;margin-top:3px">${esc(h.address || '—')}</div></div>
-        <div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.18em;text-transform:uppercase">Conf #</div><div class="mono" style="font-size:13px;margin-top:3px;color:var(--hi)">${esc(h.conf || '—')}</div></div>
-        <div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.18em;text-transform:uppercase">Check-in / out</div><div class="mono" style="font-size:13px;margin-top:3px">${esc(h.checkIn || '—')} / ${esc(h.checkOut || '—')}</div></div>
-        <div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.18em;text-transform:uppercase">Phone</div><div class="mono" style="font-size:13px;margin-top:3px">${esc(h.phone || '—')}</div></div>
-      </div>
-      ${h.notes ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:13px;color:var(--warm-mute)">${esc(h.notes)}</div>` : ''}
-    </div>
-
-    <div class="row-flex mb12">
-      <div class="muted mono" style="font-size:11px;letter-spacing:.18em">ROOM ASSIGNMENTS</div>
-      <div class="flex1"></div>
-      <button type="button" class="add-btn" onclick="openRoomModal()">+ Add room</button>
-    </div>
-
-    ${(h.rooms || []).length === 0 ? `
-      <div class="empty">
-        <h3>No rooms assigned yet</h3>
-        <p>Assign your crew to rooms — they'll see their own room number on their phone.</p>
-        <button type="button" onclick="openRoomModal()">+ Assign first room</button>
-      </div>
-    ` : `
-      <div class="hotel-room-grid">
-        ${h.rooms.map(r => {
-          const person = r.personId ? T().crew.find(c => c.id === r.personId) : null;
-          const name = person ? person.name : (r.personName || 'Unassigned');
-          const roleText = person ? person.role : (r.roomType || '');
-          return `
-            <div class="room">
-              <div class="occ"><div class="n">${esc(name)}</div><div class="r">${esc(r.roomType || '')}${r.notes ? ' · ' + esc(r.notes) : ''}</div></div>
-              <div class="num">${esc(r.roomNum || '—')}</div>
-              <div class="ractions"><button type="button" onclick="openRoomModal('${r.id}')">✎</button></div>
-            </div>
-          `;
-        }).join('')}
-      </div>
-    `}
-  `;
+  root.innerHTML = header + stays.map(s => _hotelStayCardHTML(s)).join('');
 }
 
 /* =====================================================================
@@ -14386,8 +14585,7 @@ function _userHotelHistory() {
   if (!state || !state.tours) return [];
   Object.values(state.tours).forEach(t => {
     (t.dates || []).forEach(d => {
-      const name = (d.hotel && d.hotel.name || '').trim();
-      if (name) out.add(name);
+      (d.hotels || []).forEach(s => { const name = (s.name || '').trim(); if (name) out.add(name); });
     });
   });
   return Array.from(out).sort();
@@ -15843,7 +16041,15 @@ function renderPhone() {
   const hasMgmt = isTM || _viewerHasMgmtAccess(viewer);
 
   // TODAY
-  const myRoom = ad.hotel?.rooms.find(r => r.personId === viewerKey);
+  // Every hotel stay covering this day (band/crew split, or a check-out +
+  // check-in after travel). `myRoom`/`myRoomStay` = the first stay that has a
+  // room assigned to this viewer, so the Today hero can show "your room #".
+  const _dayStays = _hotelsForDate(ad);
+  let myRoom = null, myRoomStay = null;
+  for (const _s of _dayStays) {
+    const _rm = (_s.rooms || []).find(r => r.personId === viewerKey);
+    if (_rm) { myRoom = _rm; myRoomStay = _s; break; }
+  }
   // Merge schedule + travel so a flight at 7:00am shows up in the
   // crew's today list at 7:00am, not just inside the Travel card.
   // Travel-derived rows are still tappable via the Travel card below
@@ -15938,18 +16144,12 @@ function renderPhone() {
       </div>
     ` : ''}
 
-    ${ad.hotel ? (() => {
-      // Crew mobile Today's hotel card — show every piece of info the
-      // crew actually needs at-a-glance: name, address (for cabs / GPS),
-      // check-in / check-out times, phone (for calling ahead about
-      // late arrivals or lost keys), confirmation number, and the
-      // crew member's room assignment if one exists.
-      //
-      // Previously this card only rendered name + checkOut, which made
-      // crew swipe to the dedicated Hotel screen for anything useful —
-      // and on the Today screen the card looked half-empty next to
-      // address-rich Venue/Travel cards. Now everything fits inline.
-      const h = ad.hotel;
+    ${_dayStays.map(h => {
+      // One card per hotel stay covering today (a day can have several — band
+      // vs crew, or a same-day check-out + check-in). Each shows name, address
+      // (cabs / GPS), check-in/out times, phone, conf #, and — if this viewer
+      // has a room in THIS stay — their room number as the hero line.
+      const myR = (h.rooms || []).find(r => r.personId === viewerKey);
       const addressLines = [];
       if (h.address) addressLines.push(h.address);
       const cityLine = [h.city, h.state, h.zip].filter(Boolean).join(', ');
@@ -15959,10 +16159,13 @@ function renderPhone() {
       if (h.checkOut) detailPairs.push({ k: 'Check-out', v: h.checkOut });
       if (h.phone) detailPairs.push({ k: 'Phone', v: h.phone });
       if (h.conf) detailPairs.push({ k: 'Conf #', v: h.conf });
+      const roleTag = h._role === 'out' ? ' · CHECK-OUT' : h._role === 'mid' ? ' · STAYING' : h._role === 'in' ? ' · CHECK-IN' : '';
+      const whoTag = (h.who && h.who !== 'Everyone') ? ' · ' + esc(String(h.who).toUpperCase()) : '';
       return `
         <div class="p-card">
-          <div class="lbl">${myRoom ? 'YOUR ROOM · ' + esc(h.name) : 'HOTEL'}</div>
-          <div class="h">${myRoom ? '#' + esc(myRoom.roomNum || '—') : esc(h.name)}</div>
+          <div class="lbl">${myR ? 'YOUR ROOM' + whoTag : 'HOTEL' + whoTag + roleTag}</div>
+          <div class="h">${myR ? '#' + esc(myR.roomNum || '—') : esc(h.name)}</div>
+          <div class="sub">${esc(h.name)}${roleTag && myR ? '<span style="color:var(--warm-mute)">' + roleTag + '</span>' : ''}</div>
           ${addressLines.length ? `<div class="sub" style="white-space:pre-line;line-height:1.45">${esc(addressLines.join('\n'))}</div>` : ''}
           ${detailPairs.length ? `
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:10px">
@@ -15974,11 +16177,11 @@ function renderPhone() {
               `).join('')}
             </div>
           ` : ''}
-          ${myRoom?.notes ? `<div class="sub" style="margin-top:8px;color:var(--hi)">${esc(myRoom.notes)}</div>` : ''}
-          ${!myRoom && !isTM ? `<div class="sub" style="margin-top:8px;color:var(--warm-mute);font-style:italic">No room assigned to ${esc(viewer?.name || 'you')} yet</div>` : ''}
+          ${myR?.notes ? `<div class="sub" style="margin-top:8px;color:var(--hi)">${esc(myR.notes)}</div>` : ''}
+          ${!myR && !isTM ? `<div class="sub" style="margin-top:8px;color:var(--warm-mute);font-style:italic">No room assigned to ${esc(viewer?.name || 'you')} yet</div>` : ''}
         </div>
       `;
-    })() : ''}
+    }).join('')}
 
     ${(_scheduleLeadsToday && _hasDayNotes) ? `
       <div class="p-card p-card-notes">
@@ -16135,20 +16338,26 @@ function renderPhone() {
     </div>
   `;
 
-  // HOTEL
-  $('#ph-hotel').innerHTML = ad.hotel ? `
+  // HOTEL — one card per stay covering this day (band/crew split, or a
+  // same-day check-out + check-in). Each shows this viewer's room if assigned.
+  $('#ph-hotel').innerHTML = _dayStays.length ? _dayStays.map(h => {
+    const myR = (h.rooms || []).find(r => r.personId === viewerKey);
+    const roleLbl = h._role === 'out' ? 'CHECK-OUT' : h._role === 'mid' ? 'STAYING' : h._role === 'in' ? 'TONIGHT' : 'TONIGHT';
+    const whoLbl = (h.who && h.who !== 'Everyone') ? esc(String(h.who).toUpperCase()) + ' · ' : '';
+    return `
     <div class="p-card">
-      <div class="lbl">TONIGHT</div>
-      <div class="h">${esc(ad.hotel.name)}</div>
-      <div class="sub">${esc(ad.hotel.address || '')}</div>
+      <div class="lbl">${whoLbl}${roleLbl}</div>
+      <div class="h">${esc(h.name)}</div>
+      <div class="sub">${esc(h.address || '')}</div>
       <div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(232,148,58,.1);display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        ${myRoom ? `<div><div class="lbl">YOUR ROOM</div><div class="mono" style="font-size:22px;font-weight:800;color:var(--hi);text-shadow:0 0 12px rgba(232,148,58,.4)">${esc(myRoom.roomNum || '—')}</div></div>` : ''}
-        ${ad.hotel.checkOut ? `<div><div class="lbl">CHECK-OUT</div><div class="mono" style="font-size:14px;font-weight:700;color:var(--warm)">${esc(ad.hotel.checkOut)}</div></div>` : ''}
-        ${ad.hotel.conf ? `<div><div class="lbl">CONF</div><div class="mono" style="font-size:11px;color:var(--warm)">${esc(ad.hotel.conf)}</div></div>` : ''}
-        ${ad.hotel.phone ? `<div><div class="lbl">PHONE</div><div class="mono" style="font-size:11px;color:var(--warm)">${esc(ad.hotel.phone)}</div></div>` : ''}
+        ${myR ? `<div><div class="lbl">YOUR ROOM</div><div class="mono" style="font-size:22px;font-weight:800;color:var(--hi);text-shadow:0 0 12px rgba(232,148,58,.4)">${esc(myR.roomNum || '—')}</div></div>` : ''}
+        ${h.checkIn ? `<div><div class="lbl">CHECK-IN</div><div class="mono" style="font-size:14px;font-weight:700;color:var(--warm)">${esc(h.checkIn)}</div></div>` : ''}
+        ${h.checkOut ? `<div><div class="lbl">CHECK-OUT</div><div class="mono" style="font-size:14px;font-weight:700;color:var(--warm)">${esc(h.checkOut)}</div></div>` : ''}
+        ${h.conf ? `<div><div class="lbl">CONF</div><div class="mono" style="font-size:11px;color:var(--warm)">${esc(h.conf)}</div></div>` : ''}
+        ${h.phone ? `<div><div class="lbl">PHONE</div><div class="mono" style="font-size:11px;color:var(--warm)">${esc(h.phone)}</div></div>` : ''}
       </div>
-    </div>
-  ` : `<div class="p-card"><div class="lbl">HOTEL</div><div class="sub">Not added yet for this date.</div></div>`;
+    </div>`;
+  }).join('') : `<div class="p-card"><div class="lbl">HOTEL</div><div class="sub">Not added yet for this date.</div></div>`;
 
   // GUESTS
   // TM + Mgmt see EVERY guest on this date with inline approve/deny
@@ -19443,7 +19652,7 @@ function calcDateGaps(d) {
   const venueU = String(d.venue || '').toUpperCase().trim();
   if (['OFF','DAY OFF','OFF DAY'].includes(cityU) || ['OFF','DAY OFF','OFF DAY'].includes(venueU)) status = 'off';
   if (!d.date) missing.push('date');
-  const hasHotel = !!d.hotel;
+  const hasHotel = _dateHasHotel(d);
   const hasTravel = !!(d.travel && d.travel.length);
   // Off days: need EITHER a hotel (band is staying somewhere) OR a travel
   // item (overnight bus / repositioning day). Surface as the soft "(either)"
@@ -19708,17 +19917,19 @@ function izApply() {
   s.merged.crew.forEach(c => T().crew.push({ id: uid('cw'), ...c }));
 
   // Match hotels to dates — never overwrites a hotel already attached
-  // (TM may have manually entered one before re-syncing).
+  // (TM may have manually entered one before re-syncing). Adds as a single
+  // night stay; the TM extends the check-out date in Edit for longer stays.
   s.merged.hotels.forEach(h => {
     let target = null;
     if (h.date) target = T().dates.find(d => d.date === h.date);
     if (!target && h.city) target = T().dates.find(d => (d.city || '').toLowerCase() === h.city.toLowerCase());
-    if (target && !target.hotel) {
-      target.hotel = {
+    if (target && !(target.hotels && target.hotels.length)) {
+      (target.hotels = target.hotels || []).push(_normStay({
         name: h.name, address: h.address || '', conf: h.conf || '',
         checkIn: h.checkIn || '', checkOut: h.checkOut || '',
-        phone: h.phone || '', notes: h.notes || '', rooms: []
-      };
+        checkInDate: target.date, checkOutDate: h.checkOutDate || target.date,
+        phone: h.phone || '', notes: h.notes || '', rooms: [],
+      }, target.date));
     }
   });
 
@@ -21587,20 +21798,23 @@ function downloadTourGridCSV() {
 }
 
 function downloadHotelsCSV() {
-  const dates = T().dates.filter(d => d.hotel);
-  if (!dates.length) { toast('No hotels assigned yet', 'error'); return; }
-  const headers = ['Date','City','Hotel','Address','Conf','Phone','CheckIn','CheckOut','Person','Room','RoomType','Notes'];
+  // Each stay is stored once, on its check-in date; export it there with its
+  // full date range and "who" group so a stay isn't duplicated per night.
+  const stays = [];
+  T().dates.forEach(d => (d.hotels || []).forEach(s => stays.push({ d, s })));
+  if (!stays.length) { toast('No hotels assigned yet', 'error'); return; }
+  const headers = ['CheckInDate','CheckOutDate','City','Hotel','Who','Address','Conf','Phone','CheckInTime','CheckOutTime','Person','Room','RoomType','Notes'];
   const rows = [];
-  dates.forEach(d => {
-    const h = d.hotel;
-    if (h.rooms && h.rooms.length) {
-      h.rooms.forEach(r => {
+  stays.forEach(({ d, s }) => {
+    const base = [s.checkInDate || d.date, s.checkOutDate || d.date, d.city, s.name, s.who || 'Everyone',
+      s.address || '', s.conf || '', s.phone || '', s.checkIn || '', s.checkOut || ''];
+    if (s.rooms && s.rooms.length) {
+      s.rooms.forEach(r => {
         const person = r.personId ? T().crew.find(c => c.id === r.personId) : null;
-        rows.push([d.date, d.city, h.name, h.address || '', h.conf || '', h.phone || '', h.checkIn || '', h.checkOut || '',
-          person ? person.name : (r.personName || ''), r.roomNum || '', r.roomType || '', r.notes || '']);
+        rows.push([...base, person ? person.name : (r.personName || ''), r.roomNum || '', r.roomType || '', r.notes || '']);
       });
     } else {
-      rows.push([d.date, d.city, h.name, h.address || '', h.conf || '', h.phone || '', h.checkIn || '', h.checkOut || '', '', '', '', '']);
+      rows.push([...base, '', '', '', '']);
     }
   });
   _csvDownload('hotels', headers, rows);
@@ -21703,7 +21917,7 @@ function renderTourBook(opts) {
     const total = totalAll;
     const status = (d.status || 'show').toUpperCase();
     const sched = d.schedule || [];
-    const rooms = d.hotel?.rooms || [];
+    const dayStays = _hotelsForDate(d);
     const guests = d.guests || [];
     const pendingGuests = guests.filter(g => g.status === 'pending').length;
     const approvedGuests = guests.filter(g => g.status === 'approved').reduce((n, g) => n + 1 + (g.plus || 0), 0);
@@ -21743,14 +21957,18 @@ function renderTourBook(opts) {
           </div>
         ` : ''}
 
-        ${d.hotel ? `
+        ${dayStays.length ? dayStays.map(h => {
+          const rooms = h.rooms || [];
+          const roleTxt = h._role === 'out' ? ' (check-out)' : h._role === 'mid' ? ' (staying)' : h._role === 'in' ? ' (check-in)' : '';
+          const whoTxt = (h.who && h.who !== 'Everyone') ? ' · ' + esc(h.who) : '';
+          return `
           <div class="tb-section">
-            <h4>Hotel</h4>
-            <div class="tb-pair"><span class="tb-p-l">Property</span><span class="tb-p-v">${esc(d.hotel.name)}</span></div>
-            ${d.hotel.address ? `<div class="tb-pair"><span class="tb-p-l">Address</span><span class="tb-p-v">${esc(d.hotel.address)}</span></div>` : ''}
-            ${d.hotel.conf ? `<div class="tb-pair"><span class="tb-p-l">Conf #</span><span class="tb-p-v">${esc(d.hotel.conf)}</span></div>` : ''}
-            ${d.hotel.phone ? `<div class="tb-pair"><span class="tb-p-l">Phone</span><span class="tb-p-v">${esc(d.hotel.phone)}</span></div>` : ''}
-            ${d.hotel.checkOut ? `<div class="tb-pair"><span class="tb-p-l">Check-in / out</span><span class="tb-p-v">${esc(d.hotel.checkIn || '—')} / ${esc(d.hotel.checkOut)}</span></div>` : ''}
+            <h4>Hotel${whoTxt}${roleTxt}</h4>
+            <div class="tb-pair"><span class="tb-p-l">Property</span><span class="tb-p-v">${esc(h.name)}</span></div>
+            ${h.address ? `<div class="tb-pair"><span class="tb-p-l">Address</span><span class="tb-p-v">${esc(h.address)}</span></div>` : ''}
+            ${h.conf ? `<div class="tb-pair"><span class="tb-p-l">Conf #</span><span class="tb-p-v">${esc(h.conf)}</span></div>` : ''}
+            ${h.phone ? `<div class="tb-pair"><span class="tb-p-l">Phone</span><span class="tb-p-v">${esc(h.phone)}</span></div>` : ''}
+            <div class="tb-pair"><span class="tb-p-l">Stay</span><span class="tb-p-v">${esc(fmtMD(h._ci))} → ${esc(fmtMD(h._co))}${h.checkIn || h.checkOut ? ` · ${esc(h.checkIn || '—')} / ${esc(h.checkOut || '—')}` : ''}</span></div>
             ${rooms.length ? `
               <h4 style="margin-top:10px">Rooms · ${rooms.length}</h4>
               <div class="tb-rooms">
@@ -21765,8 +21983,8 @@ function renderTourBook(opts) {
                 }).join('')}
               </div>
             ` : ''}
-          </div>
-        ` : ''}
+          </div>`;
+        }).join('') : ''}
 
         ${(d.travel && d.travel.length) ? `
           <div class="tb-section">
@@ -22292,12 +22510,13 @@ function bookHotelToActiveDate(idx) {
   if (!ad) { toast('Switch to a tour date first', 'error'); return; }
   const h = taLastResults.hotels?.results[idx];
   if (!h) return;
-  ad.hotel = ad.hotel || { rooms: [] };
-  ad.hotel.name = h.name;
-  ad.hotel.notes = `★${h.stars} · ${h.dist} mi from venue · $${h.price}/night${h.loyalty?' · '+h.loyalty:''}`;
-  if (!ad.hotel.rooms) ad.hotel.rooms = [];
+  (ad.hotels = ad.hotels || []).push(_normStay({
+    name: h.name,
+    notes: `★${h.stars} · ${h.dist} mi from venue · $${h.price}/night${h.loyalty?' · '+h.loyalty:''}`,
+    checkInDate: ad.date, checkOutDate: ad.date, rooms: [],
+  }, ad.date));
   saveState();
-  toast(`Saved ${h.name} to ${ad.city}'s hotel block`, 'good');
+  toast(`Added ${h.name} to ${ad.city}'s hotels — set dates + rooms in the Hotels tab`, 'good');
 }
 
 /* ---------- Flights ---------- */
@@ -26068,7 +26287,7 @@ function _buildSchedule(d, nextCity) {
   return items.map(it => ({ id: uid('s'), notes: it.notes || '', ...it }));
 }
 
-function _buildHotel(city, crew) {
+function _buildHotel(city, crew, dateISO) {
   const h = _CITY_HOTELS[city] || { name: city + ' Hotel', address: city, phone:'' };
   const types = ['King','Queen','Queen','Queen','Queen','King','King','Twin/Twin share','Twin/Twin share','Queen','King','King'];
   const rooms = (crew || []).slice(0, 12).map((c, i) => ({
@@ -26079,16 +26298,20 @@ function _buildHotel(city, crew) {
     roomType: types[i] || 'Queen',
     notes: i === 0 ? 'Quiet floor' : (i === 7 || i === 8 ? 'Share' : (i === 10 ? 'Day room — driver sleep block' : '')),
   }));
-  return {
+  return _normStay({
+    id: uid('hs'),
     name: h.name,
     address: h.address,
     conf: 'CONF-' + city.replace(/[^A-Z0-9]/gi,'').toUpperCase().slice(0,4) + '-2026',
     phone: h.phone || '',
     checkIn: '15:00',
     checkOut: '11:00',
+    checkInDate: dateISO || '',
+    checkOutDate: dateISO || '',
+    who: 'Everyone',
     notes: '',
     rooms,
-  };
+  }, dateISO);
 }
 
 function _buildTravel(fromCity, toCity) {
@@ -26129,7 +26352,7 @@ function _fleshOutSampleTour(tour) {
     const nextCity = next ? next.city : null;
     if (d.status === 'show') {
       if (!d.schedule || !d.schedule.length) d.schedule = _buildSchedule(d, nextCity);
-      if (!d.hotel) d.hotel = _buildHotel(d.city, tour.crew);
+      if (!(d.hotels && d.hotels.length)) d.hotels = [_buildHotel(d.city, tour.crew, d.date)];
       if (!d.travel || !d.travel.length) d.travel = _buildTravel(d.city, nextCity);
       if (!d.guests || !d.guests.length) d.guests = _buildGuests(d.city);
       if (!d.setList || !d.setList.length) d.setList = _buildSetList();
@@ -26168,7 +26391,7 @@ function calcLiveDateGaps(d) {
   // Off days: complete if EITHER a hotel is set (band+crew staying somewhere)
   // OR there's at least one travel item logged (overnight bus / repositioning day).
   if (status === 'off') {
-    const hasHotel = !!d.hotel;
+    const hasHotel = _dateHasHotel(d);
     const hasTravel = !!(d.travel && d.travel.length);
     if (!hasHotel && !hasTravel) missing.push('hotel or travel');
     return missing;
@@ -26184,7 +26407,7 @@ function calcLiveDateGaps(d) {
   // promoter — none of those exist for a closed-door rehearsal.
   if (status === 'rehearsal') {
     if (!d.venue) missing.push('venue');
-    const hasHotel = !!d.hotel;
+    const hasHotel = _dateHasHotel(d);
     const hasTravel = !!(d.travel && d.travel.length);
     if (!hasHotel && !hasTravel) missing.push('hotel or travel');
     if (!d.schedule || !d.schedule.length) missing.push('schedule');
@@ -26207,7 +26430,7 @@ function calcLiveDateGaps(d) {
   // (blue !) on both the Hotels and Travel tabs — never as a hard ⚠ on the day
   // pill. If something else hard is missing (schedule, venue, doors, etc.) the
   // day pill will still get the red ⚠ from those, just not from hotel/travel.
-  const hasHotel = !!d.hotel;
+  const hasHotel = _dateHasHotel(d);
   const hasTravel = !!(d.travel && d.travel.length);
   if (!hasHotel && !hasTravel) missing.push('hotel or travel');
   // Room assignments are optional — once a hotel property is logged for the
@@ -26662,12 +26885,13 @@ function _applyImportResults(results, files) {
     let target = null;
     if (h.date) target = tour.dates.find(d => d.date === h.date);
     if (!target && h.city) target = tour.dates.find(d => (d.city || '').toLowerCase() === (h.city || '').toLowerCase());
-    if (target && !target.hotel) {
-      target.hotel = {
+    if (target && !(target.hotels && target.hotels.length)) {
+      (target.hotels = target.hotels || []).push(_normStay({
         name: h.name || '', address: h.address || '', conf: h.conf || '',
         checkIn: h.checkIn || '', checkOut: h.checkOut || '',
-        phone: h.phone || '', notes: h.notes || '', rooms: []
-      };
+        checkInDate: target.date, checkOutDate: h.checkOutDate || target.date,
+        phone: h.phone || '', notes: h.notes || '', rooms: [],
+      }, target.date));
       stats.hotelsAttached++;
       stats.fieldsFilled++;
     }
@@ -26881,7 +27105,7 @@ function _pnTemplateBody(tpl) {
     '{{city}}':     ad.city || 'TBD',
     '{{state}}':    ad.state ? ', ' + ad.state : '',
     '{{nextCity}}': next.city || 'next stop',
-    '{{hotel}}':    ad.hotel?.name || 'hotel TBD',
+    '{{hotel}}':    _hotelsForDate(ad)[0]?.name || 'hotel TBD',
     '{{tour}}':     tour.meta?.tourName || tour.name || 'tour',
   };
   let out = tpl.body || '';
@@ -27317,16 +27541,21 @@ async function downloadDaySheetPDF() {
   const headerTitle = [ad.venue, venueLine, fmtDate(ad.date)].filter(Boolean).join(' · ');
   const statusBadge = (ad.status || 'show').toUpperCase();
 
-  // Hotel + venue blocks
-  const hotel = ad.hotel;
-  const hotelHtml = hotel && hotel.name ? `
-    <div class="b-name">${esc(hotel.name)}</div>
+  // Hotel + venue blocks — one block per stay covering the day.
+  const _sheetStays = _hotelsForDate(ad);
+  const hotelHtml = _sheetStays.length ? _sheetStays.map((hotel, i) => {
+    const roleTxt = hotel._role === 'out' ? ' (check-out)' : hotel._role === 'mid' ? ' (staying)' : hotel._role === 'in' ? ' (check-in)' : '';
+    const whoTxt = (hotel.who && hotel.who !== 'Everyone') ? esc(hotel.who) + ' · ' : '';
+    return `
+    ${i ? '<div class="b-line" style="height:8px"></div>' : ''}
+    <div class="b-name">${esc(hotel.name)}${whoTxt || roleTxt ? ` <span class="b-lbl" style="font-weight:400">${whoTxt}${esc(roleTxt.trim())}</span>` : ''}</div>
     ${hotel.address ? `<div class="b-line">${esc(hotel.address)}</div>` : ''}
     ${hotel.city ? `<div class="b-line">${esc([hotel.city, hotel.state, hotel.zip].filter(Boolean).join(', '))}</div>` : ''}
     ${hotel.phone ? `<div class="b-line"><span class="b-lbl">Main Number:</span> ${esc(hotel.phone)}</div>` : ''}
     ${hotel.checkIn ? `<div class="b-line"><span class="b-lbl">Check-in:</span> ${esc(hotel.checkIn)}</div>` : ''}
     ${hotel.checkOut ? `<div class="b-line"><span class="b-lbl">Check-out:</span> ${esc(hotel.checkOut)}</div>` : ''}
-  ` : '<div class="b-empty">No hotel set</div>';
+  `;
+  }).join('') : '<div class="b-empty">No hotel set</div>';
 
   const venueHtml = ad.venue ? `
     <div class="b-name">${esc(ad.venue)}</div>
@@ -27889,9 +28118,10 @@ const SAMPLE_TOUR = {
         { id: 'at2', name: 'Tech-Hospitality-Rider-v2.3.pdf', type: 'Rider', size: '2.4 MB', link: '', tags: 'Tech, Hospitality', addedAt: Date.now() },
         { id: 'at3', name: 'Stage-Plot-Detroit-compact.png', type: 'Stage Plot', size: '880 KB', link: '', tags: 'Tech', addedAt: Date.now() },
       ],
-      hotel: {
-        name: 'The Foundation Hotel', address: '250 W Larned St, Detroit MI', conf: 'FH-2026-0506',
+      hotels: [{
+        id: 'hs_detroit', name: 'The Foundation Hotel', address: '250 W Larned St, Detroit MI', conf: 'FH-2026-0506',
         phone: '+1 313-800-5500', checkIn: '10:00', checkOut: '11:00', notes: 'Day rooms held until 14:00',
+        checkInDate: '2026-05-06', checkOutDate: '2026-05-06', who: 'Everyone',
         rooms: [
           { id: 'rm1', personId: 'c_maren', personName: '', roomNum: '412', roomType: 'King', notes: 'Quiet floor' },
           { id: 'rm2', personId: 'c_sam', personName: '', roomNum: '414', roomType: 'Queen', notes: '' },
@@ -27905,7 +28135,7 @@ const SAMPLE_TOUR = {
           { id: 'rm10', personId: 'c_casey', personName: '', roomNum: '518', roomType: 'Queen', notes: '' },
           { id: 'rm11', personId: 'c_junior', personName: '', roomNum: '605', roomType: 'King', notes: 'Day room — sleep block' },
         ]
-      },
+      }],
       settlement: { settled: false, guarantee: 32000, finalAmount: 0, deductions: '', notes: 'Tonight' } },
     { id: 'd7', date: '2026-05-07', city: 'Travel day', state: '', venue: '', capacity: '', status: 'travel', doors: '', setTime: '', loadIn: '', soundcheck: '', promoter: '', notes: 'Detroit → Chicago overnight bus',
       schedule: [], travel: [], guests: [], setList: [], attachments: [], hotel: null,
@@ -28950,9 +29180,10 @@ function openPhoneSearch() {
     if (d.venue || d.city) {
       idx.push({ type: 'Show', label: [d.city, d.state].filter(Boolean).join(', '), sub: [d.venue, fmtDate(d.date)].filter(Boolean).join(' · '), dateId: d.id });
     }
-    if (d.hotel?.name) {
-      idx.push({ type: 'Hotel', label: d.hotel.name, sub: [d.hotel.address || d.city, fmtDate(d.date)].filter(Boolean).join(' · '), dateId: d.id });
-    }
+    (d.hotels || []).forEach(s => {
+      if (!s.name) return;
+      idx.push({ type: 'Hotel', label: s.name, sub: [s.address || d.city, fmtDate(d.date)].filter(Boolean).join(' · '), dateId: d.id });
+    });
     (d.schedule || []).forEach(s => {
       idx.push({ type: 'Schedule', label: s.what || '', sub: [s.allDay ? 'All day' : s.time, fmtDate(d.date)].filter(Boolean).join(' · '), dateId: d.id });
     });
