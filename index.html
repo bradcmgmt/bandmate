@@ -5031,6 +5031,10 @@ const dbMap = {
       artistLogo: row.artist_logo || null,
       activeDateId: row.active_date_id || (dates && dates[0]?.id) || null,
       ownerId: row.owner_id,
+      // Owner identity denormalized onto the row (patch-032) so a co-manager's
+      // app can show the real owner without fetching their profile.
+      ownerName: row.owner_name || '',
+      ownerEmail: row.owner_email || '',
       memberIds: row.member_ids || [],
       managerIds: row.manager_ids || [],
     };
@@ -6450,6 +6454,23 @@ function userOwnedTours() {
 function _isTourManager(tour, userId) {
   if (!tour || !userId) return false;
   return tour.ownerId === userId || (tour.managerIds || []).includes(userId);
+}
+
+// Resolve the tour owner's display name + email for ANY viewer (owner or a
+// co-manager who doesn't have the owner's profile locally). Prefers the live
+// current-user record when they ARE the owner, then the denormalized
+// owner_name/owner_email stamped on the tour (patch-032), then any local user
+// record, and finally a generic label.
+function _tourOwnerInfo(tour) {
+  const u = (typeof U === 'function') ? U() : null;
+  if (u && tour && tour.ownerId === u.id) {
+    return { name: u.name || 'You', email: u.email || '' };
+  }
+  const su = (tour && state && state.users && state.users[tour.ownerId]) || null;
+  return {
+    name: (tour && tour.ownerName) || (su && su.name) || 'Tour owner',
+    email: (tour && tour.ownerEmail) || (su && su.email) || '',
+  };
 }
 function viewerTours(viewer) {
   if (!state || !state.tours) return [];
@@ -11527,7 +11548,9 @@ function openCrewMemberModal(id) {
           sb.rpc('grant_co_manager', { p_tour_id: T().id, p_email: email })
             .then(({ data: r, error }) => {
               if (error) { toast(error.message || 'Could not add co-manager', 'error'); return; }
-              toast(`${(r && r.name) || name} is now a co-manager`, 'good');
+              toast(`${(r && r.name) || name} is now a co-manager — emailing them a heads-up`, 'good');
+              // Auto-joined server-side; this email is a notification only.
+              sendCrewInvite({ tourId: T().id, tourName: T().name || T().meta?.tourName || 'your tour', crewEmail: email, crewName: (r && r.name) || name || '', coManager: true, silent: true });
               try { db.hydrateUserData(state.currentUserId).then(() => { try { renderAll(); } catch (e) {} }); } catch (e) { try { renderAll(); } catch (_) {} }
             })
             .catch(() => toast('Could not add co-manager', 'error'));
@@ -19951,10 +19974,9 @@ function renderManagersCard() {
   const u = U();
   const isOwner = !!(u && tour.ownerId === u.id);
   const managers = (tour.crew || []).filter(c => c.isManager);
-  const ownerName = (state.users && state.users[tour.ownerId] && state.users[tour.ownerId].name)
-    || (isOwner && u ? u.name : '') || 'Tour owner';
-  const ownerEmail = (state.users && state.users[tour.ownerId] && state.users[tour.ownerId].email)
-    || (isOwner && u ? u.email : '') || '';
+  const _oi = _tourOwnerInfo(tour);
+  const ownerName = _oi.name;
+  const ownerEmail = _oi.email;
   const ownerRow = `
     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
       <div class="pt-ini" style="background:rgba(232,148,58,.15);color:var(--hi)">${esc(initials(ownerName))}</div>
@@ -20039,7 +20061,10 @@ function openCoManagerModal() {
       sb.rpc('grant_co_manager', { p_tour_id: tour.id, p_email: email })
         .then(({ data: r, error }) => {
           if (error) { toast(error.message || 'Could not add co-manager', 'error'); return; }
-          toast(`${(r && r.name) || email} is now a co-manager`, 'good');
+          toast(`${(r && r.name) || email} is now a co-manager — emailing them a heads-up`, 'good');
+          // Co-managers are auto-joined server-side — this email is a
+          // notification only (no accept step). Fire silently.
+          sendCrewInvite({ tourId: tour.id, tourName: tour.name || tour.meta?.tourName || 'your tour', crewEmail: email, crewName: (r && r.name) || '', coManager: true, silent: true });
           try { db.hydrateUserData(state.currentUserId).then(() => { try { renderAll(); } catch (e) {} }); }
           catch (e) { try { renderAll(); } catch (_) {} }
         })
@@ -22438,12 +22463,14 @@ function renderTourSwitcher() {
       const dateRange = (startISO || endISO)
         ? `${fmtMD(startISO)} → ${fmtMD(endISO)}`
         : 'no dates yet';
-      // A tour is "not synced" when its id isn't a UUID (so cloud
-      // writes silently skip) OR its ownerId doesn't match the current
-      // session (ownership disagreement, RLS would block the write).
-      // The badge tells the user their work isn't safe yet so they
-      // can take action (refresh, sign back in) before they lose it.
-      const isUnsynced = !!t && (!_isUuid(t.id) || (u && t.ownerId && !_isTourManager(t, u.id)));
+      // A tour is genuinely "not synced / local" only when its id isn't a
+      // UUID — i.e. it never made it to the cloud, so writes silently skip.
+      // A UUID tour IS cloud-backed; if it's in your app at all, RLS already
+      // granted you access (owner, co-manager, OR invited crew member), so it
+      // is NOT local. (Previously this also flagged any tour you weren't a
+      // MANAGER of, which wrongly slapped "⚠ local" on tours you were invited
+      // to co-manage / crew — a real cloud tour reading as local.)
+      const isUnsynced = !!t && !_isUuid(t.id);
       return `
         <button class="ts-tour-item ${isCurrent?'active':''}" type="button" onclick="switchToTour('${t.id}')" title="${isUnsynced ? 'This tour has not synced to the cloud yet. Edit any field to retry, or refresh the page.' : ''}">
           <span class="ts-check">${isCurrent ? '✓' : ' '}</span>
@@ -23225,8 +23252,8 @@ function _adminCrewDetail(user, tours) {
       <div class="adt-section">
         <div class="adt-h">Tours · ${userTours.length}</div>
         ${rolesByTour.length ? rolesByTour.map(({tour, role}) => {
-          const owner = state.users[tour.ownerId];
-          return `<div class="adt-row"><span class="muted">${esc(tour.meta?.tourName || tour.name || '—')}</span><b class="mono">${esc(role)} · TM ${esc(owner?.name || '—')}</b></div>`;
+          const owner = _tourOwnerInfo(tour);
+          return `<div class="adt-row"><span class="muted">${esc(tour.meta?.tourName || tour.name || '—')}</span><b class="mono">${esc(role)} · TM ${esc(owner.name)}</b></div>`;
         }).join('') : '<div class="adt-empty">Not assigned to any tours yet</div>'}
       </div>
     </div>
@@ -25166,6 +25193,7 @@ async function sendCrewInvite(opts) {
     tmName,
     tmEmail,
     alreadyHasAccount: !!o.alreadyHasAccount,
+    coManager: !!o.coManager,
   };
   try {
     const r = await fetch('/api/crew-invite', {
@@ -25175,7 +25203,7 @@ async function sendCrewInvite(opts) {
     });
     if (r.ok) {
       const firstName = (o.crewName || o.crewEmail).split(/[\s@]+/)[0];
-      if (!o.silent) toast(`Invite sent to ${firstName}`, 'good');
+      if (!o.silent) toast(o.coManager ? `${firstName} notified by email` : `Invite sent to ${firstName}`, 'good');
       return true;
     }
     // Non-200 — try to surface the error message if the response is JSON.
@@ -28024,9 +28052,10 @@ function _chatTourMembers() {
   const tour = T();
   if (!tour) return [];
   const set = new Map();
-  if (tour.ownerId && state.users?.[tour.ownerId]) {
-    const o = state.users[tour.ownerId];
-    set.set(o.id, { id: o.id, name: o.name, role: 'Tour Manager' });
+  if (tour.ownerId) {
+    const o = (state.users && state.users[tour.ownerId]) || null;
+    const nm = (o && o.name) || tour.ownerName || '';
+    if (nm) set.set(tour.ownerId, { id: tour.ownerId, name: nm, role: 'Tour Manager' });
   }
   (tour.crew || []).forEach(c => {
     if (c.userId && !set.has(c.userId)) {
@@ -28614,7 +28643,7 @@ function openNewChatModal() {
     const ownerRec = (state.users && state.users[tour.ownerId]) || null;
     crewRoster.unshift({
       userId: tour.ownerId,
-      name: (ownerRec && ownerRec.name) || tour.meta?.presenter || 'Tour Manager',
+      name: (ownerRec && ownerRec.name) || tour.ownerName || tour.meta?.presenter || 'Tour Manager',
       role: 'Tour Manager',
       type: 'Mgmt',
       groups: [],
