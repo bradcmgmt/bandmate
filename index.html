@@ -6516,6 +6516,9 @@ async function acceptTourInvite(tourId) {
       toast(error.message || 'Could not accept the invite', 'error');
       return;
     }
+    // Accepted — clear any stashed invite so it doesn't re-fire on the next
+    // boot (harmless no-op when accepted from the in-app pending card).
+    try { _clearPendingCrewInvite(); } catch (e) {}
     // Re-pull so member_ids + claimed status reflect the accept.
     if (state && state.currentUserId) await db.hydrateUserData(state.currentUserId);
     if (state && state.tours && state.tours[tourId]) state.currentTourId = tourId;
@@ -25550,6 +25553,16 @@ function postLoginRouting() {
     return;
   }
 
+  // Consume a pending crew invite — covers an EXISTING account that clicked an
+  // ?invite= email link while logged OUT and then signed IN (signUp() handles
+  // brand-new accounts; this handles returning ones). Clear the stash first so
+  // it fires at most once and never loops; acceptTourInvite auto-joins the tour
+  // via the accept_tour_invite RPC and re-hydrates.
+  try {
+    const _pci = _readPendingCrewInvite();
+    if (_pci && _pci.tourId) { _clearPendingCrewInvite(); acceptTourInvite(_pci.tourId); }
+  } catch (e) { console.warn('[postLoginRouting] pending invite', e); }
+
   // Find tours visible to this user
   const owned = u.role === 'tm'
     ? Object.values(state.tours).filter(t => t.ownerId === u.id)
@@ -27914,15 +27927,23 @@ function init() {
     // they were invited to will already be visible on their dashboard
     // via the existing memberIds wiring.
     if (_isCrewInviteRedirect()) {
-      _stashPendingCrewInvite();
+      const _inv = _stashPendingCrewInvite();
       if (!state || !state.currentUserId) {
         showLoginScreen({ intent: 'signup' });
         setTimeout(() => _renderSignupInviteBanner(), 80);
         return;
       }
-      // Already-signed-in users — proceed to normal routing; nothing
-      // more to do here, the tour link happens server-side at invite-
-      // send time and locally when they next sync.
+      // Already-signed-in user clicked "Accept invite". The invite was
+      // seeded against their EMAIL, not their account uid — so nothing
+      // auto-links until they explicitly accept. (This is why an existing
+      // account — e.g. a TM added to ANOTHER TM's tour by their own email —
+      // landed on the dashboard without the tour.) Auto-accept now:
+      // accept_tour_invite verifies their JWT email is on the roster, adds
+      // their uid to member_ids, then re-hydrates so the tour appears.
+      // Fire-and-forget — the app still routes normally below; the tour pops
+      // in when the accept + re-hydrate finish.
+      const _invTourId = (_inv && _inv.tourId) || ((_readPendingCrewInvite() || {}).tourId);
+      if (_invTourId) { try { acceptTourInvite(_invTourId); } catch (e) { console.warn('[invite] auto-accept', e); } }
     }
     if (!state || !state.currentUserId) {
       // No state OR no logged-in user → land on the public-facing landing
