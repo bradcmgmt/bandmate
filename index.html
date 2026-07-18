@@ -3691,6 +3691,43 @@ body.crew-mobile-only .tape-strip .label {
 body.crew-mobile-only .crew-mode-banner { display: block; }
 .crew-mode-banner b { color: #b1c8ee; }
 
+/* ============ TM ON A CREW-ONLY TOUR (desktop) ============
+   A Tour Manager account that's on the ACTIVE tour only as CREW (not owner,
+   not co-manager) gets the phone/mobile view on desktop instead of the full
+   TM dashboard — but KEEPS the top header bar + tour switcher (which
+   crew-mobile-only hides) so they can jump to a tour they actually own or
+   co-manage. Everything else mirrors the crew-mobile-only layout. */
+body.tm-crew-tour .console,
+body.tm-crew-tour .day-strip-wrap,
+body.tm-crew-tour .travel-assist-btn,
+body.tm-crew-tour .warn-banner,
+body.tm-crew-tour .footnote {
+  display: none !important;
+}
+body.tm-crew-tour .stage {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  padding-top: 30px;
+}
+body.tm-crew-tour .phone-rig {
+  position: static;
+  align-self: auto;
+}
+/* Beat `body.mobile .phone-rig { display:none }` (which hides the preview rig
+   on the TM mobile dashboard, and lives later in the file). The `html` prefix
+   raises specificity so the crew phone view still shows for a TM on a
+   crew-only tour on a narrow screen — otherwise the console is hidden AND the
+   phone is hidden, leaving a blank page. Mirrors the phone-app override. */
+html body.tm-crew-tour .phone-rig {
+  display: flex !important;
+}
+body.tm-crew-tour .phone-rig .who-bar {
+  display: none;
+}
+body.tm-crew-tour .crew-mode-banner {
+  display: block;
+}
+
 /* ============ NATIVE PHONE APP (installed iOS / Android) ============
    When Bandmate runs as the installed band/crew app (body.phone-app,
    set by applyRoleMode when _isPhoneApp() is true), we strip every
@@ -4696,7 +4733,7 @@ setTimeout(window._hideAppBoot,6000);
 
   </div><!-- /sticky-header -->
 
-  <div class="crew-mode-banner">📱 <b>Crew view</b> — TM dashboard hidden. Tap your phone\'s <b>More</b> tab to switch tours or sign out.</div>
+  <div class="crew-mode-banner" id="crewModeBanner">📱 <b>Crew view</b> — TM dashboard hidden. Tap your phone\'s <b>More</b> tab to switch tours or sign out.</div>
   <main class="stage">
     <section class="console">
       <div class="console-head">
@@ -25882,10 +25919,12 @@ function applyRoleMode() {
   document.body.classList.toggle('phone-app', installed);
   if (!u) {
     document.body.classList.toggle('crew-mobile-only', installed);
+    document.body.classList.remove('tm-crew-tour');
     return;
   }
   if (u.role === 'crew' || installed) {
     document.body.classList.add('crew-mobile-only');
+    document.body.classList.remove('tm-crew-tour');
     const tour = T();
     if (u.role === 'tm') {
       // A TM in the installed app always gets the full-access phone
@@ -25900,7 +25939,25 @@ function applyRoleMode() {
       if (meCrew) viewerKey = meCrew.id;
     }
   } else {
+    // Desktop Tour Manager. The full TM dashboard is PER-TOUR — it shows only
+    // for tours this account OWNS or CO-MANAGES. On a tour they're merely on
+    // as CREW, drop them to the phone/mobile view (they can't manage it) but
+    // keep the top header + tour switcher so they can jump to a tour they DO
+    // manage (or that they own).
     document.body.classList.remove('crew-mobile-only');
+    const tour = T();
+    const managesActive = tour && tour.id !== '_empty' && _isTourManager(tour, u.id);
+    if (tour && tour.id !== '_empty' && !managesActive) {
+      document.body.classList.add('tm-crew-tour');
+      const banner = document.getElementById('crewModeBanner');
+      if (banner) banner.innerHTML = "📱 <b>Crew view</b> — you're on this tour as crew, so the full dashboard is hidden. Use the <b>tour switcher</b> above to open a tour you own or co-manage.";
+      // Pin the preview to their own crew record so they see the crew view
+      // (their targeted schedule/hotel/etc.), not the full TM view.
+      const meCrew = (tour.crew || []).find(c => c.userId === u.id || (c.email && c.email.toLowerCase() === (u.email||'').toLowerCase()));
+      viewerKey = meCrew ? meCrew.id : 'tm';
+    } else {
+      document.body.classList.remove('tm-crew-tour');
+    }
   }
 }
 
