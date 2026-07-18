@@ -6444,7 +6444,40 @@ function newDefaultTM() {
 }
 function userOwnedTours() {
   if (!state || !state.tours || !state.currentUserId) return [];
-  return Object.values(state.tours).filter(t => t.ownerId === state.currentUserId);
+  return Object.values(state.tours).filter(t => t.ownerId === state.currentUserId && !_isTombstoned(t.id));
+}
+
+// Content signature for a tour — used to spot byte-identical DUPLICATES (the
+// sample tour re-promoted with a fresh UUID is the classic offender: same
+// content, different id, so an id-keyed tombstone can't catch the copies).
+function _tourSignature(t) {
+  if (!t) return '';
+  const name = String(t.name || (t.meta && t.meta.tourName) || '').trim().toLowerCase();
+  const artist = String((t.meta && t.meta.artist) || '').trim().toLowerCase();
+  const start = (typeof tourStartDate === 'function' ? tourStartDate(t) : '') || '';
+  const end = (typeof tourEndDate === 'function' ? tourEndDate(t) : '') || '';
+  const n = (t.dates || []).length;
+  return `${name}|${artist}|${start}|${end}|${n}`;
+}
+
+// Collapse byte-identical duplicate tours for DISPLAY only — non-destructive,
+// the underlying records are untouched. Keeps the CURRENT tour if it's in the
+// dup group, else prefers a cloud-synced (UUID) copy, else the first seen.
+// Preserves the original ordering of whatever survives.
+function _dedupeToursForDisplay(tours) {
+  const rep = new Map(); // signature -> chosen representative
+  (tours || []).forEach(t => {
+    const sig = _tourSignature(t);
+    const cur = rep.get(sig);
+    if (!cur) { rep.set(sig, t); return; }
+    let keep = cur;
+    if (t.id === state.currentTourId) keep = t;
+    else if (cur.id === state.currentTourId) keep = cur;
+    else if (_isUuid(t.id) && !_isUuid(cur.id)) keep = t;
+    rep.set(sig, keep);
+  });
+  const keptIds = new Set(Array.from(rep.values()).map(t => t.id));
+  return (tours || []).filter(t => keptIds.has(t.id));
 }
 // A user can fully CLOUD-EDIT a tour if they OWN it or are listed as a
 // co-manager (managerIds). Single source of truth for "can this account sync
@@ -6501,7 +6534,8 @@ function _switchableTours() {
   const u = (typeof U === 'function') ? U() : null;
   if (!u || !state || !state.tours) return [];
   return Object.values(state.tours).filter(t =>
-    t && t.id !== '_empty' && (t.ownerId === u.id || (t.managerIds || []).includes(u.id) || (t.memberIds || []).includes(u.id))
+    t && t.id !== '_empty' && !_isTombstoned(t.id)
+    && (t.ownerId === u.id || (t.managerIds || []).includes(u.id) || (t.memberIds || []).includes(u.id))
   );
 }
 
@@ -15662,7 +15696,7 @@ function _renderPhoneMoreMinimal() {
   const moreEl = document.getElementById('ph-more');
   if (!moreEl) return;
   const u = U();
-  const accessible = _switchableTours();
+  const accessible = _dedupeToursForDisplay(_switchableTours());
   const current = T();
   const others = accessible.filter(t => t.id !== current.id);
   const pendingHtml = _pendingInvitesHtml();
@@ -16167,7 +16201,7 @@ function renderPhone() {
     // Show ALL tours this user can switch between (owned + joined), not just
     // the ones relevant to their role in the active tour — otherwise they
     // get stuck on one tour with no way back to the others.
-    const myTours = _switchableTours();
+    const myTours = _dedupeToursForDisplay(_switchableTours());
     // Pending (not-yet-accepted) invites get their own card above — keep
     // them out of the "switch to" list so they aren't shown twice.
     const otherTours = myTours.filter(t => t.id !== state.currentTourId && !_phPendingIds.has(t.id));
@@ -22453,7 +22487,12 @@ function renderTourSwitcher() {
   const u = U();
   const ownedSet = new Set(userOwnedTours().map(t => t.id));
   const memberSet = u ? new Set(Object.values(state.tours).filter(t => (t.memberIds||[]).includes(u.id) || (t.managerIds||[]).includes(u.id)).map(t => t.id)) : new Set();
-  const myTours = Object.values(state.tours).filter(t => ownedSet.has(t.id) || memberSet.has(t.id));
+  // Never list a tombstoned (deleted) tour, and collapse byte-identical
+  // duplicates so a re-promoted sample tour doesn't show up 3× (the "deleted
+  // tours still showing on one device" report).
+  const myTours = _dedupeToursForDisplay(
+    Object.values(state.tours).filter(t => !_isTombstoned(t.id) && (ownedSet.has(t.id) || memberSet.has(t.id)))
+  );
   menu.innerHTML = `
     <div class="ts-section">Your tours · ${myTours.length}</div>
     ${myTours.map(t => {
@@ -22913,31 +22952,41 @@ function deleteCurrentTour() {
   closeTourSwitcher();
   const t = T();
   if (!t || t.id === '_empty') return;
-  const others = userOwnedTours().filter(x => x.id !== t.id);
-  if (!others.length) { toast('Can\'t delete the only tour — create another first or Reset to start over', 'error'); return; }
+  // Also sweep byte-identical DUPLICATES of this tour (same content, different
+  // id — e.g. a sample tour re-promoted with fresh UUIDs). Tombstoning each one
+  // individually is what finally clears "deleted tours that keep coming back",
+  // because an id-keyed tombstone can't otherwise catch the copies.
+  const sig = _tourSignature(t);
+  const dupes = userOwnedTours().filter(x => x.id !== t.id && _tourSignature(x) === sig);
+  const deleteIds = [t.id, ...dupes.map(d => d.id)];
+  const deleteSet = new Set(deleteIds);
+  const survivors = userOwnedTours().filter(x => !deleteSet.has(x.id));
+  if (!survivors.length) { toast('Can\'t delete the only tour — create another first or Reset to start over', 'error'); return; }
   const tourName = t.name || 'Untitled tour';
   const dateCount = (t.dates || []).length;
   const crewCount = (t.crew || []).length;
+  const dupNote = dupes.length
+    ? ` It will also remove <b>${dupes.length} identical duplicate${dupes.length===1?'':'s'}</b> of this tour.`
+    : '';
   confirmTyped({
     title: `Delete "${esc(tourName)}"?`,
-    message: `This permanently removes the tour, including <b>${dateCount} date${dateCount===1?'':'s'}</b>, <b>${crewCount} crew member${crewCount===1?'':'s'}</b>, all schedules, settlements, and notes. Crew members linked to this tour will lose access. This cannot be undone.`,
+    message: `This permanently removes the tour, including <b>${dateCount} date${dateCount===1?'':'s'}</b>, <b>${crewCount} crew member${crewCount===1?'':'s'}</b>, all schedules, settlements, and notes.${dupNote} Crew members linked to this tour will lose access. This cannot be undone.`,
     magic: 'DELETE',
-    confirmLabel: 'Delete tour',
+    confirmLabel: dupes.length ? `Delete ${deleteIds.length} tours` : 'Delete tour',
     danger: true,
     onConfirm: () => {
-      const _deletedId = t.id;
-      // Tombstone it FIRST so no boot/sync/realtime path can ever re-create it
-      // (the "deleted tours keep coming back" fix). Only real UUIDs need a cloud
-      // delete; local-only ids just need to be remembered as deleted.
       if (!Array.isArray(state.deletedTourIds)) state.deletedTourIds = [];
-      if (!state.deletedTourIds.includes(_deletedId)) state.deletedTourIds.push(_deletedId);
-      delete state.tours[_deletedId];
-      state.currentTourId = others[0].id;
+      // Tombstone FIRST so no boot/sync/realtime path can re-create any copy.
+      deleteIds.forEach(id => {
+        if (!state.deletedTourIds.includes(id)) state.deletedTourIds.push(id);
+        delete state.tours[id];
+        db.deleteTour(id);
+        db.tombstoneTour(id); // cloud tombstone → every device honors it
+      });
+      state.currentTourId = survivors[0].id;
       saveState();
-      db.deleteTour(_deletedId);
-      db.tombstoneTour(_deletedId); // cloud tombstone → every device honors it
       renderAll();
-      toast('Tour deleted');
+      toast(deleteIds.length > 1 ? `Deleted tour + ${deleteIds.length - 1} duplicate${deleteIds.length-1===1?'':'s'}` : 'Tour deleted');
     }
   });
 }
