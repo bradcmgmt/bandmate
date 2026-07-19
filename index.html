@@ -1392,6 +1392,13 @@ input,select,textarea{font:inherit;color:inherit}
 .pax-chip button{width:16px;height:16px;display:grid;place-items:center;border:none;background:transparent;
   color:var(--warm-mute);cursor:pointer;font-size:13px;line-height:1;border-radius:4px}
 .pax-chip button:hover{color:var(--red)}
+/* travel modal — auto-generated description toggle */
+.tv-desc-toggle{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;
+  color:var(--hi);background:transparent;border:1px solid rgba(232,148,58,.35);border-radius:5px;padding:2px 8px;cursor:pointer}
+.tv-desc-toggle:hover{background:rgba(232,148,58,.1)}
+.tv-desc-badge{font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:.14em;font-weight:800;color:#0a0705;
+  background:var(--hi);border-radius:4px;padding:1px 6px;text-transform:uppercase}
+input#tv_desc.is-auto{background:rgba(232,148,58,.05);border-color:rgba(232,148,58,.28)}
 
 /* Day Notes card on the crew mobile TODAY screen. Yellow eyebrow
    matches the TM-side tab color. Body renders any HTML the TM saved
@@ -8725,6 +8732,71 @@ function _phoneTravelItemHTML(t, viewer, viewerKey) {
     </button>`;
 }
 
+// ── Auto-description ──────────────────────────────────────────────────
+// The travel description writes itself from the form (type + flight # + the
+// day's route) so a TM rarely types it; a toggle unlocks manual entry. Stays
+// required either way — the field always carries the generated value.
+let _tvDescAuto = true;
+
+function _realTravelCity(d) {
+  const c = ((d && d.city) || '').trim();
+  if (!c || /^(travel day|off|day off|off day)$/i.test(c)) return '';
+  return c;
+}
+// Best-guess "from → to" for the active date: the date's own city (or the
+// nearest prior real city) → the next different real city on the route.
+function _travelRoute(ad) {
+  const dates = (T().dates || []);
+  const idx = dates.findIndex(d => d.id === ad.id);
+  let from = _realTravelCity(ad);
+  for (let j = idx - 1; !from && j >= 0; j--) from = _realTravelCity(dates[j]);
+  let to = '';
+  for (let j = idx + 1; j < dates.length && !to; j++) {
+    const c = _realTravelCity(dates[j]);
+    if (c && c !== from) to = c;
+  }
+  return { from, to };
+}
+function _travelAutoDescription() {
+  const ad = getActiveDate();
+  if (!ad) return '';
+  const type = document.getElementById('tv_type')?.value || 'bus';
+  const flight = (document.getElementById('tv_flight')?.value || '').trim();
+  const { from, to } = _travelRoute(ad);
+  const route = (from && to) ? `${from} → ${to}` : (from || (to ? `→ ${to}` : ''));
+  if (type === 'flight') {
+    const lead = flight || 'Flight';
+    return route ? `${lead} · ${route}` : lead;
+  }
+  const typeLabel = ({ bus: 'Bus', van: 'Van', car: 'Car', train: 'Train' })[type] || 'Travel';
+  return route ? `${typeLabel} · ${route}` : typeLabel;
+}
+// Apply the current auto/manual mode to the field (value, readonly, badge, button).
+function _travelApplyDescMode() {
+  const inp = document.getElementById('tv_desc');
+  const badge = document.getElementById('tv_desc_badge');
+  const btn = document.getElementById('tv_desc_toggle');
+  if (!inp) return;
+  if (_tvDescAuto) {
+    inp.value = _travelAutoDescription();
+    inp.readOnly = true;
+    inp.classList.add('is-auto');
+    if (badge) badge.style.display = '';
+    if (btn) btn.textContent = 'Edit manually';
+  } else {
+    inp.readOnly = false;
+    inp.classList.remove('is-auto');
+    if (badge) badge.style.display = 'none';
+    if (btn) btn.textContent = '↻ Auto-fill';
+  }
+}
+function _travelDescRefresh() { if (_tvDescAuto) _travelApplyDescMode(); }
+function _travelDescToggle() {
+  _tvDescAuto = !_tvDescAuto;
+  _travelApplyDescMode();
+  if (!_tvDescAuto) document.getElementById('tv_desc')?.focus();
+}
+
 function openTravelModal(itemId) {
   const ad = getActiveDate();
   if (!ad) return;
@@ -8758,11 +8830,18 @@ function openTravelModal(itemId) {
         <div class="field" data-flight-only ${isFlight ? '' : 'hidden'}><label>Lands <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional)</span></label>
           <div class="time-row">${renderTime12Picker('tv_arrive', i.arriveTime || '')}</div>
         </div>
-        <div class="field full"><label>Description *</label><input id="tv_desc" value="${esc(i.description)}" placeholder="e.g. Sleeper bus → Chicago"></div>
+        <div class="field full">
+          <label style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span>Description *</span>
+            <span id="tv_desc_badge" class="tv-desc-badge">Auto</span>
+            <button type="button" id="tv_desc_toggle" class="tv-desc-toggle" onclick="_travelDescToggle()">Edit manually</button>
+          </label>
+          <input id="tv_desc" value="${esc(i.description)}" placeholder="e.g. Sleeper bus → Chicago">
+        </div>
         <div class="field"><label id="tv_conf_lbl">Conf # ${isFlight ? '*' : ''}</label><input id="tv_conf" value="${esc(i.conf)}"></div>
         <div class="field" data-flight-only ${isFlight ? '' : 'hidden'}>
           <label>Flight # <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional)</span></label>
-          <input id="tv_flight" value="${esc(i.flightNumber || '')}" placeholder="e.g. AA 484 · DL 1290">
+          <input id="tv_flight" value="${esc(i.flightNumber || '')}" oninput="_travelDescRefresh()" placeholder="e.g. AA 484 · DL 1290">
         </div>
 
         <div class="field full">
@@ -8834,7 +8913,11 @@ function openTravelModal(itemId) {
       saveState();
     }
   });
+  // New items start with an auto-written description; editing an existing item
+  // preserves whatever was saved (manual), with the toggle to regenerate.
+  _tvDescAuto = !item;
   _travelModalApplyType();
+  _travelApplyDescMode();
 }
 
 // Reshape the travel form when Type changes. Flights reveal a Lands (arrival)
@@ -8861,6 +8944,8 @@ function _travelModalApplyType() {
   set('tv_pax_hint', el => { el.textContent = isFlight ? "— who's actually on this flight" : '(optional — groups below are the main assignment)'; });
   // Visibility hint (flight-only)
   set('tv_grp_hint', el => { el.style.display = isFlight ? '' : 'none'; });
+  // Re-write the auto description for the new type (no-op in manual mode).
+  _travelDescRefresh();
 }
 
 // Shared helpers used by schedule + travel modals
