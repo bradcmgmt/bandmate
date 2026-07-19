@@ -2523,10 +2523,20 @@ body.print-stage-mode #stagePrintArea{
 }
 .phone-date-item:hover{background:rgba(232,148,58,.06);border-color:var(--line-2)}
 .phone-date-item.current{background:rgba(232,148,58,.14);border-color:var(--hi);box-shadow:inset 0 0 0 1px rgba(232,148,58,.2)}
+.phone-date-item.is-today::after,
+.phone-date-item.is-tomorrow::after,
+.phone-date-item.is-next::after{
+  font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.18em;font-weight:700;
+  padding:2px 6px;border-radius:4px;white-space:nowrap;
+}
 .phone-date-item.is-today::after{
-  content:'TODAY';font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.18em;font-weight:700;
-  color:var(--hot);background:rgba(255,122,31,.12);border:1px solid rgba(255,122,31,.4);
-  padding:2px 6px;border-radius:4px;
+  content:'TODAY';color:var(--hot);background:rgba(255,122,31,.12);border:1px solid rgba(255,122,31,.4);
+}
+.phone-date-item.is-tomorrow::after{
+  content:'TOMORROW';color:#8aa9d8;background:rgba(138,169,216,.1);border:1px solid rgba(138,169,216,.4);
+}
+.phone-date-item.is-next::after{
+  content:'COMING UP';color:var(--hi);background:rgba(232,148,58,.1);border:1px solid rgba(232,148,58,.4);
 }
 .phone-date-item .pdi-date{font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:700;color:var(--hi)}
 .phone-date-item .pdi-info{min-width:0}
@@ -22049,9 +22059,14 @@ function renderPhoneDateMenu() {
   // "frozen, won't scroll until it settles" bug. Fix: only rebuild the DOM
   // when the content the menu actually shows has changed. Identical renders
   // leave the existing nodes — and the live scroll — completely untouched.
+  // Chip calendar: TODAY only when a date literally IS today; TOMORROW when
+  // it's literally tomorrow; COMING UP on the nearest FUTURE date otherwise
+  // (a tour that hasn't started shouldn't claim any day is "today").
+  const _todayIso = todayISO();
+  const _tomorrowIso = addDaysISO(_todayIso, 1);
   const sig = T().dates.map(d =>
     `${d.id}~${d.date}~${d.city||''}~${d.state||''}~${d.status||''}~${d.venue||''}`
-  ).join('|') + `#cur:${phoneDate?.id||''}#today:${tourToday?.id||''}`;
+  ).join('|') + `#cur:${phoneDate?.id||''}#today:${tourToday?.id||''}#cal:${_todayIso}`;
 
   const wasHidden = menu.hidden;     // true only on the open transition
   menu.hidden = false;
@@ -22066,9 +22081,14 @@ function renderPhoneDateMenu() {
     </div>
     ${T().dates.map(d => {
       const isCurrent = d.id === phoneDate?.id;
-      const isToday = d.id === tourToday?.id;
+      const isToday = d.date === _todayIso;
+      const isTomorrow = !isToday && d.date === _tomorrowIso;
+      // COMING UP: the nearest upcoming date, only while it's still in the
+      // future (a finished tour's last date gets no chip).
+      const isNext = !isToday && !isTomorrow && d.id === tourToday?.id && d.date > _todayIso;
+      const chipClass = isToday ? 'is-today' : isTomorrow ? 'is-tomorrow' : isNext ? 'is-next' : '';
       return `
-        <div class="phone-date-item ${isCurrent?'current':''} ${isToday?'is-today':''}" onclick="setPhoneViewDate('${d.id}')">
+        <div class="phone-date-item ${isCurrent?'current':''} ${chipClass}" onclick="setPhoneViewDate('${d.id}')">
           <div class="pdi-date">${fmtMD(d.date)}</div>
           <div class="pdi-info">
             <div class="pdi-city">${esc(d.city || '—')}${d.state?', '+esc(d.state):''}</div>
