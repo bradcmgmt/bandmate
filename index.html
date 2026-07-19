@@ -144,7 +144,7 @@ input,select,textarea{font:inherit;color:inherit}
 .sticky-header{position:sticky;top:0;z-index:30;background:var(--ink)}
 .topbar{
   position:relative;z-index:3;
-  display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:18px;
+  display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:26px;
   padding:14px 22px 12px;
   background:linear-gradient(180deg,var(--ink) 0%,#0c0805 100%);
   border-bottom:1px solid var(--line);backdrop-filter:blur(14px);
@@ -3702,6 +3702,43 @@ body.travel-assistant-mode #travelAssistantArea{
 .am-item.danger{color:var(--red)}
 .am-item.danger:hover{background:rgba(232,69,69,.08);border-color:rgba(232,69,69,.3)}
 
+/* ============ UNIFIED TOPBAR DROPDOWN ============
+   One pill (avatar · name · current tour) replaces the old four-control
+   right-cluster (trial badge / export / account / tour switcher). All four
+   live as SECTIONS of a single menu. The tours section keeps the
+   .tour-switcher class so the existing crew-mobile-only rule hides it for
+   crew while tm-crew-tour (TM-as-crew desktop gating) keeps it visible. */
+.uni-dropdown{position:relative}
+.uni-pill .uni-label{display:flex;flex-direction:column;align-items:flex-start;gap:1px;line-height:1.15;text-align:left}
+.uni-pill .uni-tour{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.08em;color:var(--warm-mute);
+  max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:uppercase}
+.uni-pill .uni-chev{transition:transform .15s}
+.uni-dropdown.open .uni-chev{transform:rotate(180deg);color:var(--hi)}
+.uni-dot{width:7px;height:7px;border-radius:50%;background:#e84545;box-shadow:0 0 8px rgba(232,69,69,.8);flex:none;animation:tabwarn 2s ease-in-out infinite}
+.uni-menu{
+  position:absolute;top:calc(100% + 6px);right:0;z-index:95;width:340px;
+  background:linear-gradient(180deg,#1a1209,#0f0a06);
+  border:1px solid rgba(232,148,58,.45);border-radius:11px;
+  box-shadow:0 0 24px rgba(232,148,58,.22),0 16px 36px rgba(0,0,0,.55),inset 0 1px 0 rgba(232,148,58,.1);
+  padding:8px;display:none;flex-direction:column;gap:2px;
+  max-height:min(76vh,680px);overflow-y:auto;
+}
+.uni-menu.open{display:flex}
+/* Inline (accordion) variants of the old popover menus — same look, no popover box */
+.uni-menu .ts-menu.uni-inline,
+.uni-menu .export-menu.uni-inline{position:static;width:auto;max-height:none;border:none;border-radius:0;box-shadow:none;background:transparent;padding:0;overflow:visible}
+.uni-billing{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:center;padding:9px 10px;border-radius:7px;cursor:pointer;
+  background:transparent;border:1px solid rgba(232,148,58,.4);color:#fbd9a9;text-align:left;
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+.uni-billing:hover{border-color:var(--hi);box-shadow:0 0 12px rgba(232,148,58,.2)}
+.uni-billing.urgent{color:#ff8c8c;border-color:rgba(232,69,69,.55)}
+.uni-billing.granted{color:#cdd9e8;border-color:rgba(138,169,216,.5)}
+.uni-exp-head{display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center;padding:9px 10px;border-radius:7px;color:var(--warm);cursor:pointer;background:transparent;border:1px solid transparent;text-align:left;font-family:'Inter',sans-serif;font-weight:600;font-size:12.5px}
+.uni-exp-head:hover{background:rgba(232,148,58,.06);border-color:var(--line-2)}
+.uni-exp-head .uni-exp-chev{color:var(--warm-mute);font-size:10px;transition:transform .15s}
+.uni-exp-head.open .uni-exp-chev{transform:rotate(180deg);color:var(--hi)}
+body.mobile .uni-pill .uni-tour{max-width:110px}
+body.mobile .uni-menu{width:min(320px,92vw)}
 
 /* ============ CREW MOBILE-ONLY VIEW ============ */
 body.crew-mobile-only .console,
@@ -4740,36 +4777,22 @@ setTimeout(window._hideAppBoot,6000);
       </div>
     </div>
     <div class="right-cluster">
-      <!-- Account badge: populated by renderTrialBadge() with one of:
-           - "Free trial · N days left" (paying user inside trial period)
-           - "Free account" (legacy or admin-granted access, no Stripe customer)
-           Click opens the Stripe billing portal for paying users; opens
-           an info modal for legacy/free users. Text-only, no emojis. -->
-      <button type="button" id="trialBadge" class="trial-badge" hidden onclick="_trialBadgeClick()" title="Click to manage your subscription">
-        <span class="tb-text" id="trialBadgeText">Free trial</span>
-      </button>
-      <div class="export-dropdown" id="exportDropdown">
-        <button type="button" class="icon-btn" title="Export tour" onclick="toggleExportMenu()">⇣</button>
-        <div class="export-menu" id="exportMenu" hidden></div>
-      </div>
-      <div class="account-dropdown" id="accountDropdown">
-        <button type="button" class="account-pill" onclick="toggleAccountMenu()">
+      <!-- Unified dropdown: account + billing + tour switcher + export all
+           live as sections of ONE menu (renderUniMenu). The pill shows the
+           signed-in user and the active tour; a red dot appears when the
+           trial is about to end. #apAvatar/#apName are populated by
+           renderAccountPill(), #tsTourName by renderTourSwitcher(). -->
+      <div class="uni-dropdown" id="uniDropdown">
+        <button type="button" class="account-pill uni-pill" onclick="toggleUniMenu()" title="Account · tours · billing · export">
           <span class="ap-avatar" id="apAvatar">??</span>
-          <span class="ap-name" id="apName">—</span>
-          <span class="ap-chev">▾</span>
-        </button>
-        <div class="account-menu" id="accountMenu"></div>
-      </div>
-      <div class="tour-switcher" id="tourSwitcher">
-        <button type="button" class="role-pill ts-trigger" onclick="toggleTourSwitcher()">
-          <div class="avatar">TM</div>
-          <span class="ts-label">
-            <span class="ts-role">Tour Manager</span>
-            <span class="ts-tour" id="tsTourName">—</span>
+          <span class="uni-label">
+            <span class="ap-name" id="apName">—</span>
+            <span class="uni-tour" id="tsTourName">—</span>
           </span>
-          <span class="ts-chev">▾</span>
+          <span class="uni-dot" id="uniAlertDot" hidden></span>
+          <span class="ap-chev uni-chev">▾</span>
         </button>
-        <div class="ts-menu" id="tsMenu" hidden></div>
+        <div class="uni-menu" id="uniMenu"></div>
       </div>
     </div>
   </header>
@@ -8762,12 +8785,19 @@ function _travelAutoDescription() {
   if (!ad) return '';
   const type = document.getElementById('tv_type')?.value || 'bus';
   const flight = (document.getElementById('tv_flight')?.value || '').trim();
-  const { from, to } = _travelRoute(ad);
-  const route = (from && to) ? `${from} → ${to}` : (from || (to ? `→ ${to}` : ''));
+  let { from, to } = _travelRoute(ad);
   if (type === 'flight') {
+    // Flights carry an explicit (editable) departure city — it wins over the
+    // inferred route so the description tracks what the TM actually typed.
+    const typedFrom = (document.getElementById('tv_from')?.value || '').trim();
+    if (typedFrom) from = typedFrom;
     const lead = flight || 'Flight';
-    return route ? `${lead} · ${route}` : lead;
+    if (from && to && to !== from) return `${lead} · ${from} → ${to}`;
+    if (from) return `${lead} · from ${from}`;
+    if (to) return `${lead} · → ${to}`;
+    return lead;
   }
+  const route = (from && to) ? `${from} → ${to}` : (from || (to ? `→ ${to}` : ''));
   const typeLabel = ({ bus: 'Bus', van: 'Van', car: 'Car', train: 'Train' })[type] || 'Travel';
   return route ? `${typeLabel} · ${route}` : typeLabel;
 }
@@ -8801,7 +8831,7 @@ function openTravelModal(itemId) {
   const ad = getActiveDate();
   if (!ad) return;
   const item = itemId ? ad.travel.find(i => i.id === itemId) : null;
-  const i = item || { type: 'bus', description: '', time: '', arriveTime: '', conf: '', person: '', notes: '', allDay: false, groups: ['All'], individuals: [], flightNumber: '' };
+  const i = item || { type: 'bus', description: '', time: '', arriveTime: '', conf: '', person: '', notes: '', allDay: false, groups: ['All'], individuals: [], flightNumber: '', fromCity: '' };
   const isFlight = i.type === 'flight';
   // Pre-seed free-text passenger chips from the legacy `person` field.
   const seedPax = (i.person || '').split(/[,;]/).map(s => s.trim()).filter(s => s && !/^all$/i.test(s));
@@ -8829,6 +8859,10 @@ function openTravelModal(itemId) {
         </div>
         <div class="field" data-flight-only ${isFlight ? '' : 'hidden'}><label>Lands <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional)</span></label>
           <div class="time-row">${renderTime12Picker('tv_arrive', i.arriveTime || '')}</div>
+        </div>
+        <div class="field" data-flight-only ${isFlight ? '' : 'hidden'}>
+          <label>Departure city <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(auto — edit if different)</span></label>
+          <input id="tv_from" data-ac="city" autocomplete="off" value="${esc(i.fromCity || (isFlight ? _travelRoute(ad).from : ''))}" oninput="_travelDescRefresh()" placeholder="e.g. Toronto">
         </div>
         <div class="field full">
           <label style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -8881,9 +8915,11 @@ function openTravelModal(itemId) {
       const individuals = indivPicker ? [...indivPicker.querySelectorAll('.group-pick.on')].map(b => b.dataset.cid) : [];
       // Free-text passengers (crew not on the roster) → stored comma-joined in `person`.
       const paxChips = [...document.querySelectorAll('#tv_pax_chips .pax-chip')].map(c => c.dataset.name).filter(Boolean);
-      // Flight number is only persisted when Type is Flight — switching away
-      // from Flight and saving wipes it so a future bus doesn't carry a stale #.
+      // Flight number + departure city are only persisted when Type is Flight —
+      // switching away from Flight and saving wipes them so a future bus
+      // doesn't carry stale flight data.
       const flightNumber = isFlt ? ($('#tv_flight')?.value.trim() || '') : '';
+      const fromCity = isFlt ? ($('#tv_from')?.value.trim() || '') : '';
       const conf = $('#tv_conf').value.trim();
       const time = allDay ? '' : readTime12Picker('tv_time');
       if (!allDay && !time) { toast(isFlt ? 'Set a departure time' : 'Set a time or mark as All day', 'error'); return false; }
@@ -8897,7 +8933,7 @@ function openTravelModal(itemId) {
       const data = {
         type, description, time, arriveTime, allDay,
         person: paxChips.join(', '), conf, notes: $('#tv_notes').value.trim(),
-        groups, individuals, flightNumber,
+        groups, individuals, flightNumber, fromCity,
       };
       // Clear the audience-needed flag once anyone is assigned (group, roster
       // individual, or free-text passenger).
@@ -8944,6 +8980,14 @@ function _travelModalApplyType() {
   set('tv_pax_hint', el => { el.textContent = isFlight ? "— who's actually on this flight" : '(optional — groups below are the main assignment)'; });
   // Visibility hint (flight-only)
   set('tv_grp_hint', el => { el.style.display = isFlight ? '' : 'none'; });
+  // Departure city — auto-fill with the day's (or nearest prior) city the
+  // first time Flight is selected; never clobber something the TM typed.
+  set('tv_from', el => {
+    if (isFlight && !el.value.trim()) {
+      const ad = getActiveDate();
+      if (ad) el.value = _travelRoute(ad).from || '';
+    }
+  });
   // Re-write the auto description for the new type (no-op in manual mode).
   _travelDescRefresh();
 }
@@ -12390,6 +12434,7 @@ function renderAll() {
   renderTopBar();
   renderAccountPill();
   renderTourSwitcher();
+  renderUniMenu();
   renderDayStamp();
   renderDayStrip();
   renderConsoleHead();
@@ -21325,6 +21370,7 @@ function _phoneShowTravel(itemId) {
     body: `
       <div style="display:flex;flex-direction:column;gap:0">
         ${t.description ? detailRow('Description', t.description) : ''}
+        ${t.type === 'flight' && t.fromCity ? detailRow('Departs from', t.fromCity) : ''}
         ${t.type === 'flight' && !t.allDay ? detailRow('Departs', t.time || '—', true) : ''}
         ${t.type === 'flight' && t.arriveTime ? detailRow('Lands', t.arriveTime, true, 'var(--hi)') : ''}
         ${t.flightNumber ? detailRow('Flight number', t.flightNumber, true, 'var(--hi)') : ''}
@@ -22053,7 +22099,14 @@ function renderExportMenu() {
   if (!menu) return;
   if (!exportMenuOpen) { menu.classList.remove('open'); menu.innerHTML = ''; return; }
   menu.classList.add('open');
-  menu.innerHTML = `
+  menu.innerHTML = _exportItemsHTML();
+}
+
+// Export menu items — shared between the (legacy) standalone dropdown and the
+// unified topbar menu. `closer` swaps the close call each item makes so the
+// right menu closes after a download kicks off.
+function _exportItemsHTML(closer) {
+  const html = `
     <div class="em-section">PDF</div>
     <button class="em-item primary" type="button" onclick="downloadDaySheetPDF();closeExportMenu()">
       <span class="em-icon">PDF</span>
@@ -22098,6 +22151,7 @@ function renderExportMenu() {
       <span class="em-text"><span class="em-name">Tasks</span><span class="em-desc">All tasks · open + done</span></span>
     </button>
   `;
+  return closer ? html.split('closeExportMenu()').join(closer) : html;
 }
 
 function _csvEscape(v) {
@@ -23052,14 +23106,15 @@ function switchToTourFromPhone(tourId) {
 let tsMenuOpen = false;
 
 function renderTourSwitcher() {
+  // The standalone tour-switcher dropdown is gone — its list now renders as a
+  // section of the unified topbar menu (renderUniMenu). This keeps the pill's
+  // tour label fresh on every renderAll.
   const lbl = document.getElementById('tsTourName');
   if (lbl) lbl.textContent = T().name || 'Untitled tour';
-  const menu = document.getElementById('tsMenu');
-  if (!menu) return;
-  if (!tsMenuOpen) { menu.classList.remove('open'); document.getElementById('tourSwitcher')?.classList.remove('open'); return; }
-  document.getElementById('tourSwitcher')?.classList.add('open');
-  menu.classList.add('open');
+}
 
+// Tour list + actions — a section of the unified menu.
+function _tourMenuItemsHTML() {
   // Get tours visible to current user — owned (if TM) + member-of (crew)
   const u = U();
   const ownedSet = new Set(userOwnedTours().map(t => t.id));
@@ -23070,7 +23125,7 @@ function renderTourSwitcher() {
   const myTours = _dedupeToursForDisplay(
     Object.values(state.tours).filter(t => !_isTombstoned(t.id) && (ownedSet.has(t.id) || memberSet.has(t.id)))
   );
-  menu.innerHTML = `
+  return `
     <div class="ts-section">Your tours · ${myTours.length}</div>
     ${myTours.map(t => {
       const isCurrent = t.id === state.currentTourId;
@@ -23099,25 +23154,22 @@ function renderTourSwitcher() {
       `;
     }).join('')}
     <div class="ts-section">Actions</div>
-    ${u && u.role === 'tm' ? `<button class="ts-action" type="button" onclick="newTourFlow()"><span style="text-align:center">+</span><span>New tour</span></button>` : ''}
-    ${u && T().ownerId === u.id ? `<button class="ts-action" type="button" onclick="renameCurrentTour()"><span style="text-align:center">✎</span><span>Rename current</span></button>` : ''}
-    ${u && T().ownerId === u.id ? `<button class="ts-action" type="button" onclick="deleteCurrentTour()" style="color:var(--red);border-color:rgba(232,69,69,.35)"><span style="text-align:center">×</span><span>Delete current</span></button>` : ''}
+    ${u && u.role === 'tm' ? `<button class="ts-action" type="button" onclick="closeUniMenu();newTourFlow()"><span style="text-align:center">+</span><span>New tour</span></button>` : ''}
+    ${u && T().ownerId === u.id ? `<button class="ts-action" type="button" onclick="closeUniMenu();renameCurrentTour()"><span style="text-align:center">✎</span><span>Rename current</span></button>` : ''}
+    ${u && T().ownerId === u.id ? `<button class="ts-action" type="button" onclick="closeUniMenu();deleteCurrentTour()" style="color:var(--red);border-color:rgba(232,69,69,.35)"><span style="text-align:center">×</span><span>Delete current</span></button>` : ''}
   `;
 }
 
-function toggleTourSwitcher() {
-  tsMenuOpen = !tsMenuOpen;
-  renderTourSwitcher();
-}
-function closeTourSwitcher() {
-  tsMenuOpen = false;
-  renderTourSwitcher();
-}
+// Legacy aliases — the standalone tour-switcher dropdown is gone; anything
+// still calling these opens/closes the unified menu instead.
+function toggleTourSwitcher() { toggleUniMenu(); }
+function closeTourSwitcher() { closeUniMenu(); }
 
 function switchToTour(tourId) {
   if (!state.tours[tourId]) { toast('Tour not found', 'error'); return; }
   state.currentTourId = tourId;
   tsMenuOpen = false;
+  _uniOpen = false; _uniExportOpen = false;
   // Reset viewerKey if it doesn't exist in the new tour
   const tour = state.tours[tourId];
   if (viewerKey !== 'tm' && !tour.crew?.some(c => c.id === viewerKey || c.userId === viewerKey)) {
@@ -25311,59 +25363,50 @@ async function openSubscriptionPortal() {
 // Hidden for normal paying subscribers + free crew users. Called from
 // renderTopBar on every renderAll so the day count stays fresh.
 // Text-only — no emojis per design.
-function renderTrialBadge() {
-  const badge = document.getElementById('trialBadge');
-  if (!badge) return;
-  const textSlot = document.getElementById('trialBadgeText');
+// Billing-state descriptor for the unified menu (and the pill's urgent dot).
+// Returns null when nothing should be shown (crew, fully-paid subscriber):
+//   { cls: ''|'urgent'|'granted', text, title, urgent }
+function _trialBadgeInfo() {
   const u = U();
-  if (!u || u.role !== 'tm') {
-    badge.hidden = true;
-    return;
-  }
-
+  if (!u || u.role !== 'tm') return null;
   const status = u.subscriptionStatus;
   const hasStripeCustomer = !!(u.stripeCustomerId && u.stripeCustomerId !== '');
   const isPositive = status === 'active' || status === 'trialing';
-  const isLegacyOrGranted = isPositive && !hasStripeCustomer;
 
   // Case 1 — legacy / SQL-granted account (no Stripe customer)
-  if (isLegacyOrGranted) {
-    badge.hidden = false;
-    badge.classList.remove('urgent');
-    badge.classList.add('granted');
-    badge.title = 'Free account — granted access without billing';
-    if (textSlot) textSlot.textContent = 'Free account';
-    return;
+  if (isPositive && !hasStripeCustomer) {
+    return { cls: 'granted', text: 'Free account', title: 'Free account — granted access without billing', urgent: false };
   }
-
   // Case 2 — Stripe-trialed user (show countdown)
   if (status === 'trialing') {
-    badge.classList.remove('granted');
-    badge.hidden = false;
-    badge.title = 'Click to manage your subscription';
     const trialEnd = u.trialEnd ? new Date(u.trialEnd) : null;
     if (!trialEnd || isNaN(trialEnd.getTime())) {
-      badge.classList.remove('urgent');
-      if (textSlot) textSlot.textContent = 'Free trial';
-      return;
+      return { cls: '', text: 'Free trial', title: 'Click to manage your subscription', urgent: false };
     }
-    const msLeft = trialEnd.getTime() - Date.now();
-    const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
-    badge.classList.toggle('urgent', daysLeft <= 2);
-    if (textSlot) {
-      if (daysLeft === 0) {
-        textSlot.textContent = 'Trial ends today';
-      } else if (daysLeft === 1) {
-        textSlot.textContent = 'Trial · 1 day left';
-      } else {
-        textSlot.textContent = `Free trial · ${daysLeft} days left`;
-      }
-    }
-    return;
+    const daysLeft = Math.max(0, Math.ceil((trialEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+    const text = daysLeft === 0 ? 'Trial ends today'
+      : daysLeft === 1 ? 'Trial · 1 day left'
+      : `Free trial · ${daysLeft} days left`;
+    return { cls: daysLeft <= 2 ? 'urgent' : '', text, title: 'Click to manage your subscription', urgent: daysLeft <= 2 };
   }
+  // Case 3 — fully paid subscriber → nothing to show
+  return null;
+}
 
-  // Case 3 — fully paid subscriber → hide badge (no info needed)
-  badge.hidden = true;
+// Legacy wrapper — the standalone topbar badge is gone (billing now lives in
+// the unified menu); this keeps old call sites harmless and still updates the
+// element if some view ever re-adds one.
+function renderTrialBadge() {
+  const badge = document.getElementById('trialBadge');
+  if (!badge) return;
+  const info = _trialBadgeInfo();
+  if (!info) { badge.hidden = true; return; }
+  badge.hidden = false;
+  badge.classList.toggle('granted', info.cls === 'granted');
+  badge.classList.toggle('urgent', info.cls === 'urgent');
+  badge.title = info.title;
+  const textSlot = document.getElementById('trialBadgeText');
+  if (textSlot) textSlot.textContent = info.text;
 }
 
 // Click handler for the trial / free-account badge. Paying users open
@@ -26317,10 +26360,88 @@ function renderAccountMenu() {
     <button class="am-item" type="button" onclick="closeAccountMenu();openGetAppModal()">
       <span class="am-ic">↧</span><span>Install Bandmate</span>
     </button>
-    <button class="am-item danger" type="button" onclick="logout()">
+    <button class="am-item danger" type="button" onclick="closeUniMenu();logout()">
       <span class="am-ic" style="color:var(--red);border-color:rgba(232,69,69,.3)">×</span><span>Sign out</span>
     </button>
-    <button class="am-item danger" type="button" onclick="deleteAccount()">
+    <button class="am-item danger" type="button" onclick="closeUniMenu();deleteAccount()">
+      <span class="am-ic" style="color:var(--red);border-color:rgba(232,69,69,.3)">⨯</span><span>Delete account</span>
+    </button>
+  `;
+}
+
+/* ---------- Unified topbar menu ----------
+   One dropdown replaces the old right-cluster's four controls. Sections:
+     1. Account header (avatar · name · email · role)
+     2. Billing row — trial countdown / free-account (only when applicable)
+     3. Your tours — switch / new / rename / delete (hidden for crew via the
+        .tour-switcher class + crew-mobile-only CSS; kept for tm-crew-tour)
+     4. Export — accordion with the full PDF/CSV/backup list
+     5. Account actions — install / sign out / delete                       */
+let _uniOpen = false;
+let _uniExportOpen = false;
+
+function toggleUniMenu() {
+  _uniOpen = !_uniOpen;
+  if (!_uniOpen) _uniExportOpen = false;
+  renderUniMenu();
+}
+function closeUniMenu() {
+  _uniOpen = false;
+  _uniExportOpen = false;
+  renderUniMenu();
+}
+function _uniToggleExport() {
+  _uniExportOpen = !_uniExportOpen;
+  renderUniMenu();
+}
+
+function renderUniMenu() {
+  // Urgent-trial dot on the pill — visible even while the menu is closed, so
+  // moving the badge into the menu doesn't hide an expiring trial.
+  const info = _trialBadgeInfo();
+  const dot = document.getElementById('uniAlertDot');
+  if (dot) dot.hidden = !(info && info.urgent);
+
+  const menu = document.getElementById('uniMenu');
+  const dd = document.getElementById('uniDropdown');
+  if (!menu) return;
+  if (!_uniOpen) {
+    menu.classList.remove('open');
+    dd?.classList.remove('open');
+    menu.innerHTML = '';
+    return;
+  }
+  dd?.classList.add('open');
+  menu.classList.add('open');
+  const me = U();
+  menu.innerHTML = `
+    <div class="am-current">
+      <span class="am-avatar ${me?.role==='crew'?'crew':''}">${esc(me?.avatar || '??')}</span>
+      <div>
+        <div class="am-name">${esc(me?.name || '—')}</div>
+        <div class="am-meta">${esc(me?.email || '')} · ${me?.role === 'tm' ? 'Tour Manager' : 'Crew'}</div>
+      </div>
+    </div>
+    ${info ? `
+      <button class="uni-billing ${info.cls}" type="button" onclick="closeUniMenu();_trialBadgeClick()" title="${esc(info.title)}">
+        <span class="am-ic">$</span><span>${esc(info.text)}</span>
+      </button>
+    ` : ''}
+    <div class="tour-switcher ts-menu uni-inline open">
+      ${_tourMenuItemsHTML()}
+    </div>
+    <button class="uni-exp-head ${_uniExportOpen ? 'open' : ''}" type="button" onclick="_uniToggleExport()">
+      <span class="am-ic">⇣</span><span>Export tour</span><span class="uni-exp-chev">▾</span>
+    </button>
+    ${_uniExportOpen ? `<div class="export-menu uni-inline open">${_exportItemsHTML('closeUniMenu()')}</div>` : ''}
+    <div class="am-section">Account</div>
+    <button class="am-item" type="button" onclick="closeUniMenu();openGetAppModal()">
+      <span class="am-ic">↧</span><span>Install Bandmate</span>
+    </button>
+    <button class="am-item danger" type="button" onclick="closeUniMenu();logout()">
+      <span class="am-ic" style="color:var(--red);border-color:rgba(232,69,69,.3)">×</span><span>Sign out</span>
+    </button>
+    <button class="am-item danger" type="button" onclick="closeUniMenu();deleteAccount()">
       <span class="am-ic" style="color:var(--red);border-color:rgba(232,69,69,.3)">⨯</span><span>Delete account</span>
     </button>
   `;
@@ -28545,6 +28666,9 @@ function init() {
       if (amOpen && !e.target.closest('#accountDropdown')) {
         closeAccountMenu();
       }
+      if (_uniOpen && !e.target.closest('#uniDropdown')) {
+        closeUniMenu();
+      }
       if (_schedTemplateMenuOpen && !e.target.closest('#schedTemplateWrap')) {
         closeSchedTemplateMenu();
       }
@@ -29694,6 +29818,7 @@ Object.assign(window, {
   scoutNearVenue,
   openTravelAssistant, closeTravelAssistant, setTaTab, searchHotels, resetHotelFilters, bookHotelToActiveDate, searchFlights, resetFlightFilters, addFlightToTravel,
   toggleTourSwitcher, closeTourSwitcher, switchToTour, switchToTourFromPhone, newTourFlow, newTourManualFlow, newTourImportFlow, renameCurrentTour, deleteCurrentTour,
+  toggleUniMenu, closeUniMenu, renderUniMenu, _uniToggleExport,
   _ntpdStatusChange, _ntpdCityChange, _ntpdVenueChange, _ntpdBulkStatus,
   showLoginScreen, hideLoginScreen, loginWithEmail, loginAsExisting, signUp, logout, showLoginForm, showSignupForm, toggleAccountMenu, closeAccountMenu,
   showLandingScreen, hideLandingScreen, landingChoose,
