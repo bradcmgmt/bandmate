@@ -8787,10 +8787,12 @@ function _travelAutoDescription() {
   const flight = (document.getElementById('tv_flight')?.value || '').trim();
   let { from, to } = _travelRoute(ad);
   if (type === 'flight') {
-    // Flights carry an explicit (editable) departure city — it wins over the
-    // inferred route so the description tracks what the TM actually typed.
+    // Flights carry explicit (editable) departure + arrival cities — they win
+    // over the inferred route so the description tracks what the TM typed.
     const typedFrom = (document.getElementById('tv_from')?.value || '').trim();
     if (typedFrom) from = typedFrom;
+    const typedTo = (document.getElementById('tv_to')?.value || '').trim();
+    if (typedTo) to = typedTo;
     const lead = flight || 'Flight';
     if (from && to && to !== from) return `${lead} · ${from} → ${to}`;
     if (from) return `${lead} · from ${from}`;
@@ -8831,7 +8833,7 @@ function openTravelModal(itemId) {
   const ad = getActiveDate();
   if (!ad) return;
   const item = itemId ? ad.travel.find(i => i.id === itemId) : null;
-  const i = item || { type: 'bus', description: '', time: '', arriveTime: '', conf: '', person: '', notes: '', allDay: false, groups: ['All'], individuals: [], flightNumber: '', fromCity: '' };
+  const i = item || { type: 'bus', description: '', time: '', arriveTime: '', conf: '', person: '', notes: '', allDay: false, groups: ['All'], individuals: [], flightNumber: '', fromCity: '', toCity: '' };
   const isFlight = i.type === 'flight';
   // Pre-seed free-text passenger chips from the legacy `person` field.
   const seedPax = (i.person || '').split(/[,;]/).map(s => s.trim()).filter(s => s && !/^all$/i.test(s));
@@ -8863,6 +8865,10 @@ function openTravelModal(itemId) {
         <div class="field" data-flight-only ${isFlight ? '' : 'hidden'}>
           <label>Departure city <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(auto — edit if different)</span></label>
           <input id="tv_from" data-ac="city" autocomplete="off" value="${esc(i.fromCity || (isFlight ? _travelRoute(ad).from : ''))}" oninput="_travelDescRefresh()" placeholder="e.g. Toronto">
+        </div>
+        <div class="field" data-flight-only ${isFlight ? '' : 'hidden'}>
+          <label>Arrival city <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(auto — edit if different)</span></label>
+          <input id="tv_to" data-ac="city" autocomplete="off" value="${esc(i.toCity || (isFlight ? _travelRoute(ad).to : ''))}" oninput="_travelDescRefresh()" placeholder="e.g. Boston">
         </div>
         <div class="field full">
           <label style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -8920,6 +8926,7 @@ function openTravelModal(itemId) {
       // doesn't carry stale flight data.
       const flightNumber = isFlt ? ($('#tv_flight')?.value.trim() || '') : '';
       const fromCity = isFlt ? ($('#tv_from')?.value.trim() || '') : '';
+      const toCity = isFlt ? ($('#tv_to')?.value.trim() || '') : '';
       const conf = $('#tv_conf').value.trim();
       const time = allDay ? '' : readTime12Picker('tv_time');
       if (!allDay && !time) { toast(isFlt ? 'Set a departure time' : 'Set a time or mark as All day', 'error'); return false; }
@@ -8933,7 +8940,7 @@ function openTravelModal(itemId) {
       const data = {
         type, description, time, arriveTime, allDay,
         person: paxChips.join(', '), conf, notes: $('#tv_notes').value.trim(),
-        groups, individuals, flightNumber, fromCity,
+        groups, individuals, flightNumber, fromCity, toCity,
       };
       // Clear the audience-needed flag once anyone is assigned (group, roster
       // individual, or free-text passenger).
@@ -8980,12 +8987,18 @@ function _travelModalApplyType() {
   set('tv_pax_hint', el => { el.textContent = isFlight ? "— who's actually on this flight" : '(optional — groups below are the main assignment)'; });
   // Visibility hint (flight-only)
   set('tv_grp_hint', el => { el.style.display = isFlight ? '' : 'none'; });
-  // Departure city — auto-fill with the day's (or nearest prior) city the
-  // first time Flight is selected; never clobber something the TM typed.
+  // Departure + arrival cities — auto-fill from the tour route the first time
+  // Flight is selected; never clobber something the TM typed.
   set('tv_from', el => {
     if (isFlight && !el.value.trim()) {
       const ad = getActiveDate();
       if (ad) el.value = _travelRoute(ad).from || '';
+    }
+  });
+  set('tv_to', el => {
+    if (isFlight && !el.value.trim()) {
+      const ad = getActiveDate();
+      if (ad) el.value = _travelRoute(ad).to || '';
     }
   });
   // Re-write the auto description for the new type (no-op in manual mode).
@@ -21370,7 +21383,7 @@ function _phoneShowTravel(itemId) {
     body: `
       <div style="display:flex;flex-direction:column;gap:0">
         ${t.description ? detailRow('Description', t.description) : ''}
-        ${t.type === 'flight' && t.fromCity ? detailRow('Departs from', t.fromCity) : ''}
+        ${t.type === 'flight' && (t.fromCity || t.toCity) ? detailRow('Route', [t.fromCity || '—', t.toCity || '—'].join(' → ')) : ''}
         ${t.type === 'flight' && !t.allDay ? detailRow('Departs', t.time || '—', true) : ''}
         ${t.type === 'flight' && t.arriveTime ? detailRow('Lands', t.arriveTime, true, 'var(--hi)') : ''}
         ${t.flightNumber ? detailRow('Flight number', t.flightNumber, true, 'var(--hi)') : ''}
