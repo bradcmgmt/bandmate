@@ -144,7 +144,9 @@ input,select,textarea{font:inherit;color:inherit}
 .sticky-header{position:sticky;top:0;z-index:30;background:var(--ink)}
 .topbar{
   position:relative;z-index:3;
-  display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:26px;
+  /* Symmetric 1fr sides keep the tour banner truly centered in the viewport
+     regardless of how wide the brand block or account pill happen to be. */
+  display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:26px;
   padding:14px 22px 12px;
   background:linear-gradient(180deg,var(--ink) 0%,#0c0805 100%);
   border-bottom:1px solid var(--line);backdrop-filter:blur(14px);
@@ -169,19 +171,24 @@ input,select,textarea{font:inherit;color:inherit}
    landing hero) ~80px and centered. */
 .brand-logo{display:block;height:26px;width:auto;object-fit:contain;
   filter:drop-shadow(0 0 8px rgba(232,148,58,.25));vertical-align:middle}
-/* Mouse-tracked shine wrapper around every Bandmate wordmark PNG. The
-   inner .bm-shine span is MASKED to the logo's silhouette so the highlight
-   only paints over the actual letters (transparent areas around the
-   wordmark stay dark). Position driven by --rx / --ry / --ralpha CSS
-   variables set by JS; falls off to 0 when the cursor is far away. */
+/* FOIL TILT — cursor-tracked wordmark treatment (replaced the old radial
+   "flashlight" glow). The wrapper tilts in 3D toward the cursor like a foil
+   card catching light, while a narrow specular band (masked to the logo's
+   letterforms) slides across horizontally. Driven by --tx/--ty (tilt degrees),
+   --sx (band position) and --ralpha (proximity falloff) set by JS. At rest:
+   perfectly flat, band parked off the letters — no idle glow at all. */
 .bm-shine-wrap{position:relative;display:inline-block;line-height:0;
-  --rx:50%;--ry:50%;--ralpha:0}
+  --tx:0deg;--ty:0deg;--sx:150%;--ralpha:0;
+  transform:perspective(600px) rotateX(var(--tx)) rotateY(var(--ty));
+  transition:transform .15s ease-out;will-change:transform}
 .bm-shine{position:absolute;inset:0;pointer-events:none;z-index:2;
-  background:radial-gradient(ellipse 50% 90% at var(--rx) var(--ry),
-    rgba(255,250,225,calc(var(--ralpha) * .85)) 0%,
-    rgba(255,250,225,calc(var(--ralpha) * .35)) 22%,
-    rgba(255,250,225,0) 55%);
-  /* Mask using the logo image itself so the shine sits only on the letters. */
+  background:linear-gradient(115deg,
+    transparent 34%,
+    rgba(255,250,225,calc(var(--ralpha) * .85)) 48%,
+    rgba(255,250,225,calc(var(--ralpha) * .25)) 55%,
+    transparent 66%);
+  background-size:260% 100%;background-position:var(--sx) 0;background-repeat:no-repeat;
+  /* Mask using the logo image itself so the sheen sits only on the letters. */
   -webkit-mask-image:url('logo.png');mask-image:url('logo.png');
   -webkit-mask-size:100% 100%;mask-size:100% 100%;
   -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
@@ -207,7 +214,7 @@ input,select,textarea{font:inherit;color:inherit}
 .tour-banner .sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);
   letter-spacing:.16em;text-transform:uppercase;display:flex;gap:10px;align-items:center}
 .tour-banner .sub .pip{width:4px;height:4px;background:var(--hi);border-radius:50%;display:inline-block;box-shadow:0 0 6px var(--hi)}
-.right-cluster{display:flex;align-items:center;gap:10px}
+.right-cluster{display:flex;align-items:center;gap:10px;justify-self:end}
 .role-pill{display:flex;align-items:center;gap:8px;padding:7px 12px 7px 8px;border-radius:999px;
   border:1px solid var(--line-2);background:linear-gradient(135deg,rgba(232,148,58,.08),rgba(232,148,58,.02));
   font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--warm-mute);
@@ -2641,7 +2648,7 @@ body.print-tourbook-mode #tourBookArea{display:block!important;position:fixed;in
 
 
 /* ============ TRAVEL ASSISTANT ============ */
-.laminate-wrap{display:flex;align-items:center;gap:12px}
+.laminate-wrap{display:flex;align-items:center;gap:12px;justify-self:start}
 .travel-assist-btn{
   display:inline-flex;align-items:center;gap:8px;
   padding:9px 14px;border-radius:8px;
@@ -4768,7 +4775,7 @@ setTimeout(window._hideAppBoot,6000);
       <div class="laminate">
         <div class="brand">
           <span class="bm-shine-wrap"><img src="logo.png" class="brand-logo" alt="Bandmate" /><span class="bm-shine"></span></span>
-          <span class="tag">v0.7 · OPS</span>
+          <span class="tag">v0.7</span>
         </div>
       </div>
       <div class="tools-dropdown" id="toolsDropdown">
@@ -26424,8 +26431,16 @@ function closeUniMenu() {
   renderUniMenu();
 }
 function _uniToggleExport() {
+  // Toggle IN PLACE — never rebuild the menu's innerHTML from inside a click:
+  // replacing the clicked button mid-event detaches it, the document-level
+  // click-outside handler then sees a disconnected target (closest() finds
+  // nothing) and closes the whole menu. That was the "Export tour does
+  // nothing" bug.
   _uniExportOpen = !_uniExportOpen;
-  renderUniMenu();
+  const wrap = document.getElementById('uniExportItems');
+  const head = document.getElementById('uniExportHead');
+  if (wrap) wrap.style.display = _uniExportOpen ? '' : 'none';
+  if (head) head.classList.toggle('open', _uniExportOpen);
 }
 
 function renderUniMenu() {
@@ -26463,10 +26478,10 @@ function renderUniMenu() {
     <div class="tour-switcher ts-menu uni-inline open">
       ${_tourMenuItemsHTML()}
     </div>
-    <button class="uni-exp-head ${_uniExportOpen ? 'open' : ''}" type="button" onclick="_uniToggleExport()">
+    <button class="uni-exp-head ${_uniExportOpen ? 'open' : ''}" type="button" id="uniExportHead" onclick="_uniToggleExport()">
       <span class="am-ic">⇣</span><span>Export tour</span><span class="uni-exp-chev">▾</span>
     </button>
-    ${_uniExportOpen ? `<div class="export-menu uni-inline open">${_exportItemsHTML('closeUniMenu()')}</div>` : ''}
+    <div class="export-menu uni-inline open" id="uniExportItems" style="${_uniExportOpen ? '' : 'display:none'}">${_exportItemsHTML('closeUniMenu()')}</div>
     <div class="am-section">Account</div>
     <button class="am-item" type="button" onclick="closeUniMenu();openAccountSettingsModal()">
       <span class="am-ic">⚙</span><span>Account settings</span>
@@ -26586,21 +26601,53 @@ function openAccountSettingsModal() {
   });
 }
 
-// Save the display name locally AND to the cloud profile, so co-managers and
-// crew (plus patch-032's owner stamping) pick up the new name.
+// Save the display name and propagate it EVERYWHERE the account appears:
+//   1. the local user (+ avatar initials)
+//   2. every local tour — owner identity on tours you own, and your crew-
+//      roster entry (matched by userId or email) on tours you're on
+//   3. the cloud — profiles.display_name + auth metadata, then a one-query
+//      touch of every owned tour so patch-032's trigger re-stamps owner_name
+//      for co-managers, and a crew-roster push for tours you can write
+//      (owner/co-manager; crew-only tours are read-only and sync next time
+//      the TM saves them).
 async function _acctSaveName() {
   const u = U();
   if (!u) return;
   const name = (document.getElementById('as_name')?.value || '').trim();
   if (!name) { toast('Name can\'t be empty', 'error'); return; }
+  const email = (u.email || '').toLowerCase();
   u.name = name;
   try { u.avatar = initials(name); } catch (e) {}
+
+  // Local propagation across every tour on this device
+  const touchedCrewTours = [];
+  Object.values((state && state.tours) || {}).forEach(t => {
+    if (t.ownerId === u.id) t.ownerName = name;
+    let touched = false;
+    (t.crew || []).forEach(c => {
+      const mine = c.userId === u.id || c.id === u.id || (email && (c.email || '').toLowerCase() === email);
+      if (mine && c.name !== name) { c.name = name; touched = true; }
+    });
+    if (touched) touchedCrewTours.push(t);
+  });
   saveState();
   toast('Name updated', 'good');
+
+  // Cloud propagation
   if (sb && typeof _isUuid === 'function' && _isUuid(u.id)) {
     try {
       await sb.from('profiles').update({ display_name: name }).eq('id', u.id);
       await sb.auth.updateUser({ data: { display_name: name } });
+      // Touch every owned tour — the patch-032 BEFORE-UPDATE trigger re-stamps
+      // owner_name/owner_email from profiles, so co-managers and crew see the
+      // new name without you re-saving each tour.
+      await sb.from('tours').update({ owner_name: name }).eq('owner_id', u.id);
+      // Push updated crew rosters where this account is allowed to write
+      // (owner or co-manager). Crew-only tours reject under RLS — that's fine.
+      for (const t of touchedCrewTours) {
+        if (!_isUuid(t.id)) continue;
+        try { await sb.from('tours').update({ crew: t.crew }).eq('id', t.id); } catch (e) {}
+      }
     } catch (e) { console.warn('[account] cloud name update failed:', e); }
   }
   renderAll();
@@ -27218,11 +27265,47 @@ function _projectGlareOnEl(el, mx, my) {
   el.style.setProperty('--ry', yPct + '%');
   el.style.setProperty('--ralpha', alpha.toFixed(3));
 }
+// Foil-tilt projector for the Bandmate wordmark. Same proximity model as the
+// ribbon glare (works when the cursor is NEAR, not only over), but instead of
+// a radial highlight it tilts the mark toward the cursor and slides a narrow
+// specular band across the letters. Everything scales with the distance
+// falloff, so far away the mark settles perfectly flat with no sheen.
+function _projectFoilTiltOnEl(el, mx, my) {
+  const r = el.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return;
+  const cx = r.left + r.width / 2;
+  const cy = r.top + r.height / 2;
+  const dx = mx - cx, dy = my - cy;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const inside = mx >= r.left && mx <= r.right && my >= r.top && my <= r.bottom;
+  let xPct, yPct;
+  if (inside) {
+    xPct = ((mx - r.left) / r.width) * 100;
+    yPct = ((my - r.top) / r.height) * 100;
+  } else {
+    // Project the cursor direction onto the element's edge (same approach as
+    // the ribbon glare) so the tilt leans toward wherever the cursor is.
+    const halfW = r.width / 2, halfH = r.height / 2;
+    const ax = Math.abs(dx), ay = Math.abs(dy);
+    const tx = ax > 0.001 ? halfW / ax : Infinity;
+    const ty = ay > 0.001 ? halfH / ay : Infinity;
+    const t = Math.min(tx, ty);
+    xPct = ((dx * t + halfW) / r.width) * 100;
+    yPct = ((dy * t + halfH) / r.height) * 100;
+  }
+  const maxDist = 600;
+  const alpha = inside ? 1 : Math.max(0, 1 - (dist / maxDist));
+  const nx = xPct / 100 - 0.5, ny = yPct / 100 - 0.5;   // -0.5 .. 0.5
+  el.style.setProperty('--ty', (nx * 14 * alpha).toFixed(2) + 'deg');   // rotateY
+  el.style.setProperty('--tx', (ny * -10 * alpha).toFixed(2) + 'deg');  // rotateX
+  el.style.setProperty('--sx', (120 - xPct * 1.4).toFixed(1) + '%');    // specular band
+  el.style.setProperty('--ralpha', alpha.toFixed(3));
+}
 function _rbProjectGlare(e) {
   const ribbon = document.querySelector('.day-sheet .ribbon-show');
   if (ribbon) _projectGlareOnEl(ribbon, e.clientX, e.clientY);
   document.querySelectorAll('.bm-shine-wrap').forEach(el => {
-    _projectGlareOnEl(el, e.clientX, e.clientY);
+    _projectFoilTiltOnEl(el, e.clientX, e.clientY);
   });
 }
 function rbReflect(e, el) {
@@ -28839,7 +28922,10 @@ function init() {
       if (amOpen && !e.target.closest('#accountDropdown')) {
         closeAccountMenu();
       }
-      if (_uniOpen && !e.target.closest('#uniDropdown')) {
+      // isConnected guard: if the click's target was detached mid-event (an
+      // in-menu control that re-rendered its own DOM), closest() can't prove
+      // the click was outside — never treat that as an outside click.
+      if (_uniOpen && e.target.isConnected && !e.target.closest('#uniDropdown')) {
         closeUniMenu();
       }
       if (_schedTemplateMenuOpen && !e.target.closest('#schedTemplateWrap')) {
