@@ -26468,6 +26468,9 @@ function renderUniMenu() {
     </button>
     ${_uniExportOpen ? `<div class="export-menu uni-inline open">${_exportItemsHTML('closeUniMenu()')}</div>` : ''}
     <div class="am-section">Account</div>
+    <button class="am-item" type="button" onclick="closeUniMenu();openAccountSettingsModal()">
+      <span class="am-ic">⚙</span><span>Account settings</span>
+    </button>
     <button class="am-item" type="button" onclick="closeUniMenu();openGetAppModal()">
       <span class="am-ic">↧</span><span>Install Bandmate</span>
     </button>
@@ -26478,6 +26481,143 @@ function renderUniMenu() {
       <span class="am-ic" style="color:var(--red);border-color:rgba(232,69,69,.3)">⨯</span><span>Delete account</span>
     </button>
   `;
+}
+
+/* ---------- Account settings modal ----------
+   One place for everything about the signed-in ACCOUNT (as opposed to any
+   one tour): profile identity, subscription/billing state, what the account
+   can access, and security actions. Opened from the unified topbar menu. */
+
+// Human-readable subscription descriptor for the settings modal.
+function _acctSubscriptionInfo(u) {
+  const fmt = (v) => { const d = v ? new Date(v) : null; return (d && !isNaN(d)) ? d.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' }) : ''; };
+  if (!u) return null;
+  if (u.role !== 'tm') {
+    return { label: 'Crew account', tone: 'good', desc: 'Crew accounts are always free — you were invited by a tour manager. Everything shared with you syncs to this account.', billing: false };
+  }
+  const status = u.subscriptionStatus;
+  const isComp = u.subscriptionPlan === 'comp';
+  const hasStripe = !!(u.stripeCustomerId && u.stripeCustomerId !== '');
+  if (isComp && (status === 'active' || status === 'trialing')) {
+    return { label: 'Free account · comp', tone: 'cool', desc: 'Granted full Tour Manager access without billing (beta tester, comp, or team seat). There is no billing portal because there is nothing to bill.', billing: false };
+  }
+  if (status === 'trialing') {
+    const end = fmt(u.trialEnd);
+    return { label: 'Free trial', tone: 'good', desc: `Full access during your trial${end ? ` — converts to a paid subscription on ${end}` : ''}. Manage or cancel any time from the billing portal.`, billing: hasStripe };
+  }
+  if (status === 'active') {
+    const end = fmt(u.subscriptionPeriodEnd);
+    return { label: 'Active subscription', tone: 'good', desc: `Tour Manager plan${end ? ` — renews ${end}` : ''}. Payment method, invoices, and cancellation live in the billing portal.`, billing: hasStripe };
+  }
+  if (status === 'past_due' || status === 'unpaid') {
+    return { label: 'Payment issue', tone: 'warn', desc: 'Your last payment didn\'t go through. Update your payment method in the billing portal to keep full access.', billing: hasStripe };
+  }
+  if (status === 'canceled') {
+    return { label: 'Subscription canceled', tone: 'warn', desc: 'Your subscription has ended. Resubscribe from the billing portal to regain Tour Manager access.', billing: hasStripe };
+  }
+  return { label: 'No active subscription', tone: 'warn', desc: 'This account has no active plan.', billing: hasStripe };
+}
+
+function openAccountSettingsModal() {
+  const u = U();
+  if (!u) { toast('Not signed in', 'error'); return; }
+  const sub = _acctSubscriptionInfo(u);
+  const toneColor = { good: 'var(--good)', warn: '#fdba74', cool: '#8aa9d8' }[sub.tone] || 'var(--warm)';
+  const memberSince = u.createdAt ? new Date(u.createdAt).toLocaleDateString([], { year: 'numeric', month: 'long' }) : '';
+  // What this account can access, across every tour on the device
+  const my = (fn) => Object.values((state && state.tours) || {}).filter(t => !_isTombstoned(t.id) && fn(t)).length;
+  const email = (u.email || '').toLowerCase();
+  const owned = my(t => t.ownerId === u.id);
+  const coManaged = my(t => t.ownerId !== u.id && (t.managerIds || []).includes(u.id));
+  const crewOn = my(t => t.ownerId !== u.id && !(t.managerIds || []).includes(u.id)
+    && ((t.memberIds || []).includes(u.id) || (t.crew || []).some(c => (c.email || '').toLowerCase() === email)));
+  const secTitle = (txt) => `<div class="am-section" style="padding-left:0;margin-top:16px">${txt}</div>`;
+  const pair = (k, v) => `<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed rgba(232,148,58,.08)">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--warm-mute)">${k}</span>
+      <span style="font-size:13px;color:var(--warm);font-weight:600;text-align:right">${v}</span>
+    </div>`;
+  openModal({
+    title: 'Account settings',
+    size: 'lg',
+    hideFooter: true,
+    body: `
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--line)">
+        <span class="am-avatar ${u.role === 'crew' ? 'crew' : ''}" style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#ffb35a,#c47323);color:#0a0705;display:grid;place-items:center;font-weight:800;font-size:17px;box-shadow:0 0 14px rgba(232,148,58,.4)">${esc(u.avatar || '??')}</span>
+        <div>
+          <div style="font-weight:800;font-size:16px;color:var(--warm)">${esc(u.name || '—')}</div>
+          <div class="mono" style="font-size:11px;color:var(--warm-mute);letter-spacing:.06em;margin-top:2px">${esc(u.email || '')} · ${u.role === 'tm' ? 'Tour Manager' : 'Crew'}${memberSince ? ' · member since ' + esc(memberSince) : ''}</div>
+        </div>
+      </div>
+
+      ${secTitle('Profile')}
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <div class="field" style="flex:1"><label>Display name</label><input id="as_name" value="${esc(u.name || '')}"></div>
+        <button type="button" class="btn primary" style="padding:10px 16px" onclick="_acctSaveName()">Save</button>
+      </div>
+      <div class="help" style="margin-top:6px">This is the name your crew and co-managers see — on tours, invites, and the Managers card.</div>
+      ${pair('Email', esc(u.email || '—') + ' <span style="color:var(--warm-mute);font-weight:400;font-size:11px">(sign-in — can\'t be changed here)</span>')}
+
+      ${secTitle('Subscription')}
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+        <span class="mono" style="font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${toneColor};border:1px solid ${toneColor};border-radius:5px;padding:3px 9px;opacity:.95">${esc(sub.label)}</span>
+        ${sub.billing ? `<button type="button" class="tb-btn primary" onclick="closeModal();openSubscriptionPortal()">Manage billing →</button>` : ''}
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;color:var(--warm-mute)">${sub.desc}</div>
+
+      ${secTitle('Your access')}
+      ${pair('Tours you own', String(owned))}
+      ${pair('Co-managing', String(coManaged))}
+      ${pair('On as crew', String(crewOn))}
+
+      ${secTitle('Security')}
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button type="button" class="tb-btn" id="as_reset_btn" onclick="_acctSendReset()">Email me a password reset link</button>
+        <span class="mono" style="font-size:10.5px;color:var(--warm-mute);letter-spacing:.04em">Sent to ${esc(u.email || 'your email')}</span>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;border-top:1px solid var(--line);padding-top:14px;margin-top:18px;flex-wrap:wrap">
+        <div style="display:flex;gap:8px">
+          <button type="button" class="tb-btn" style="color:var(--red);border-color:rgba(232,69,69,.4)" onclick="closeModal();logout()">Sign out</button>
+          <button type="button" class="tb-btn" style="color:var(--red);border-color:rgba(232,69,69,.4)" onclick="closeModal();deleteAccount()">Delete account…</button>
+        </div>
+        <button type="button" class="btn primary" onclick="closeModal()" style="padding:9px 18px">Done</button>
+      </div>
+    `,
+  });
+}
+
+// Save the display name locally AND to the cloud profile, so co-managers and
+// crew (plus patch-032's owner stamping) pick up the new name.
+async function _acctSaveName() {
+  const u = U();
+  if (!u) return;
+  const name = (document.getElementById('as_name')?.value || '').trim();
+  if (!name) { toast('Name can\'t be empty', 'error'); return; }
+  u.name = name;
+  try { u.avatar = initials(name); } catch (e) {}
+  saveState();
+  toast('Name updated', 'good');
+  if (sb && typeof _isUuid === 'function' && _isUuid(u.id)) {
+    try {
+      await sb.from('profiles').update({ display_name: name }).eq('id', u.id);
+      await sb.auth.updateUser({ data: { display_name: name } });
+    } catch (e) { console.warn('[account] cloud name update failed:', e); }
+  }
+  renderAll();
+  openAccountSettingsModal();   // re-open so the header reflects the new name
+}
+
+// One-click reset link to the signed-in email (no typing, unlike the login flow).
+async function _acctSendReset() {
+  const u = U();
+  if (!sb) { toast('Auth service not loaded — refresh the page', 'error'); return; }
+  if (!u?.email) { toast('No email on this account', 'error'); return; }
+  const btn = document.getElementById('as_reset_btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  const { error } = await sb.auth.resetPasswordForEmail(u.email, { redirectTo: window.location.origin });
+  if (btn) { btn.disabled = false; btn.textContent = 'Email me a password reset link'; }
+  if (error) { toast(error.message || 'Could not send reset email', 'error'); return; }
+  toast('Reset link sent to ' + u.email, 'good');
 }
 
 // Permanently delete the signed-in user's account and every tour, date,
@@ -29852,6 +29992,7 @@ Object.assign(window, {
   openTravelAssistant, closeTravelAssistant, setTaTab, searchHotels, resetHotelFilters, bookHotelToActiveDate, searchFlights, resetFlightFilters, addFlightToTravel,
   toggleTourSwitcher, closeTourSwitcher, switchToTour, switchToTourFromPhone, newTourFlow, newTourManualFlow, newTourImportFlow, renameCurrentTour, deleteCurrentTour,
   toggleUniMenu, closeUniMenu, renderUniMenu, _uniToggleExport,
+  openAccountSettingsModal, _acctSaveName, _acctSendReset,
   _ntpdStatusChange, _ntpdCityChange, _ntpdVenueChange, _ntpdBulkStatus,
   showLoginScreen, hideLoginScreen, loginWithEmail, loginAsExisting, signUp, logout, showLoginForm, showSignupForm, toggleAccountMenu, closeAccountMenu,
   showLandingScreen, hideLandingScreen, landingChoose,
