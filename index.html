@@ -5176,6 +5176,7 @@ const dbMap = {
       date: d.date,
       city: d.city || '',
       venue: d.venue || '',
+      venue_address: d.venueAddress || '',
       state: d.state || '',
       country: d.country || '',
       status: d.status || 'show',
@@ -5213,6 +5214,7 @@ const dbMap = {
       date: row.date,
       city: row.city || '',
       venue: row.venue || '',
+      venueAddress: row.venue_address || '',
       state: row.state || '',
       country: row.country || '',
       status: row.status || 'show',
@@ -6242,6 +6244,7 @@ _onTourChange(payload) {
       keepIfAbsent('settlement', 'settlement');
       keepIfAbsent('allotments', 'allotments');
       keepIfAbsent('dayNotes',   'day_notes');
+      keepIfAbsent('venueAddress', 'venue_address');
       // Hotels live in the `hotels` array column with a legacy `hotel` object
       // mirror. Only treat as truncated (and keep local) when BOTH columns are
       // absent from the payload — otherwise honor whichever the sender wrote.
@@ -7637,7 +7640,8 @@ function _dateModalApplyStatus() {
   // visible only when status is 'show'. Venue field stays for show + press +
   // rehearsal (where it acts as the rehearsal location).
   grid.querySelectorAll('[data-show-day]').forEach(el => {
-    const isVenueRow = el.querySelector('#d_venue');
+    // Venue + venue-address rows follow the wider show/press/rehearsal rule.
+    const isVenueRow = el.querySelector('#d_venue') || el.querySelector('#d_vaddr');
     if (isVenueRow) {
       el.hidden = !(isShow || isPress || isRehearsal);
     } else {
@@ -8019,6 +8023,7 @@ function openDateModal(id) {
         <div class="field"><label>City *</label><input id="d_city" data-ac="city" data-ac-state-to="#d_state" autocomplete="off" value="${esc(d.city)}"></div>
         <div class="field"><label>State / Region</label><input id="d_state" value="${esc(d.state)}" placeholder="e.g. Colorado, Ontario"></div>
         <div class="field full" data-show-day data-press-day><label id="d_venue_lbl">Venue</label><input id="d_venue" data-ac="venue" data-ac-city-from="#d_city" autocomplete="off" value="${esc(d.venue)}"></div>
+        <div class="field full" data-show-day data-press-day><label>Venue address</label><input id="d_vaddr" autocomplete="off" value="${esc(d.venueAddress || '')}" placeholder="e.g. 2420 Larimer St, Denver, CO 80205"></div>
         <div class="field" data-show-day><label>Capacity</label><input type="number" id="d_cap" value="${esc(d.capacity)}"></div>
         <div class="field" data-show-day><label>Promoter</label><input id="d_prom" value="${esc(d.promoter)}"></div>
         <div class="field" data-show-day><label>Doors</label>${renderTime12Picker('d_doors', d.doors)}</div>
@@ -8049,6 +8054,7 @@ function openDateModal(id) {
       const data = {
         date: $('#d_date').value, city: $('#d_city').value.trim(), state: $('#d_state').value.trim(),
         venue: showsVenue ? get('#d_venue') : (editing ? editing.venue : ''),
+        venueAddress: showsVenue ? get('#d_vaddr') : (editing ? (editing.venueAddress || '') : ''),
         capacity: isShow ? get('#d_cap') : (editing ? editing.capacity : ''),
         status,
         promoter: isShow ? get('#d_prom') : (editing ? editing.promoter : ''),
@@ -12923,6 +12929,7 @@ function renderDashboard() {
   const venueCardHtml = (ad.venue || ad.city) ? `
     <div class="bm-info">
       ${ad.venue ? `<div class="name">${esc(ad.venue)}</div>` : ''}
+      ${ad.venueAddress ? `<div class="line">${esc(ad.venueAddress)}</div>` : ''}
       ${(ad.city || ad.state || ad.country) ? `<div class="line">${esc([ad.city, ad.state, ad.country].filter(Boolean).join(', '))}</div>` : ''}
       <div style="margin-top:8px">
         ${ad.capacity ? `<div class="pair"><span class="lbl">Capacity</span><span class="val">${esc(ad.capacity)}</span></div>` : (isMissing('capacity') ? '<div class="pair"><span class="lbl">Capacity</span><span class="val warn">Not set ⚠</span></div>' : '')}
@@ -15900,8 +15907,9 @@ function renderVenues() {
   const venueMap = {};
   T().dates.filter(d => d.venue).forEach(d => {
     const k = `${d.venue}|${d.city}`;
-    if (!venueMap[k]) venueMap[k] = { name: d.venue, city: d.city, state: d.state, capacity: d.capacity, lastDate: d.date, count: 0 };
+    if (!venueMap[k]) venueMap[k] = { name: d.venue, city: d.city, state: d.state, capacity: d.capacity, address: d.venueAddress || '', lastDate: d.date, count: 0 };
     venueMap[k].count++;
+    if (!venueMap[k].address && d.venueAddress) venueMap[k].address = d.venueAddress;
     if (d.date > venueMap[k].lastDate) venueMap[k].lastDate = d.date;
   });
   const venues = Object.values(venueMap);
@@ -15927,7 +15935,7 @@ function renderVenues() {
           <div class="contact-row">
             <div class="ini">${esc(initials(v.name))}</div>
             <div class="nm">${esc(v.name)}<span>${v.count > 1 ? v.count + ' shows on this tour' : ''}</span></div>
-            <div class="org">${esc(v.city)}${v.state ? ', ' + esc(v.state) : ''}${v.capacity ? ' · cap ' + esc(v.capacity) : ''}</div>
+            <div class="org">${esc(v.city)}${v.state ? ', ' + esc(v.state) : ''}${v.capacity ? ' · cap ' + esc(v.capacity) : ''}${v.address ? `<span style="display:block;font-size:11px;color:var(--warm-mute);margin-top:2px">${esc(v.address)}</span>` : ''}</div>
             <div class="role">${fmtMD(v.lastDate)}</div>
             <div></div>
           </div>
@@ -22207,8 +22215,8 @@ function _csvDownload(name, headers, rows) {
 
 function downloadTourGridCSV() {
   if (!T().dates.length) { toast('No dates to export', 'error'); return; }
-  const headers = ['Date','City','State','Venue','Capacity','Status','Doors','SetTime','LoadIn','Soundcheck','Promoter','Notes'];
-  const rows = T().dates.map(d => [d.date, d.city, d.state, d.venue, d.capacity, d.status, d.doors, d.setTime, d.loadIn, d.soundcheck, d.promoter, ((typeof d.dayNotes === 'string' && d.dayNotes.trim()) ? d.dayNotes.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : (d.notes || ''))]);
+  const headers = ['Date','City','State','Venue','VenueAddress','Capacity','Status','Doors','SetTime','LoadIn','Soundcheck','Promoter','Notes'];
+  const rows = T().dates.map(d => [d.date, d.city, d.state, d.venue, d.venueAddress || '', d.capacity, d.status, d.doors, d.setTime, d.loadIn, d.soundcheck, d.promoter, ((typeof d.dayNotes === 'string' && d.dayNotes.trim()) ? d.dayNotes.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : (d.notes || ''))]);
   _csvDownload('tour-grid', headers, rows);
 }
 
@@ -22344,7 +22352,7 @@ function renderTourBook(opts) {
           <div>
             <div class="tb-day">DAY ${String(dayN).padStart(2,'0')} / ${String(total).padStart(2,'0')} · ${esc(fmtDate(d.date).toUpperCase())}</div>
             <div class="tb-city">${esc(d.city || '—')}${d.state?', '+esc(d.state):''}</div>
-            <div class="tb-venue">${esc(d.venue || '')}</div>
+            <div class="tb-venue">${esc(d.venue || '')}${d.venueAddress ? `<span style="display:block;font-size:11px;font-weight:400;color:#555">${esc(d.venueAddress)}</span>` : ''}</div>
           </div>
           <div class="tb-status">${status}</div>
         </div>
@@ -28257,6 +28265,7 @@ async function downloadDaySheetPDF() {
 
   const venueHtml = ad.venue ? `
     <div class="b-name">${esc(ad.venue)}</div>
+    ${ad.venueAddress ? `<div class="b-line">${esc(ad.venueAddress)}</div>` : ''}
     ${venueLine ? `<div class="b-line">${esc(venueLine)}</div>` : ''}
     ${ad.promoter ? `<div class="b-line"><span class="b-lbl">Promoter:</span> ${esc(ad.promoter)}</div>` : ''}
     ${ad.capacity ? `<div class="b-line"><span class="b-lbl">Capacity:</span> ${esc(ad.capacity)}</div>` : ''}
