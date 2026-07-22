@@ -68,12 +68,22 @@ module.exports = async function handler(req, res) {
   const inviteUrl = `${baseUrl}/?invite=${encodeURIComponent(tourId)}`;
 
   // Plain-text fallback (every transactional email should have one).
+  const isCoManager = !!body.coManager;
   const greeting = crewName ? `Hi ${crewName.split(/\s+/)[0]},` : 'Hi,';
-  const roleLine = crewRole ? ` as ${crewRole}` : '';
-  const ctaCopy = alreadyHasAccount
-    ? `You can see this tour now in your Bandmate dashboard.`
-    : `Bandmate is how your team stays in sync on the road — schedules, hotels, set lists, room assignments. To accept and see your tour, create your account:`;
-  const ctaButton = alreadyHasAccount ? 'Open Bandmate' : 'Accept invite & set up your account';
+  const roleLine = isCoManager ? ' as a co-manager' : (crewRole ? ` as ${crewRole}` : '');
+  // A co-manager is AUTO-JOINED server-side (grant_co_manager), so this email
+  // is a heads-up — NOT an accept step. The button just opens the dashboard
+  // where the tour already is; there's no ?invite= accept link.
+  const ctaUrl = isCoManager ? baseUrl : inviteUrl;
+  const ctaCopy = isCoManager
+    ? `You've got full co-manager access — schedule, travel, hotels, guests, settlements, crew. The tour is already on your Bandmate dashboard, so there's nothing to accept. (Co-managers can edit everything but can't delete the tour or change who manages it.)`
+    : alreadyHasAccount
+      ? `You can see this tour now in your Bandmate dashboard.`
+      : `Bandmate is how your team stays in sync on the road — schedules, hotels, set lists, room assignments. To accept and see your tour, create your account:`;
+  const ctaButton = isCoManager ? 'Open Bandmate' : (alreadyHasAccount ? 'Open Bandmate' : 'Accept invite & set up your account');
+  const roleLabelHtml = isCoManager
+    ? ` as <b style="color:#8aa9d8">a co-manager</b>`
+    : (crewRole ? ` as <b style="color:#fff">${escapeHtml(crewRole)}</b>` : '');
 
   const text = [
     greeting,
@@ -81,7 +91,7 @@ module.exports = async function handler(req, res) {
     `${tmName} just added you to "${tourName}" on Bandmate${roleLine}.`,
     '',
     ctaCopy,
-    inviteUrl,
+    ctaUrl,
     '',
     'Questions? Just reply to this email — it goes straight to ' + tmName + '.',
     '',
@@ -103,11 +113,11 @@ module.exports = async function handler(req, res) {
           <div style="font-size:15px;line-height:1.65;color:#e8d8c0;margin-bottom:22px">
             <b style="color:#fff">${escapeHtml(tmName)}</b> just added you to
             <b style="color:#e78f4f">"${escapeHtml(tourName)}"</b>
-            on Bandmate${roleLine ? ` as <b style="color:#fff">${escapeHtml(crewRole)}</b>` : ''}.
+            on Bandmate${roleLabelHtml}.
           </div>
           <div style="font-size:14px;line-height:1.65;color:#a39280;margin-bottom:26px">${escapeHtml(ctaCopy)}</div>
           <div style="text-align:center;margin:0 0 26px">
-            <a href="${escapeAttr(inviteUrl)}" style="display:inline-block;background:#e78f4f;color:#0a0705;text-decoration:none;padding:14px 24px;border-radius:9px;font-weight:700;font-size:14px;letter-spacing:.02em">${escapeHtml(ctaButton)} →</a>
+            <a href="${escapeAttr(ctaUrl)}" style="display:inline-block;background:#e78f4f;color:#0a0705;text-decoration:none;padding:14px 24px;border-radius:9px;font-weight:700;font-size:14px;letter-spacing:.02em">${escapeHtml(ctaButton)} →</a>
           </div>
           <div style="font-size:12px;line-height:1.6;color:#7a6b58;border-top:1px solid #2a1d10;padding-top:18px;margin-top:6px">
             Questions? Just reply to this email — it goes straight to ${escapeHtml(tmName)}${tmEmail ? ` (${escapeHtml(tmEmail)})` : ''}.
@@ -115,7 +125,7 @@ module.exports = async function handler(req, res) {
         </td></tr>
         <tr><td style="padding:18px 32px;background:#0d0906;border-top:1px solid #2a1d10">
           <div style="font-size:11px;color:#5a4e3f;text-align:center;letter-spacing:.04em">
-            You're receiving this because ${escapeHtml(tmName)} added <b>${escapeHtml(crewEmail)}</b> to a tour roster on Bandmate.
+            You're receiving this because ${escapeHtml(tmName)} added <b>${escapeHtml(crewEmail)}</b> ${isCoManager ? 'as a co-manager' : 'to a tour roster'} on Bandmate.
           </div>
         </td></tr>
       </table>
@@ -124,9 +134,11 @@ module.exports = async function handler(req, res) {
   </table>
 </body></html>`;
 
-  const subject = alreadyHasAccount
-    ? `${tmName} added you to "${tourName}" on Bandmate`
-    : `${tmName} invited you to "${tourName}" on Bandmate`;
+  const subject = isCoManager
+    ? `${tmName} added you as a co-manager on "${tourName}"`
+    : alreadyHasAccount
+      ? `${tmName} added you to "${tourName}" on Bandmate`
+      : `${tmName} invited you to "${tourName}" on Bandmate`;
 
   const resend = new Resend(apiKey);
   try {
@@ -141,7 +153,7 @@ module.exports = async function handler(req, res) {
       text,
       // Resend tags for filtering in their dashboard
       tags: [
-        { name: 'type', value: 'crew_invite' },
+        { name: 'type', value: isCoManager ? 'comanager_notice' : 'crew_invite' },
         { name: 'has_account', value: alreadyHasAccount ? 'yes' : 'no' },
       ],
     });
