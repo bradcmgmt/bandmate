@@ -508,6 +508,9 @@ input,select,textarea{font:inherit;color:inherit}
   color:var(--warm-mute);text-align:left;border:none;border-bottom:1px solid var(--line);
   display:flex;align-items:center;gap:10px;position:relative;transition:color .15s,background .15s,padding-left .15s;
   background:transparent}
+/* display:flex above would defeat the [hidden] attribute — make it stick
+   (used to drop the Guest List tab on travel / off days) */
+.tab[hidden]{display:none!important}
 .tab .num{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--line-2);flex:none}
 .tab:hover{color:var(--warm);background:rgba(232,148,58,.04);padding-left:18px}
 .tab.active{color:var(--hi);background:linear-gradient(90deg,rgba(232,148,58,.16),rgba(232,148,58,.02) 70%);font-weight:700;text-shadow:0 0 10px rgba(232,148,58,.3);padding-left:18px}
@@ -12495,6 +12498,7 @@ function renderAll() {
   renderDayStamp();
   renderDayStrip();
   renderConsoleHead();
+  _syncGuestTabVisibility();
   renderActivePanel();
   renderViewerSelect();
   renderPhone();
@@ -13862,10 +13866,46 @@ function renderHotels() {
 /* =====================================================================
    PANEL: GUEST LIST
    ===================================================================== */
+// Travel and off days have no show and no door, so they carry no guest list.
+// DATA-SAFETY EXCEPTION: if such a day already has guests (imported, or the
+// day was flipped to travel after entry), the tab stays visible with a
+// warning so real data is never stranded invisibly. Nothing is auto-deleted.
+function _dayHasGuestListTab(d) {
+  if (!d) return true;
+  const noShowDay = d.status === 'travel' || d.status === 'off';
+  return !noShowDay || (d.guests || []).length > 0;
+}
+// Show/hide the desktop Guest List tab for the active date; bounce to the
+// Dashboard if the now-hidden tab was the one being viewed. Called from
+// renderAll before renderActivePanel.
+function _syncGuestTabVisibility() {
+  const ad = (typeof getActiveDate === 'function') ? getActiveDate() : null;
+  const show = _dayHasGuestListTab(ad);
+  const tab = document.querySelector('.tab[data-tab="guest"]');
+  if (tab) tab.hidden = !show;
+  if (!show && activeTab === 'guest') {
+    activeTab = 'dashboard';
+    applyTabFromState();
+  }
+}
+
 function renderGuestList() {
   const ad = getActiveDate();
   const root = $('#p-guest');
   if (!ad) { root.innerHTML = noDate(); return; }
+
+  // Defensive: travel/off day with no guests shouldn't be reachable (tab is
+  // hidden + viewer is bounced), but render a clean explainer if it is.
+  const _noGuestDay = ad.status === 'travel' || ad.status === 'off';
+  if (_noGuestDay && !(ad.guests || []).length) {
+    root.innerHTML = `
+      <div class="section-title"><h2>Guest list</h2><span class="crumb">/ ${fmtDate(ad.date).toUpperCase()}</span></div>
+      <div class="empty">
+        <h3>No guest list on ${ad.status === 'travel' ? 'travel' : 'off'} days</h3>
+        <p>Guest lists live on show, press, and rehearsal days — pick a show day in the strip above to manage its list.</p>
+      </div>`;
+    return;
+  }
 
   const allots = ad.allotments || T().meta.defaultAllotments;
   const guests = ad.guests || [];
@@ -13895,6 +13935,13 @@ function renderGuestList() {
       <button type="button" class="tb-btn" onclick="exportGuestListPDF()">↓ PDF</button>
       <button type="button" class="tb-btn" onclick="printGuestList()">↪ Print for venue</button>
     </div>
+
+    ${_noGuestDay ? `
+      <div class="review-banner" style="margin-bottom:12px">
+        <span class="rb-icon">⚠</span>
+        <span>This is a <b>${ad.status === 'travel' ? 'travel' : 'off'} day</b> — these ${guests.length} guest${guests.length === 1 ? '' : 's'} won't appear on any show door list. Move them to a show day or remove them; this tab disappears once the list is empty.</span>
+      </div>
+    ` : ''}
 
     ${pendingCount ? `
       <div class="gl-pending-banner">
@@ -16792,7 +16839,32 @@ function renderPhone() {
     (g.submittedBy && viewer && g.submittedBy.toLowerCase().includes((viewer.name || '').toLowerCase().split(' ')[0]))
   );
   const pendingCount = ad.guests.filter(g => g.status === 'pending').length;
+  // Travel + off days carry no guest list. Empty → clean explainer with a
+  // one-tap jump to the NEXT show day's list (what crew actually want when
+  // they open GUESTS on a bus). If stray guests exist on such a day, keep
+  // the list visible (data safety) with a note, but no "+ Add" button.
+  const _noGuestDay = ad.status === 'travel' || ad.status === 'off';
+  if (_noGuestDay && !(ad.guests || []).length) {
+    const _idx = T().dates.findIndex(d => d.id === ad.id);
+    const _nextShow = T().dates.slice(_idx + 1).find(d => d.status === 'show' || d.status === 'press');
+    $('#ph-guests').innerHTML = `
+      <div class="p-card">
+        <div class="lbl">GUEST LIST</div>
+        <div class="sub" style="margin-top:6px">${ad.status === 'travel' ? 'Travel day' : 'Day off'} — no guest list today.</div>
+        ${_nextShow ? `
+          <button type="button" onclick="setPhoneViewDate('${_nextShow.id}')" style="margin-top:12px;width:100%;padding:11px;background:rgba(232,148,58,.08);color:var(--hi);border:1px solid rgba(232,148,58,.4);border-radius:9px;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;cursor:pointer;text-align:left">
+            Guest list for ${esc(_nextShow.city || 'next show')} · ${fmtMD(_nextShow.date)} →
+          </button>
+        ` : ''}
+      </div>`;
+  } else {
   $('#ph-guests').innerHTML = `
+    ${_noGuestDay ? `
+      <div class="p-card" style="border-color:rgba(253,186,116,.4)">
+        <div class="lbl" style="color:#fdba74">⚠ ${ad.status === 'travel' ? 'TRAVEL DAY' : 'DAY OFF'}</div>
+        <div class="sub">These guests won't appear on a show door list — they're parked on a non-show day.</div>
+      </div>
+    ` : ''}
     <div class="p-card">
       <div class="lbl">${hasMgmt ? 'ALL GUESTS · TONIGHT' : 'YOUR GUEST LIST'}</div>
       <div class="h">${myGuests.length} ${hasMgmt ? 'submitted' : 'used'}</div>
@@ -16836,9 +16908,10 @@ function renderPhone() {
           `;
         }).join('') || `<div class="sub">No guests yet.</div>`}
       </div>
-      <button type="button" onclick="openGuestModalForViewer()" style="margin-top:10px;padding:11px;background:linear-gradient(135deg,var(--hi),var(--hi-2));color:#0a0705;border-radius:10px;font-weight:800;letter-spacing:.06em;border:none;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;box-shadow:0 0 14px rgba(232,148,58,.3)">+ Add Guest Request</button>
+      ${_noGuestDay ? '' : `<button type="button" onclick="openGuestModalForViewer()" style="margin-top:10px;padding:11px;background:linear-gradient(135deg,var(--hi),var(--hi-2));color:#0a0705;border-radius:10px;font-weight:800;letter-spacing:.06em;border:none;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;box-shadow:0 0 14px rgba(232,148,58,.3)">+ Add Guest Request</button>`}
     </div>
   `;
+  }
 
   // MORE — include required-profile card if viewing as a crew member
   let profileCardHtml = '';
@@ -20821,8 +20894,12 @@ function renderCrewProfiles() {
   const pending = roster.filter(c => !isProfileSubmitted(c));
 
   if (!T().crew.length) {
+    // Empty roster still shows the Managers card — the owner must be able to
+    // add a CO-MANAGER before any crew exist (co-managers aren't roster crew,
+    // so gating the card behind crew.length locked owners out on new tours).
     root.innerHTML = `
       <div class="section-title"><h2>Crew</h2><span class="crumb">/ NO CREW YET</span></div>
+      ${renderManagersCard()}
       <div class="empty">
         <h3>Add your roster first</h3>
         <p>Crew profiles + group assignments need your band + crew on the roster first.</p>
