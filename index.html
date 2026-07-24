@@ -579,6 +579,17 @@ input,select,textarea{font:inherit;color:inherit;
 .god-tile.gt-click:hover{border-color:rgba(140,120,255,.55);background:linear-gradient(180deg,rgba(140,120,255,.13),rgba(140,120,255,.03))}
 .god-tile.gt-click:active{transform:scale(.99)}
 .god-tile .gt-more{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#a99bd8;margin-top:9px;opacity:.75}
+/* Admin Panel reclaims the full console width — the phone preview goes away */
+body.admin-active .phone-rig{display:none!important}
+body.admin-active .stage{grid-template-columns:1fr!important}
+/* Table scroll safety — never clip a column; scroll on a genuinely narrow view */
+.god-scroll{overflow-x:auto;margin:0 -2px}
+.god-scroll .tbl{min-width:660px}
+.god-scroll.wide .tbl{min-width:840px}
+/* Refresh spinner */
+.god-spin{display:inline-block;line-height:1}
+.god-spin.on{animation:godspin .7s linear infinite}
+@keyframes godspin{to{transform:rotate(360deg)}}
 .tab.tab-recs:hover{color:#d4e7fa;background:rgba(184,212,245,.07)}
 .tab.tab-recs.active{color:#d4e7fa;background:linear-gradient(90deg,rgba(184,212,245,.18),rgba(184,212,245,.03) 70%);text-shadow:0 0 10px rgba(184,212,245,.4)}
 .tab.tab-recs.active::before{background:linear-gradient(180deg,transparent,#d4e7fa 30%,#d4e7fa 70%,transparent);box-shadow:0 0 14px rgba(184,212,245,.55)}
@@ -7027,6 +7038,8 @@ function loadUIPrefs() {
 function applyTabFromState() {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === activeTab));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.dataset.panel === activeTab));
+  // On the god Admin Panel, drop the phone preview so the tables get full width.
+  document.body.classList.toggle('admin-active', activeTab === 'admin' && (typeof _isGodAccount === 'function' && _isGodAccount()));
 }
 function applyPhoneScreenFromState() {
   document.querySelectorAll('.phone .nav button').forEach(b => b.classList.toggle('on', b.dataset.go === phoneScreen));
@@ -20979,7 +20992,7 @@ function renderAdminPanel() {
       <h2 style="color:#e3d6ff">◆ Admin Panel</h2>
       <span class="crumb" style="color:#a99bd8">/ PLATFORM OVERSIGHT · GOD</span>
       <span class="flex1"></span>
-      <button type="button" class="tb-btn" style="border-color:rgba(140,120,255,.4);color:#c9b3ff" onclick="_loadGodStats(true)">↻ Refresh</button>
+      <button type="button" class="tb-btn" style="border-color:rgba(140,120,255,.4);color:#c9b3ff" onclick="_loadGodStats(true)" ${_godLoading ? 'disabled' : ''}><span class="god-spin ${_godLoading ? 'on' : ''}">↻</span> ${_godLoading ? 'Refreshing…' : 'Refresh'}</button>
     </div>
     <div class="iz-tip" style="margin-bottom:6px;border-color:rgba(140,120,255,.3);background:rgba(140,120,255,.05)">
       Read-only, invisible oversight. You can open any of the <b>${_tourCount}</b> tours loaded from the tour switcher above — no owner, TM, or crew can see that you have access.
@@ -21044,38 +21057,40 @@ function _godUserTable(rows) {
   if (!rows || !rows.length) return `<div class="sub muted" style="padding:14px;font-style:italic">No accounts in this group.</div>`;
   const subLabel = (u) => !u.sub_status ? '—'
     : (String(u.sub_plan || '').toLowerCase() === 'comp' ? 'COMP' : String(u.sub_status).toUpperCase());
-  return `<div class="tbl">
-    <div class="contact-row" style="background:rgba(140,120,255,.06);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#c9b3ff;grid-template-columns:1.8fr 64px 88px 110px 110px">
+  const cols = 'grid-template-columns:minmax(180px,1.8fr) 64px 88px 108px 108px';
+  return `<div class="god-scroll"><div class="tbl">
+    <div class="contact-row" style="background:rgba(140,120,255,.06);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#c9b3ff;${cols}">
       <div>Email</div><div>Role</div><div>Plan</div><div>Joined</div><div>Last active</div>
     </div>
     ${rows.map(u => `
-      <div class="contact-row" style="grid-template-columns:1.8fr 64px 88px 110px 110px">
-        <div class="nm">${esc(u.email || '—')}${u.confirmed ? '' : '<span style="color:#fdba74;font-size:10px"> · unconfirmed</span>'}</div>
+      <div class="contact-row" style="${cols}">
+        <div class="nm" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.email || '—')}${u.confirmed ? '' : '<span style="color:#fdba74;font-size:10px"> · unconf</span>'}</div>
         <div class="role">${esc((u.role || '—').toUpperCase())}</div>
         <div class="role">${esc(subLabel(u))}</div>
         <div class="role">${esc(_godFmtDate(u.joined))}</div>
         <div class="role">${esc(_godFmtDate(u.last_active))}</div>
       </div>`).join('')}
-  </div>`;
+  </div></div>`;
 }
 
 function _godTourTable(rows) {
   if (!rows || !rows.length) return `<div class="sub muted" style="padding:14px;font-style:italic">No tours in this group.</div>`;
-  return `<div class="tbl">
-    <div class="contact-row" style="background:rgba(140,120,255,.06);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#c9b3ff;grid-template-columns:1.6fr 1.5fr 52px 52px 58px 52px 100px">
+  const cols = 'grid-template-columns:minmax(160px,1.7fr) minmax(150px,1.5fr) 48px 48px 54px 46px 96px';
+  return `<div class="god-scroll wide"><div class="tbl">
+    <div class="contact-row" style="background:rgba(140,120,255,.06);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#c9b3ff;${cols}">
       <div>Tour</div><div>Owner</div><div>Dates</div><div>Shows</div><div>Guests</div><div>Files</div><div>Created</div>
     </div>
     ${rows.map(t => `
-      <div class="contact-row" style="grid-template-columns:1.6fr 1.5fr 52px 52px 58px 52px 100px">
+      <div class="contact-row" style="${cols}">
         <div class="nm">${esc(t.name || 'Untitled')}${t.co_managers > 0 ? `<span style="color:#8aa9d8;font-size:10px"> · ${t.co_managers} co-mgr</span>` : ''}</div>
-        <div class="org">${esc(t.owner || '—')}<span style="display:block;font-size:11px;color:var(--warm-mute)">${esc(t.owner_email || '')}</span></div>
+        <div class="org" style="min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">${esc(t.owner || '—')}</span><span style="display:block;font-size:11px;color:var(--warm-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.owner_email || '')}</span></div>
         <div class="role">${_godNum(t.date_count)}</div>
         <div class="role">${_godNum(t.show_count)}</div>
         <div class="role">${_godNum(t.guest_count)}</div>
         <div class="role">${_godNum(t.attachment_count)}</div>
-        <div class="role">${esc(_godFmtDate(t.created_at))}</div>
+        <div class="role" style="white-space:nowrap">${esc(_godFmtDate(t.created_at))}</div>
       </div>`).join('')}
-  </div>`;
+  </div></div>`;
 }
 
 // Tile click-through: open the exact rows behind a stat as a scrollable modal.
@@ -21105,23 +21120,32 @@ function _godDrill(kind) {
   }
   openModal({
     title: `◆ ${title} · ${rows.length}`,
-    size: 'lg',
+    size: 'xl',
     hideFooter: true,
-    body: `<div style="max-height:62vh;overflow:auto;margin:-4px -2px 0">${type === 'tour' ? _godTourTable(rows) : _godUserTable(rows)}</div>`,
+    body: `<div style="max-height:64vh;overflow-y:auto;margin:-4px -2px 0">${type === 'tour' ? _godTourTable(rows) : _godUserTable(rows)}</div>`,
   });
 }
 
+let _godLoading = false;
 async function _loadGodStats(force) {
   if (!_isGodAccount()) return;
+  if (_godLoading) return;                       // guard against concurrent/re-entrant loads
   if (_godStatsCache && !force) return;
   if (!sb) { _godStatsCache = { __error: 'Cloud service not ready — refresh the page.' }; renderAdminPanel(); return; }
-  if (force) _godStatsCache = null;
+  _godLoading = true;
+  if (activeTab === 'admin') renderAdminPanel();  // paint the spinning refresh button
+  const started = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   try {
     const { data, error } = await sb.rpc('god_platform_stats');
     _godStatsCache = error ? { __error: error.message || 'RPC failed' } : (data || { __error: 'No data returned' });
   } catch (e) {
     _godStatsCache = { __error: e.message || 'Request failed' };
   }
+  // Floor the spin so the animation is always visible even on a fast response.
+  const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  const elapsed = now - started;
+  if (elapsed < 550) { await new Promise(r => setTimeout(r, 550 - elapsed)); }
+  _godLoading = false;
   if (activeTab === 'admin') renderAdminPanel();
 }
 
