@@ -563,6 +563,10 @@ input,select,textarea{font:inherit;color:inherit}
 .god-tile .gt-val{font-size:28px;font-weight:800;color:#e3d6ff;margin-top:6px;line-height:1;font-variant-numeric:tabular-nums}
 .god-tile .gt-sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);margin-top:5px;letter-spacing:.04em}
 .god-sec{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#c9b3ff;margin:22px 0 8px}
+.god-tile.gt-click{cursor:pointer;transition:border-color .12s,background .12s,transform .08s}
+.god-tile.gt-click:hover{border-color:rgba(140,120,255,.55);background:linear-gradient(180deg,rgba(140,120,255,.13),rgba(140,120,255,.03))}
+.god-tile.gt-click:active{transform:scale(.99)}
+.god-tile .gt-more{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#a99bd8;margin-top:9px;opacity:.75}
 .tab.tab-recs:hover{color:#d4e7fa;background:rgba(184,212,245,.07)}
 .tab.tab-recs.active{color:#d4e7fa;background:linear-gradient(90deg,rgba(184,212,245,.18),rgba(184,212,245,.03) 70%);text-shadow:0 0 10px rgba(184,212,245,.4)}
 .tab.tab-recs.active::before{background:linear-gradient(180deg,transparent,#d4e7fa 30%,#d4e7fa 70%,transparent);box-shadow:0 0 14px rgba(184,212,245,.55)}
@@ -20942,8 +20946,11 @@ function renderAdminPanel() {
   if (!_isGodAccount()) { root.innerHTML = ''; return; }
 
   const s = _godStatsCache;
-  const tile = (lbl, val, sub) => `
-    <div class="god-tile"><div class="gt-lbl">${esc(lbl)}</div><div class="gt-val">${val}</div>${sub ? `<div class="gt-sub">${esc(sub)}</div>` : ''}</div>`;
+  // `drill` = a _godDrill() key; when set the tile is clickable and opens the
+  // detail list of exactly the rows behind that number.
+  const tile = (lbl, val, sub, drill) => `
+    <div class="god-tile${drill ? ' gt-click' : ''}"${drill ? ` onclick="_godDrill('${drill}')" role="button" tabindex="0"` : ''}>
+      <div class="gt-lbl">${esc(lbl)}</div><div class="gt-val">${val}</div>${sub ? `<div class="gt-sub">${esc(sub)}</div>` : ''}${drill ? '<div class="gt-more">View all →</div>' : ''}</div>`;
   const n = (v) => (v == null ? '—' : Number(v).toLocaleString());
   const _tourCount = _switchableTours().length;
 
@@ -20975,59 +20982,113 @@ function renderAdminPanel() {
   root.innerHTML = header + `
     <div class="god-sec">Accounts</div>
     <div class="god-grid">
-      ${tile('Total users', n(u.total), `${n(u.signups_last_30d)} new in 30d`)}
-      ${tile('Tour managers', n(u.tour_managers))}
-      ${tile('Crew / band', n(u.crew))}
-      ${tile('Active last 7d', n(u.active_last_7d), `${n(u.confirmed)} confirmed`)}
+      ${tile('Total users', n(u.total), `${n(u.signups_last_30d)} new in 30d`, 'users:all')}
+      ${tile('Tour managers', n(u.tour_managers), '', 'users:tm')}
+      ${tile('Crew / band', n(u.crew), '', 'users:crew')}
+      ${tile('Active last 7d', n(u.active_last_7d), `${n(u.confirmed)} confirmed`, 'users:active')}
     </div>
 
     <div class="god-sec">Subscriptions</div>
     <div class="god-grid">
-      ${tile('Paying', n(sub.paying))}
-      ${tile('Trialing', n(sub.trialing))}
-      ${tile('Comp', n(sub.comp))}
-      ${tile('Past due', n(sub.past_due), `${n(sub.canceled)} canceled`)}
+      ${tile('Paying', n(sub.paying), '', 'subs:paying')}
+      ${tile('Trialing', n(sub.trialing), '', 'subs:trialing')}
+      ${tile('Comp', n(sub.comp), '', 'subs:comp')}
+      ${tile('Past due', n(sub.past_due), `${n(sub.canceled)} canceled`, 'subs:pastdue')}
     </div>
 
     <div class="god-sec">Tours &amp; content</div>
     <div class="god-grid">
-      ${tile('Total tours', n(tr.total), `${n(tr.created_last_30d)} new in 30d`)}
-      ${tile('With dates', n(tr.with_dates), `${n(tr.empty)} empty`)}
-      ${tile('Co-managed', n(tr.with_co_managers))}
-      ${tile('Total dates', n(d.total), `${n(d.shows)} shows · ${n(d.travel)} travel`)}
-      ${tile('Guest entries', n(c.guests))}
-      ${tile('Attachments', n(c.attachments))}
+      ${tile('Total tours', n(tr.total), `${n(tr.created_last_30d)} new in 30d`, 'tours:all')}
+      ${tile('With dates', n(tr.with_dates), `${n(tr.empty)} empty`, 'tours:withdates')}
+      ${tile('Co-managed', n(tr.with_co_managers), '', 'tours:comanaged')}
+      ${tile('Total dates', n(d.total), `${n(d.shows)} shows · ${n(d.travel)} travel`, 'tours:all')}
+      ${tile('Guest entries', n(c.guests), '', 'tours:guests')}
+      ${tile('Attachments', n(c.attachments), '', 'tours:attachments')}
     </div>
 
-    <div class="god-sec">Newest tours</div>
-    <div class="tbl">
-      <div class="contact-row" style="background:rgba(140,120,255,.06);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#c9b3ff;grid-template-columns:1.4fr 1.4fr 70px 120px">
-        <div>Tour</div><div>Owner</div><div>Dates</div><div>Created</div>
-      </div>
-      ${(s.recent_tours || []).map(t => `
-        <div class="contact-row" style="grid-template-columns:1.4fr 1.4fr 70px 120px">
-          <div class="nm">${esc(t.name || 'Untitled')}</div>
-          <div class="org">${esc(t.owner || '—')}<span style="display:block;font-size:11px;color:var(--warm-mute)">${esc(t.owner_email || '')}</span></div>
-          <div class="role">${n(t.date_count)}</div>
-          <div class="role">${esc(fmtDate(t.created_at))}</div>
-        </div>`).join('') || '<div class="sub muted" style="padding:12px">No tours yet.</div>'}
-    </div>
+    <div class="god-sec">Newest tours <span style="color:var(--warm-mute);letter-spacing:.06em">— tap Total tours above for all</span></div>
+    ${_godTourTable((s.all_tours || []).slice(0, 10))}
 
-    <div class="god-sec">Newest signups</div>
-    <div class="tbl">
-      <div class="contact-row" style="background:rgba(140,120,255,.06);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#c9b3ff;grid-template-columns:2fr 90px 120px">
-        <div>Email</div><div>Role</div><div>Joined</div>
-      </div>
-      ${(s.recent_users || []).map(uu => `
-        <div class="contact-row" style="grid-template-columns:2fr 90px 120px">
-          <div class="nm">${esc(uu.email || '—')}</div>
-          <div class="role">${esc((uu.role || '—').toUpperCase())}</div>
-          <div class="role">${esc(fmtDate(uu.created_at))}</div>
-        </div>`).join('') || '<div class="sub muted" style="padding:12px">No users yet.</div>'}
-    </div>
+    <div class="god-sec">Newest signups <span style="color:var(--warm-mute);letter-spacing:.06em">— tap Total users above for all</span></div>
+    ${_godUserTable((s.all_users || []).slice(0, 10))}
 
-    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.06em;margin-top:16px">Generated ${esc(genLabel)}</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.06em;margin-top:16px">Generated ${esc(genLabel)} · every number above is clickable for the full list</div>
   `;
+}
+
+// Detail tables shared by the summary + drill-down modals.
+function _godFmtDate(v) { return v ? new Date(v).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '—'; }
+function _godNum(v) { return (v == null ? 0 : Number(v)).toLocaleString(); }
+
+function _godUserTable(rows) {
+  if (!rows || !rows.length) return `<div class="sub muted" style="padding:14px;font-style:italic">No accounts in this group.</div>`;
+  const subLabel = (u) => !u.sub_status ? '—'
+    : (String(u.sub_plan || '').toLowerCase() === 'comp' ? 'COMP' : String(u.sub_status).toUpperCase());
+  return `<div class="tbl">
+    <div class="contact-row" style="background:rgba(140,120,255,.06);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#c9b3ff;grid-template-columns:1.8fr 64px 88px 110px 110px">
+      <div>Email</div><div>Role</div><div>Plan</div><div>Joined</div><div>Last active</div>
+    </div>
+    ${rows.map(u => `
+      <div class="contact-row" style="grid-template-columns:1.8fr 64px 88px 110px 110px">
+        <div class="nm">${esc(u.email || '—')}${u.confirmed ? '' : '<span style="color:#fdba74;font-size:10px"> · unconfirmed</span>'}</div>
+        <div class="role">${esc((u.role || '—').toUpperCase())}</div>
+        <div class="role">${esc(subLabel(u))}</div>
+        <div class="role">${esc(_godFmtDate(u.joined))}</div>
+        <div class="role">${esc(_godFmtDate(u.last_active))}</div>
+      </div>`).join('')}
+  </div>`;
+}
+
+function _godTourTable(rows) {
+  if (!rows || !rows.length) return `<div class="sub muted" style="padding:14px;font-style:italic">No tours in this group.</div>`;
+  return `<div class="tbl">
+    <div class="contact-row" style="background:rgba(140,120,255,.06);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#c9b3ff;grid-template-columns:1.6fr 1.5fr 52px 52px 58px 52px 100px">
+      <div>Tour</div><div>Owner</div><div>Dates</div><div>Shows</div><div>Guests</div><div>Files</div><div>Created</div>
+    </div>
+    ${rows.map(t => `
+      <div class="contact-row" style="grid-template-columns:1.6fr 1.5fr 52px 52px 58px 52px 100px">
+        <div class="nm">${esc(t.name || 'Untitled')}${t.co_managers > 0 ? `<span style="color:#8aa9d8;font-size:10px"> · ${t.co_managers} co-mgr</span>` : ''}</div>
+        <div class="org">${esc(t.owner || '—')}<span style="display:block;font-size:11px;color:var(--warm-mute)">${esc(t.owner_email || '')}</span></div>
+        <div class="role">${_godNum(t.date_count)}</div>
+        <div class="role">${_godNum(t.show_count)}</div>
+        <div class="role">${_godNum(t.guest_count)}</div>
+        <div class="role">${_godNum(t.attachment_count)}</div>
+        <div class="role">${esc(_godFmtDate(t.created_at))}</div>
+      </div>`).join('')}
+  </div>`;
+}
+
+// Tile click-through: open the exact rows behind a stat as a scrollable modal.
+function _godDrill(kind) {
+  const s = _godStatsCache;
+  if (!s || s.__error) { toast('Stats still loading — try Refresh', 'error'); return; }
+  const users = s.all_users || [];
+  const tours = s.all_tours || [];
+  const sevenDaysAgo = Date.now() - 7 * 864e5;
+  const activeSub = (u) => ['active', 'trialing'].includes(u.sub_status);
+  let title, rows, type = 'user';
+  switch (kind) {
+    case 'users:all':    title = 'All users';                rows = users; break;
+    case 'users:tm':     title = 'Tour managers';            rows = users.filter(u => u.role === 'tm'); break;
+    case 'users:crew':   title = 'Crew / band';              rows = users.filter(u => u.role === 'crew'); break;
+    case 'users:active': title = 'Active in the last 7 days'; rows = users.filter(u => u.last_active && new Date(u.last_active).getTime() > sevenDaysAgo); break;
+    case 'subs:paying':   title = 'Paying subscribers';      rows = users.filter(u => activeSub(u) && String(u.sub_plan || '').toLowerCase() !== 'comp'); break;
+    case 'subs:trialing': title = 'Trialing';                rows = users.filter(u => u.sub_status === 'trialing'); break;
+    case 'subs:comp':     title = 'Comp accounts';           rows = users.filter(u => activeSub(u) && String(u.sub_plan || '').toLowerCase() === 'comp'); break;
+    case 'subs:pastdue':  title = 'Past due / unpaid';       rows = users.filter(u => ['past_due', 'unpaid'].includes(u.sub_status)); break;
+    case 'tours:all':        title = 'All tours';                     rows = tours; type = 'tour'; break;
+    case 'tours:withdates':  title = 'Tours with dates';              rows = tours.filter(t => t.date_count > 0); type = 'tour'; break;
+    case 'tours:comanaged':  title = 'Co-managed tours';             rows = tours.filter(t => t.co_managers > 0); type = 'tour'; break;
+    case 'tours:guests':     title = 'Tours by guest entries';       rows = tours.slice().sort((a, b) => (b.guest_count || 0) - (a.guest_count || 0)); type = 'tour'; break;
+    case 'tours:attachments':title = 'Tours by attachments';         rows = tours.slice().sort((a, b) => (b.attachment_count || 0) - (a.attachment_count || 0)); type = 'tour'; break;
+    default: return;
+  }
+  openModal({
+    title: `◆ ${title} · ${rows.length}`,
+    size: 'lg',
+    hideFooter: true,
+    body: `<div style="max-height:62vh;overflow:auto;margin:-4px -2px 0">${type === 'tour' ? _godTourTable(rows) : _godUserTable(rows)}</div>`,
+  });
 }
 
 async function _loadGodStats(force) {
@@ -23426,18 +23487,20 @@ function renderTourSwitcher() {
 
 // Tour list + actions — a section of the unified menu.
 function _tourMenuItemsHTML() {
-  // Get tours visible to current user — owned (if TM) + member-of (crew)
+  // Get tours visible to current user — owned (if TM) + member-of (crew).
   const u = U();
+  const isGod = _isGodAccount();
   const ownedSet = new Set(userOwnedTours().map(t => t.id));
   const memberSet = u ? new Set(Object.values(state.tours).filter(t => (t.memberIds||[]).includes(u.id) || (t.managerIds||[]).includes(u.id)).map(t => t.id)) : new Set();
   // Never list a tombstoned (deleted) tour, and collapse byte-identical
   // duplicates so a re-promoted sample tour doesn't show up 3× (the "deleted
-  // tours still showing on one device" report).
+  // tours still showing on one device" report). God sees EVERY tour on the
+  // platform (it belongs to none), so the owned/member filter is bypassed.
   const myTours = _dedupeToursForDisplay(
-    Object.values(state.tours).filter(t => !_isTombstoned(t.id) && (ownedSet.has(t.id) || memberSet.has(t.id)))
+    Object.values(state.tours).filter(t => !_isTombstoned(t.id) && (isGod || ownedSet.has(t.id) || memberSet.has(t.id)))
   );
   return `
-    <div class="ts-section">Your tours · ${myTours.length}</div>
+    <div class="ts-section">${isGod ? 'All tours · ' + myTours.length : 'Your tours · ' + myTours.length}</div>
     ${myTours.map(t => {
       const isCurrent = t.id === state.currentTourId;
       const startISO = tourStartDate(t);
