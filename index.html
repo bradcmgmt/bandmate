@@ -555,7 +555,18 @@ input,select,textarea{font:inherit;color:inherit}
   text-shadow:0 0 12px rgba(140,120,255,.7)}
 .tab.tab-god.active::before{background:linear-gradient(180deg,transparent,#a78bff 30%,#a78bff 70%,transparent);box-shadow:0 0 14px rgba(140,120,255,.7)}
 .tab.tab-god[hidden]{display:none!important}
+/* When moved above Dashboard (god), the divider sits BELOW it instead. */
+.tab.tab-god:first-child{margin-top:0;border-top:none;border-bottom:1px solid rgba(140,120,255,.3);margin-bottom:4px}
 @keyframes godpulse{0%,100%{box-shadow:inset 0 0 0 0 rgba(140,120,255,0)}50%{box-shadow:inset 0 0 22px -6px rgba(140,120,255,.45)}}
+/* God account pill — distinct purple identity vs the standard amber pill */
+.uni-pill.god{border-color:rgba(140,120,255,.6)!important;animation:godpillpulse 2.6s ease-in-out infinite}
+.uni-pill.god:hover{border-color:#a78bff!important}
+.uni-pill.god .ap-avatar{background:linear-gradient(135deg,#c9b3ff,#7c5cff)!important;color:#160c2e;box-shadow:0 0 12px rgba(140,120,255,.55)}
+.uni-pill.god .ap-name{color:#e3d6ff}
+.uni-pill.god .ap-name::before{content:"◆ ";color:#a78bff}
+.uni-pill.god .uni-tour{color:#a99bd8}
+.uni-pill.god .uni-chev{color:#a78bff}
+@keyframes godpillpulse{0%,100%{box-shadow:0 0 0 1px rgba(140,120,255,.25),0 0 10px rgba(140,120,255,.22)}50%{box-shadow:0 0 0 1px rgba(140,120,255,.45),0 0 20px rgba(140,120,255,.42)}}
 .god-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0}
 .god-tile{background:linear-gradient(180deg,rgba(140,120,255,.06),rgba(140,120,255,.01));
   border:1px solid rgba(140,120,255,.25);border-radius:12px;padding:14px 16px}
@@ -12779,7 +12790,13 @@ function renderActivePanel() {
 function _syncGodTabVisibility() {
   const isGod = _isGodAccount();
   const tab = document.getElementById('tabGod');
-  if (tab) tab.hidden = !isGod;
+  if (tab) {
+    tab.hidden = !isGod;
+    // For god, the Admin Panel sits ABOVE Dashboard (first in the rail) —
+    // it's the primary surface for that account. Move it once; idempotent.
+    const nav = document.getElementById('tabs');
+    if (isGod && nav && nav.firstElementChild !== tab) nav.insertBefore(tab, nav.firstElementChild);
+  }
   if (!isGod && activeTab === 'admin') { activeTab = 'dashboard'; applyTabFromState(); }
 }
 
@@ -26706,6 +26723,12 @@ function renderAccountPill() {
   av.textContent = u.avatar || '??';
   av.classList.toggle('crew', u.role === 'crew');
   nm.textContent = u.name || '—';
+  // God account gets a visually distinct (purple, pulsing) pill so it's
+  // obvious at a glance you're in oversight mode, not a normal TM session.
+  const isGod = _isGodAccount();
+  av.classList.toggle('god', isGod);
+  const pill = document.querySelector('#uniDropdown .uni-pill');
+  if (pill) pill.classList.toggle('god', isGod);
 }
 
 function toggleAccountMenu() {
