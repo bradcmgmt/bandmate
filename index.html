@@ -544,6 +544,25 @@ input,select,textarea{font:inherit;color:inherit}
    the tour-wide group, separate from the operational ones above it. */
 .tab.tab-recs{color:#b8d4f5}
 .tab.tab-recs .num{color:rgba(184,212,245,.5)}
+/* ADMIN PANEL — god-only tab, deliberately OFF-palette (electric violet) with
+   a constant pulse so it reads as "not part of the normal app". */
+.tab.tab-god{color:#c9b3ff;background:linear-gradient(90deg,rgba(140,120,255,.1),transparent);
+  border-top:1px solid rgba(140,120,255,.35);margin-top:8px;font-weight:700;
+  text-shadow:0 0 8px rgba(140,120,255,.5);animation:godpulse 2.4s ease-in-out infinite}
+.tab.tab-god .num{color:rgba(201,179,255,.6)}
+.tab.tab-god:hover{color:#e3d6ff;background:rgba(140,120,255,.14)}
+.tab.tab-god.active{color:#e3d6ff;background:linear-gradient(90deg,rgba(140,120,255,.22),rgba(140,120,255,.04) 70%);
+  text-shadow:0 0 12px rgba(140,120,255,.7)}
+.tab.tab-god.active::before{background:linear-gradient(180deg,transparent,#a78bff 30%,#a78bff 70%,transparent);box-shadow:0 0 14px rgba(140,120,255,.7)}
+.tab.tab-god[hidden]{display:none!important}
+@keyframes godpulse{0%,100%{box-shadow:inset 0 0 0 0 rgba(140,120,255,0)}50%{box-shadow:inset 0 0 22px -6px rgba(140,120,255,.45)}}
+.god-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0}
+.god-tile{background:linear-gradient(180deg,rgba(140,120,255,.06),rgba(140,120,255,.01));
+  border:1px solid rgba(140,120,255,.25);border-radius:12px;padding:14px 16px}
+.god-tile .gt-lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#a99bd8}
+.god-tile .gt-val{font-size:28px;font-weight:800;color:#e3d6ff;margin-top:6px;line-height:1;font-variant-numeric:tabular-nums}
+.god-tile .gt-sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);margin-top:5px;letter-spacing:.04em}
+.god-sec{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#c9b3ff;margin:22px 0 8px}
 .tab.tab-recs:hover{color:#d4e7fa;background:rgba(184,212,245,.07)}
 .tab.tab-recs.active{color:#d4e7fa;background:linear-gradient(90deg,rgba(184,212,245,.18),rgba(184,212,245,.03) 70%);text-shadow:0 0 10px rgba(184,212,245,.4)}
 .tab.tab-recs.active::before{background:linear-gradient(180deg,transparent,#d4e7fa 30%,#d4e7fa 70%,transparent);box-shadow:0 0 14px rgba(184,212,245,.55)}
@@ -4867,6 +4886,7 @@ setTimeout(window._hideAppBoot,6000);
           <button type="button" class="tab tab-fixed" data-tab="tasks"><span class="num">14</span> Tasks</button>
           <button type="button" class="tab tab-fixed" data-tab="profiles"><span class="num">15</span> Crew</button>
           <button type="button" class="tab tab-fixed tab-recs" data-tab="tags"><span class="num">16</span> Local Recs</button>
+          <button type="button" class="tab tab-god" data-tab="admin" id="tabGod" hidden><span class="num">◆</span> Admin Panel</button>
         </nav>
 
         <div class="panels-wrap">
@@ -4886,6 +4906,7 @@ setTimeout(window._hideAppBoot,6000);
           <div class="panel" data-panel="tasks" id="p-tasks"></div>
           <div class="panel" data-panel="tags" id="p-tags"></div>
           <div class="panel" data-panel="profiles" id="p-profiles"></div>
+          <div class="panel" data-panel="admin" id="p-admin"></div>
         </div><!-- /.panels-wrap -->
       </div><!-- /.console-body -->
     </section>
@@ -6684,12 +6705,23 @@ function viewerTours(viewer) {
 // what stranded users on a single tour with no way back.) Pending (not-yet-
 // accepted) invites are intentionally excluded here — they render in their
 // own "Pending invites" card via _pendingTourInvites().
+// The invisible platform-oversight account. Read-only, sees every tour, and
+// never writes to the cloud (so it leaves no trace). Backed by patch-036's
+// RLS: its app hydrates ALL tours, so state.tours already holds everything.
+function _isGodAccount() {
+  const u = (typeof U === 'function') ? U() : null;
+  return !!(u && String(u.email || '').toLowerCase() === 'god@bandmate.art');
+}
+
 function _switchableTours() {
   const u = (typeof U === 'function') ? U() : null;
   if (!u || !state || !state.tours) return [];
-  return Object.values(state.tours).filter(t =>
-    t && t.id !== '_empty' && !_isTombstoned(t.id)
-    && (t.ownerId === u.id || (t.managerIds || []).includes(u.id) || (t.memberIds || []).includes(u.id))
+  const all = Object.values(state.tours).filter(t => t && t.id !== '_empty' && !_isTombstoned(t.id));
+  // God switches between EVERY tour on the platform, not just ones it belongs
+  // to (it belongs to none, by design).
+  if (_isGodAccount()) return all;
+  return all.filter(t =>
+    t.ownerId === u.id || (t.managerIds || []).includes(u.id) || (t.memberIds || []).includes(u.id)
   );
 }
 
@@ -6804,6 +6836,11 @@ function saveState() {
       toast('Save failed: ' + (e.message || e), 'error');
     }
   }
+  // The god account is strictly READ-ONLY — never push its (local-only)
+  // changes to the cloud, so it can browse every tour without modifying
+  // anything or leaving a trace. RLS would reject the write anyway; this
+  // skips the attempt (and the error noise) entirely.
+  if (_isGodAccount()) return;
   // Schedule the debounced cloud sync of the active tour. Runs whether
   // or not the local write succeeded — the cloud is the durable store
   // of record, and its payload never includes oversized attachment
@@ -12499,6 +12536,7 @@ function renderAll() {
   renderDayStrip();
   renderConsoleHead();
   _syncGuestTabVisibility();
+  _syncGodTabVisibility();
   renderActivePanel();
   renderViewerSelect();
   renderPhone();
@@ -12727,9 +12765,18 @@ function renderActivePanel() {
     notes: renderDayNotes, advance: renderAdvance,
     acct: renderAccounting, files: renderAttachments, localfiles: renderLocalAttachments, venues: renderVenues,
     contacts: renderContacts, tasks: renderTasks, tags: renderTags,
-    profiles: renderCrewProfiles
+    profiles: renderCrewProfiles, admin: renderAdminPanel
   }[activeTab];
   if (fn) fn();
+}
+
+// Show the god-only Admin Panel tab only for the god account; if a non-god
+// somehow lands on it, bounce to the dashboard.
+function _syncGodTabVisibility() {
+  const isGod = _isGodAccount();
+  const tab = document.getElementById('tabGod');
+  if (tab) tab.hidden = !isGod;
+  if (!isGod && activeTab === 'admin') { activeTab = 'dashboard'; applyTabFromState(); }
 }
 
 function initials(name) {
@@ -20885,6 +20932,118 @@ function _coManagerLookup() {
   }, 300);
 }
 
+/* =====================================================================
+   PANEL: ADMIN (god account only) — platform-wide oversight
+   ===================================================================== */
+let _godStatsCache = null;
+function renderAdminPanel() {
+  const root = document.getElementById('p-admin');
+  if (!root) return;
+  if (!_isGodAccount()) { root.innerHTML = ''; return; }
+
+  const s = _godStatsCache;
+  const tile = (lbl, val, sub) => `
+    <div class="god-tile"><div class="gt-lbl">${esc(lbl)}</div><div class="gt-val">${val}</div>${sub ? `<div class="gt-sub">${esc(sub)}</div>` : ''}</div>`;
+  const n = (v) => (v == null ? '—' : Number(v).toLocaleString());
+  const _tourCount = _switchableTours().length;
+
+  const header = `
+    <div class="section-title">
+      <h2 style="color:#e3d6ff">◆ Admin Panel</h2>
+      <span class="crumb" style="color:#a99bd8">/ PLATFORM OVERSIGHT · GOD</span>
+      <span class="flex1"></span>
+      <button type="button" class="tb-btn" style="border-color:rgba(140,120,255,.4);color:#c9b3ff" onclick="_loadGodStats(true)">↻ Refresh</button>
+    </div>
+    <div class="iz-tip" style="margin-bottom:6px;border-color:rgba(140,120,255,.3);background:rgba(140,120,255,.05)">
+      Read-only, invisible oversight. You can open any of the <b>${_tourCount}</b> tours loaded from the tour switcher above — no owner, TM, or crew can see that you have access.
+    </div>`;
+
+  if (!s) {
+    root.innerHTML = header + `<div class="empty"><h3 style="color:#c9b3ff">Loading platform stats…</h3><p>Pulling totals across every account and tour.</p></div>`;
+    _loadGodStats();
+    return;
+  }
+  if (s.__error) {
+    root.innerHTML = header + `<div class="empty"><h3 style="color:#c9b3ff">Couldn't load stats</h3><p>${esc(s.__error)}</p><button type="button" onclick="_loadGodStats(true)">Retry</button></div>`;
+    return;
+  }
+
+  const u = s.users || {}, sub = s.subscriptions || {}, tr = s.tours || {}, d = s.dates || {}, c = s.content || {};
+  const genLabel = s.generated_at ? new Date(s.generated_at).toLocaleString() : '';
+  const fmtDate = (v) => v ? new Date(v).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+
+  root.innerHTML = header + `
+    <div class="god-sec">Accounts</div>
+    <div class="god-grid">
+      ${tile('Total users', n(u.total), `${n(u.signups_last_30d)} new in 30d`)}
+      ${tile('Tour managers', n(u.tour_managers))}
+      ${tile('Crew / band', n(u.crew))}
+      ${tile('Active last 7d', n(u.active_last_7d), `${n(u.confirmed)} confirmed`)}
+    </div>
+
+    <div class="god-sec">Subscriptions</div>
+    <div class="god-grid">
+      ${tile('Paying', n(sub.paying))}
+      ${tile('Trialing', n(sub.trialing))}
+      ${tile('Comp', n(sub.comp))}
+      ${tile('Past due', n(sub.past_due), `${n(sub.canceled)} canceled`)}
+    </div>
+
+    <div class="god-sec">Tours &amp; content</div>
+    <div class="god-grid">
+      ${tile('Total tours', n(tr.total), `${n(tr.created_last_30d)} new in 30d`)}
+      ${tile('With dates', n(tr.with_dates), `${n(tr.empty)} empty`)}
+      ${tile('Co-managed', n(tr.with_co_managers))}
+      ${tile('Total dates', n(d.total), `${n(d.shows)} shows · ${n(d.travel)} travel`)}
+      ${tile('Guest entries', n(c.guests))}
+      ${tile('Attachments', n(c.attachments))}
+    </div>
+
+    <div class="god-sec">Newest tours</div>
+    <div class="tbl">
+      <div class="contact-row" style="background:rgba(140,120,255,.06);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#c9b3ff;grid-template-columns:1.4fr 1.4fr 70px 120px">
+        <div>Tour</div><div>Owner</div><div>Dates</div><div>Created</div>
+      </div>
+      ${(s.recent_tours || []).map(t => `
+        <div class="contact-row" style="grid-template-columns:1.4fr 1.4fr 70px 120px">
+          <div class="nm">${esc(t.name || 'Untitled')}</div>
+          <div class="org">${esc(t.owner || '—')}<span style="display:block;font-size:11px;color:var(--warm-mute)">${esc(t.owner_email || '')}</span></div>
+          <div class="role">${n(t.date_count)}</div>
+          <div class="role">${esc(fmtDate(t.created_at))}</div>
+        </div>`).join('') || '<div class="sub muted" style="padding:12px">No tours yet.</div>'}
+    </div>
+
+    <div class="god-sec">Newest signups</div>
+    <div class="tbl">
+      <div class="contact-row" style="background:rgba(140,120,255,.06);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#c9b3ff;grid-template-columns:2fr 90px 120px">
+        <div>Email</div><div>Role</div><div>Joined</div>
+      </div>
+      ${(s.recent_users || []).map(uu => `
+        <div class="contact-row" style="grid-template-columns:2fr 90px 120px">
+          <div class="nm">${esc(uu.email || '—')}</div>
+          <div class="role">${esc((uu.role || '—').toUpperCase())}</div>
+          <div class="role">${esc(fmtDate(uu.created_at))}</div>
+        </div>`).join('') || '<div class="sub muted" style="padding:12px">No users yet.</div>'}
+    </div>
+
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.06em;margin-top:16px">Generated ${esc(genLabel)}</div>
+  `;
+}
+
+async function _loadGodStats(force) {
+  if (!_isGodAccount()) return;
+  if (_godStatsCache && !force) return;
+  if (!sb) { _godStatsCache = { __error: 'Cloud service not ready — refresh the page.' }; renderAdminPanel(); return; }
+  if (force) _godStatsCache = null;
+  try {
+    const { data, error } = await sb.rpc('god_platform_stats');
+    _godStatsCache = error ? { __error: error.message || 'RPC failed' } : (data || { __error: 'No data returned' });
+  } catch (e) {
+    _godStatsCache = { __error: e.message || 'Request failed' };
+  }
+  if (activeTab === 'admin') renderAdminPanel();
+}
+
 function renderCrewProfiles() {
   const root = document.getElementById('p-profiles');
   // Co-managers live in crew[] (flagged isManager) for display + revoke, but
@@ -26939,7 +27098,9 @@ function applyRoleMode() {
     // manage (or that they own).
     document.body.classList.remove('crew-mobile-only');
     const tour = T();
-    const managesActive = tour && tour.id !== '_empty' && _isTourManager(tour, u.id);
+    // God gets the FULL dashboard on every tour (it owns/co-manages none, but
+    // must see everything) — never drop it to the per-tour crew view.
+    const managesActive = _isGodAccount() || (tour && tour.id !== '_empty' && _isTourManager(tour, u.id));
     if (tour && tour.id !== '_empty' && !managesActive) {
       document.body.classList.add('tm-crew-tour');
       const banner = document.getElementById('crewModeBanner');
