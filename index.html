@@ -18572,14 +18572,27 @@ function _extractRemainingEmails(block, ctx, claimedEmails) {
     let name = '';
     let nm; NAME_RE.lastIndex = 0;
     while ((nm = NAME_RE.exec(back)) !== null) {
-      const cand = nm[1].trim();
-      if (LABEL_WORD.test(cand)) continue;      // skip label-shaped pairs
+      let cand = nm[1].trim();
+      // A label word glued to the name ("Marketing  Matt Wallock") swallows
+      // the whole run — strip leading label tokens and keep the person part.
+      if (LABEL_WORD.test(cand)) {
+        const toks = cand.split(/\s+/);
+        while (toks.length && LABEL_WORD.test(toks[0])) toks.shift();
+        if (toks.length < 2 || toks.some(t => LABEL_WORD.test(t))) continue;
+        cand = toks.join(' ');
+      }
       name = cand;                              // keep the LAST real name before the email
     }
     if (!name) name = titleCase(local.replace(/[._]/g, ' '));
-    // Role: nearby keyword first, then the local-part itself.
-    let role = '';
-    for (const [re, r] of ROLE_HINTS) { if (re.test(back)) { role = r; break; } }
+    // Role: the NEAREST keyword before the email wins (a look-back window can
+    // contain the previous person's label too — proximity disambiguates).
+    let role = '', best = -1;
+    for (const [re, r] of ROLE_HINTS) {
+      const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
+      let m2, last = -1;
+      while ((m2 = g.exec(back)) !== null) last = m2.index;
+      if (last > best) { best = last; role = r; }
+    }
     if (!role) { for (const [re, r] of LOCAL_HINTS) { if (re.test(local)) { role = r; break; } } }
     remaining.push({
       name,
