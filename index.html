@@ -8857,6 +8857,93 @@ function _phoneTravelItemHTML(t, viewer, viewerKey) {
     </button>`;
 }
 
+// ── Bus-parking hotel database ───────────────────────────────────────
+// Hotels VERIFIED to offer tour-bus parking at the hotel (source: TAG
+// Touring hotel budget sheets). Only hotels whose notes confirm on-site /
+// at-hotel bus parking are listed — "nearby lot" hotels are excluded by
+// design. Used to suggest a hotel when a TM logs bus travel into a city
+// that has no hotel set yet.
+const BUS_PARKING_HOTELS = [
+  { name: 'Melia Vienna', city: 'Vienna', country: 'Austria',
+    address: 'Donau City Strasse 7, 1220 Vienna, Austria', phone: '+43 19 0104',
+    busNote: 'Bus parking available on site' },
+  { name: 'Holiday Inn Gent Expo', city: 'Gent', country: 'Belgium',
+    address: 'Maaltekouter 3, Sint Denijs Westrem, 9051 Gent, Belgium', phone: '+32 92 2024 24',
+    busNote: 'Bus parking + power €50/day' },
+  { name: 'Novotel Wroclaw Centrum', city: 'Wroclaw', country: 'Poland',
+    address: 'Powstańców Śląskich 7, 53332 Wrocław, Poland', phone: '+48 71 7224 900',
+    busNote: 'Bus parking 140 PLN incl. 16–32A power' },
+  { name: 'Estrel Hotel Berlin', city: 'Berlin', country: 'Germany',
+    address: 'Sonnenallee 225, 12057 Berlin, Germany', phone: '+49 30 6831 0',
+    busNote: 'Bus parking on site, €113.05 incl. 16–32A power' },
+  { name: 'Sheraton Berlin Grand Hotel Esplanade', city: 'Berlin', country: 'Germany',
+    address: 'Luetzowufer 15, 10785 Berlin, Germany', phone: '+49 04 9302 5478 0',
+    busNote: 'Bus parks in front of hotel, €45/day, 16A power' },
+  { name: 'Van der Valk Hotel Berlin Brandenburg', city: 'Berlin', country: 'Germany',
+    address: 'Eschenweg 18, Blankenfelde, 15827 Mahlow, Germany', phone: '+49 33 7085 80',
+    busNote: 'Bus space with 32A power, €70/day (Mahlow, nr. BER)' },
+];
+
+// City matcher — tolerant of spelling variants a TM might type.
+const _BUS_CITY_ALIASES = { ghent: 'gent', wien: 'vienna', wroclaw: 'wroclaw', koln: 'cologne', koeln: 'cologne' };
+function _busCityKey(city) {
+  let k = String(city || '').toLowerCase().trim();
+  try { k = k.normalize('NFKD').replace(/[̀-ͯ]/g, ''); } catch (e) {}
+  // Stroked letters don't decompose under NFKD — map them by hand.
+  k = k.replace(/ł/g, 'l').replace(/ø/g, 'o').replace(/đ/g, 'd').replace(/ß/g, 'ss');
+  k = k.split(',')[0].trim();
+  return _BUS_CITY_ALIASES[k] || k;
+}
+function _busHotelsForCity(city) {
+  const key = _busCityKey(city);
+  if (!key) return [];
+  return BUS_PARKING_HOTELS.filter(h => _busCityKey(h.city) === key);
+}
+
+// Suggestion strip inside the travel modal. Shows ONLY when all three hold:
+// type is Bus, the arrival city has bus-parking hotels in the database, and
+// the active date has no hotel covering it yet.
+let _tvBusSuggs = [];
+function _travelRenderBusSuggestions() {
+  const wrap = document.getElementById('tv_bus_sugg');
+  if (!wrap) return;
+  const ad = getActiveDate();
+  const type = document.getElementById('tv_type')?.value || '';
+  const arrival = ad ? _travelRoute(ad).to : '';
+  _tvBusSuggs = (type === 'bus' && ad && !_hotelsForDate(ad).length) ? _busHotelsForCity(arrival) : [];
+  if (!_tvBusSuggs.length) { wrap.hidden = true; wrap.innerHTML = ''; return; }
+  wrap.hidden = false;
+  wrap.innerHTML = `
+    <label>Bus-parking hotels in ${esc(arrival)} <span class="muted mono" style="font-size:10px;letter-spacing:.1em">— no hotel set for this date yet</span></label>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${_tvBusSuggs.slice(0, 3).map((h, i) => `
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;background:rgba(138,169,216,.05);border:1px solid rgba(138,169,216,.3);border-radius:8px">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8aa9d8;flex:none">🚌</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:12.5px;color:var(--warm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h.name)}</div>
+            <div class="mono" style="font-size:10px;color:var(--warm-mute);letter-spacing:.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h.busNote)}</div>
+          </div>
+          <button type="button" class="tb-btn" style="flex:none;border-color:rgba(138,169,216,.45);color:#b1c8ee" onclick="_travelAddBusHotel(${i})">+ Set as hotel</button>
+        </div>
+      `).join('')}
+    </div>`;
+}
+// One tap: create the suggested hotel as this date's stay (single night,
+// Everyone) with the bus-parking note carried into the hotel's notes.
+function _travelAddBusHotel(i) {
+  const ad = getActiveDate();
+  const h = _tvBusSuggs[i];
+  if (!ad || !h) return;
+  (ad.hotels = ad.hotels || []).push(_normStay({
+    name: h.name, address: h.address || '', phone: h.phone || '',
+    checkInDate: ad.date, checkOutDate: ad.date, who: 'Everyone',
+    notes: h.busNote + ' · from bus-parking database', rooms: [],
+  }, ad.date));
+  saveState();
+  toast(`${h.name} set as the hotel — rooms + dates in the Hotels tab`, 'good');
+  _travelRenderBusSuggestions();   // hotel now exists → strip hides itself
+}
+
 // ── Auto-description ──────────────────────────────────────────────────
 // The travel description writes itself from the form (type + flight # + the
 // day's route) so a TM rarely types it; a toggle unlocks manual entry. Stays
@@ -9009,6 +9096,7 @@ function openTravelModal(itemId) {
           ${renderGroupPicker('tv_grp', i.groups && i.groups.length ? i.groups : (i._audienceNeeded ? [] : ['All']), true)}
           <div class="muted mono" id="tv_grp_hint" style="font-size:10px;letter-spacing:.06em;margin-top:6px;line-height:1.5;${isFlight ? '' : 'display:none'}">Flights are visible to <b style="color:var(--warm)">everyone</b> by default — change this only to hide the flight from some groups. The passengers above are who's flying.</div>
         </div>
+        <div class="field full" id="tv_bus_sugg" hidden></div>
         <div class="field full"><label>Notes</label><textarea id="tv_notes">${esc(i.notes)}</textarea></div>
       </div>
     `,
@@ -9089,6 +9177,9 @@ function _travelModalApplyType() {
   set('tv_pax_hint', el => { el.textContent = isFlight ? "— who's actually on this flight" : '(optional — groups below are the main assignment)'; });
   // Visibility hint (flight-only)
   set('tv_grp_hint', el => { el.style.display = isFlight ? '' : 'none'; });
+  // Bus-parking hotel suggestions — shown only for Bus type when the arrival
+  // city has database matches and the date has no hotel yet.
+  try { _travelRenderBusSuggestions(); } catch (e) {}
   // Departure + arrival cities — auto-fill from the tour route the first time
   // Flight is selected; never clobber something the TM typed.
   set('tv_from', el => {
@@ -30588,6 +30679,7 @@ Object.assign(window, {
   toggleTourSwitcher, closeTourSwitcher, switchToTour, switchToTourFromPhone, newTourFlow, newTourManualFlow, newTourImportFlow, renameCurrentTour, deleteCurrentTour,
   toggleUniMenu, closeUniMenu, renderUniMenu, _uniToggleExport,
   openAccountSettingsModal, _acctSaveName, _acctSendReset,
+  _travelAddBusHotel, _travelRenderBusSuggestions,
   _ntpdStatusChange, _ntpdCityChange, _ntpdVenueChange, _ntpdBulkStatus,
   showLoginScreen, hideLoginScreen, loginWithEmail, loginAsExisting, signUp, logout, showLoginForm, showSignupForm, toggleAccountMenu, closeAccountMenu,
   showLandingScreen, hideLandingScreen, landingChoose,
