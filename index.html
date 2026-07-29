@@ -16132,12 +16132,12 @@ function renderContacts() {
       // then alphabetical.
       const groups = {};
       contacts.forEach(c => {
-        const key = (c.city || '').trim() || ' tourwide';
+        const key = (c.city || '').trim() || '~nocity';
         (groups[key] = groups[key] || []).push(c);
       });
       const keys = Object.keys(groups).sort((a, b) => {
-        if (a === ' tourwide') return 1;
-        if (b === ' tourwide') return -1;
+        if (a === '~nocity') return 1;
+        if (b === '~nocity') return -1;
         return a.localeCompare(b);
       });
       const hasRole = (c) => c.role && c.role.toLowerCase() !== 'other';
@@ -16151,18 +16151,28 @@ function renderContacts() {
               ${c.email ? `<a href="mailto:${esc(c.email)}" style="color:var(--warm-mute);text-decoration:none">${esc(c.email)}</a>` : ''}${c.email && c.phone ? ' · ' : ''}${c.phone ? `<a href="tel:${esc(c.phone.replace(/[^+\d]/g,''))}" style="color:var(--warm-mute);text-decoration:none">${esc(c.phone)}</a>` : ''}
             </span>
           </div>
-          <div class="org" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.organization || '—')}</div>
+          <div class="org" style="min-width:0">
+            <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.organization || '—')}</span>
+            ${!(c.city || '').trim() ? `<a onclick="openContactModal('${c.id}')" style="display:inline-block;margin-top:3px;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#fdba74;border:1px dashed rgba(253,186,116,.45);border-radius:4px;padding:1px 6px;cursor:pointer" title="No city on this contact — add one so they group under the right stop">⌖ add city</a>` : ''}
+          </div>
           <div class="role" style="white-space:nowrap">${hasRole(c) ? esc(c.role) : '<span style="color:var(--warm-mute);opacity:.6">—</span>'}</div>
           <div class="tbl-actions" style="justify-self:end"><button type="button" onclick="openContactModal('${c.id}')">Edit</button></div>
         </div>`;
       return keys.map(k => {
         const list = groups[k].slice().sort((a, b) =>
           (hasRole(b) - hasRole(a)) || String(a.name || '').localeCompare(String(b.name || '')));
-        const label = k === ' tourwide' ? 'Tour-wide' : k;
+        // The no-city bucket is flagged amber — these contacts can't group
+        // under a stop until a city is added (fine for genuinely tour-wide
+        // people like agents and mgmt; a fix-me for everyone else).
+        const noCity = k === '~nocity';
+        const label = noCity ? 'No city set' : k;
+        const tone = noCity ? '#fdba74' : 'var(--cool)';
+        const ruleTone = noCity ? 'rgba(253,186,116,.3)' : 'rgba(138,169,216,.25)';
         return `
-          <div class="muted mono" style="font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--cool);margin:16px 2px 6px;display:flex;align-items:center;gap:8px">
-            <span>⌖ ${esc(label)}</span><span style="color:var(--warm-mute)">· ${list.length}</span>
-            <span style="flex:1;height:1px;background:linear-gradient(90deg,rgba(138,169,216,.25),transparent)"></span>
+          <div class="muted mono" style="font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${tone};margin:16px 2px 6px;display:flex;align-items:center;gap:8px">
+            <span>${noCity ? '⚠' : '⌖'} ${esc(label)}</span><span style="color:var(--warm-mute)">· ${list.length}</span>
+            ${noCity ? `<span style="color:var(--warm-mute);letter-spacing:.06em;text-transform:none">— add a city in Edit so they group by stop (agents and mgmt can stay city-less)</span>` : ''}
+            <span style="flex:1;height:1px;background:linear-gradient(90deg,${ruleTone},transparent)"></span>
           </div>
           <div class="tbl">${list.map(row).join('')}</div>`;
       }).join('');
