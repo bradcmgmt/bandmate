@@ -16125,27 +16125,48 @@ function renderContacts() {
           Upload accepts columns like: name, role, organization, email, phone, city, notes
         </div>
       </div>
-    ` : `
-      <div class="tbl">
-        ${contacts.map(c => {
-          // Build a "scope" pill — city + country tells the TM which
-          // show this contact belongs to. Empty if neither is set.
-          const scopeParts = [];
-          if (c.city) scopeParts.push(c.city);
-          if (c.country && c.country !== c.city) scopeParts.push(c.country);
-          const scope = scopeParts.join(', ');
-          return `
-            <div class="contact-row">
-              <div class="ini">${esc(initials(c.name))}</div>
-              <div class="nm">${esc(c.name)}<span>${esc(c.phone || '')} ${c.phone && c.email ? ' · ' : ''} ${esc(c.email || '')}</span></div>
-              <div class="org">${esc(c.organization || '—')}${scope ? `<span class="muted mono" style="display:block;font-size:10.5px;letter-spacing:.04em;color:var(--cool);margin-top:2px">⌖ ${esc(scope)}</span>` : ''}</div>
-              <div class="role">${esc(c.role || 'Other')}</div>
-              <div class="tbl-actions"><button type="button" onclick="openContactModal('${c.id}')">Edit</button></div>
-            </div>
-          `;
-        }).join('')}
-      </div>
-    `}
+    ` : (() => {
+      // Group by CITY — a tour rolodex reads by stop, not as one wall.
+      // City-less contacts (agents, mgmt, tour-wide vendors) sort last
+      // under "Tour-wide". Within a group: role-tagged people first,
+      // then alphabetical.
+      const groups = {};
+      contacts.forEach(c => {
+        const key = (c.city || '').trim() || ' tourwide';
+        (groups[key] = groups[key] || []).push(c);
+      });
+      const keys = Object.keys(groups).sort((a, b) => {
+        if (a === ' tourwide') return 1;
+        if (b === ' tourwide') return -1;
+        return a.localeCompare(b);
+      });
+      const hasRole = (c) => c.role && c.role.toLowerCase() !== 'other';
+      const cols = 'grid-template-columns:42px minmax(0,1.6fr) minmax(0,1fr) minmax(84px,auto) 54px';
+      const row = (c) => `
+        <div class="contact-row" style="${cols};padding:11px 14px">
+          <div class="ini" style="width:34px;height:34px;font-size:12px">${esc(initials(c.name))}</div>
+          <div class="nm" style="min-width:0">
+            <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span>
+            <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--warm-mute)">
+              ${c.email ? `<a href="mailto:${esc(c.email)}" style="color:var(--warm-mute);text-decoration:none">${esc(c.email)}</a>` : ''}${c.email && c.phone ? ' · ' : ''}${c.phone ? `<a href="tel:${esc(c.phone.replace(/[^+\d]/g,''))}" style="color:var(--warm-mute);text-decoration:none">${esc(c.phone)}</a>` : ''}
+            </span>
+          </div>
+          <div class="org" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.organization || '—')}</div>
+          <div class="role" style="white-space:nowrap">${hasRole(c) ? esc(c.role) : '<span style="color:var(--warm-mute);opacity:.6">—</span>'}</div>
+          <div class="tbl-actions" style="justify-self:end"><button type="button" onclick="openContactModal('${c.id}')">Edit</button></div>
+        </div>`;
+      return keys.map(k => {
+        const list = groups[k].slice().sort((a, b) =>
+          (hasRole(b) - hasRole(a)) || String(a.name || '').localeCompare(String(b.name || '')));
+        const label = k === ' tourwide' ? 'Tour-wide' : k;
+        return `
+          <div class="muted mono" style="font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--cool);margin:16px 2px 6px;display:flex;align-items:center;gap:8px">
+            <span>⌖ ${esc(label)}</span><span style="color:var(--warm-mute)">· ${list.length}</span>
+            <span style="flex:1;height:1px;background:linear-gradient(90deg,rgba(138,169,216,.25),transparent)"></span>
+          </div>
+          <div class="tbl">${list.map(row).join('')}</div>`;
+      }).join('');
+    })()}
   `;
 }
 
@@ -18409,19 +18430,35 @@ function _extractStructuredContacts(block, ctx) {
   // matters: longer / more specific labels first so "Promoter Assistant"
   // doesn't get swallowed by "Promoter Contact".
   const ROLE_LABELS = [
-    { pattern: /\bPromoter\s+Assistant\b/g, role: 'Promoter Asst' },
-    { pattern: /\bPromoter\s+Contact\b/g,   role: 'Promoter' },
-    { pattern: /\bProduction\s+Contact\b/g, role: 'Production' },
-    { pattern: /\bBuyer\s+Signatory\b/g,    role: 'Buyer / Signatory' },
-    { pattern: /\bBooking\s+Agent\b/g,      role: 'Agent' },
-    { pattern: /\bTour\s+Manager\b/g,       role: 'Tour Manager' },
-    { pattern: /\bTour\s+Accountant\b/g,    role: 'Tour Acct' },
-    { pattern: /\bSettlement\s+Contact\b/g, role: 'Settlement' },
-    { pattern: /\bStage\s+Manager\b/g,      role: 'Stage Manager' },
-    { pattern: /\bBox\s+Office\b/g,         role: 'Box Office' },
-    { pattern: /\bMarketing\s+Contact\b/g,  role: 'Marketing' },
-    { pattern: /\bRunner\s+Contact\b/g,     role: 'Runner' },
-    { pattern: /\bCatering\s+Contact\b/g,   role: 'Catering' },
+    // Specific / multi-word labels first so they aren't swallowed by the
+    // shorter colon-forms at the bottom.
+    { pattern: /\bPromoter\s+Assistant\b/g,             role: 'Promoter Asst' },
+    { pattern: /\bPromoter\s+(?:Contact|Rep(?:resentative)?)\b/g, role: 'Promoter' },
+    { pattern: /\bProduction\s+(?:Contact|Manager)\b/g, role: 'Production Manager' },
+    { pattern: /\bBuyer\s+Signatory\b/g,                role: 'Buyer / Signatory' },
+    { pattern: /\bTalent\s+Buyer\b/g,                   role: 'Talent Buyer' },
+    { pattern: /\bBooking\s+Agent\b/g,                  role: 'Agent' },
+    { pattern: /\bTour\s+Manager\b/g,                   role: 'Tour Manager' },
+    { pattern: /\bTour\s+Accountant\b/g,                role: 'Tour Acct' },
+    { pattern: /\bSettlement\s+Contact\b/g,             role: 'Settlement' },
+    { pattern: /\bStage\s+Manager\b/g,                  role: 'Stage Manager' },
+    { pattern: /\bGeneral\s+Manager\b|\bGM\s*:/g,       role: 'General Manager' },
+    { pattern: /\bVenue\s+Contact\b/g,                  role: 'Venue' },
+    { pattern: /\bDay\s+of\s+Show\s+Contact\b/g,        role: 'Day of Show' },
+    { pattern: /\bBox\s*Office\b/g,                     role: 'Box Office' },
+    { pattern: /\bTicketing\s+Contact\b/g,              role: 'Ticketing' },
+    { pattern: /\bMarketing\s+Contact\b/g,              role: 'Marketing' },
+    { pattern: /\bHospitality\s+(?:Contact|Manager)?\b/g, role: 'Hospitality' },
+    { pattern: /\bMerch(?:andise|andising)?\s+(?:Contact|Manager)\b/g, role: 'Merch' },
+    { pattern: /\b(?:Head\s+of\s+)?Security\s+(?:Contact|Manager)\b/g, role: 'Security' },
+    { pattern: /\bRunner\s+Contact\b/g,                 role: 'Runner' },
+    { pattern: /\bCatering\s+Contact\b/g,               role: 'Catering' },
+    // Bare colon-form labels itineraries use ("Production: Jane Doe …").
+    { pattern: /\bPromoter\s*:/g,                       role: 'Promoter' },
+    { pattern: /\bProduction\s*:/g,                     role: 'Production' },
+    { pattern: /\bMarketing\s*:/g,                      role: 'Marketing' },
+    { pattern: /\bCatering\s*:/g,                       role: 'Catering' },
+    { pattern: /\bMerch\s*:/g,                          role: 'Merch' },
   ];
   // Allow Unicode names — international promoters / agents have
   // accented characters (Müller, García, Łukasiewicz).
@@ -18489,15 +18526,65 @@ function _extractRemainingEmails(block, ctx, claimedEmails) {
   ctx = ctx || {};
   claimedEmails = claimedEmails || new Set();
   const remaining = [];
+  // Role keywords for the look-back window — documents almost always print
+  // the person's function shortly before their email ("Production – Jane
+  // Doe jane@…"). Checked longest-first so "Production Manager" wins over
+  // a bare "Production".
+  const ROLE_HINTS = [
+    [/production\s+manager/i, 'Production Manager'],
+    [/tour\s+manager/i, 'Tour Manager'],
+    [/stage\s+manager/i, 'Stage Manager'],
+    [/general\s+manager|\bGM\b/i, 'General Manager'],
+    [/talent\s+buyer/i, 'Talent Buyer'],
+    [/box\s*office/i, 'Box Office'],
+    [/ticketing/i, 'Ticketing'],
+    [/marketing/i, 'Marketing'],
+    [/promoter|talent\s+buy/i, 'Promoter'],
+    [/production/i, 'Production'],
+    [/hospitality|catering/i, 'Hospitality'],
+    [/merch/i, 'Merch'],
+    [/security/i, 'Security'],
+    [/booking|agent/i, 'Agent'],
+    [/venue/i, 'Venue'],
+  ];
+  // Same inference from the email's own local-part (production@venue.com).
+  const LOCAL_HINTS = [
+    [/^(production|prod)$/i, 'Production'],
+    [/^(boxoffice|box\.?office|tickets|ticketing)$/i, 'Box Office'],
+    [/^(marketing|promo)$/i, 'Marketing'],
+    [/^(booking|bookings)$/i, 'Promoter'],
+    [/^(merch)$/i, 'Merch'],
+    [/^(security)$/i, 'Security'],
+    [/^(hospitality|catering)$/i, 'Hospitality'],
+    [/^(info|hello|contact|office|admin)$/i, 'Venue'],
+  ];
+  const NAME_RE = /([A-ZÀ-Þ][a-zA-ZÀ-ɏ'\-]+(?:\s+[A-ZÀ-Þ][a-zA-ZÀ-ɏ'\-]+){1,3})/g;
+  const LABEL_WORD = /Agent|Manager|Contact|Signatory|Number|Address|Office|Marketing|Runner|Catering|Stage|Buyer|Tour|Promoter|Production|Settlement|Email|Phone|Mobile|Venue|Hotel|Show|Doors|Sale|Date/i;
   _extractEmails(block).forEach(email => {
     if (claimedEmails.has(email.toLowerCase())) return;
     claimedEmails.add(email.toLowerCase());
     const local = email.split('@')[0];
     const domain = email.split('@')[1].split('.')[0];
+    // Look BACK from the email for the person's printed name — far better
+    // than mashing the local-part ("mattwallock" → finds "Matt Wallock").
+    const at = block.indexOf(email);
+    const back = at > -1 ? block.slice(Math.max(0, at - 110), at) : '';
+    let name = '';
+    let nm; NAME_RE.lastIndex = 0;
+    while ((nm = NAME_RE.exec(back)) !== null) {
+      const cand = nm[1].trim();
+      if (LABEL_WORD.test(cand)) continue;      // skip label-shaped pairs
+      name = cand;                              // keep the LAST real name before the email
+    }
+    if (!name) name = titleCase(local.replace(/[._]/g, ' '));
+    // Role: nearby keyword first, then the local-part itself.
+    let role = '';
+    for (const [re, r] of ROLE_HINTS) { if (re.test(back)) { role = r; break; } }
+    if (!role) { for (const [re, r] of LOCAL_HINTS) { if (re.test(local)) { role = r; break; } } }
     remaining.push({
-      name: titleCase(local.replace(/[._]/g, ' ')),
+      name,
       email,
-      role: 'Other',
+      role: role || 'Other',
       organization: domain,
       city: ctx.city || '',
       country: ctx.country || '',
@@ -19272,8 +19359,10 @@ function _extractItineraryGridBlocks(text) {
 
     // Only keep rows that actually look like a show (guards against a stray
     // date line in some other document type sneaking through the gate).
+    // `raw` carries the block's own text so contact extraction can run
+    // per-show and tag each contact with THIS show's city.
     if (date && (venue || city)) {
-      blocks.push({ date, venue, city, state, capacity, doors, setTime, curfew, promoter });
+      blocks.push({ date, venue, city, state, capacity, doors, setTime, curfew, promoter, raw: btext });
     }
   }
   return blocks;
@@ -19305,20 +19394,30 @@ function processTextDoc(text, file, result) {
       });
     });
     result.notes.push(`Itinerary · ${itinBlocks.length} show${itinBlocks.length===1?'':'s'} extracted`);
-    // Contacts: itineraries carry role-labelled contacts per show. Run the
-    // structured extractor over the whole doc, then sweep leftover emails.
+    // Contacts: itineraries carry role-labelled contacts PER SHOW. Extract
+    // per-block so every contact is tagged with that show's city (a promoter
+    // in Denver and one in Dallas must not both come out city-less), then
+    // sweep the whole doc for leftover emails outside any block.
     const itinClaimed = new Set();
-    let itinStructured = 0;
-    try {
-      const structured = _extractStructuredContacts(text, { fileName: file.name });
-      structured.forEach(c => itinClaimed.add(c.email.toLowerCase()));
-      result.extracted.contacts.push(...structured);
-      itinStructured = structured.length;
-    } catch (e) { /* structured pass is best-effort */ }
+    let itinStructured = 0, itinLeftoverN = 0;
+    itinBlocks.forEach(b => {
+      const ctx = { city: b.city || '', fileName: file.name };
+      try {
+        const structured = _extractStructuredContacts(b.raw || '', ctx);
+        structured.forEach(c => itinClaimed.add(c.email.toLowerCase()));
+        result.extracted.contacts.push(...structured);
+        itinStructured += structured.length;
+      } catch (e) { /* structured pass is best-effort */ }
+      const leftover = _extractRemainingEmails(b.raw || '', ctx, itinClaimed).slice(0, 12);
+      result.extracted.contacts.push(...leftover);
+      itinLeftoverN += leftover.length;
+    });
+    // Doc-wide sweep for anything outside a show block (tour-wide contacts).
     const itinLeftover = _extractRemainingEmails(text, { fileName: file.name }, itinClaimed).slice(0, 30);
     result.extracted.contacts.push(...itinLeftover);
-    if (itinStructured) result.notes.push(`Contacts · ${itinStructured} role-tagged, ${itinLeftover.length} additional`);
-    else if (itinLeftover.length) result.notes.push(`Contacts · ${itinLeftover.length} emails extracted`);
+    itinLeftoverN += itinLeftover.length;
+    if (itinStructured) result.notes.push(`Contacts · ${itinStructured} role-tagged, ${itinLeftoverN} additional`);
+    else if (itinLeftoverN) result.notes.push(`Contacts · ${itinLeftoverN} emails extracted`);
     _extractTravelAndHotelsInto(text, result);
     return;
   }
