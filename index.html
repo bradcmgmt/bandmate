@@ -8184,7 +8184,7 @@ function openDateModal(id) {
         </div>
         <div class="field"><label>City *</label><input id="d_city" data-ac="city" data-ac-state-to="#d_state" autocomplete="off" value="${esc(d.city)}"></div>
         <div class="field"><label>State / Region</label><input id="d_state" value="${esc(d.state)}" placeholder="e.g. Colorado, Ontario"></div>
-        <div class="field full" data-show-day data-press-day><label id="d_venue_lbl">Venue</label><input id="d_venue" data-ac="venue" data-ac-city-from="#d_city" autocomplete="off" value="${esc(d.venue)}"></div>
+        <div class="field full" data-show-day data-press-day><label id="d_venue_lbl">Venue</label><input id="d_venue" data-ac="venue" data-ac-city-from="#d_city" data-ac-addr-to="#d_vaddr" autocomplete="off" value="${esc(d.venue)}"></div>
         <div class="field full" data-show-day data-press-day><label>Venue address</label><input id="d_vaddr" autocomplete="off" value="${esc(d.venueAddress || '')}" placeholder="e.g. 2420 Larimer St, Denver, CO 80205"></div>
         <div class="field" data-show-day><label>Capacity</label><input type="number" id="d_cap" value="${esc(d.capacity)}"></div>
         <div class="field" data-show-day><label>Promoter</label><input id="d_prom" value="${esc(d.promoter)}"></div>
@@ -9554,7 +9554,7 @@ function openHotelModal(stayId) {
     } : null,
     body: `
       <div class="form-grid">
-        <div class="field full"><label>Hotel name *</label><input id="h_name" data-ac="hotel" autocomplete="off" value="${esc(h.name)}"></div>
+        <div class="field full"><label>Hotel name *</label><input id="h_name" data-ac="hotel" data-ac-addr-to="#h_addr" data-ac-phone-to="#h_phone" autocomplete="off" value="${esc(h.name)}"></div>
         <div class="field full"><label>Address</label><input id="h_addr" value="${esc(h.address)}"></div>
         <div class="field"><label>Check-in date *</label><input id="h_indate" type="date" value="${esc(h.checkInDate || ad.date)}"></div>
         <div class="field"><label>Check-out date *</label><input id="h_outdate" type="date" value="${esc(h.checkOutDate || h.checkInDate || ad.date)}"></div>
@@ -15329,6 +15329,180 @@ function _userHotelHistory() {
 // Suggestion-source functions. Each returns an array of { value, sub }
 // where sub is an optional muted label shown to the right (e.g. the
 // city tag on a venue suggestion).
+/* ─────────────────────────────────────────────────────────────────────
+   PLACE LOOKUP — hotel + venue autocomplete with address / phone autofill.
+
+   Three tiers, cheapest first:
+     1. LOCAL    — names already used on this account's tours (instant, free)
+     2. CACHE    — public.place_cache, shared across every Bandmate account
+                   (one query, free, and it grows every time a TM confirms
+                   a place — see patch-037)
+     3. GOOGLE   — /api/place-search proxy (paid, only when 1+2 are thin)
+
+   The Google key lives ONLY in the serverless function. If it isn't set,
+   the proxy replies { configured:false } and we quietly stop asking — the
+   app keeps working on tiers 1+2, so this can ship before the key exists.
+   ───────────────────────────────────────────────────────────────────── */
+const _PLACE_MIN_REMOTE_Q = 3;   // don't spend an API call on 1–2 chars
+let _placeApiConfigured = null;   // null = unknown, false = no key → stop trying
+
+async function _placeAuthToken() {
+  if (!sb) return '';
+  try { const { data } = await sb.auth.getSession(); return data?.session?.access_token || ''; }
+  catch (e) { return ''; }
+}
+
+async function _placeApiCall(payload) {
+  if (!sb || _placeApiConfigured === false) return null;
+  const token = await _placeAuthToken();
+  if (!token) return null;                       // not signed in → local only
+  try {
+    const r = await fetch('/api/place-search', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, supabaseAccessToken: token }),
+    });
+    const j = await r.json().catch(() => null);
+    if (j && j.configured === false) { _placeApiConfigured = false; return null; }
+    if (!r.ok) return null;
+    _placeApiConfigured = true;
+    return j;
+  } catch (e) { return null; }
+}
+
+async function _placeApiSearch(kind, query, city) {
+  const j = await _placeApiCall({ action: 'search', kind, query, city });
+  return (j && Array.isArray(j.results)) ? j.results : [];
+}
+async function _placeApiDetails(placeId) {
+  const j = await _placeApiCall({ action: 'details', placeId });
+  return (j && j.place) ? j.place : null;
+}
+
+// Tier 2 — the shared cache. Same-city matches float to the top.
+async function _placeCacheSearch(kind, query, city) {
+  if (!sb || !query) return [];
+  try {
+    const { data, error } = await sb.from('place_cache')
+      .select('name,city,address,phone,website,place_id,bus_parking')
+      .eq('kind', kind).ilike('name', '%' + query + '%').limit(8);
+    if (error) return [];
+    const rows = data || [];
+    const ck = String(city || '').toLowerCase().trim();
+    if (ck) {
+      rows.sort((a, b) =>
+        (String(b.city || '').toLowerCase().includes(ck) ? 1 : 0) -
+        (String(a.city || '').toLowerCase().includes(ck) ? 1 : 0));
+    }
+    return rows;
+  } catch (e) { return []; }
+}
+
+// Contribute a confirmed place back to the shared cache. Fire-and-forget:
+// a failure here must never block the TM's save.
+async function _placeCacheSave(kind, rec) {
+  if (!sb || !rec || !rec.name) return;
+  const row = {
+    kind,
+    name: String(rec.name).trim(),
+    city: String(rec.city || '').trim(),
+    address: String(rec.address || '').trim(),
+    phone: String(rec.phone || '').trim(),
+    website: String(rec.website || '').trim(),
+    place_id: String(rec.placeId || rec.place_id || '').trim(),
+  };
+  try { await sb.from('place_cache').upsert(row, { onConflict: 'kind,name,city' }); }
+  catch (e) { /* cache is a nicety, never fatal */ }
+}
+
+// Which city should scope this input's search? Venue inputs point at their
+// city field via data-ac-city-from; hotel inputs use the active date.
+function _acCityContext(input) {
+  const sel = input?.dataset?.acCityFrom;
+  if (sel) { const el = document.querySelector(sel); if (el && el.value) return el.value; }
+  try { const ad = getActiveDate(); if (ad && ad.city) return ad.city; } catch (e) {}
+  return '';
+}
+
+// Apply a chosen suggestion: set the text, then fill the address / phone
+// fields this input declares (data-ac-addr-to / data-ac-phone-to). When the
+// pick came from Google we only have name+address up front, so fetch the
+// full record for the phone, then contribute it to the shared cache.
+function _acApplyPick(input, pick) {
+  if (!input || !pick) return;
+  input.value = pick.value;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  const d = pick.data;
+  if (!d) return;
+  const kind = input.dataset.ac === 'venue' ? 'venue' : 'hotel';
+  const addrEl = input.dataset.acAddrTo ? document.querySelector(input.dataset.acAddrTo) : null;
+  const phoneEl = input.dataset.acPhoneTo ? document.querySelector(input.dataset.acPhoneTo) : null;
+  const fill = (el, val) => {
+    if (!el || !val) return;
+    el.value = val;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  fill(addrEl, d.address);
+  fill(phoneEl, d.phone);
+  // Already a full record (cache hit) → just make sure it's cached.
+  if (d.source === 'cache') return;
+  if (!d.placeId) return;
+  // Google hit → pull details for the phone + canonical city, fill, cache.
+  _placeApiDetails(d.placeId).then(full => {
+    if (!full) { _placeCacheSave(kind, { ...d, city: _acCityContext(input) }); return; }
+    if (addrEl && !addrEl.value) fill(addrEl, full.address);
+    if (phoneEl && !phoneEl.value) fill(phoneEl, full.phone);
+    _placeCacheSave(kind, {
+      name: pick.value, city: full.city || _acCityContext(input),
+      address: full.address || d.address, phone: full.phone,
+      website: full.website, placeId: full.placeId || d.placeId,
+    });
+  });
+}
+
+// Debounced tier-2 + tier-3 search. Merges into whatever local results are
+// already on screen, guarded three ways against a stale response landing
+// after the TM has typed on, tabbed away, or picked something.
+let _acRemoteTimer = null;
+let _acRemoteSeq = 0;
+function _acRemoteFetch(input, query, kind) {
+  const city = _acCityContext(input);
+  const seq = ++_acRemoteSeq;
+  clearTimeout(_acRemoteTimer);
+  _acRemoteTimer = setTimeout(async () => {
+    const cacheRows = await _placeCacheSearch(kind, query, city);
+    // Only spend a Google call when our own cache came up thin.
+    let remote = [];
+    if (cacheRows.length < 5 && query.length >= _PLACE_MIN_REMOTE_Q) {
+      remote = await _placeApiSearch(kind, query, city);
+    }
+    if (seq !== _acRemoteSeq) return;                  // a newer keystroke won
+    if (_acActiveInput !== input) return;              // focus moved on
+    if ((input.value || '').trim() !== query) return;  // query changed
+    const seen = new Set(_acSuggestions.map(s => String(s.value).toLowerCase()));
+    const add = [];
+    cacheRows.forEach(r => {
+      const k = String(r.name || '').toLowerCase();
+      if (!k || seen.has(k)) return;
+      seen.add(k);
+      add.push({
+        value: r.name,
+        sub: [r.city, r.address].filter(Boolean).join(' · ') + (r.bus_parking ? '  🚌 bus parking' : ''),
+        data: { source: 'cache', address: r.address, phone: r.phone, city: r.city, website: r.website, placeId: r.place_id },
+      });
+    });
+    remote.forEach(r => {
+      const k = String(r.name || '').toLowerCase();
+      if (!k || seen.has(k)) return;
+      seen.add(k);
+      add.push({ value: r.name, sub: r.address, data: { source: 'google', address: r.address, placeId: r.placeId } });
+    });
+    if (!add.length) return;
+    _acSuggestions = _acSuggestions.concat(add).slice(0, 12);
+    _acRender(input, query);
+  }, 260);
+}
+
 function _acSourceCity(query) {
   const q = query.toLowerCase();
   return TOURING_CITIES.filter(c => c.toLowerCase().includes(q)).slice(0, 12).map(value => ({ value }));
@@ -15434,11 +15608,7 @@ function _acRender(input, query) {
       e.preventDefault();
       const i = +el.dataset.i;
       const pick = _acSuggestions[i];
-      if (pick && input) {
-        input.value = pick.value;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-      }
+      if (pick && input) _acApplyPick(input, pick);
       _acClose();
     });
   });
@@ -15492,10 +15662,15 @@ function _wireAutocomplete(input) {
     else if (type === 'venue')  _acSuggestions = _acSourceVenue(query, getCityFilter());
     else if (type === 'hotel')  _acSuggestions = _acSourceHotel(query);
     else                        _acSuggestions = [];
-    if (!_acSuggestions.length) { _acClose(); return; }
+    // Hotels + venues also search the shared cache and (if configured) Google.
+    // Local matches paint instantly; remote ones merge in when they land.
+    const remoteKind = type === 'hotel' ? 'hotel' : (type === 'venue' ? 'venue' : '');
+    if (!_acSuggestions.length && !remoteKind) { _acClose(); return; }
     _acActiveInput = input;
     _acSelectedIdx = -1;
-    _acRender(input, query);
+    if (_acSuggestions.length) _acRender(input, query);
+    else { const dl = _acDropdown(); if (dl) dl.hidden = true; }
+    if (remoteKind) _acRemoteFetch(input, query, remoteKind);
   };
 
   input.addEventListener('input', updateSuggestions);
@@ -15513,11 +15688,7 @@ function _wireAutocomplete(input) {
     } else if (e.key === 'Enter' && _acSelectedIdx >= 0) {
       e.preventDefault();
       const pick = _acSuggestions[_acSelectedIdx];
-      if (pick) {
-        input.value = pick.value;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-      }
+      if (pick) _acApplyPick(input, pick);
       _acClose();
     } else if (e.key === 'Escape') {
       _acClose();
