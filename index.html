@@ -514,7 +514,23 @@ input,select,textarea{font:inherit;color:inherit;
 .tab[hidden]{display:none!important}
 .tab .num{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--line-2);flex:none}
 .tab:hover{color:var(--warm);background:rgba(232,148,58,.04);padding-left:18px}
-.tab.active{color:var(--hi);background:linear-gradient(90deg,rgba(232,148,58,.16),rgba(232,148,58,.02) 70%);font-weight:700;text-shadow:0 0 10px rgba(232,148,58,.3);padding-left:18px}
+/* Active tab carries the "flames in glass" treatment — two soft ember blobs
+   drifting under the label (layers 1-2, animated) over the original tint
+   (layer 3, static). Shared keyframes: tabFlame. */
+.tab.active{color:var(--hi);
+  background:
+    radial-gradient(circle at 25% 75%, rgba(255,150,45,.30), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,80,25,.20), transparent 42%),
+    linear-gradient(90deg,rgba(232,148,58,.16),rgba(232,148,58,.02) 70%);
+  background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 9s ease-in-out infinite alternate;
+  font-weight:700;text-shadow:0 0 10px rgba(232,148,58,.3);padding-left:18px}
+@keyframes tabFlame{
+  0%{background-position:0% 100%, 100% 0%, 0 0}
+  50%{background-position:65% 15%, 25% 85%, 0 0}
+  100%{background-position:100% 70%, 0% 35%, 0 0}
+}
+@media (prefers-reduced-motion: reduce){.tab.active,.travel-assist-btn{animation:none}}
 .tab.active::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
   background:linear-gradient(180deg,transparent,var(--hi) 30%,var(--hi) 70%,transparent);
   box-shadow:0 0 12px rgba(232,148,58,.6)}
@@ -525,7 +541,13 @@ input,select,textarea{font:inherit;color:inherit;
 .tab[data-tab="dashboard"]{color:#f5d76e}
 .tab[data-tab="dashboard"] .num{color:rgba(245,215,110,.55)}
 .tab[data-tab="dashboard"]:hover{color:#fae29a;background:rgba(245,215,110,.05)}
-.tab[data-tab="dashboard"].active{color:#fae29a;background:linear-gradient(90deg,rgba(245,215,110,.18),rgba(245,215,110,.03) 70%);text-shadow:0 0 12px rgba(245,215,110,.4)}
+.tab[data-tab="dashboard"].active{color:#fae29a;
+  background:
+    radial-gradient(circle at 25% 75%, rgba(250,215,110,.30), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(240,170,60,.20), transparent 42%),
+    linear-gradient(90deg,rgba(245,215,110,.18),rgba(245,215,110,.03) 70%);
+  background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
+  text-shadow:0 0 12px rgba(245,215,110,.4)}
 .tab[data-tab="dashboard"].active::before{background:linear-gradient(180deg,transparent,#f5d76e 30%,#f5d76e 70%,transparent);box-shadow:0 0 12px rgba(245,215,110,.6)}
 .tab[data-tab="dashboard"].active .num{color:#fae29a}
 /* tour-level reference tabs (no per-day data) — kept in the same sidebar,
@@ -537,7 +559,13 @@ input,select,textarea{font:inherit;color:inherit;
   padding:0 6px;font-family:'JetBrains Mono',monospace;font-size:8.5px;letter-spacing:.18em;color:rgba(138,169,216,.55)}
 .tab.tab-fixed .num{color:rgba(138,169,216,.4)}
 .tab.tab-fixed:hover{color:#b1c8ee;background:rgba(138,169,216,.06)}
-.tab.tab-fixed.active{color:#b1c8ee;background:linear-gradient(90deg,rgba(138,169,216,.16),rgba(138,169,216,.03) 70%);text-shadow:0 0 10px rgba(138,169,216,.35);font-weight:700}
+.tab.tab-fixed.active{color:#b1c8ee;
+  background:
+    radial-gradient(circle at 25% 75%, rgba(138,169,216,.30), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(122,169,255,.20), transparent 42%),
+    linear-gradient(90deg,rgba(138,169,216,.16),rgba(138,169,216,.03) 70%);
+  background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
+  text-shadow:0 0 10px rgba(138,169,216,.35);font-weight:700}
 .tab.tab-fixed.active::before{background:linear-gradient(180deg,transparent,#b1c8ee 30%,#b1c8ee 70%,transparent);box-shadow:0 0 12px rgba(138,169,216,.5)}
 .tab.tab-fixed.active .num{color:#b1c8ee}
 /* Local Recs gets a slightly cooler, lighter blue tint so it visually
@@ -552,7 +580,12 @@ input,select,textarea{font:inherit;color:inherit;
   text-shadow:0 0 8px rgba(140,120,255,.5);animation:godpulse 2.4s ease-in-out infinite}
 .tab.tab-god .num{color:rgba(201,179,255,.6)}
 .tab.tab-god:hover{color:#e3d6ff;background:rgba(140,120,255,.14)}
-.tab.tab-god.active{color:#e3d6ff;background:linear-gradient(90deg,rgba(140,120,255,.22),rgba(140,120,255,.04) 70%);
+.tab.tab-god.active{color:#e3d6ff;
+  background:
+    radial-gradient(circle at 25% 75%, rgba(255,60,180,.28), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(140,90,255,.30), transparent 42%),
+    linear-gradient(90deg,rgba(140,120,255,.22),rgba(140,120,255,.04) 70%);
+  background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
   text-shadow:0 0 12px rgba(140,120,255,.7)}
 .tab.tab-god.active::before{background:linear-gradient(180deg,transparent,#a78bff 30%,#a78bff 70%,transparent);box-shadow:0 0 14px rgba(140,120,255,.7)}
 .tab.tab-god[hidden]{display:none!important}
@@ -2745,7 +2778,14 @@ body.print-tourbook-mode #tourBookArea{display:block!important;position:fixed;in
 .travel-assist-btn{
   display:inline-flex;align-items:center;gap:8px;
   padding:9px 14px;border-radius:8px;
-  background:linear-gradient(135deg,rgba(138,169,216,.18),rgba(138,169,216,.04));
+  /* Flames-in-glass: two cool-ember blobs drifting (layers 1-2) under the
+     original tint (layer 3, static). Shares the tabFlame keyframes. */
+  background:
+    radial-gradient(circle at 25% 75%, rgba(138,169,216,.38), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(140,120,255,.28), transparent 42%),
+    linear-gradient(135deg,rgba(138,169,216,.18),rgba(138,169,216,.04));
+  background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 8s ease-in-out infinite alternate;
   border:1px solid rgba(138,169,216,.5);
   color:#cfdef0;font-family:'Inter',sans-serif;font-weight:700;font-size:12px;letter-spacing:.05em;
   box-shadow:inset 0 1px 0 rgba(138,169,216,.15),0 0 14px rgba(138,169,216,.18);
@@ -23813,6 +23853,7 @@ function _tourMenuItemsHTML() {
           <span class="ts-tour-text">
             <span class="ts-name">${esc(t.name || 'Untitled tour')}${isUnsynced ? ' <span class="ts-unsynced" title="Not synced to cloud — local only">⚠ local</span>' : ''}</span>
             <span class="ts-meta">${esc(t.meta?.artist || '—')} · ${dateRange}</span>
+            ${isGod ? `<span class="ts-meta" style="color:#a99bd8">◆ ${esc(t.ownerName || t.ownerEmail || 'Unknown owner')}${t.ownerName && t.ownerEmail ? ' · ' + esc(t.ownerEmail) : ''}</span>` : ''}
           </span>
           <span class="ts-count">${(t.dates||[]).length}d</span>
         </button>
