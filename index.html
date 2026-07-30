@@ -383,7 +383,26 @@ input,select,textarea{font:inherit;color:inherit;
 .day-pill.s-off .pstatus{background:#8aa9d8;box-shadow:0 0 6px rgba(138,169,216,.4)}
 .day-pill.s-press .pstatus{background:#f5d76e;box-shadow:0 0 6px rgba(245,215,110,.55)}
 .day-pill.s-rehearsal .pstatus{background:#b89ad8;box-shadow:0 0 6px rgba(184,154,216,.55)}
-.day-pill.is-today{outline:1px solid var(--hot);outline-offset:-1px}
+/* TODAY — the pill matching the real calendar date burns.
+   The strip sets .is-today on EXACT date equality (never a nearest-match),
+   so at most one pill ever lights up, and a tour built in advance or
+   already finished shows no flames at all. Two rules because .active sets
+   its own background above — the .is-today.active pairing keeps the
+   selected-day treatment while still burning. */
+.day-pill.is-today{outline:1px solid var(--hot);outline-offset:-1px;
+  background:
+    radial-gradient(circle at 22% 78%, rgba(255,122,31,.30), transparent 46%),
+    radial-gradient(circle at 72% 26%, rgba(255,70,20,.20), transparent 42%),
+    linear-gradient(135deg,rgba(232,148,58,.05),rgba(232,148,58,.01));
+  background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 7s ease-in-out infinite alternate}
+.day-pill.is-today.active{
+  background:
+    radial-gradient(circle at 22% 78%, rgba(255,122,31,.34), transparent 46%),
+    radial-gradient(circle at 72% 26%, rgba(255,70,20,.24), transparent 42%),
+    linear-gradient(135deg,rgba(232,148,58,.18),rgba(232,148,58,.04));
+  background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat}
+@media (prefers-reduced-motion: reduce){.day-pill.is-today{animation:none}}
 .day-strip-actions{display:flex;align-items:center;gap:6px;flex:none}
 .day-add-btn{
   padding:8px 12px;border:1px dashed var(--line-glow);border-radius:9px;color:var(--hi);
