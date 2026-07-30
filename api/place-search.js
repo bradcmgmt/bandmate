@@ -92,8 +92,18 @@ module.exports = async function handler(req, res) {
 
     // Bias the text query with the city so "Estrel" in a Berlin date finds
     // the Berlin property, not a same-named place elsewhere.
-    const textQuery = city ? `${query} ${kind === 'hotel' ? 'hotel' : ''} ${city}`.replace(/\s+/g, ' ').trim()
-                           : `${query}${kind === 'hotel' ? ' hotel' : ''}`;
+    //
+    // BUT don't duplicate it: many curated venue names already END in the
+    // city ("Fillmore Auditorium Denver"), and asking Google for
+    // "Fillmore Auditorium Denver Denver, CO" returns poor or no results.
+    // Only append the city when the query doesn't already mention it.
+    const cityWord = city.split(',')[0].trim();          // "Denver, CO" → "Denver"
+    const qLower = query.toLowerCase();
+    const needsCity = cityWord && !qLower.includes(cityWord.toLowerCase());
+    const parts = [query];
+    if (kind === 'hotel' && !/\bhotel\b/i.test(query)) parts.push('hotel');
+    if (needsCity) parts.push(city);
+    const textQuery = parts.join(' ').replace(/\s+/g, ' ').trim();
     const payload = { textQuery, maxResultCount: 8 };
     // 'lodging' narrows hotels hard. Venues are wildly varied (theaters,
     // clubs, arenas, festival grounds) so we leave those unrestricted.
