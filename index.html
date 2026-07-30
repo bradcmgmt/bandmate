@@ -15310,7 +15310,9 @@ function _userVenueHistory() {
       const key = (name + '|' + city).toLowerCase();
       if (seen.has(key)) return;
       seen.add(key);
-      out.push({ name, city });
+      // Carry the stored venue address so picking a venue you've played
+      // before fills the address box without any API call.
+      out.push({ name, city, address: (d.venueAddress || '').trim() });
     });
   });
   return out;
@@ -15480,22 +15482,55 @@ function _acApplyPick(input, pick) {
     el.value = val;
     el.dispatchEvent(new Event('input', { bubbles: true }));
   };
+  const city = d.city || _acCityContext(input);
   fill(addrEl, d.address);
   fill(phoneEl, d.phone);
-  // Already a full record (cache hit) → just make sure it's cached.
-  if (d.source === 'cache') return;
-  if (!d.placeId) return;
-  // Google hit → pull details for the phone + canonical city, fill, cache.
-  _placeApiDetails(d.placeId).then(full => {
-    if (!full) { _placeCacheSave(kind, { ...d, city: _acCityContext(input) }); return; }
-    if (addrEl && !addrEl.value) fill(addrEl, full.address);
-    if (phoneEl && !phoneEl.value) fill(phoneEl, full.phone);
-    _placeCacheSave(kind, {
-      name: pick.value, city: full.city || _acCityContext(input),
-      address: full.address || d.address, phone: full.phone,
-      website: full.website, placeId: full.placeId || d.placeId,
+
+  // Came from Google → pull details for the phone + canonical city, then
+  // contribute the finished record to the shared cache.
+  if (d.placeId) {
+    _placeApiDetails(d.placeId).then(full => {
+      if (!full) { _placeCacheSave(kind, { ...d, name: pick.value, city }); return; }
+      if (addrEl && !addrEl.value) fill(addrEl, full.address);
+      if (phoneEl && !phoneEl.value) fill(phoneEl, full.phone);
+      _placeCacheSave(kind, {
+        name: pick.value, city: full.city || city,
+        address: full.address || d.address, phone: full.phone,
+        website: full.website, placeId: full.placeId || d.placeId,
+      });
     });
-  });
+    return;
+  }
+
+  // No place id and still no address — this is a curated venue or an older
+  // history entry. Resolve it with ONE search on pick (not per keystroke),
+  // fill the address, and cache it so nobody pays for this lookup again.
+  if (addrEl && !addrEl.value) {
+    // Visible feedback — a silent no-op here is impossible to debug.
+    const ph0 = addrEl.placeholder;
+    addrEl.placeholder = 'Looking up address…';
+    const done = (msg) => { addrEl.placeholder = msg || ph0; };
+    _placeApiSearch(kind, pick.value, city).then(rows => {
+      const hit = rows && rows[0];
+      if (!hit || !hit.address) {
+        done(_placeApiConfigured === false ? 'Address lookup not configured — type it here' : 'No address found — type it here');
+        setTimeout(() => { if (!addrEl.value) addrEl.placeholder = ph0; }, 6000);
+        return;
+      }
+      if (!addrEl.value) fill(addrEl, hit.address);
+      done();
+      if (!hit.placeId) { _placeCacheSave(kind, { name: pick.value, city, address: hit.address }); return; }
+      _placeApiDetails(hit.placeId).then(full => {
+        if (full && phoneEl && !phoneEl.value) fill(phoneEl, full.phone);
+        _placeCacheSave(kind, {
+          name: pick.value, city: (full && full.city) || city,
+          address: (full && full.address) || hit.address,
+          phone: full && full.phone, website: full && full.website,
+          placeId: (full && full.placeId) || hit.placeId,
+        });
+      });
+    }).catch(() => done());
+  }
 }
 
 // Debounced tier-2 + tier-3 search. Merges into whatever local results are
@@ -15561,7 +15596,7 @@ function _acSourceVenue(query, cityFilter) {
   const isRehearsalDate = statusSel && statusSel.value === 'rehearsal';
   const pool = [];
   // User history first (always highest priority — what the TM actually uses)
-  _userVenueHistory().forEach(v => pool.push({ value: v.name, city: v.city, isHistory: true, isRehearsal: false }));
+  _userVenueHistory().forEach(v => pool.push({ value: v.name, city: v.city, address: v.address || '', isHistory: true, isRehearsal: false }));
   // Curated touring venues
   TOURING_VENUES.forEach(v => pool.push({ value: v.name, city: v.city, isHistory: false, isRehearsal: false }));
   // Curated rehearsal studios — always in the pool, sorted by date type below
@@ -15593,7 +15628,10 @@ function _acSourceVenue(query, cityFilter) {
   });
   return matched.slice(0, 12).map(v => ({
     value: v.value,
-    sub: (v.isRehearsal ? 'Rehearsal · ' : '') + (v.city || ''),
+    sub: (v.isRehearsal ? 'Rehearsal · ' : '') + [v.city, v.address].filter(Boolean).join(' · '),
+    // Payload so picking a venue fills the Venue address field. Curated
+    // venues carry no address — _acApplyPick resolves those on pick.
+    data: { source: 'local', city: v.city || '', address: v.address || '' },
   }));
 }
 // Tier 1 — hotels this account has used. City-aware and rank-ordered, and
