@@ -15315,15 +15315,53 @@ function _userVenueHistory() {
   });
   return out;
 }
-function _userHotelHistory() {
-  const out = new Set();
+// Every hotel this account has actually used — WITH the address / phone /
+// city already stored on the stay. Keeping those fields is what lets a
+// local pick autofill the address, and what lets us rank by city instead
+// of dumping every hotel you've ever booked into the dropdown.
+function _userHotelRecords() {
+  const byKey = new Map();
   if (!state || !state.tours) return [];
   Object.values(state.tours).forEach(t => {
     (t.dates || []).forEach(d => {
-      (d.hotels || []).forEach(s => { const name = (s.name || '').trim(); if (name) out.add(name); });
+      (d.hotels || []).forEach(s => {
+        const name = (s.name || '').trim();
+        if (!name) return;
+        const city = (s.city || d.city || '').trim();
+        const key = (name + '|' + city).toLowerCase();
+        const prev = byKey.get(key);
+        const rec = {
+          name, city,
+          address: (s.address || (prev && prev.address) || '').trim(),
+          phone: (s.phone || (prev && prev.phone) || '').trim(),
+        };
+        // Keep the richest copy — a later stay may have gained an address.
+        if (!prev || (rec.address && !prev.address)) byKey.set(key, rec);
+      });
     });
   });
-  return Array.from(out).sort();
+  return Array.from(byKey.values());
+}
+// Name-only list, kept for any caller that just wants strings.
+function _userHotelHistory() {
+  return _userHotelRecords().map(r => r.name).sort();
+}
+
+// Cross-tier duplicate detection. The same property comes back from
+// different tiers with slightly different names ("Estrel Hotel Berlin" vs
+// "Estrel Berlin") and addresses ("12057 Berlin" vs "12057 Berlin-Bezirk
+// Neukölln"), so we match on a de-noised name OR the street line.
+function _acDedupeKeys(name, address) {
+  const keys = [];
+  const n = String(name || '').toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\b(hotel|hotels|the|by|and|a)\b/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+  if (n) keys.push('n:' + n);
+  const street = String(address || '').split(',')[0].toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (street.length > 4) keys.push('a:' + street);
+  return keys;
 }
 
 // Suggestion-source functions. Each returns an array of { value, sub }
@@ -15479,24 +15517,26 @@ function _acRemoteFetch(input, query, kind) {
     if (seq !== _acRemoteSeq) return;                  // a newer keystroke won
     if (_acActiveInput !== input) return;              // focus moved on
     if ((input.value || '').trim() !== query) return;  // query changed
-    const seen = new Set(_acSuggestions.map(s => String(s.value).toLowerCase()));
+    // Fuzzy, cross-tier dedupe: the same property must never appear twice
+    // just because Google and our cache spell it differently.
+    const seen = new Set();
+    _acSuggestions.forEach(s => _acDedupeKeys(s.value, s.data && s.data.address).forEach(k => seen.add(k)));
     const add = [];
-    cacheRows.forEach(r => {
-      const k = String(r.name || '').toLowerCase();
-      if (!k || seen.has(k)) return;
-      seen.add(k);
-      add.push({
-        value: r.name,
-        sub: [r.city, r.address].filter(Boolean).join(' · ') + (r.bus_parking ? '  🚌 bus parking' : ''),
-        data: { source: 'cache', address: r.address, phone: r.phone, city: r.city, website: r.website, placeId: r.place_id },
-      });
-    });
-    remote.forEach(r => {
-      const k = String(r.name || '').toLowerCase();
-      if (!k || seen.has(k)) return;
-      seen.add(k);
-      add.push({ value: r.name, sub: r.address, data: { source: 'google', address: r.address, placeId: r.placeId } });
-    });
+    const tryAdd = (item) => {
+      const keys = _acDedupeKeys(item.value, item.data && item.data.address);
+      if (!keys.length || keys.some(k => seen.has(k))) return;
+      keys.forEach(k => seen.add(k));
+      add.push(item);
+    };
+    cacheRows.forEach(r => tryAdd({
+      value: r.name,
+      sub: [r.city, r.address].filter(Boolean).join(' · ') + (r.bus_parking ? '  🚌 bus parking' : ''),
+      data: { source: 'cache', address: r.address, phone: r.phone, city: r.city, website: r.website, placeId: r.place_id },
+    }));
+    remote.forEach(r => tryAdd({
+      value: r.name, sub: r.address,
+      data: { source: 'google', address: r.address, placeId: r.placeId },
+    }));
     if (!add.length) return;
     _acSuggestions = _acSuggestions.concat(add).slice(0, 12);
     _acRender(input, query);
@@ -15556,9 +15596,40 @@ function _acSourceVenue(query, cityFilter) {
     sub: (v.isRehearsal ? 'Rehearsal · ' : '') + (v.city || ''),
   }));
 }
-function _acSourceHotel(query) {
-  const q = query.toLowerCase();
-  return _userHotelHistory().filter(h => h.toLowerCase().includes(q)).slice(0, 12).map(value => ({ value }));
+// Tier 1 — hotels this account has used. City-aware and rank-ordered, and
+// it carries an address/phone payload so picking one autofills those fields.
+const _AC_HOTEL_MIN_Q = 2;
+function _acSourceHotel(query, city) {
+  const q = String(query || '').toLowerCase().trim();
+  // A single letter used to list every hotel ever booked — useless noise.
+  if (q.length < _AC_HOTEL_MIN_Q) return [];
+  const ck = String(city || '').toLowerCase().trim();
+  const cityMatch = (c) => {
+    const v = String(c || '').toLowerCase().trim();
+    if (!ck || !v) return false;
+    return v === ck || v.includes(ck) || ck.includes(v);
+  };
+  const esc_ = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const scored = _userHotelRecords()
+    .filter(r => r.name.toLowerCase().includes(q))
+    .map(r => {
+      const n = r.name.toLowerCase();
+      let score = 0;
+      if (cityMatch(r.city)) score += 4;                              // right city wins
+      if (n.startsWith(q)) score += 2;                                // name starts with it
+      else if (new RegExp('\\b' + esc_(q)).test(n)) score += 1;       // word-start match
+      return { r, score };
+    });
+  // Once there are same-city hits, don't dilute them with far-away hotels —
+  // that's what produced New Orleans / Phoenix results on a Berlin date.
+  const cityHits = scored.filter(x => x.score >= 4);
+  const pool = cityHits.length ? cityHits : scored;
+  pool.sort((a, b) => (b.score - a.score) || a.r.name.localeCompare(b.r.name));
+  return pool.slice(0, 8).map(({ r }) => ({
+    value: r.name,
+    sub: [r.city, r.address].filter(Boolean).join(' · '),
+    data: { source: 'local', address: r.address, phone: r.phone, city: r.city },
+  }));
 }
 
 // One shared dropdown element, repositioned to whichever input is active.
@@ -15660,7 +15731,7 @@ function _wireAutocomplete(input) {
     const type = input.dataset.ac;
     if (type === 'city')        _acSuggestions = _acSourceCity(query);
     else if (type === 'venue')  _acSuggestions = _acSourceVenue(query, getCityFilter());
-    else if (type === 'hotel')  _acSuggestions = _acSourceHotel(query);
+    else if (type === 'hotel')  _acSuggestions = _acSourceHotel(query, _acCityContext(input));
     else                        _acSuggestions = [];
     // Hotels + venues also search the shared cache and (if configured) Google.
     // Local matches paint instantly; remote ones merge in when they land.
