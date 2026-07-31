@@ -55,13 +55,25 @@
 html,body{margin:0;padding:0;background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 body{
   min-height:100vh;
+  /* Ambient stage-light canvas: the glow fields DRIFT slowly (canvasBreathe)
+     like stage wash bleeding onto the desk. A fourth ember sits bottom-right.
+     The 1px grain layer stays pinned at 0 0 in every keyframe. */
   background:
     radial-gradient(1100px 540px at 50% -10%,rgba(232,148,58,.18),transparent 55%),
     radial-gradient(900px 500px at 100% 30%,rgba(196,115,35,.10),transparent 60%),
     radial-gradient(800px 600px at -5% 90%,rgba(255,122,31,.08),transparent 60%),
+    radial-gradient(700px 520px at 85% 95%,rgba(232,110,40,.10),transparent 55%),
     radial-gradient(circle at 1px 1px,rgba(232,148,58,.045) 1px,transparent 1px) 0 0/24px 24px,
     var(--ink);
+  background-repeat:no-repeat,no-repeat,no-repeat,no-repeat,repeat;
+  animation:canvasBreathe 24s ease-in-out infinite alternate;
 }
+@keyframes canvasBreathe{
+  0%{background-position:0px 0px, 0px 0px, 0px 0px, 0px 0px, 0 0}
+  50%{background-position:34px 18px, -42px 26px, 28px -30px, -30px -22px, 0 0}
+  100%{background-position:-24px 30px, 26px -20px, -34px 22px, 24px 30px, 0 0}
+}
+@media (prefers-reduced-motion: reduce){body{animation:none}}
 body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
   background:repeating-linear-gradient(0deg,rgba(232,148,58,.03) 0 1px,transparent 1px 4px);
   mix-blend-mode:overlay;opacity:.4}
@@ -879,32 +891,47 @@ body.admin-active .stage{grid-template-columns:1fr!important}
 .bm-dash-head .h-status.travel{background:rgba(138,169,216,.12);border-color:rgba(138,169,216,.42);color:#b1c8ee}
 .bm-dash-head .h-status.press{background:rgba(232,180,58,.10);border-color:rgba(232,180,58,.4);color:#f5d76e}
 .bm-dash-head .h-status.rehearsal{background:rgba(184,154,216,.12);border-color:rgba(184,154,216,.42);color:#cdb5e8}
+/* LIVE — the viewed date IS today (real calendar): the chip burns. Placed
+   after the per-status rules so it wins for any day type. */
+.bm-dash-head .h-status.live{
+  border-color:rgba(255,122,31,.5);color:#ffb27a;
+  background:
+    radial-gradient(circle at 25% 75%, rgba(255,122,31,.24), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,70,20,.16), transparent 42%),
+    rgba(255,122,31,.05);
+  background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 6s ease-in-out infinite alternate}
+.bm-dash-head .h-status.live::before{content:"";width:6px;height:6px;border-radius:50%;flex:none;
+  background:var(--hot);box-shadow:0 0 8px rgba(255,122,31,.8)}
+@media (prefers-reduced-motion: reduce){.bm-dash-head .h-status.live{animation:none}}
 
-.bm-hero-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;
-  padding:14px 16px;border:1px solid var(--line);border-radius:10px;
-  background:linear-gradient(180deg,rgba(232,148,58,.06),rgba(20,13,7,.5))}
-.bm-hero-tile{display:flex;flex-direction:column;gap:3px;padding:0 8px;border-right:1px solid var(--line)}
+/* Quiet panels, loud numbers — hierarchy from type + space, not boxes.
+   Panels are near-invisible (2% white, 10%-alpha hairline); the DATA is
+   what got louder: big thin numerals, muted eyebrows. */
+.bm-hero-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;
+  padding:18px 20px;border:1px solid rgba(232,148,58,.10);border-radius:14px;
+  background:rgba(255,255,255,.015)}
+.bm-hero-tile{display:flex;flex-direction:column;gap:5px;padding:0 10px;border-right:1px solid rgba(232,148,58,.08)}
 .bm-hero-tile:last-child{border-right:0}
-.bm-hero-tile .lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm-mute)}
-.bm-hero-tile .val{font-size:18px;font-weight:800;color:var(--warm);letter-spacing:-.01em}
-.bm-hero-tile .val.mono{font-family:'JetBrains Mono',monospace;font-size:16px}
+.bm-hero-tile .lbl{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.26em;text-transform:uppercase;color:var(--warm-mute)}
+.bm-hero-tile .val{font-size:30px;font-weight:300;color:var(--warm);letter-spacing:-.01em;line-height:1.05;font-variant-numeric:tabular-nums}
+.bm-hero-tile .val.mono{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:300}
 .bm-hero-tile .sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.08em}
 .bm-hero-tile .val.muted{color:var(--warm-mute);font-style:italic;font-size:13px;font-weight:500}
 
 .bm-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 @media (max-width:1200px){.bm-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:760px){.bm-cards{grid-template-columns:1fr}}
-.bm-card{background:linear-gradient(180deg,rgba(24,17,11,.9),rgba(17,12,8,.9));
-  border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;
-  min-height:140px;position:relative;overflow:hidden;
-  box-shadow:inset 0 1px 0 rgba(232,148,58,.04)}
+.bm-card{background:rgba(255,255,255,.015);
+  border:1px solid rgba(232,148,58,.10);border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:9px;
+  min-height:140px;position:relative;overflow:hidden}
 .bm-card::before{content:"";position:absolute;inset:0;pointer-events:none;
-  background:radial-gradient(400px 80px at 50% -10%,rgba(232,148,58,.06),transparent 70%)}
+  background:radial-gradient(400px 80px at 50% -10%,rgba(232,148,58,.03),transparent 70%)}
 .bm-card.span-2{grid-column:span 2}
 @media (max-width:760px){.bm-card.span-2{grid-column:span 1}}
-.bm-card .card-h{display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line);position:relative;z-index:1}
+.bm-card .card-h{display:flex;align-items:center;gap:8px;padding-bottom:9px;border-bottom:1px solid rgba(232,148,58,.08);position:relative;z-index:1}
 .bm-card .card-h .ic{color:var(--hi);font-family:'JetBrains Mono',monospace;font-size:12px}
-.bm-card .card-h .h{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--hi);font-weight:700;flex:1}
+.bm-card .card-h .h{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--warm-mute);font-weight:700;flex:1}
 .bm-card .card-h .count{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.1em}
 .bm-card .card-h .card-link{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);
   letter-spacing:.12em;text-transform:uppercase;cursor:pointer;text-decoration:none;border:1px solid var(--line-2);
@@ -2446,6 +2473,33 @@ input#tv_desc.is-auto{background:rgba(232,148,58,.05);border-color:rgba(232,148,
 .tb-btn.primary:hover{color:#0a0705;box-shadow:0 0 22px rgba(232,148,58,.45)}
 .tb-btn.danger{color:var(--red);border-color:rgba(232,69,69,.4);background:rgba(232,69,69,.03)}
 .tb-btn.danger:hover{color:#ff8080;border-color:var(--red);box-shadow:0 0 12px rgba(232,69,69,.2)}
+
+/* FLAME = THE ONE HIGHLIGHT LANGUAGE — the primary action in any zone
+   BURNS (drifting embers on dark glass); everything secondary goes quiet.
+   Overrides the solid-amber fills above (same selectors, later in cascade). */
+.console-head .actions .btn.primary,
+.modal-foot .btn.primary,
+.tb-btn.primary{
+  background:
+    radial-gradient(circle at 25% 75%, rgba(255,150,45,.40), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,80,25,.26), transparent 42%),
+    linear-gradient(135deg, rgba(60,32,12,.92), rgba(28,16,8,.92));
+  background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 8s ease-in-out infinite alternate;
+  color:#ffd9ae;border-color:rgba(255,140,50,.55);font-weight:700;
+  box-shadow:0 0 14px rgba(232,148,58,.20);text-shadow:0 1px 3px rgba(0,0,0,.55);
+}
+.console-head .actions .btn.primary:hover,
+.modal-foot .btn.primary:hover,
+.tb-btn.primary:hover{
+  color:#ffe9c9;border-color:#ff9c4a;box-shadow:0 0 22px rgba(232,148,58,.38);
+}
+/* Secondaries defer: quieter border + text so only the primary pulls the eye */
+.console-head .actions .btn{border-color:rgba(232,148,58,.14);color:var(--warm-mute)}
+.console-head .actions .btn:hover{color:var(--hi);border-color:var(--hi);box-shadow:0 0 12px rgba(232,148,58,.2)}
+@media (prefers-reduced-motion: reduce){
+  .console-head .actions .btn.primary,.modal-foot .btn.primary,.tb-btn.primary{animation:none}
+}
 
 
 /* ============ GUEST LIST APPROVAL ============ */
@@ -13400,7 +13454,7 @@ function renderDashboard() {
           <div class="h-loc">${esc([ad.venue, ad.city, ad.state, ad.country].filter(Boolean).join(' · ')) || '—'}</div>
         </div>
         <div class="h-right">
-          <span class="h-status ${statusClass}">${status}</span>
+          <span class="h-status ${statusClass}${ad.date === todayISO() ? ' live' : ''}">${status}${ad.date === todayISO() ? ' · LIVE' : ''}</span>
           <div style="display:flex;gap:6px;margin-top:4px">
             <button type="button" class="tb-btn" onclick="openImportData()">↑ Import</button>
             <button type="button" class="tb-btn primary" onclick="openTourScan()">⌕ Scan</button>
