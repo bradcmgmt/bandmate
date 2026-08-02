@@ -21720,9 +21720,9 @@ function renderAdminPanel() {
 
     <div class="god-sec">Subscriptions</div>
     <div class="god-grid">
-      ${tile('Paying', n(sub.paying), '', 'subs:paying')}
+      ${tile('Paying', n(sub.paying), 'via Stripe', 'subs:paying')}
       ${tile('Trialing', n(sub.trialing), '', 'subs:trialing')}
-      ${tile('Comp', n(sub.comp), '', 'subs:comp')}
+      ${tile('Comp', n(sub.comp), 'incl. manual grants', 'subs:comp')}
       ${tile('Past due', n(sub.past_due), `${n(sub.canceled)} canceled`, 'subs:pastdue')}
     </div>
 
@@ -21752,8 +21752,12 @@ function _godNum(v) { return (v == null ? 0 : Number(v)).toLocaleString(); }
 
 function _godUserTable(rows) {
   if (!rows || !rows.length) return `<div class="sub muted" style="padding:14px;font-style:italic">No accounts in this group.</div>`;
-  const subLabel = (u) => !u.sub_status ? '—'
-    : (String(u.sub_plan || '').toLowerCase() === 'comp' ? 'COMP' : String(u.sub_status).toUpperCase());
+  const subLabel = (u) => {
+    if (!u.sub_status) return '—';
+    const granted = String(u.sub_plan || '').toLowerCase() === 'comp' || u.sub_stripe === false;
+    if (granted && ['active', 'trialing'].includes(u.sub_status)) return 'COMP';
+    return String(u.sub_status).toUpperCase();
+  };
   const cols = 'grid-template-columns:minmax(180px,1.8fr) 64px 88px 108px 108px';
   return `<div class="god-scroll"><div class="tbl">
     <div class="contact-row" style="background:rgba(140,120,255,.06);font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#c9b3ff;${cols}">
@@ -21790,6 +21794,15 @@ function _godTourTable(rows) {
   </div></div>`;
 }
 
+// A user's best subscription is real Stripe billing (vs a manual/comp
+// grant). sub_stripe arrives from patch-038's god_platform_stats(); until
+// that patch runs the field is absent and we fall back to the old
+// plan-based guess so the drill-downs keep working.
+function _godIsStripeSub(u) {
+  return u.sub_stripe !== undefined ? !!u.sub_stripe
+    : String(u.sub_plan || '').toLowerCase() !== 'comp';
+}
+
 // Tile click-through: open the exact rows behind a stat as a scrollable modal.
 function _godDrill(kind) {
   const s = _godStatsCache;
@@ -21804,9 +21817,9 @@ function _godDrill(kind) {
     case 'users:tm':     title = 'Tour managers';            rows = users.filter(u => u.role === 'tm'); break;
     case 'users:crew':   title = 'Crew / band';              rows = users.filter(u => u.role === 'crew'); break;
     case 'users:active': title = 'Active in the last 7 days'; rows = users.filter(u => u.last_active && new Date(u.last_active).getTime() > sevenDaysAgo); break;
-    case 'subs:paying':   title = 'Paying subscribers';      rows = users.filter(u => activeSub(u) && String(u.sub_plan || '').toLowerCase() !== 'comp'); break;
-    case 'subs:trialing': title = 'Trialing';                rows = users.filter(u => u.sub_status === 'trialing'); break;
-    case 'subs:comp':     title = 'Comp accounts';           rows = users.filter(u => activeSub(u) && String(u.sub_plan || '').toLowerCase() === 'comp'); break;
+    case 'subs:paying':   title = 'Paying subscribers';      rows = users.filter(u => u.sub_status === 'active' && _godIsStripeSub(u) && String(u.sub_plan || '').toLowerCase() !== 'comp'); break;
+    case 'subs:trialing': title = 'Trialing';                rows = users.filter(u => u.sub_status === 'trialing' && _godIsStripeSub(u)); break;
+    case 'subs:comp':     title = 'Comp / manual grants';    rows = users.filter(u => activeSub(u) && (!_godIsStripeSub(u) || String(u.sub_plan || '').toLowerCase() === 'comp')); break;
     case 'subs:pastdue':  title = 'Past due / unpaid';       rows = users.filter(u => ['past_due', 'unpaid'].includes(u.sub_status)); break;
     case 'tours:all':        title = 'All tours';                     rows = tours; type = 'tour'; break;
     case 'tours:withdates':  title = 'Tours with dates';              rows = tours.filter(t => t.date_count > 0); type = 'tour'; break;
