@@ -40,6 +40,20 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Bebas+Neue&display=swap" rel="stylesheet" />
+<!-- Three.js for the interactive 3D landing bunny. Loaded LAZILY via
+     import('three') only when the landing screen is shown — signed-in
+     users never download it. Pinned version + integrity hashes. -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.184.0/build/three.module.js"
+  },
+  "integrity": {
+    "https://unpkg.com/three@0.184.0/build/three.module.js": "sha384-8FCZ1eVO6it4+pbec2aDtnTrwjWXZLJRC+MAGCIPDgsYnUrl/E0A2YlF8ioMKI/J",
+    "https://unpkg.com/three@0.184.0/build/three.core.js": "sha384-dw2ooPewaEIrAgl6oFDBmmBWCE9oW9LxRGcfwZ0hLvEprzo202wXl7vCYHRlSnOT"
+  }
+}
+</script>
 
 <style>
 /* Bricolage Grotesque -- self-hosted variable font (wght 200-800), base64-embedded
@@ -575,7 +589,7 @@ input,select,textarea{font:inherit;color:inherit;
   50%{background-position:65% 15%, 25% 85%, 0 0}
   100%{background-position:100% 70%, 0% 35%, 0 0}
 }
-@media (prefers-reduced-motion: reduce){.tab.active,.travel-assist-btn,.phone-hide-btn,.phone-expand-btn{animation:none}}
+@media (prefers-reduced-motion: reduce){.tab.active,.travel-assist-btn,.phone-hide-btn,.phone-expand-btn,.landing-btn{animation:none}}
 .tab.active::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
   background:linear-gradient(180deg,transparent,var(--hi) 30%,var(--hi) 70%,transparent);
   box-shadow:0 0 12px rgba(232,148,58,.6)}
@@ -3318,6 +3332,14 @@ body.travel-assistant-mode #travelAssistantArea{
   100% {transform:rotateY(360deg); filter:drop-shadow(0 0 12px rgba(232,148,58,.35))}
 }
 @media (prefers-reduced-motion:reduce){.landing-avatar{animation:none;filter:drop-shadow(0 0 12px rgba(232,148,58,.35))}}
+/* Interactive 3D bunny (Three.js). The stage replaces the flat spinning
+   logo only once WebGL + the CDN module actually initialize (has-3d);
+   until then — and on any failure or reduced-motion — the <img> stays. */
+.bunny3d-stage{display:none;width:190px;height:210px;filter:drop-shadow(0 0 18px rgba(232,148,58,.30))}
+.bunny3d-stage canvas{display:block;width:100%;height:100%}
+.landing-mark.has-3d .bunny3d-stage{display:block}
+.landing-mark.has-3d .landing-avatar{display:none}
+@media (max-width:560px){.bunny3d-stage{width:140px;height:158px}}
 
 /* Wordmark logo now sits beneath the pitch (was at the top, before the
    avatar took over). Centered, sized down so it reads as a sign-off. */
@@ -3341,18 +3363,48 @@ body.travel-assistant-mode #travelAssistantArea{
   margin-bottom:36px;flex-wrap:wrap}
 .landing-btn{position:relative;display:flex;flex-direction:column;align-items:flex-start;
   gap:6px;padding:18px 28px;min-width:240px;text-align:left;cursor:pointer;
-  background:rgba(232,148,58,.04);border:1px solid var(--line-2);border-radius:12px;
+  /* Flames-in-glass: two faint ember blobs drifting (layers 1-2) under the
+     original glass tint (layer 3, static). Shares the tabFlame keyframes. */
+  background:
+    radial-gradient(circle at 25% 75%, rgba(255,150,45,.16), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,80,25,.11), transparent 42%),
+    rgba(232,148,58,.04);
+  background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 9s ease-in-out infinite alternate;
+  border:1px solid var(--line-2);border-radius:12px;
   font-family:'Inter',sans-serif;color:var(--warm);transition:all .15s ease}
-.landing-btn:hover{background:rgba(232,148,58,.08);border-color:var(--hi);
+/* Stagger duration + phase per card so the three don't drift in lockstep */
+.landing-cta .landing-btn:nth-child(2){animation-duration:11s;animation-delay:-4s}
+.landing-cta .landing-btn:nth-child(3){animation-duration:7.5s;animation-delay:-2s}
+.landing-btn:hover{
+  background:
+    radial-gradient(circle at 25% 75%, rgba(255,150,45,.24), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,80,25,.16), transparent 42%),
+    rgba(232,148,58,.08);
+  background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
+  border-color:var(--hi);
   transform:translateY(-2px);box-shadow:0 12px 28px -10px rgba(232,148,58,.4)}
 .landing-btn .lcta-eyebrow{font-family:'Bricolage Grotesque',monospace;font-size:10px;
   letter-spacing:.24em;color:var(--warm-mute);font-weight:700}
 .landing-btn .lcta-label{font-size:18px;font-weight:700;color:var(--warm);letter-spacing:-.005em}
-.landing-btn.primary{background:linear-gradient(135deg,rgba(232,148,58,.18),rgba(232,148,58,.06));
+.landing-btn.primary{
+  /* Hotter embers on the Sign up card — same drift, brighter blobs over
+     the original amber gradient (static layer 3). */
+  background:
+    radial-gradient(circle at 25% 75%, rgba(255,150,45,.38), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,80,25,.26), transparent 42%),
+    linear-gradient(135deg,rgba(232,148,58,.18),rgba(232,148,58,.06));
+  background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
   border-color:var(--hi);box-shadow:0 0 22px -4px rgba(232,148,58,.45),inset 0 1px 0 rgba(255,255,255,.04)}
 .landing-btn.primary .lcta-eyebrow{color:var(--hi)}
 .landing-btn.primary .lcta-label{color:#fff5e0}
-.landing-btn.primary:hover{box-shadow:0 0 32px -2px rgba(232,148,58,.6),0 12px 28px -10px rgba(232,148,58,.5)}
+.landing-btn.primary:hover{
+  background:
+    radial-gradient(circle at 25% 75%, rgba(255,150,45,.5), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,80,25,.34), transparent 42%),
+    linear-gradient(135deg,rgba(232,148,58,.24),rgba(232,148,58,.1));
+  background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
+  box-shadow:0 0 32px -2px rgba(232,148,58,.6),0 12px 28px -10px rgba(232,148,58,.5)}
 
 .landing-pitch{margin:0 auto 32px;max-width:560px;font-size:16px;line-height:1.65;
   color:var(--warm);font-weight:500;letter-spacing:.005em}
@@ -4703,6 +4755,7 @@ setTimeout(window._hideAppBoot,6000);
   <div class="landing-bg"></div>
   <div class="landing-content">
     <div class="landing-mark">
+      <div class="bunny3d-stage" id="bunny3dStage" aria-hidden="true"></div>
       <img src="avatar.png" class="landing-avatar" alt="Bandmate" />
     </div>
 
@@ -24810,6 +24863,371 @@ try {
   document.addEventListener('touchstart', _bgVideoKick, { passive: true });
 } catch (e) {}
 
+// ── Interactive 3D landing bunny ─────────────────────────────────────
+// Ported from "Bunny Logo 3D.html": the logo silhouette extruded in
+// Three.js — follows the cursor, blinks, idles (nose twitch, head tilt,
+// ear perk, glance, ear flop), hops on click, spins every 3rd click.
+// Three.js loads lazily from the CDN only when the landing screen shows,
+// so signed-in users never download it. On ANY failure (no WebGL, CDN
+// blocked, reduced motion) the flat spinning <img> logo simply stays.
+let _bunny3dTried = false;
+function initLandingBunny3D() {
+  if (_bunny3dTried) return;
+  const stage = document.getElementById('bunny3dStage');
+  const mark = stage && stage.closest('.landing-mark');
+  if (!stage || !mark) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  _bunny3dTried = true;
+  import('three').then((THREE) => {
+    mark.classList.add('has-3d');            // stage must be visible to measure
+    try { _bunny3dBuild(THREE, stage); }
+    catch (e) {
+      mark.classList.remove('has-3d');
+      console.warn('[bunny3d] init failed — keeping flat logo', e);
+    }
+  }).catch((e) => {
+    _bunny3dTried = false;                   // CDN hiccup — allow a retry next time
+    console.warn('[bunny3d] three.js unavailable — keeping flat logo', e);
+  });
+}
+
+function _bunny3dBuild(THREE, stage) {
+  const AMBER = 0xd9921f, WHITE = 0xfdfbf6;
+  let W = stage.clientWidth || 190, H = stage.clientHeight || 210;
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.18;
+  renderer.setSize(W, H);
+  stage.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  // A touch further back than the full-window original so hops stay in frame.
+  const camera = new THREE.PerspectiveCamera(38, W / H, 0.1, 50);
+  camera.position.set(0, 0.85, 3.45);
+  camera.lookAt(0, 0.62, 0);
+
+  scene.add(new THREE.AmbientLight(0xfff6e8, 0.25));
+  // Procedural studio environment for realistic reflections.
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envScene = new THREE.Scene();
+  envScene.background = new THREE.Color(0x807a70);
+  function panel(w, h, color, x, y, z, ry, rx) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
+    m.position.set(x, y, z); m.rotation.y = ry || 0; m.rotation.x = rx || 0;
+    envScene.add(m);
+  }
+  panel(6, 4, 0xffffff, 2.5, 3.2, 1.5, -0.8, -0.9);   // key softbox
+  panel(4, 3, 0xfff0d8, -3.5, 1.5, 0.5, 1.1, 0);      // warm fill card
+  panel(3, 4, 0xcfd8e8, 0.5, 1.2, -3.5, Math.PI, 0);  // cool rim card
+  panel(8, 8, 0xb0a898, 0, -1.5, 0, 0, Math.PI / 2);  // floor bounce
+  scene.environment = pmrem.fromScene(envScene, 0.06).texture;
+  pmrem.dispose();
+  const key = new THREE.DirectionalLight(0xffffff, 1.1);
+  key.position.set(2.2, 3.5, 2.5); scene.add(key);
+  const rim = new THREE.DirectionalLight(0xffe2b0, 0.5);
+  rim.position.set(-2.5, 1.5, -2); scene.add(rim);
+  const fill = new THREE.DirectionalLight(0xdfeaff, 0.35);
+  fill.position.set(-1.5, 0.8, 3); scene.add(fill);
+
+  // Bunny built from the logo silhouette (656 x 1233 px, 0.001 px->m).
+  const S = 0.001;
+  function roundedRect(w, h, r) {
+    const sh = new THREE.Shape();
+    sh.moveTo(-w / 2 + r, -h / 2);
+    sh.lineTo(w / 2 - r, -h / 2); sh.absarc(w / 2 - r, -h / 2 + r, r, -Math.PI / 2, 0, false);
+    sh.lineTo(w / 2, h / 2 - r); sh.absarc(w / 2 - r, h / 2 - r, r, 0, Math.PI / 2, false);
+    sh.lineTo(-w / 2 + r, h / 2); sh.absarc(-w / 2 + r, h / 2 - r, r, Math.PI / 2, Math.PI, false);
+    sh.lineTo(-w / 2, -h / 2 + r); sh.absarc(-w / 2 + r, -h / 2 + r, r, Math.PI, 1.5 * Math.PI, false);
+    return sh;
+  }
+  const body = new THREE.Shape(); // full one-piece silhouette
+  body.moveTo(110, 0);
+  body.lineTo(546, 0);
+  body.absarc(546, 110, 110, -Math.PI / 2, 0, false);
+  body.lineTo(656, 1124);
+  body.absarc(547, 1124, 109, 0, Math.PI, false);      // right ear cap
+  body.lineTo(438, 840);
+  body.absarc(328, 840, 110, 0, Math.PI, true);        // notch between ears
+  body.lineTo(218, 1124);
+  body.absarc(109, 1124, 109, 0, Math.PI, false);      // left ear cap
+  body.lineTo(0, 110);
+  body.absarc(110, 110, 110, Math.PI, 1.5 * Math.PI, false);
+  body.closePath();
+
+  const DEPTH = 110;
+  const bodyGeo = new THREE.ExtrudeGeometry(body, {
+    depth: DEPTH, curveSegments: 96,
+    bevelEnabled: true, bevelThickness: 34, bevelSize: 34, bevelSegments: 12
+  });
+  bodyGeo.scale(S, S, S);
+  bodyGeo.translate(-0.328, 0.034, -(DEPTH * S) / 2);
+  // Subtle surface grain so the material reads as molded, not CG-perfect.
+  const bumpCanvas = document.createElement('canvas');
+  bumpCanvas.width = bumpCanvas.height = 256;
+  const bctx = bumpCanvas.getContext('2d');
+  const bimg = bctx.createImageData(256, 256);
+  for (let i = 0; i < bimg.data.length; i += 4) {
+    const v = 118 + Math.random() * 20;
+    bimg.data[i] = bimg.data[i + 1] = bimg.data[i + 2] = v; bimg.data[i + 3] = 255;
+  }
+  bctx.putImageData(bimg, 0, 0);
+  const bumpTex = new THREE.CanvasTexture(bumpCanvas);
+  bumpTex.wrapS = bumpTex.wrapT = THREE.RepeatWrapping;
+  bumpTex.repeat.set(6, 6);
+  const matBody = new THREE.MeshPhysicalMaterial({ color: AMBER, roughness: 0.48, metalness: 0.0,
+    clearcoat: 0.25, clearcoatRoughness: 0.6, sheen: 0.4, sheenColor: 0xffd9a0,
+    bumpMap: bumpTex, bumpScale: 0.6, envMapIntensity: 0.85 });
+  const matFace = new THREE.MeshPhysicalMaterial({ color: WHITE, roughness: 0.32, metalness: 0.0, clearcoat: 0.3, clearcoatRoughness: 0.4, envMapIntensity: 0.85 });
+  const bunny = new THREE.Group();
+  bunny.add(new THREE.Mesh(bodyGeo, matBody));
+
+  // Smooth ear bend: deform the one-piece geometry, no seams.
+  const oPos = bodyGeo.attributes.position.array.slice();
+  const oNor = bodyGeo.attributes.normal.array.slice();
+  const Y0 = 0.80, Y1 = 1.18; // bend ramp (world y, post-scale)
+  let curL = 0, curR = 0;
+  function applyEarBend(aL, aR) {
+    if (Math.abs(aL - curL) < 1e-4 && Math.abs(aR - curR) < 1e-4) return;
+    curL = aL; curR = aR;
+    const pos = bodyGeo.attributes.position.array;
+    const nor = bodyGeo.attributes.normal.array;
+    for (let i = 0; i < pos.length; i += 3) {
+      const x = oPos[i], y = oPos[i + 1], z = oPos[i + 2];
+      if (y <= Y0) continue;
+      const a = (x < 0 ? aL : aR);
+      if (a === 0) { pos[i] = x; pos[i + 1] = y; pos[i + 2] = z; nor[i] = oNor[i]; nor[i + 1] = oNor[i + 1]; nor[i + 2] = oNor[i + 2]; continue; }
+      let w = (y - Y0) / (Y1 - Y0); if (w > 1) w = 1;
+      w = w * w * (3 - 2 * w); // smoothstep
+      const A = a * w, c = Math.cos(A), s = Math.sin(A);
+      pos[i] = x;
+      pos[i + 1] = Y0 + (y - Y0) * c - z * s;
+      pos[i + 2] = (y - Y0) * s + z * c;
+      const ny = oNor[i + 1], nz = oNor[i + 2];
+      nor[i + 1] = ny * c - nz * s;
+      nor[i + 2] = ny * s + nz * c;
+    }
+    bodyGeo.attributes.position.needsUpdate = true;
+    bodyGeo.attributes.normal.needsUpdate = true;
+  }
+  const ZF = (DEPTH * S) / 2 + 0.034 + 0.004; // just proud of the front face
+
+  function eye(x) {
+    const g = new THREE.CylinderGeometry(0.085, 0.081, 0.026, 64);
+    g.rotateX(Math.PI / 2);
+    const m = new THREE.Mesh(g, matFace);
+    m.position.set(x, 0.290, ZF);
+    return m;
+  }
+  const eyeL = eye(-0.138), eyeR = eye(0.134);
+  const noseGeo = new THREE.ExtrudeGeometry(roundedRect(100, 82, 26), {
+    depth: 14, curveSegments: 48, bevelEnabled: true, bevelThickness: 10, bevelSize: 10, bevelSegments: 6 });
+  noseGeo.scale(S, S, S);
+  const nose = new THREE.Mesh(noseGeo, matFace);
+  nose.position.set(0, 0.147, ZF - 0.004);
+  bunny.add(eyeL, eyeR, nose);
+  scene.add(bunny);
+
+  // ── interaction ────────────────────────────────────────────────────
+  // The look target tracks the cursor across the WHOLE page (same feel as
+  // the full-window original); the hover/raycast test is canvas-relative.
+  const landingEl = document.getElementById('landingScreen');
+  const visible = () => !!landingEl && !landingEl.hidden;
+  const lookPointer = new THREE.Vector2(0, 0);
+  const rayPointer = new THREE.Vector2(0, 0);
+  const ray = new THREE.Raycaster();
+  let hoveringBunny = false;
+  addEventListener('pointermove', (e) => {
+    if (!visible()) return;
+    lookPointer.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+    const r = renderer.domElement.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    rayPointer.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(rayPointer, camera);
+    hoveringBunny = ray.intersectObject(bunny, true).length > 0;
+    stage.style.cursor = hoveringBunny ? 'pointer' : 'default';
+  });
+
+  // hop / spin state
+  let hopT = -1, spinT = -1, clicks = 0;
+  const HOP_D = 0.85, SPIN_D = 1.0;
+  let blinkT = -1;
+
+  // particles
+  const burst = [];
+  const pGeoA = new THREE.SphereGeometry(0.022, 10, 8);
+  const pGeoB = new THREE.SphereGeometry(0.014, 10, 8);
+  function spawnBurst() {
+    for (let i = 0; i < 26; i++) {
+      const m = new THREE.Mesh(i % 3 ? pGeoA : pGeoB,
+        new THREE.MeshStandardMaterial({ color: i % 2 ? AMBER : 0xffffff, roughness: 0.5, transparent: true }));
+      const a = Math.random() * Math.PI * 2, r = 0.4 + Math.random() * 0.6;
+      m.position.set(0, 0.12, 0);
+      m.userData.v = new THREE.Vector3(Math.cos(a) * r, 1.6 + Math.random() * 1.4, Math.sin(a) * r);
+      m.userData.life = 1;
+      scene.add(m); burst.push(m);
+    }
+  }
+
+  renderer.domElement.addEventListener('pointerdown', () => {
+    if (!hoveringBunny) return;
+    if (hopT >= 0 || spinT >= 0) return;
+    clicks++;
+    blinkT = 0;
+    if (clicks % 3 === 0) { spinT = 0; } else { hopT = 0; }
+  });
+
+  // gentle blink loop
+  setInterval(() => { if (visible() && blinkT < 0 && Math.random() < 0.6) blinkT = 0; }, 2600);
+
+  // idle behaviors (nose twitch, head tilt, ear perk, tiny bounce, glance, flop)
+  let idle = null; // {kind, t, dur, dir}
+  setInterval(() => {
+    if (!visible() || idle || hopT >= 0 || spinT >= 0) return;
+    const kinds = ['twitch', 'tilt', 'perk', 'bounce', 'glance', 'flop', 'twitch', 'flop'];
+    const kind = kinds[Math.floor(Math.random() * kinds.length)];
+    const dur = { twitch: 0.7, tilt: 1.6, perk: 0.9, bounce: 0.5, glance: 1.8, flop: 2.2 }[kind];
+    idle = { kind, t: 0, dur, dir: Math.random() < 0.5 ? -1 : 1 };
+    if (kind === 'glance') blinkT = 0;
+  }, 3400);
+
+  let lastT = performance.now();
+  const easeOut = t => 1 - Math.pow(1 - t, 3);
+  function frame() {
+    requestAnimationFrame(frame);
+    if (!visible()) { lastT = performance.now(); return; } // pause while hidden
+    const now = performance.now();
+    const dt = Math.min((now - lastT) / 1000, 0.05);
+    lastT = now;
+    const t = now / 1000;
+
+    const targetYaw = lookPointer.x * 0.55;
+    const targetPitch = -lookPointer.y * 0.28;
+
+    let idleYaw = 0, idleRoll = 0, idleBounce = 0, idlePerk = 1, glanceX = 0;
+    if (idle) {
+      idle.t += dt;
+      const p = idle.t / idle.dur;
+      if (p >= 1) {
+        if (idle.kind === 'twitch') nose.scale.set(1, 1, 1);
+        if (idle.kind === 'flop') applyEarBend(0, 0);
+        idle = null;
+      } else {
+        const bell = Math.sin(p * Math.PI);
+        switch (idle.kind) {
+          case 'twitch': { // rapid nose wiggle
+            const w = Math.sin(idle.t * 40) * 0.18 * bell;
+            nose.scale.set(1 + w, 1 - w * 0.7, 1);
+            nose.position.x = Math.sin(idle.t * 40) * 0.006 * bell;
+            break; }
+          case 'tilt': idleRoll = idle.dir * 0.13 * bell; break;
+          case 'perk': idlePerk = 1 + 0.045 * bell; break;
+          case 'bounce': idleBounce = Math.abs(Math.sin(p * Math.PI * 2)) * 0.05 * bell; break;
+          case 'glance': { // look away, then back to the cursor
+            const ease = p < 0.25 ? p / 0.25 : p > 0.75 ? (1 - p) / 0.25 : 1;
+            idleYaw = idle.dir * 0.5 * ease;
+            glanceX = idle.dir * 0.03 * ease;
+            break; }
+          case 'flop': { // anticipate -> fall -> settle -> springy recover
+            const MAX = 1.15; let a;
+            if (p < 0.10) {
+              a = -0.14 * Math.sin(p / 0.10 * Math.PI);
+            } else if (p < 0.34) {
+              const q = (p - 0.10) / 0.24;
+              const e = 1 - Math.pow(1 - q, 3);
+              a = MAX * e - 0.10 * Math.sin(q * Math.PI * 2.5) * Math.exp(-2 * q) * (1 - q);
+            } else if (p < 0.58) {
+              a = MAX + 0.03 * Math.sin(idle.t * 7);
+            } else {
+              const q = (p - 0.58) / 0.42;
+              a = MAX * Math.exp(-3.4 * q) * Math.cos(q * Math.PI * 1.5);
+            }
+            applyEarBend(idle.dir < 0 ? a : 0, idle.dir < 0 ? 0 : a);
+            break; }
+        }
+      }
+    }
+    if (!idle || idle.kind !== 'twitch') nose.position.x = 0;
+
+    bunny.rotation.y += (targetYaw + idleYaw - bunny.rotation.y) * Math.min(1, dt * 6);
+    bunny.rotation.x += (targetPitch - bunny.rotation.x) * Math.min(1, dt * 6);
+    bunny.rotation.z += (idleRoll - bunny.rotation.z) * Math.min(1, dt * 5);
+
+    // eyes track a touch further than the body
+    const eox = lookPointer.x * 0.028 + glanceX, eoy = lookPointer.y * 0.022;
+    eyeL.position.x = -0.138 + eox; eyeR.position.x = 0.134 + eox;
+    eyeL.position.y = 0.290 + eoy; eyeR.position.y = 0.290 + eoy;
+
+    // idle breathing
+    let sy = (1 + Math.sin(t * 1.8) * 0.008) * idlePerk, sxz = (1 - Math.sin(t * 1.8) * 0.005) / Math.sqrt(idlePerk), py = idleBounce;
+
+    // hop
+    if (hopT >= 0) {
+      hopT += dt;
+      const p = hopT / HOP_D;
+      if (p >= 1) { hopT = -1; bunny.userData.burstDone = false; }
+      else if (p < 0.18) { const q = p / 0.18; sy *= 1 - 0.18 * Math.sin(q * Math.PI); sxz *= 1 + 0.10 * Math.sin(q * Math.PI); }
+      else if (p < 0.75) { const q = (p - 0.18) / 0.57; py = Math.sin(q * Math.PI) * 0.55;
+        const st = Math.sin(q * Math.PI); sy *= 1 + 0.10 * st; sxz *= 1 - 0.05 * st; }
+      else { const q = (p - 0.75) / 0.25;
+        if (!bunny.userData.burstDone) { spawnBurst(); bunny.userData.burstDone = true; }
+        sy *= 1 - 0.14 * Math.sin(q * Math.PI); sxz *= 1 + 0.08 * Math.sin(q * Math.PI); }
+    }
+
+    // spin (every 3rd click)
+    if (spinT >= 0) {
+      spinT += dt;
+      const p = spinT / SPIN_D;
+      if (p >= 1) { spinT = -1; bunny.userData.burstDone = false; }
+      else {
+        py = Math.sin(p * Math.PI) * 0.42;
+        bunny.rotation.y = targetYaw + easeOut(p) * Math.PI * 2;
+        if (p > 0.8 && !bunny.userData.burstDone) { spawnBurst(); bunny.userData.burstDone = true; }
+      }
+    }
+
+    bunny.position.y = py;
+    bunny.scale.set(sxz, sy, sxz);
+
+    // blink
+    if (blinkT >= 0) {
+      blinkT += dt;
+      const p = blinkT / 0.22;
+      if (p >= 1) { blinkT = -1; eyeL.scale.y = eyeR.scale.y = 1; }
+      else { const s = Math.max(0.08, Math.abs(Math.cos(p * Math.PI))); eyeL.scale.y = eyeR.scale.y = s; }
+    }
+
+    // particles
+    for (let i = burst.length - 1; i >= 0; i--) {
+      const m = burst[i];
+      m.userData.v.y -= 4.5 * dt;
+      m.position.addScaledVector(m.userData.v, dt);
+      m.userData.life -= dt * 0.9;
+      m.material.opacity = Math.max(0, m.userData.life);
+      if (m.userData.life <= 0 || m.position.y < 0) { scene.remove(m); m.material.dispose(); burst.splice(i, 1); }
+    }
+
+    renderer.render(scene, camera);
+  }
+  // First frame synchronously — some webviews delay rAF, and the bunny
+  // should be visible the instant the landing paints.
+  renderer.render(scene, camera);
+  frame();
+
+  // Media queries resize the stage — keep the camera + buffer in step.
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => {
+      const w = stage.clientWidth, h = stage.clientHeight;
+      if (!w || !h || (w === W && h === H)) return;
+      W = w; H = h;
+      camera.aspect = W / H;
+      camera.updateProjectionMatrix();
+      renderer.setSize(W, H);
+    }).observe(stage);
+  }
+}
+
 function showLandingScreen() {
   if (window._hideAppBoot) window._hideAppBoot();
   // The phone app IS the band/crew experience — there's no reason to show
@@ -24833,6 +25251,8 @@ function showLandingScreen() {
   // Show the looping homepage background video.
   document.body.classList.add('bg-video-on');
   _ensureBgVideoPlaying();
+  // Swap the flat logo for the interactive 3D bunny (lazy; safe fallback).
+  initLandingBunny3D();
 }
 function hideLandingScreen() {
   document.getElementById('landingScreen').hidden = true;
