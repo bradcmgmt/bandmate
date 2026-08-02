@@ -3335,11 +3335,14 @@ body.travel-assistant-mode #travelAssistantArea{
 /* Interactive 3D bunny (Three.js). The stage replaces the flat spinning
    logo only once WebGL + the CDN module actually initialize (has-3d);
    until then — and on any failure or reduced-motion — the <img> stays. */
-.bunny3d-stage{display:none;width:190px;height:210px;filter:drop-shadow(0 0 18px rgba(232,148,58,.30))}
+.bunny3d-stage{display:none;width:190px;height:210px;filter:drop-shadow(0 0 18px rgba(232,148,58,.30));
+  /* The camera frames extra sky above (hop clearance) and floor below the
+     bunny — swallow those transparent zones so the bunny hugs the headline. */
+  margin:-36px 0 -40px}
 .bunny3d-stage canvas{display:block;width:100%;height:100%}
 .landing-mark.has-3d .bunny3d-stage{display:block}
 .landing-mark.has-3d .landing-avatar{display:none}
-@media (max-width:560px){.bunny3d-stage{width:140px;height:158px}}
+@media (max-width:560px){.bunny3d-stage{width:140px;height:158px;margin:-26px 0 -30px}}
 
 /* Wordmark logo now sits beneath the pitch (was at the top, before the
    avatar took over). Centered, sized down so it reads as a sign-off. */
