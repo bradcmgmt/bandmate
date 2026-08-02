@@ -575,7 +575,7 @@ input,select,textarea{font:inherit;color:inherit;
   50%{background-position:65% 15%, 25% 85%, 0 0}
   100%{background-position:100% 70%, 0% 35%, 0 0}
 }
-@media (prefers-reduced-motion: reduce){.tab.active,.travel-assist-btn{animation:none}}
+@media (prefers-reduced-motion: reduce){.tab.active,.travel-assist-btn,.phone-hide-btn,.phone-expand-btn{animation:none}}
 .tab.active::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
   background:linear-gradient(180deg,transparent,var(--hi) 30%,var(--hi) 70%,transparent);
   box-shadow:0 0 12px rgba(232,148,58,.6)}
@@ -1434,6 +1434,45 @@ body.admin-active .stage{grid-template-columns:1fr!important}
   border-radius:7px;padding:9px 10px;font-family:'Inter',sans-serif;font-weight:600}
 .phone-rig .who-bar select:focus{outline:none;border-color:var(--hi);box-shadow:0 0 0 3px rgba(232,148,58,.15)}
 .phone-rig .role-tag{font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--warm-mute)}
+
+/* ── Collapsible phone preview ──────────────────────────────────────────
+   The TM can hide the phone rig to give the dashboard the full width,
+   then bring it back with the flame edge tab pinned to the right side.
+   Desktop-only: crew-mobile-only / tm-crew-tour / phone-app modes ARE the
+   phone, and body.mobile already hides the rig, so the toggle stays out
+   of the way in all of those. Preference persists in localStorage. */
+.who-bar-top{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%}
+.phone-hide-btn{
+  padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;
+  font-family:'Bricolage Grotesque',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
+  color:#ffd9ae;border:1px solid rgba(255,140,50,.45);
+  background:
+    radial-gradient(circle at 25% 75%, rgba(255,150,45,.30), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,80,25,.20), transparent 42%),
+    rgba(255,255,255,.02);
+  background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 8s ease-in-out infinite alternate;
+}
+.phone-hide-btn:hover{color:#ffe9c9;border-color:rgba(255,160,70,.8);box-shadow:0 0 14px rgba(255,122,31,.25)}
+body.crew-mobile-only .phone-hide-btn,body.tm-crew-tour .phone-hide-btn,body.phone-app .phone-hide-btn{display:none!important}
+body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app) .phone-rig{display:none!important}
+body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app) .stage{grid-template-columns:1fr!important}
+.phone-expand-btn{
+  display:none;position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:80;
+  padding:16px 9px 16px 10px;border-radius:9px 0 0 9px;cursor:pointer;
+  writing-mode:vertical-rl;
+  font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;font-weight:700;
+  color:#ffd9ae;border:1px solid rgba(255,140,50,.5);border-right:none;
+  background:
+    radial-gradient(circle at 25% 75%, rgba(255,150,45,.35), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,80,25,.22), transparent 42%),
+    rgba(20,13,8,.92);
+  background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 8s ease-in-out infinite alternate;
+  box-shadow:0 0 18px rgba(255,122,31,.2);
+}
+.phone-expand-btn:hover{color:#ffe9c9;border-color:rgba(255,160,70,.85);box-shadow:0 0 22px rgba(255,122,31,.35)}
+body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app):not(.mobile):not(.admin-active) .phone-expand-btn{display:block}
 .phone{width:340px;height:700px;border-radius:42px;background:#0a0705;border:1px solid var(--line-2);
   box-shadow:inset 0 0 0 4px #110c08,inset 0 0 0 5px var(--line-2),0 0 60px rgba(232,148,58,.18),0 30px 70px -20px rgba(0,0,0,.8);
   position:relative;overflow:hidden}
@@ -1801,7 +1840,7 @@ input#tv_desc.is-auto{background:rgba(232,148,58,.05);border-color:rgba(232,148,
 .print-only{display:none}
 @media print{
   body{background:#fff!important;color:#000!important}
-  .topbar,.tape-strip,.day-strip-wrap,.tabs,.console-head,.phone-rig,.warn-banner,.footnote,.modal-overlay,.toast-container{display:none!important}
+  .topbar,.tape-strip,.day-strip-wrap,.tabs,.console-head,.phone-rig,.phone-expand-btn,.warn-banner,.footnote,.modal-overlay,.toast-container{display:none!important}
   .console{border:none;box-shadow:none;background:none}
   .panel{display:none!important}
   .panel.print-active{display:block!important;padding:0!important}
@@ -5103,7 +5142,10 @@ setTimeout(window._hideAppBoot,6000);
 
     <aside class="phone-rig">
       <div class="who-bar">
-        <div class="lbl">Crew mobile preview</div>
+        <div class="who-bar-top">
+          <div class="lbl">Crew mobile preview</div>
+          <button type="button" class="phone-hide-btn" onclick="togglePhoneRig()" title="Hide the phone preview — the dashboard takes the full width">Hide &rarr;</button>
+        </div>
         <select id="whoSelect"></select>
         <div class="role-tag" id="roleTag">VIEWING AS TOUR MANAGER</div>
       </div>
@@ -5152,6 +5194,7 @@ setTimeout(window._hideAppBoot,6000);
         </div>
       </div>
     </aside>
+    <button type="button" class="phone-expand-btn" onclick="togglePhoneRig()" title="Show the phone preview">Phone preview</button>
   </main>
 
   <div class="footnote">
@@ -23033,6 +23076,18 @@ function jumpPhoneToToday() {
 // closed — giving exactly the two behaviors requested:
 //   • pull-to-refresh → keep the date you were on (restored from session)
 //   • cold app open    → jump to TODAY (session empty → getTourTodayDate)
+// ── Collapsible phone preview ────────────────────────────────────────
+// Hides/shows the whole phone rig so the TM can use the full width for
+// the dashboard. Per-device preference (localStorage, not synced tour
+// state — one person may want it on a laptop and off on a big monitor).
+const _PHONE_RIG_KEY = 'bandmate.phoneRigCollapsed';
+function togglePhoneRig(force) {
+  const on = force !== undefined ? !!force : !document.body.classList.contains('phone-collapsed');
+  document.body.classList.toggle('phone-collapsed', on);
+  try { localStorage.setItem(_PHONE_RIG_KEY, on ? '1' : '0'); } catch (e) {}
+}
+try { if (localStorage.getItem(_PHONE_RIG_KEY) === '1') document.body.classList.add('phone-collapsed'); } catch (e) {}
+
 const _PHONE_VIEW_DATE_KEY = 'bandmate.phoneViewDate';
 function _rememberPhoneViewDate() {
   try {
