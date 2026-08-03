@@ -12934,6 +12934,9 @@ function renderAll() {
     try { showPricingScreen(); } catch (e) {}
     return;
   }
+  // God never onboards — it can't create tours, so the create-your-first-
+  // tour overlay is a dead end for it. Self-heal the flag and render.
+  if (state && !state.onboarded && _isGodAccount()) state.onboarded = true;
   if (!state || !state.onboarded) {
     $('#onboarding').classList.remove('hidden');
     $('#app').hidden = true;
@@ -27973,6 +27976,27 @@ function postLoginRouting() {
   const accessible = [...owned];
   member.forEach(t => { if (!accessible.find(x => x.id === t.id)) accessible.push(t); });
 
+  // The god account owns nothing and belongs to nothing BY DESIGN, so the
+  // owned/member set above is always empty — which would wrongly route it
+  // into the create-your-first-tour onboarding. Its accessible set is every
+  // tour on the platform (read-only), and it must NEVER see onboarding:
+  // even with zero tours hydrated yet, land in the app — the Admin Panel
+  // works entirely off the stats RPC.
+  if (_isGodAccount()) {
+    state.onboarded = true;
+    accessible.length = 0;
+    _dedupeToursForDisplay(_switchableTours()).forEach(t => accessible.push(t));
+    if (!accessible.length) {
+      saveState();
+      document.getElementById('app').hidden = false;
+      document.getElementById('onboarding').classList.add('hidden');
+      renderAll();
+      try { applyTabFromState(); } catch (e) { console.error('applyTabFromState:', e); }
+      try { syncPhoneScreenFromTab(); } catch (e) { console.error('syncPhoneScreenFromTab:', e); }
+      return;
+    }
+  }
+
   // If the ONLY tour visible to this TM is the auto-seeded "Demo Tour ·
   // Wayfinder" (and they haven't dismissed the onboarding before),
   // treat it as if they have zero tours so they get the create-your-
@@ -30709,7 +30733,7 @@ function init() {
       } else {
         showCrewBlockScreen();
       }
-    } else if (!state.onboarded) {
+    } else if (!state.onboarded && !_isGodAccount()) {
       document.getElementById('onboarding').classList.remove('hidden');
       document.getElementById('app').hidden = true;
       document.body.classList.remove('bg-logo-hidden');
