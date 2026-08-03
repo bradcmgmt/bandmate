@@ -3228,6 +3228,39 @@ body.travel-assistant-mode #travelAssistantArea{
 .ts-action{display:grid;grid-template-columns:24px 1fr;gap:10px;align-items:center;padding:10px 12px;border-radius:8px;color:var(--hi);cursor:pointer;background:transparent;border:1px solid var(--line-2);text-align:left;font-family:'Bricolage Grotesque',monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
 .ts-action:hover{background:rgba(232,148,58,.08);border-color:var(--hi)}
 
+/* ── God switcher: owner groups, status chips, type-to-filter ─────── */
+.ts-filter{display:flex;align-items:center;gap:8px;margin:2px 2px 6px;padding:8px 11px;
+  background:var(--ink);border:1px solid rgba(140,120,255,.35);border-radius:9px}
+.ts-filter .tf-ic{color:#a99bd8;font-size:13px}
+.ts-filter input{flex:1;background:none;border:none;outline:none;color:var(--warm);
+  font-size:12.5px;font-family:'Inter',sans-serif;padding:0}
+.ts-filter input::placeholder{color:var(--warm-mute);opacity:.7}
+.ts-pin{margin:0 2px 6px;padding:8px 12px;border:1px solid rgba(232,148,58,.5);border-radius:9px;
+  background:linear-gradient(135deg,rgba(232,148,58,.12),rgba(232,148,58,.03))}
+.ts-pin .tp-cap{font-family:'Bricolage Grotesque',monospace;font-size:8px;letter-spacing:.24em;color:var(--hi);text-transform:uppercase;font-weight:700}
+.ts-pin .tp-nm{font-size:13.5px;font-weight:700;color:#fff;margin-top:2px}
+.ts-pin .tp-sub{font-family:'Bricolage Grotesque',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.05em;margin-top:1px}
+.ts-owner{display:flex;align-items:baseline;gap:7px;padding:9px 10px 3px;margin-top:4px;border-top:1px solid rgba(140,120,255,.14)}
+.ts-owner .to-d{color:#a99bd8;font-size:10px}
+.ts-owner .to-nm{font-family:'Bricolage Grotesque',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:#c9b3ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ts-owner .to-em{font-size:10px;color:#7d6f96;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+.ts-owner .to-ct{margin-left:auto;font-family:'Bricolage Grotesque',monospace;font-size:8.5px;letter-spacing:.14em;color:#7d6f96;white-space:nowrap}
+.ts-tour-item.has-chip{grid-template-columns:24px 1fr auto auto}
+.ts-chip{font-family:'Bricolage Grotesque',monospace;font-size:8px;letter-spacing:.14em;font-weight:700;
+  padding:2px 7px;border-radius:5px;white-space:nowrap;text-transform:uppercase}
+.ts-chip.live{color:#ffb27a;border:1px solid rgba(255,122,31,.5);
+  background:radial-gradient(circle at 25% 75%, rgba(255,122,31,.28), transparent 46%),
+             radial-gradient(circle at 70% 30%, rgba(255,70,20,.18), transparent 42%), transparent;
+  background-size:230% 230%,210% 210%,100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 6s ease-in-out infinite alternate}
+.ts-chip.soon{color:var(--hi);border:1px solid rgba(232,148,58,.4)}
+.ts-chip.ended{color:#8a7a64;border:1px solid rgba(138,122,100,.35)}
+.ts-tour-item.past{opacity:.45}
+.ts-tour-item.past:hover,.ts-tour-item.past.active{opacity:.9}
+.ts-tour-item[hidden],.ts-owner[hidden]{display:none!important}
+.ts-godfoot{padding:8px 10px 4px;text-align:center;font-family:'Bricolage Grotesque',monospace;font-size:9px;letter-spacing:.2em;color:#7d6f96;text-transform:uppercase}
+@media (prefers-reduced-motion: reduce){.ts-chip.live{animation:none}}
+
 /* phone tour switcher */
 /* Teal nudge above the blue tour-switcher: the phone is a read-only road
    view, so a Tour Manager who owns/manages the tour is reminded that editing
@@ -24321,8 +24354,100 @@ function _tourMenuItemsHTML() {
   const myTours = _dedupeToursForDisplay(
     Object.values(state.tours).filter(t => !_isTombstoned(t.id) && (isGod || ownedSet.has(t.id) || memberSet.has(t.id)))
   );
+  // ── GOD VIEW: grouped by owner, live-first, with type-to-filter ────
+  // Owners with a tour running today float to the top, then owners by
+  // soonest upcoming start, then owners with only finished tours. Inside
+  // a group: LIVE → upcoming (soonest first) → ended (dimmed, newest
+  // first). Rows carry owner text in data-search so typing an owner name
+  // surfaces that owner's whole group. Read-only: no Actions section.
+  if (isGod) {
+    const today = todayISO();
+    const _stCache = new Map();
+    const st = (t) => {
+      let r = _stCache.get(t.id);
+      if (r) return r;
+      const s = tourStartDate(t), e = tourEndDate(t);
+      if (!s && !e) r = { order: 3, label: 'NO DATES', cls: 'ended' };
+      else if (s && s > today) r = { order: 1, label: `IN ${Math.max(1, Math.round((new Date(s) - new Date(today)) / 864e5))}D`, cls: 'soon', start: s };
+      else if (e && e < today) r = { order: 2, label: 'ENDED', cls: 'ended', end: e };
+      else r = { order: 0, label: '● LIVE', cls: 'live' };
+      _stCache.set(t.id, r);
+      return r;
+    };
+    const groups = new Map(); // email (stable key) -> {name, email, tours}
+    myTours.forEach(t => {
+      const key = (t.ownerEmail || '').toLowerCase() || (t.ownerName || 'unknown');
+      if (!groups.has(key)) groups.set(key, { name: t.ownerName || '', email: t.ownerEmail || '', tours: [] });
+      const g = groups.get(key);
+      if (!g.name && t.ownerName) g.name = t.ownerName;
+      g.tours.push(t);
+    });
+    const glist = [...groups.values()];
+    glist.forEach(g => {
+      g.tours.sort((a, b) => {
+        const sa = st(a), sb = st(b);
+        if (sa.order !== sb.order) return sa.order - sb.order;
+        if (sa.cls === 'soon') return sa.start < sb.start ? -1 : 1;
+        if (sa.end && sb.end) return sa.end > sb.end ? -1 : 1;
+        return (tourStartDate(a) || '') < (tourStartDate(b) || '') ? -1 : 1;
+      });
+      g.rank = Math.min(...g.tours.map(t => st(t).order));
+      g.soonest = g.tours.filter(t => st(t).cls === 'soon').map(t => st(t).start).sort()[0] || '';
+      g.latestEnd = g.tours.map(t => st(t).end || '').sort().pop() || '';
+    });
+    glist.sort((a, b) => {
+      if (a.rank !== b.rank) return a.rank - b.rank;
+      if (a.rank === 1 && a.soonest !== b.soonest) return a.soonest < b.soonest ? -1 : 1;
+      if (a.rank === 2 && a.latestEnd !== b.latestEnd) return a.latestEnd > b.latestEnd ? -1 : 1;
+      return (a.name || a.email).localeCompare(b.name || b.email);
+    });
+
+    const cur = state.tours[state.currentTourId];
+    const curRange = cur ? ((tourStartDate(cur) || tourEndDate(cur)) ? `${fmtMD(tourStartDate(cur))} → ${fmtMD(tourEndDate(cur))}` : 'no dates yet') : '';
+    const godRow = (t, g) => {
+      const isCurrent = t.id === state.currentTourId;
+      const stat = st(t);
+      const startISO = tourStartDate(t), endISO = tourEndDate(t);
+      const dateRange = (startISO || endISO) ? `${fmtMD(startISO)} → ${fmtMD(endISO)}` : 'no dates yet';
+      const isUnsynced = !_isUuid(t.id);
+      const search = `${t.name || ''} ${t.meta?.artist || ''} ${g.name} ${g.email}`.toLowerCase();
+      return `
+        <button class="ts-tour-item has-chip ${isCurrent ? 'active' : ''}${stat.cls === 'ended' ? ' past' : ''}" type="button" data-ts-tour data-search="${esc(search)}" onclick="switchToTour('${t.id}')">
+          <span class="ts-check">${isCurrent ? '✓' : ' '}</span>
+          <span class="ts-tour-text">
+            <span class="ts-name">${esc(t.name || 'Untitled tour')}${isUnsynced ? ' <span class="ts-unsynced" title="Not synced to cloud — local only">⚠ local</span>' : ''}</span>
+            <span class="ts-meta">${esc(t.meta?.artist || '—')} · ${dateRange}</span>
+          </span>
+          <span class="ts-chip ${stat.cls}">${stat.label}</span>
+          <span class="ts-count">${(t.dates || []).length}d</span>
+        </button>`;
+    };
+    return `
+      <div class="ts-filter" onclick="event.stopPropagation()">
+        <span class="tf-ic">⌕</span>
+        <input type="text" placeholder="Filter by tour, artist, or owner…" oninput="_tsGodFilterApply(this.value)" onkeydown="event.stopPropagation()">
+      </div>
+      ${cur ? `
+      <div class="ts-pin">
+        <div class="tp-cap">Currently viewing</div>
+        <div class="tp-nm">${esc(cur.name || 'Untitled tour')}</div>
+        <div class="tp-sub">${esc(cur.meta?.artist || '—')} · ${curRange} · ◆ ${esc(cur.ownerEmail || cur.ownerName || 'unknown')}</div>
+      </div>` : ''}
+      ${glist.map(g => `
+        <div class="ts-owner" data-ts-owner>
+          <span class="to-d">◆</span>
+          <span class="to-nm">${esc(g.name || g.email || 'Unknown owner')}</span>
+          ${g.name && g.email ? `<span class="to-em">${esc(g.email)}</span>` : ''}
+          <span class="to-ct">${g.tours.length} TOUR${g.tours.length === 1 ? '' : 'S'}</span>
+        </div>
+        ${g.tours.map(t => godRow(t, g)).join('')}
+      `).join('')}
+      <div class="ts-godfoot">${glist.length} owner${glist.length === 1 ? '' : 's'} · ${myTours.length} tours · type above to filter</div>
+    `;
+  }
+
   return `
-    <div class="ts-section">${isGod ? 'All tours · ' + myTours.length : 'Your tours · ' + myTours.length}</div>
+    <div class="ts-section">Your tours · ${myTours.length}</div>
     ${myTours.map(t => {
       const isCurrent = t.id === state.currentTourId;
       const startISO = tourStartDate(t);
@@ -24344,7 +24469,6 @@ function _tourMenuItemsHTML() {
           <span class="ts-tour-text">
             <span class="ts-name">${esc(t.name || 'Untitled tour')}${isUnsynced ? ' <span class="ts-unsynced" title="Not synced to cloud — local only">⚠ local</span>' : ''}</span>
             <span class="ts-meta">${esc(t.meta?.artist || '—')} · ${dateRange}</span>
-            ${isGod ? `<span class="ts-meta" style="color:#a99bd8">◆ ${esc(t.ownerName || t.ownerEmail || 'Unknown owner')}${t.ownerName && t.ownerEmail ? ' · ' + esc(t.ownerEmail) : ''}</span>` : ''}
           </span>
           <span class="ts-count">${(t.dates||[]).length}d</span>
         </button>
@@ -24355,6 +24479,23 @@ function _tourMenuItemsHTML() {
     ${u && T().ownerId === u.id ? `<button class="ts-action" type="button" onclick="closeUniMenu();renameCurrentTour()"><span style="text-align:center">✎</span><span>Rename current</span></button>` : ''}
     ${u && T().ownerId === u.id ? `<button class="ts-action" type="button" onclick="closeUniMenu();deleteCurrentTour()" style="color:var(--red);border-color:rgba(232,69,69,.35)"><span style="text-align:center">×</span><span>Delete current</span></button>` : ''}
   `;
+}
+
+// Live filter for the god switcher — hides tour rows that don't match and
+// collapses owner headers whose groups emptied out. Pure DOM toggling (no
+// re-render) so the input keeps focus while typing.
+function _tsGodFilterApply(q) {
+  q = (q || '').trim().toLowerCase();
+  document.querySelectorAll('[data-ts-tour]').forEach(r => {
+    r.hidden = !!q && !(r.dataset.search || '').includes(q);
+  });
+  document.querySelectorAll('[data-ts-owner]').forEach(h => {
+    let any = false;
+    for (let n = h.nextElementSibling; n && !n.hasAttribute('data-ts-owner'); n = n.nextElementSibling) {
+      if (n.hasAttribute('data-ts-tour') && !n.hidden) { any = true; break; }
+    }
+    h.hidden = !any;
+  });
 }
 
 // Legacy aliases — the standalone tour-switcher dropdown is gone; anything
@@ -27933,9 +28074,9 @@ function renderAccountMenu() {
     <button class="am-item danger" type="button" onclick="closeUniMenu();logout()">
       <span class="am-ic" style="color:var(--red);border-color:rgba(232,69,69,.3)">×</span><span>Sign out</span>
     </button>
-    <button class="am-item danger" type="button" onclick="closeUniMenu();deleteAccount()">
+    ${_isGodAccount() ? '' : `<button class="am-item danger" type="button" onclick="closeUniMenu();deleteAccount()">
       <span class="am-ic" style="color:var(--red);border-color:rgba(232,69,69,.3)">⨯</span><span>Delete account</span>
-    </button>
+    </button>`}
   `;
 }
 
@@ -28022,9 +28163,9 @@ function renderUniMenu() {
     <button class="am-item danger" type="button" onclick="closeUniMenu();logout()">
       <span class="am-ic" style="color:var(--red);border-color:rgba(232,69,69,.3)">×</span><span>Sign out</span>
     </button>
-    <button class="am-item danger" type="button" onclick="closeUniMenu();deleteAccount()">
+    ${_isGodAccount() ? '' : `<button class="am-item danger" type="button" onclick="closeUniMenu();deleteAccount()">
       <span class="am-ic" style="color:var(--red);border-color:rgba(232,69,69,.3)">⨯</span><span>Delete account</span>
-    </button>
+    </button>`}
   `;
 }
 
@@ -28123,7 +28264,7 @@ function openAccountSettingsModal() {
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;border-top:1px solid var(--line);padding-top:14px;margin-top:18px;flex-wrap:wrap">
         <div style="display:flex;gap:8px">
           <button type="button" class="tb-btn" style="color:var(--red);border-color:rgba(232,69,69,.4)" onclick="closeModal();logout()">Sign out</button>
-          <button type="button" class="tb-btn" style="color:var(--red);border-color:rgba(232,69,69,.4)" onclick="closeModal();deleteAccount()">Delete account…</button>
+          ${_isGodAccount() ? '' : `<button type="button" class="tb-btn" style="color:var(--red);border-color:rgba(232,69,69,.4)" onclick="closeModal();deleteAccount()">Delete account…</button>`}
         </div>
         <button type="button" class="btn primary" onclick="closeModal()" style="padding:9px 18px">Done</button>
       </div>
@@ -28204,6 +28345,11 @@ async function _acctSendReset() {
 // from auth.users (which cascades through everything via FK).
 async function deleteAccount() {
   closeAccountMenu();
+  // The god account must never self-destruct: delete_my_account() removes
+  // the auth user itself (cascading its profile + comp subscription), which
+  // kills the whole oversight feature until it's manually rebuilt in
+  // Supabase. Its buttons are hidden for god too — this is the backstop.
+  if (_isGodAccount()) { toast('The god account is read-only oversight — it can\'t delete itself. Manage it from the Supabase dashboard.', 'error'); return; }
   const me = U();
   if (!sb || !me) { toast('Not signed in', 'error'); return; }
   confirmTyped({
