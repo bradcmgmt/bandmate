@@ -156,6 +156,18 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 input,select,textarea{font:inherit;color:inherit;
   transition:border-color .2s cubic-bezier(.2,.7,.2,1),box-shadow .26s cubic-bezier(.2,.7,.2,1),background-color .2s ease,transform .18s cubic-bezier(.2,.7,.2,1)}
 .mono{font-family:'Bricolage Grotesque',ui-monospace,Menlo,monospace;letter-spacing:.01em}
+
+/* ── Dark scrollbars everywhere ──────────────────────────────────────
+   The browser-default light bars glare against the dark theme (worst on
+   the Admin Panel drill-down tables and the tour switcher). One global
+   theme in the app's amber language; containers that deliberately hide
+   their bars (.day-strip, phone screen) still win on specificity. */
+*{scrollbar-width:thin;scrollbar-color:rgba(232,148,58,.28) transparent}
+*::-webkit-scrollbar{width:9px;height:9px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{background:rgba(232,148,58,.22);border-radius:6px}
+*::-webkit-scrollbar-thumb:hover{background:rgba(232,148,58,.4)}
+*::-webkit-scrollbar-corner{background:transparent}
 .up{text-transform:uppercase;letter-spacing:.14em}
 .hidden{display:none!important}
 
@@ -1515,7 +1527,7 @@ body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app):n
 .phone-app-bar .ic{width:32px;height:32px;border-radius:8px;
   background:linear-gradient(135deg,rgba(232,148,58,.08),rgba(232,148,58,.02));
   border:1px solid var(--line-2);display:grid;place-items:center;color:var(--hi);font-size:14px}
-.phone-screen-body{flex:1;overflow-y:auto;padding:14px 16px 80px;display:flex;flex-direction:column;gap:12px}
+.phone-screen-body{flex:1;overflow-y:auto;padding:14px 16px 80px;display:flex;flex-direction:column;gap:12px;scrollbar-width:none}
 .phone-screen-body::-webkit-scrollbar{width:0}
 .phone .nav{
   flex:none;height:64px;
@@ -3368,14 +3380,16 @@ body.travel-assistant-mode #travelAssistantArea{
 /* Interactive 3D bunny (Three.js). The stage replaces the flat spinning
    logo only once WebGL + the CDN module actually initialize (has-3d);
    until then — and on any failure or reduced-motion — the <img> stays. */
-.bunny3d-stage{display:none;width:190px;height:210px;filter:drop-shadow(0 0 18px rgba(232,148,58,.30));
-  /* The camera frames extra sky above (hop clearance) and floor below the
-     bunny — swallow those transparent zones so the bunny hugs the headline. */
-  margin:-36px 0 -40px}
+.bunny3d-stage{display:none;width:200px;height:230px;filter:drop-shadow(0 0 18px rgba(232,148,58,.30));
+  /* The camera frames extra sky above (full hop clearance — ears reach
+     y≈2.0 mid-hop) and floor below. The negative margins swallow only the
+     LAYOUT space of those transparent zones so the bunny hugs the
+     headline; the canvas still paints full-size, so hops never clip. */
+  margin:-53px 0 -44px}
 .bunny3d-stage canvas{display:block;width:100%;height:100%}
 .landing-mark.has-3d .bunny3d-stage{display:block}
 .landing-mark.has-3d .landing-avatar{display:none}
-@media (max-width:560px){.bunny3d-stage{width:140px;height:158px;margin:-26px 0 -30px}}
+@media (max-width:560px){.bunny3d-stage{width:148px;height:170px;margin:-38px 0 -32px}}
 
 /* Wordmark logo now sits beneath the pitch (was at the top, before the
    avatar took over). Centered, sized down so it reads as a sign-off. */
@@ -25050,10 +25064,14 @@ function _bunny3dBuild(THREE, stage) {
   stage.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  // A touch further back than the full-window original so hops stay in frame.
+  // Frame must cover the FULL hop arc: at apex the bunny is lifted 0.55
+  // AND squash-stretched ~10%, putting the ear tips near y≈2.0. Camera at
+  // z=3.8 looking at y=0.70 spans roughly y −0.6…2.0 at the bunny plane,
+  // so nothing clips mid-hop. The extra sky/floor this adds is transparent
+  // and swallowed by the stage's negative CSS margins.
   const camera = new THREE.PerspectiveCamera(38, W / H, 0.1, 50);
-  camera.position.set(0, 0.85, 3.45);
-  camera.lookAt(0, 0.62, 0);
+  camera.position.set(0, 0.99, 3.8);
+  camera.lookAt(0, 0.74, 0);
 
   scene.add(new THREE.AmbientLight(0xfff6e8, 0.25));
   // Procedural studio environment for realistic reflections.
