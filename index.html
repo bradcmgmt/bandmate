@@ -18857,12 +18857,19 @@ function _extractDealMemoBlocks(text) {
   // Try "Memo #:" first (most reliable boundary for multi-memo bundles).
   let blocks = text.split(/\bMemo\s*#:\s*/i).filter(s => s.trim().length > 80);
   // Fall back to "Deal Memo" header if Memo # markers aren't present.
+  // IMPORTANT: a 1-element "split" is NOT evidence of a deal memo — it's
+  // just the whole text back. Only a real multi-way split counts; a
+  // single-memo file must carry the isDealMemo markers to use this
+  // parser. Without this gate the Wasserman parser claimed EVERY text
+  // doc (hotel confirmations, WME memos, plain emails) before the
+  // generic/label parsers could run, losing their richer fields.
   if (blocks.length < 2) {
-    blocks = text.split(/\bDeal\s+Memo\b/i).filter(s => s.trim().length > 80);
+    const t2 = text.split(/\bDeal\s+Memo\b/i).filter(s => s.trim().length > 80);
+    blocks = t2.length >= 2 ? t2 : [];
   }
-  // If we still only have one block but the text IS a deal memo, treat the
-  // whole text as one memo block.
-  if (blocks.length < 2 && isDealMemo) {
+  // Single-memo file: whole text as one block, but ONLY when the
+  // distinctive Wasserman markers are actually present.
+  if (!blocks.length && isDealMemo) {
     blocks = [text];
   }
   if (!blocks.length) return null;
@@ -19037,7 +19044,9 @@ function _parseDealMemoBlock(block) {
     };
     for (let i = lines.length - 1; i >= 0; i--) {
       if (skipLine(lines[i])) continue;
-      out.venue = lines[i];
+      // Strip a leading field label if the venue line carries one
+      // ("Venue: The Fillmore" → "The Fillmore").
+      out.venue = lines[i].replace(/^(?:Venue(?:\s+Name)?|Location|Site)\s*:\s*/i, '');
       break;
     }
     // Fall back to the other side if needed.
@@ -19333,11 +19342,22 @@ function _extractHotelsFromText(text) {
   // one hotel reservation. Overlapping windows get deduped at the end.
   const markerRe = /\b(Marriott|Hyatt|Hilton|Westin|Sheraton|Holiday\s+Inn|Hampton\s+Inn|Courtyard|Residence\s+Inn|Four\s+Seasons|Ritz[- ]Carlton|Kimpton|Loews|Fairmont|St\.?\s*Regis|Le\s+Meridien|Moxy|Aloft|Element|Edition|Standard|NoMad|Ace\s+Hotel|Virgin\s+Hotel|Cambria|Conrad|DoubleTree|Embassy\s+Suites|Hyatt\s+Place|Hyatt\s+Regency|Grand\s+Hyatt|Park\s+Hyatt|JW\s+Marriott|Renaissance|Autograph|Tribute|Gaylord|Sofitel|Pullman|Raffles|Fairfield|Home2|TownePlace|SpringHill|Best\s+Western|Quality\s+Inn|Comfort\s+Inn|La\s+Quinta|Days\s+Inn|Super\s+8|Motel\s+6|Wyndham|Radisson|Crowne\s+Plaza|InterContinental|Andaz|Thompson|Tommie|1\s+Hotel|Soho\s+House|Nobu|Pendry|Hoxton|Public|Graduate)\b|\b(?:Hotel|Property|Lodging|Accommodation)\s*[:.]/gi;
 
+  // Booking-ish context: words that appear in any real reservation.
+  const BOOKING_CTX_RE = /check[\s-]?in|check[\s-]?out|reservation|confirmation|conf\s*#|room|guest|night/i;
   let lastEnd = -1;
   let m;
   while ((m = markerRe.exec(text)) !== null) {
     // Skip markers inside a window we already parsed
     if (m.index < lastEnd) continue;
+    // Ambiguous chain names that are also common English words
+    // ("Standard rider provisions...", "Element of...", "Public") only
+    // count as hotels when the window shows actual booking context.
+    // Real Standard/Edition/etc. confirmations always have check-in /
+    // confirmation / room language nearby.
+    if (m[1] && /^(Standard|Element|Edition|Public|Graduate|Tribute|Renaissance|Autograph)$/i.test(m[1].trim())
+        && !BOOKING_CTX_RE.test(text.slice(m.index, Math.min(text.length, m.index + 2500)))) {
+      continue;
+    }
     // Start the window AT the marker (not before). PDFs typically have
     // travel-agency contact info (name, address, phone) immediately
     // preceding the hotel block; a back-buffer would slurp that agency's
@@ -19359,6 +19379,25 @@ function _extractHotelsFromText(text) {
       if (!hotel.date && fallbackDate) hotel.date = fallbackDate;
       hotels.push(hotel);
       lastEnd = end;
+    }
+  }
+
+  // Second pass: boutique / independent hotels — a line that IS a hotel
+  // name ("The Dean Hotel", "Hotel Café Royal") with booking context in
+  // its window. Runs after the chain pass so chains keep their richer
+  // windows; dedupe below collapses any overlap.
+  const boutiqueRe = /(?:^|\n)\s*((?:The\s+)?[A-Z][\w'&.\- ]{1,40}\s+(?:Hotel|Inn|Lodge|Resort|Suites)|Hotel\s+[A-Z][\w'&.\- ]{1,40})\s*(?:\n|$)/g;
+  let bm;
+  while ((bm = boutiqueRe.exec(text)) !== null) {
+    const start = bm.index;
+    const end = Math.min(text.length, bm.index + 2500);
+    const window = text.slice(start, end);
+    if (!BOOKING_CTX_RE.test(window)) continue;
+    const backCtx = text.slice(Math.max(0, bm.index - 500), bm.index);
+    const hotel = _parseHotelBlock(window, backCtx);
+    if (hotel && hotel.name) {
+      if (!hotel.date && fallbackDate) hotel.date = fallbackDate;
+      hotels.push(hotel);
     }
   }
 
@@ -19416,6 +19455,15 @@ function _parseHotelBlock(block, backCtx) {
       }
       hotel.name = parts.join(' ').replace(/\s+/g, ' ').slice(0, 100);
     }
+  }
+  if (!hotel.name) {
+    // Boutique/independent name line: "The Dean Hotel" / "Hotel Café
+    // Royal" on its own line. Skips generic headers like "HOTEL
+    // CONFIRMATION" because the suffix word must END the line (or the
+    // name must START with "Hotel ").
+    const bnm = block.match(/^\s*((?:The\s+)?[A-Z][\w'&.\- ]{1,40}\s+(?:Hotel|Inn|Lodge|Resort|Suites))\s*$/m)
+             || block.match(/^\s*(Hotel\s+[A-Z][\w'&.\- ]{1,40})\s*$/m);
+    if (bnm) hotel.name = bnm[1].trim().slice(0, 100);
   }
   if (!hotel.name) return null;
 
@@ -19541,6 +19589,10 @@ function _extractFlightsFromText(text) {
   while ((m = re.exec(text)) !== null) {
     const code = m[1].toUpperCase();
     const num = m[2];
+    // "9:00 AM 1500" would otherwise read as Aeroméxico flight 1500 —
+    // if "AM" directly follows a clock time it's a meridiem, not an
+    // airline. (No lookbehind: must parse on older Safari.)
+    if (code === 'AM' && /\d[:.]\d{2}\s*$/.test(text.slice(Math.max(0, m.index - 8), m.index))) continue;
     const key = code + num;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -19548,6 +19600,34 @@ function _extractFlightsFromText(text) {
     const end = Math.min(text.length, m.index + 250);
     const ctx = text.slice(start, end);
     const flight = _parseFlightContext(ctx, code, num, m.index, text);
+    if (!flight.date && fallbackDate) flight.date = fallbackDate;
+    flights.push(flight);
+  }
+  // Second pass: spelled-out airline + explicit "Flight" keyword
+  // ("Delta Flight 2216"). The Flight keyword requirement keeps this
+  // from matching prose like "American Express 4111".
+  const AIRLINE_NAMES = {
+    'delta': 'DL', 'united': 'UA', 'american': 'AA', 'southwest': 'WN',
+    'jetblue': 'B6', 'alaska': 'AS', 'spirit': 'NK', 'frontier': 'F9',
+    'hawaiian': 'HA', 'air canada': 'AC', 'british airways': 'BA',
+    'lufthansa': 'LH', 'air france': 'AF', 'klm': 'KL', 'ryanair': 'FR',
+    'easyjet': 'U2', 'aer lingus': 'EI', 'turkish': 'TK', 'emirates': 'EK',
+    'qantas': 'QF', 'qatar': 'QR', 'iberia': 'IB', 'finnair': 'AY',
+    'swiss': 'LX', 'austrian': 'OS', 'westjet': 'WS', 'virgin atlantic': 'VS',
+    'singapore': 'SQ', 'cathay': 'CX', 'korean air': 'KE',
+  };
+  const nameRe = /\b(Delta|United|American|Southwest|JetBlue|Alaska|Spirit|Frontier|Hawaiian|Air\s+Canada|British\s+Airways|Lufthansa|Air\s+France|KLM|Ryanair|easyJet|Aer\s+Lingus|Turkish|Emirates|Qantas|Qatar|Iberia|Finnair|Swiss|Austrian|WestJet|Virgin\s+Atlantic|Singapore|Cathay|Korean\s+Air)(?:\s+Air(?:lines|ways)?)?\s+Flight\s*#?\s*(\d{1,4})\b/gi;
+  let nm2;
+  while ((nm2 = nameRe.exec(text)) !== null) {
+    const code = AIRLINE_NAMES[nm2[1].toLowerCase().replace(/\s+/g, ' ')] || nm2[1].toUpperCase().slice(0, 2);
+    const num = nm2[2];
+    const key = code + num;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const start2 = Math.max(0, nm2.index - 250);
+    const end2 = Math.min(text.length, nm2.index + 250);
+    const ctx2 = text.slice(start2, end2);
+    const flight = _parseFlightContext(ctx2, code, num, nm2.index, text);
     if (!flight.date && fallbackDate) flight.date = fallbackDate;
     flights.push(flight);
   }
@@ -19676,8 +19756,8 @@ function _parseDateLoose(text) {
       return `${m[3]}-${String(second).padStart(2,'0')}-${String(first).padStart(2,'0')}`;
     }
   }
-  // Month-Day-Year — "March 4, 2026" / "Mar 4 2026"
-  m = text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2}),?\s*(\d{4})/i);
+  // Month-Day-Year — "March 4, 2026" / "Mar 4 2026" / "July 21st, 2026"
+  m = text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})(?:st|nd|rd|th)?,?\s*(\d{4})/i);
   if (m) {
     const month = months[m[1].toLowerCase().slice(0,3)];
     return `${m[3]}-${String(month).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
@@ -19686,10 +19766,21 @@ function _parseDateLoose(text) {
   // Travel reservation PDFs (Sabre, Concur, Apollo) almost always use
   // this format. Without this branch we extracted no hotel/flight dates
   // from those itineraries and they failed to land on the dashboard.
-  m = text.match(/\b(\d{1,2})[-\s]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-\s]+(\d{4})\b/i);
+  m = text.match(/\b(\d{1,2})(?:st|nd|rd|th)?[-\s]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-\s]+(\d{4})\b/i);
   if (m) {
     const month = months[m[2].toLowerCase().slice(0,3)];
     return `${m[3]}-${String(month).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
+  }
+  // DD.MM.YY — 2-digit-year European dotted ("21.06.26", common in
+  // agency FILENAMES). Guarded: both separators must be dots, the year
+  // must read 20-99 (mapped to 20xx), and the match must not continue
+  // with more dotted digits (version numbers like 1.2.3.4).
+  m = text.match(/\b(\d{1,2})\.(\d{1,2})\.(\d{2})\b(?!\.?\d)/);
+  if (m) {
+    const day = parseInt(m[1], 10), mon = parseInt(m[2], 10), yy = parseInt(m[3], 10);
+    if (day >= 1 && day <= 31 && mon >= 1 && mon <= 12 && yy >= 20 && yy <= 99) {
+      return `20${String(yy).padStart(2,'0')}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    }
   }
   return '';
 }
@@ -19796,14 +19887,14 @@ function _parseGenericMemoBlock(block) {
   // Try several date shapes within the line:
   let parsedDate = '';
   // "Sat 21 Jun, 2026" / "21 Jun 2026" / "21-Jun-2026"
-  let dm = dateLine.match(/(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*\s+)?(\d{1,2})[\s\-]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s\-,]+(\d{4})/i);
+  let dm = dateLine.match(/(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*\s+)?(\d{1,2})(?:st|nd|rd|th)?[\s\-]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s\-,]+(\d{4})/i);
   if (dm) {
     const mn = months[dm[2].toLowerCase().slice(0,3)];
     parsedDate = `${dm[3]}-${String(mn).padStart(2,'0')}-${String(dm[1]).padStart(2,'0')}`;
   }
   // "June 21, 2026" / "Jun 21 2026"
   if (!parsedDate) {
-    dm = dateLine.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2}),?\s+(\d{4})/i);
+    dm = dateLine.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})/i);
     if (dm) {
       const mn = months[dm[1].toLowerCase().slice(0,3)];
       parsedDate = `${dm[3]}-${String(mn).padStart(2,'0')}-${String(dm[2]).padStart(2,'0')}`;
@@ -19933,6 +20024,13 @@ function _parseGenericMemoBlock(block) {
     const m = block.match(re);
     if (m) { out.promoter = m[1].trim(); break; }
   }
+  // Label alone on its line ("PROMOTER\nLive Nation GSA") — colon-less
+  // stacked layouts some promoter-direct memos use. Only runs when the
+  // colon forms above found nothing.
+  if (!out.promoter) {
+    const stacked = block.match(/(?:^|\n)\s*(?:PROMOTER|BUYER|PURCHASER|PRESENTER)\s*\n\s*([^\n\r(]{2,60})/i);
+    if (stacked) out.promoter = stacked[1].split(/\s+-\s+/)[0].trim();
+  }
 
   // ── Guarantee ───────────────────────────────────────────────────────
   // Either "DEAL TERMS: 20,000 USD Flat" or a labeled "Guarantee:" /
@@ -19945,12 +20043,22 @@ function _parseGenericMemoBlock(block) {
     /(?:Compensation|Total\s+Compensation)\s*:?\s*([\d,]+(?:\.\d+)?)\s*(USD|EUR|GBP|CAD|AUD|JPY|CHF|\$|£|€|¥)?/i,
     /(USD|EUR|GBP|CAD|AUD|JPY|CHF|\$|£|€|¥)\s*([\d,]+(?:\.\d+)?)\s+(?:Flat\s+)?(?:Guarantee|Fee)/i,
   ];
-  for (const re of guarLabels) {
-    const m = block.match(re);
-    if (m) {
-      // Some patterns put currency first, amount second — normalize.
-      const amount = /^\d/.test(m[1]) ? m[1] : m[2];
-      if (amount) { out.guarantee = parseFloat(amount.replace(/,/g, '')) || 0; break; }
+  // Shared multi-currency helper first — it handles label+symbol+amount
+  // ("Guarantee: $25,000"), label+amount+code, and currency-first forms
+  // that the literal patterns below miss. The label list stays as the
+  // fallback so nothing previously matched is lost.
+  const genGuar = _matchGuarantee(block);
+  if (genGuar) {
+    out.guarantee = genGuar.amount;
+    if (genGuar.currency) out.currency = genGuar.currency;
+  } else {
+    for (const re of guarLabels) {
+      const m = block.match(re);
+      if (m) {
+        // Some patterns put currency first, amount second — normalize.
+        const amount = /^\d/.test(m[1]) ? m[1] : m[2];
+        if (amount) { out.guarantee = parseFloat(amount.replace(/,/g, '')) || 0; break; }
+      }
     }
   }
 
@@ -19994,9 +20102,26 @@ function _extractItineraryGridBlocks(text) {
   const lines = text.split(/\n+/).map(l => l.trim()).filter(Boolean);
   // A show row starts with "Tue. 07/21/26" — day-abbrev + M/D/YY(YY).
   const dateRe = /^(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?\s+(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/i;
+  // Long-form row: "Tuesday, July 21, 2026" — some itinerary exports
+  // spell the date out. ONLY honored when the doc carries no deal-memo
+  // markers: Wasserman memos print "Wednesday, March 4, 2026 (Confirmed)"
+  // lines that would otherwise gate a memo BUNDLE into this parser.
+  const dateReLong = /^(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b/i;
+  const hasMemoMarkers = /Date of Engagement|Engagement Venue|DEAL TERMS|BUYER\s*:|Memo\s*#/i.test(text);
+  const rowDateISO = (l) => {
+    let m = l.match(dateRe);
+    if (m) return { mm: m[1], dd: m[2], yy: m[3] };
+    if (hasMemoMarkers) return null;
+    m = l.match(dateReLong);
+    if (m) {
+      const MONTHS = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12 };
+      return { mm: String(MONTHS[m[1].toLowerCase().slice(0,3)]), dd: m[2], yy: m[3] };
+    }
+    return null;
+  };
   const hasGridHeader = /Date\s+Venue\s+Event\s+Contacts\s+Event\s+Info\s+Ticketing/i.test(text);
   const dateIdx = [];
-  lines.forEach((l, i) => { if (dateRe.test(l)) dateIdx.push(i); });
+  lines.forEach((l, i) => { if (rowDateISO(l)) dateIdx.push(i); });
   // Gate: only treat as an itinerary grid when we're confident — either the
   // column header is present, or there are ≥2 of these slash-dated rows
   // (a real deal memo has neither). Otherwise bail to the memo chain.
@@ -20011,7 +20136,8 @@ function _extractItineraryGridBlocks(text) {
   };
   const cityStateRe = /^(.+?),\s*([A-Z]{2})\b(?:\s+\d{5}(?:-\d{4})?)?/;   // "Seattle, WA 98122"
   const streetRe = /^\d+\s+\S/;                                          // "925 E Pike St"
-  const timeRe = '(\\d{1,2}:\\d{2}\\s*[ap]\\.?m\\.?)';
+  // Accepts both "7:00 pm" and 24-hour "19:00" (European exports).
+  const timeRe = '(\\d{1,2}:\\d{2}\\s*[ap]\\.?m\\.?|\\d{1,2}:\\d{2})';
   const grabTime = (label, block) => {
     const m = block.match(new RegExp('\\b' + label + '\\s+' + timeRe, 'i'));
     return m ? m[1].replace(/\s+/g, '').toLowerCase() : '';
@@ -20023,8 +20149,8 @@ function _extractItineraryGridBlocks(text) {
     const stop = (k + 1 < dateIdx.length) ? dateIdx[k + 1] : lines.length;
     const bl = lines.slice(start, stop);
     const btext = bl.join('\n');
-    const dm = bl[0].match(dateRe);
-    const date = dm ? toISO(dm[1], dm[2], dm[3]) : '';
+    const dm = rowDateISO(bl[0]);
+    const date = dm ? toISO(dm.mm, dm.dd, dm.yy) : '';
 
     // Venue name + city/state: the venue block runs from just after the
     // "On Sale Date:" value up to the first street / city-state line.
@@ -20047,6 +20173,53 @@ function _extractItineraryGridBlocks(text) {
     for (const l of bl) {
       const cm = l.match(cityStateRe);
       if (cm) { city = cm[1].trim(); state = cm[2]; break; }
+    }
+    // Fallbacks for grids that don't follow the UTA preamble shape:
+    // (a) No "On Sale Date:" anchor — take the first line after the date
+    //     row that isn't an address / label / time / capacity line.
+    if (!venue) {
+      const NOT_VENUE = /^(?:Billing|Announce Date|On Sale Date|Purchaser|Production|Marketing|Contracts|Ticket Counts|Accounting|Doors|Show|Curfew|Ages|Merchandising|Phone|Sellable Capacity)\b/i;
+      for (let j = 1; j < bl.length; j++) {
+        const l = bl[j];
+        if (/^-+$/.test(l)) continue;
+        if (streetRe.test(l) || cityStateRe.test(l)) break;
+        if (NOT_VENUE.test(l)) continue;
+        if (/\d{1,2}:\d{2}/.test(l)) continue;
+        venue = l.trim();
+        break;
+      }
+    }
+    // (b) Whole row on ONE line (tab / multi-space columnar export) —
+    //     the anchored city regex above either missed or swallowed the
+    //     date+venue prefix. Split the row into cells and pull the city
+    //     from the "..., City, ST ZIP" cell, the venue from the first
+    //     non-address cell after the date.
+    if (bl.length === 1 || !city || city.length > 40 || /\d{1,2}\/\d{1,2}\/\d{2}/.test(city)) {
+      const cells = bl[0].split(/\t+|\s{3,}/).map(s => s.trim()).filter(Boolean);
+      if (cells.length >= 2) {
+        let cellCity = '', cellState = '', cellVenue = '';
+        for (const cell of cells) {
+          const zm = cell.match(/,\s*([A-Z]{2})\s+\d{5}(?:-\d{4})?\s*$/);
+          if (zm) {
+            const parts = cell.split(',').map(s => s.trim());
+            if (parts.length >= 2) {
+              cellState = zm[1];
+              cellCity = parts[parts.length - 2].replace(/\s+[A-Z]{2}\s+\d{5}.*$/, '').trim();
+            }
+            break;
+          }
+        }
+        for (let ci = 1; ci < cells.length; ci++) {
+          const cell = cells[ci];
+          if (rowDateISO(cell)) continue;
+          if (streetRe.test(cell) || /\d{5}/.test(cell)) break;
+          if (/\d{1,2}:\d{2}/.test(cell) || /Sellable Capacity/i.test(cell)) break;
+          cellVenue = cell;
+          break;
+        }
+        if (cellCity && (!city || city.length > 40 || /\d{1,2}\/\d{1,2}\/\d{2}/.test(city))) { city = cellCity; state = cellState; }
+        if (cellVenue && !venue) venue = cellVenue;
+      }
     }
     // Promoter = the line after "Purchaser Company".
     let promoter = '';
