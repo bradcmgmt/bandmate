@@ -27652,6 +27652,19 @@ async function loginWithEmail() {
     };
   } else {
     state.users[userId].lastLoginAt = Date.now();
+    // Re-sync name/role from the cloud profile on EVERY login — not just
+    // when the local record is first created. Without this, a rename made
+    // on another device (or server-side, like the god account's) never
+    // showed up here: the cached record kept the stale name forever.
+    try {
+      const { data: profile } = await sb.from('profiles').select('display_name,role').eq('id', userId).maybeSingle();
+      const rec = state.users[userId];
+      if (profile && profile.display_name && profile.display_name !== rec.name) {
+        rec.name = profile.display_name;
+        rec.avatar = profile.display_name.split(' ').filter(Boolean).map(s=>s[0]).join('').slice(0,2).toUpperCase() || rec.avatar;
+      }
+      if (profile && profile.role) rec.role = profile.role;
+    } catch (e) { /* non-fatal — keep the cached copy */ }
   }
 
   state.currentUserId = userId;
