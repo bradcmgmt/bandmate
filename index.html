@@ -1808,7 +1808,11 @@ input#tv_desc.is-auto{background:rgba(232,148,58,.05);border-color:rgba(232,148,
   box-shadow:0 0 20px rgba(232,148,58,.6),0 0 40px rgba(232,148,58,.3);
   -webkit-text-fill-color:initial;flex:none;align-self:center;display:inline-block}
 .onboard .ob-hero p{color:var(--warm-mute);font-size:14px;letter-spacing:.04em;max-width:520px;margin:0 auto;line-height:1.55}
-.onboard .ob-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+/* auto-fit COLLAPSES unused tracks (and their gaps), and justify-content
+   centers whatever remains — so the row stays centered under the logo
+   whether there are 2 cards or 3. A fixed repeat(3,1fr) left the old
+   third column occupying space and shoved the pair off-center. */
+.onboard .ob-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,284px));gap:14px;justify-content:center}
 @media (max-width:780px){.onboard .ob-cards{grid-template-columns:1fr}}
 .ob-card{
   background:linear-gradient(180deg,rgba(24,17,11,.95),rgba(15,10,6,.95));
@@ -19343,7 +19347,11 @@ function _extractHotelsFromText(text) {
   const markerRe = /\b(Marriott|Hyatt|Hilton|Westin|Sheraton|Holiday\s+Inn|Hampton\s+Inn|Courtyard|Residence\s+Inn|Four\s+Seasons|Ritz[- ]Carlton|Kimpton|Loews|Fairmont|St\.?\s*Regis|Le\s+Meridien|Moxy|Aloft|Element|Edition|Standard|NoMad|Ace\s+Hotel|Virgin\s+Hotel|Cambria|Conrad|DoubleTree|Embassy\s+Suites|Hyatt\s+Place|Hyatt\s+Regency|Grand\s+Hyatt|Park\s+Hyatt|JW\s+Marriott|Renaissance|Autograph|Tribute|Gaylord|Sofitel|Pullman|Raffles|Fairfield|Home2|TownePlace|SpringHill|Best\s+Western|Quality\s+Inn|Comfort\s+Inn|La\s+Quinta|Days\s+Inn|Super\s+8|Motel\s+6|Wyndham|Radisson|Crowne\s+Plaza|InterContinental|Andaz|Thompson|Tommie|1\s+Hotel|Soho\s+House|Nobu|Pendry|Hoxton|Public|Graduate)\b|\b(?:Hotel|Property|Lodging|Accommodation)\s*[:.]/gi;
 
   // Booking-ish context: words that appear in any real reservation.
-  const BOOKING_CTX_RE = /check[\s-]?in|check[\s-]?out|reservation|confirmation|conf\s*#|room|guest|night/i;
+  // Must be SPECIFIC booking language. Bare "room" / "guest" / "night" were
+  // too loose: an itinerary's "Special Guest" and even the artist name
+  // "The Midnight" satisfied them, letting a production contact named
+  // Scott *Thompson* register as a Thompson Hotels booking.
+  const BOOKING_CTX_RE = /check[\s-]?in|check[\s-]?out|reservation|confirmation|conf\s*#|room\s+(?:type|rate|no\b|number)|guest\s+room|nightly|per\s+night|\bhotel\s*[:.]/i;
   let lastEnd = -1;
   let m;
   while ((m = markerRe.exec(text)) !== null) {
@@ -19354,7 +19362,7 @@ function _extractHotelsFromText(text) {
     // count as hotels when the window shows actual booking context.
     // Real Standard/Edition/etc. confirmations always have check-in /
     // confirmation / room language nearby.
-    if (m[1] && /^(Standard|Element|Edition|Public|Graduate|Tribute|Renaissance|Autograph)$/i.test(m[1].trim())
+    if (m[1] && /^(Standard|Element|Edition|Public|Graduate|Tribute|Renaissance|Autograph|Thompson|Conrad|Tommie|Nobu|Pendry|Ace)$/i.test(m[1].trim())
         && !BOOKING_CTX_RE.test(text.slice(m.index, Math.min(text.length, m.index + 2500)))) {
       continue;
     }
@@ -20120,8 +20128,20 @@ function _extractItineraryGridBlocks(text) {
     return null;
   };
   const hasGridHeader = /Date\s+Venue\s+Event\s+Contacts\s+Event\s+Info\s+Ticketing/i.test(text);
+  // A date line that is the VALUE of a scheduling label — the line above is
+  // "Announce Date:" / "On Sale Date:" — is NOT the start of a new show row.
+  // Itinerary exports print those inside EVERY show block, so splitting on
+  // them shredded each show into three fragments: the real date row lost its
+  // venue/city/capacity/doors, and the on-sale row became a phantom show
+  // dated months earlier. (A 20-show itinerary imported as 40 dates, half of
+  // them empty — "needs: city, capacity, doors…" on every one.)
+  const DATE_VALUE_LABEL_RE = /(?:announce|on\s*-?\s*sale|onsale|pre\s*-?\s*sale|off\s*-?\s*sale|created(?:\s+on)?|confirm(?:ed)?|contract(?:ed)?|settle(?:ment)?|deposit|invoice|payment|due|advance|radio|press|cut\s*-?\s*off)\s*(?:date|on)?\s*:\s*$/i;
   const dateIdx = [];
-  lines.forEach((l, i) => { if (rowDateISO(l)) dateIdx.push(i); });
+  lines.forEach((l, i) => {
+    if (!rowDateISO(l)) return;
+    if (i > 0 && DATE_VALUE_LABEL_RE.test(lines[i - 1])) return;
+    dateIdx.push(i);
+  });
   // Gate: only treat as an itinerary grid when we're confident — either the
   // column header is present, or there are ≥2 of these slash-dated rows
   // (a real deal memo has neither). Otherwise bail to the memo chain.
@@ -20162,7 +20182,7 @@ function _extractItineraryGridBlocks(text) {
         const l = bl[j];
         if (/^-+$/.test(l) || dateRe.test(l)) continue;          // skip the "--" value
         if (streetRe.test(l) || cityStateRe.test(l)) break;      // hit the address → venue done
-        if (/^(Purchaser Company|Production|Marketing|Contracts|Ticket Counts|Purchaser|Accounting|Doors|Show|Ages|Merchandising|Billing:|Announce Date:)/i.test(l)) break;
+        if (/^(Purchaser Company|Promoter Company|Promoter|Production|Marketing|Contracts|Ticket Counts|Purchaser|Accounting|Doors|Show|Ages|Merchandising|Billing:|Announce Date:|Appearing With)/i.test(l)) break;
         venueLines.push(l);
         if (venueLines.length >= 3) break;                        // safety cap
       }
@@ -20178,12 +20198,16 @@ function _extractItineraryGridBlocks(text) {
     // (a) No "On Sale Date:" anchor — take the first line after the date
     //     row that isn't an address / label / time / capacity line.
     if (!venue) {
-      const NOT_VENUE = /^(?:Billing|Announce Date|On Sale Date|Purchaser|Production|Marketing|Contracts|Ticket Counts|Accounting|Doors|Show|Curfew|Ages|Merchandising|Phone|Sellable Capacity)\b/i;
+      const NOT_VENUE = /^(?:Billing|Announce Date|On Sale Date|Purchaser|Promoter|Production|Marketing|Contracts|Ticket Counts|Accounting|Doors|Show|Curfew|Ages|Merchandising|Phone|Sellable Capacity|Appearing With|Special Guest|Support|Tier|Ticketing)\b/i;
       for (let j = 1; j < bl.length; j++) {
         const l = bl[j];
         if (/^-+$/.test(l)) continue;
+        if (rowDateISO(l)) continue;                       // announce / on-sale value
         if (streetRe.test(l) || cityStateRe.test(l)) break;
         if (NOT_VENUE.test(l)) continue;
+        // Billing values ("100% Headline", "75% Special Guest", "TBD") are
+        // never the venue — they're the row above it in these exports.
+        if (/^\d+\s*%/.test(l) || /^TBD\b/i.test(l)) continue;
         if (/\d{1,2}:\d{2}/.test(l)) continue;
         venue = l.trim();
         break;
@@ -20221,9 +20245,10 @@ function _extractItineraryGridBlocks(text) {
         if (cellVenue && !venue) venue = cellVenue;
       }
     }
-    // Promoter = the line after "Purchaser Company".
+    // Promoter = the line after "Purchaser Company" (UTA) or "Promoter
+    // Company" (Prism / Master Tour) — both name the buying entity below.
     let promoter = '';
-    const pcIdx = bl.findIndex(l => /^Purchaser Company\b/i.test(l));
+    const pcIdx = bl.findIndex(l => /^(?:Purchaser|Promoter)\s+Company\b/i.test(l));
     if (pcIdx !== -1 && bl[pcIdx + 1]) promoter = bl[pcIdx + 1].trim();
 
     const capM = btext.match(/Sellable Capacity:\s*([\d,]+)/i);
