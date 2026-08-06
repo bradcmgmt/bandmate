@@ -7188,8 +7188,28 @@ function saveState() {
   try { db.scheduleActiveTourSync(); } catch (e) { console.warn('schedule sync:', e); }
 }
 function loadState() {
-  try { state = JSON.parse(localStorage.getItem(STORAGE_KEY)); }
-  catch (e) { state = null; }
+  let _raw = null;
+  try { _raw = localStorage.getItem(STORAGE_KEY); } catch (e) { _raw = null; }
+  try { state = JSON.parse(_raw); }
+  catch (e) {
+    // CORRUPT PAYLOAD — never silently discard it. Without this, the app
+    // boots with an empty state and the FIRST saveState() overwrites these
+    // bytes forever, taking with them any tour that hadn't yet reached the
+    // cloud (offline creation, a failed promotion, a mid-write crash).
+    // Copy the raw string to a one-off backup key so it stays recoverable,
+    // and make the failure loud instead of silent. Cloud-backed tours are
+    // unaffected either way — they re-hydrate on sign-in.
+    state = null;
+    try {
+      if (_raw && _raw.length) {
+        localStorage.setItem(STORAGE_KEY + '.corrupt', _raw);
+        window.__bandmateCorruptState = _raw.length;
+        console.error('[loadState] corrupt state preserved at "' + STORAGE_KEY + '.corrupt" (' + _raw.length + ' bytes)', e);
+      }
+    } catch (e2) {
+      console.error('[loadState] could not preserve corrupt state', e2);
+    }
+  }
   if (state && state.dates && !state.tours) {
     state = migrateV1ToMultiTour(state);
   }
@@ -25134,6 +25154,17 @@ function deleteCurrentTour() {
   closeTourSwitcher();
   const t = T();
   if (!t || t.id === '_empty') return;
+  // OWNERSHIP GUARD — deleting writes a permanent local tombstone, so a
+  // non-owner (crew, co-manager, god) doing it would hide a tour they still
+  // legitimately have access to, forever, with no way back. The menu already
+  // hides the button for them, but this function is globally reachable and
+  // the survivor check below doesn't catch a co-manager who happens to own
+  // some OTHER tour. Losing access is the owner's call alone.
+  const _me = U();
+  if (!_me || t.ownerId !== _me.id) {
+    toast('Only the tour owner can delete this tour', 'error');
+    return;
+  }
   // Also sweep byte-identical DUPLICATES of this tour (same content, different
   // id — e.g. a sample tour re-promoted with fresh UUIDs). Tombstoning each one
   // individually is what finally clears "deleted tours that keep coming back",
@@ -30812,6 +30843,13 @@ function init() {
   // post-login by applyRoleMode().
   try { if (_isPhoneApp()) document.documentElement.classList.add('native-app'); } catch (e) {}
   try { loadState(); } catch (e) { console.error('loadState:', e); state = null; }
+  // Corrupt local state was set aside by loadState — tell the user rather
+  // than letting the device look mysteriously empty.
+  if (window.__bandmateCorruptState) {
+    setTimeout(() => {
+      try { toast('Saved data on this device couldn\'t be read and was set aside for recovery. Tours synced to your account are unaffected — sign in to restore them.', 'error'); } catch (e) {}
+    }, 1800);
+  }
   try { if (state) migrateGroups(); } catch (e) { console.error('migrateGroups:', e); }
   // Run the per-date → tour-wide attachment migration once per boot, for
   // every tour. Idempotent — safe even if it's already migrated.
