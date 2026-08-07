@@ -108,7 +108,7 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
 #bgLogoCanvas{position:fixed;inset:0;width:100vw;height:100vh;
   z-index:251;pointer-events:none;display:block;
   opacity:0;transition:opacity 700ms ease-out}
-#bgLogoCanvas.ready{opacity:.09}
+#bgLogoCanvas.ready{opacity:.083}
 body.bg-logo-hidden #bgLogoCanvas{opacity:0}
 @media (prefers-reduced-motion:reduce){#bgLogoCanvas{opacity:0!important}}
 
@@ -32523,7 +32523,28 @@ window.bandmateInstallPrompt = async function() {
     let dragRX = 0, dragRY = 0;          // accumulated swipe rotation
     let curVX = 0, curVY = 0;            // cursor velocity (screen px/frame)
     let lastPX = -1, lastPY = -1;
+    // Inertia is OFF in the phone app. There, pointermove only fires while
+    // a finger is down — i.e. it IS the scroll gesture — so every swipe
+    // through a list would fling the watermark around. The mark still
+    // erodes, re-forms, and runs its worms; it just no longer reacts to
+    // touch. Desktop keeps the full drag + swipe momentum.
+    // Re-evaluated on resize/orientation change, not frozen at boot:
+    // _isPhoneApp() is partly a viewport-width test, so rotating a tablet
+    // or resizing an installed PWA can legitimately flip the answer.
+    const computeNoInertia = () => (typeof _isPhoneApp === 'function') && _isPhoneApp();
+    let noInertia = computeNoInertia();
+    addEventListener('resize', () => { noInertia = computeNoInertia(); }, { passive: true });
+    addEventListener('orientationchange', () => { noInertia = computeNoInertia(); }, { passive: true });
+    // Track whether a pointer has ever been seen. Without this, mx/my sit
+    // at 0,0 — dead centre of the mark — and the repulsion below would
+    // punch a permanent hole in the middle before the mouse ever moves
+    // (and forever on the phone, where we ignore the pointer entirely).
+    let hasPointer = false;
     addEventListener('pointermove', (e) => {
+      // Phone app: purely ambient. Touch-drags ARE scrolling here, so the
+      // mark ignores the pointer completely — no lean, no drag, no spin.
+      if (noInertia) return;
+      hasPointer = true;
       mx = (e.clientX/innerWidth)*2 - 1;
       my = -(e.clientY/innerHeight)*2 + 1;
       if (lastPX >= 0){
@@ -32590,7 +32611,7 @@ window.bandmateInstallPrompt = async function() {
       if (Math.abs(curVY) < 0.01) curVY = 0;
 
       if (points){
-        const cursor = screenToLocal((mx*0.5+0.5)*innerWidth, (0.5-my*0.5)*innerHeight);
+        const cursor = hasPointer ? screenToLocal((mx*0.5+0.5)*innerWidth, (0.5-my*0.5)*innerHeight) : null;
         for (let i = 0; i < N; i++){
           const i3 = i*3;
           if (erodeKey[i] < threshold){
