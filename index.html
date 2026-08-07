@@ -32630,25 +32630,29 @@ window.bandmateInstallPrompt = async function() {
             vel[i3] = vel[i3+1] = vel[i3+2] = 0;
             alpha[i] += (baseA[i]-alpha[i])*0.08;
           }
-          // CURSOR DRAG INERTIA — the feel the old 2D watermark had: sweep
-          // through the mark and nearby pixels get carried along, coast
-          // after the cursor has gone, then get reeled back home by the
-          // re-form lerp above. Gaussian-ish falloff keeps the edge soft.
+          // CURSOR RESPONSE — tuned toward the Pixel Bunny reference, where
+          // the mark holds its shape and the inertia lives in the whole
+          // group's rotation rather than in flying pixels. Particles now
+          // only *flinch* toward the sweep (a fraction of the old impulse,
+          // and it dies fast), so the rabbit stays legible while a swipe
+          // still reads as physical. Whole-mark swipe momentum is
+          // unchanged — that's the inertia you feel on desktop.
           if (cursor){
             const dx = pos[i3]-cursor.x, dy = pos[i3+1]-cursor.y;
             const d2 = dx*dx + dy*dy;
             if (d2 < 0.16){
               const fall = (0.16 - d2)/0.16;              // 1 at cursor → 0 at edge
-              dragVX[i] += dragImpulseX * fall * 0.00040;
-              dragVY[i] -= dragImpulseY * fall * 0.00040; // screen Y is inverted
-              // plus a light parting push so the cursor still opens a gap
+              dragVX[i] += dragImpulseX * fall * 0.00008;
+              dragVY[i] -= dragImpulseY * fall * 0.00008; // screen Y is inverted
+              // the reference's own parting push — cursor opens a soft gap
               const f = (0.16-d2)*0.5*dt*8;
               pos[i3] += dx*f/(Math.sqrt(d2)+0.02); pos[i3+1] += dy*f/(Math.sqrt(d2)+0.02);
             }
           }
-          // Coast + apply. Damping decides how long a flick keeps travelling.
+          // Coast + apply. Faster decay = the flinch settles almost at once
+          // instead of the pixels touring the screen.
           pos[i3] += dragVX[i]; pos[i3+1] += dragVY[i];
-          dragVX[i] *= 0.90; dragVY[i] *= 0.90;
+          dragVX[i] *= 0.78; dragVY[i] *= 0.78;
           const w = Math.sin(t*1.4+seed[i])*0.006 + Math.sin(t*4.1+seed[i]*2.7)*0.0025;
           pos[i3] += w; pos[i3+1] += Math.cos(t*1.1+seed[i])*0.006;
           boost[i] *= 0.90;
