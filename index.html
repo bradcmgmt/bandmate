@@ -32381,6 +32381,7 @@ window.bandmateInstallPrompt = async function() {
     }
 
     let N = 0, pos, home, vel, alpha, baseA, col, size, erodeKey, boost, seed;
+    let dragVX, dragVY;                  // per-particle cursor-drag momentum
     let points, worms = [], headPts, balls = [], ballPts, bbox;
     const THICK = 0.26;
 
@@ -32411,6 +32412,7 @@ window.bandmateInstallPrompt = async function() {
       alpha = new Float32Array(N); baseA = new Float32Array(N);
       col = new Float32Array(N*3); size = new Float32Array(N);
       erodeKey = new Float32Array(N); boost = new Float32Array(N); seed = new Float32Array(N);
+      dragVX = new Float32Array(N); dragVY = new Float32Array(N);
 
       const c1 = new THREE.Color('#c47323'), c2 = new THREE.Color('#ffb35a'), tmp = new THREE.Color();
       for (let i = 0; i < N; i++){
@@ -32509,10 +32511,29 @@ window.bandmateInstallPrompt = async function() {
     }
 
     // ---------- passive cursor tracking (never intercepts) ----------
+    // Listening to pointermove is passive — it reads the cursor but takes
+    // no input, so momentum costs the dashboard nothing. Two kinds of
+    // inertia come off it:
+    //   1. spinV*  — a fast swipe imparts angular momentum to the whole
+    //      mark, which coasts and decays back to facing front.
+    //   2. curVX/Y — the cursor's own velocity, handed to nearby particles
+    //      in the loop so they get dragged along and drift back home.
     let mx = 0, my = 0;
+    let spinVX = 0, spinVY = 0;          // rotational momentum
+    let dragRX = 0, dragRY = 0;          // accumulated swipe rotation
+    let curVX = 0, curVY = 0;            // cursor velocity (screen px/frame)
+    let lastPX = -1, lastPY = -1;
     addEventListener('pointermove', (e) => {
       mx = (e.clientX/innerWidth)*2 - 1;
       my = -(e.clientY/innerHeight)*2 + 1;
+      if (lastPX >= 0){
+        const dxp = e.clientX - lastPX, dyp = e.clientY - lastPY;
+        spinVY += dxp * 0.0008;
+        spinVX += dyp * 0.00032;
+        // Accumulate so a fast flick lands harder than a slow drift.
+        curVX += dxp; curVY += dyp;
+      }
+      lastPX = e.clientX; lastPY = e.clientY;
     }, { passive: true });
 
     const ray = new THREE.Raycaster(), plane = new THREE.Plane(new THREE.Vector3(0,0,1), 0), hitV = new THREE.Vector3();
@@ -32547,9 +32568,26 @@ window.bandmateInstallPrompt = async function() {
       const wave = 0.5 - 0.5*Math.cos(ph*Math.PI*2);
       const threshold = Math.pow(wave, 1.35)*0.74;
 
-      // Slow self-rotation, with a gentle lean toward the cursor.
-      group.rotation.y = Math.sin(t*0.13)*0.45 + mx*0.12;
-      group.rotation.x = Math.sin(t*0.09)*0.10 + -my*0.06;
+      // Rotational inertia: momentum from a swipe coasts and decays, and
+      // the accumulated angle eases back so the mark always drifts home to
+      // facing front rather than ending up parked at a random angle.
+      const damp = Math.pow(0.55, dt);
+      spinVY = Math.max(-4.5, Math.min(4.5, spinVY)) * damp;
+      spinVX = Math.max(-1.4, Math.min(1.4, spinVX)) * damp;
+      dragRY += spinVY*dt*3.2;
+      dragRX = Math.max(-0.9, Math.min(0.9, dragRX + spinVX*dt*3.2));
+      dragRY *= Math.pow(0.90, dt); dragRX *= Math.pow(0.82, dt);
+
+      // Slow self-rotation + swipe momentum + a gentle lean toward the cursor.
+      group.rotation.y = Math.sin(t*0.13)*0.45 + dragRY + mx*0.12;
+      group.rotation.x = Math.sin(t*0.09)*0.10 + dragRX + -my*0.06;
+
+      // Cursor velocity decays each frame; whatever's left this frame is
+      // handed to nearby particles below as a drag impulse.
+      const dragImpulseX = curVX, dragImpulseY = curVY;
+      curVX *= 0.72; curVY *= 0.72;
+      if (Math.abs(curVX) < 0.01) curVX = 0;
+      if (Math.abs(curVY) < 0.01) curVY = 0;
 
       if (points){
         const cursor = screenToLocal((mx*0.5+0.5)*innerWidth, (0.5-my*0.5)*innerHeight);
@@ -32571,11 +32609,25 @@ window.bandmateInstallPrompt = async function() {
             vel[i3] = vel[i3+1] = vel[i3+2] = 0;
             alpha[i] += (baseA[i]-alpha[i])*0.08;
           }
+          // CURSOR DRAG INERTIA — the feel the old 2D watermark had: sweep
+          // through the mark and nearby pixels get carried along, coast
+          // after the cursor has gone, then get reeled back home by the
+          // re-form lerp above. Gaussian-ish falloff keeps the edge soft.
           if (cursor){
             const dx = pos[i3]-cursor.x, dy = pos[i3+1]-cursor.y;
             const d2 = dx*dx + dy*dy;
-            if (d2 < 0.16){ const f = (0.16-d2)*0.5*dt*8; pos[i3] += dx*f/(Math.sqrt(d2)+0.02); pos[i3+1] += dy*f/(Math.sqrt(d2)+0.02); }
+            if (d2 < 0.16){
+              const fall = (0.16 - d2)/0.16;              // 1 at cursor → 0 at edge
+              dragVX[i] += dragImpulseX * fall * 0.00040;
+              dragVY[i] -= dragImpulseY * fall * 0.00040; // screen Y is inverted
+              // plus a light parting push so the cursor still opens a gap
+              const f = (0.16-d2)*0.5*dt*8;
+              pos[i3] += dx*f/(Math.sqrt(d2)+0.02); pos[i3+1] += dy*f/(Math.sqrt(d2)+0.02);
+            }
           }
+          // Coast + apply. Damping decides how long a flick keeps travelling.
+          pos[i3] += dragVX[i]; pos[i3+1] += dragVY[i];
+          dragVX[i] *= 0.90; dragVY[i] *= 0.90;
           const w = Math.sin(t*1.4+seed[i])*0.006 + Math.sin(t*4.1+seed[i]*2.7)*0.0025;
           pos[i3] += w; pos[i3+1] += Math.cos(t*1.1+seed[i])*0.006;
           boost[i] *= 0.90;
