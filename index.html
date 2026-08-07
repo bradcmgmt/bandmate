@@ -1928,6 +1928,53 @@ input#tv_desc.is-auto{background:rgba(232,148,58,.05);border-color:rgba(232,148,
   box-shadow:0 0 24px rgba(232,148,58,.4);
 }
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Traced-border loading ────────────────────────────────────────────
+   Replaces the ring spinners on the scan / analyze surfaces. A comet of
+   light runs the perimeter of a pill while work is in flight. Built from
+   a conic-gradient beam rotating behind the pill, clipped by the pill's
+   own radius, with an inner panel punched out so only a hairline of that
+   beam shows — reading as a light tracing the edge. Deliberately avoids
+   @property and mask-composite so it renders identically in Safari and
+   the iOS app. Label must be wrapped (.tl-txt) to sit above the punch. */
+.trace-load{
+  position:relative;overflow:hidden;isolation:isolate;
+  display:inline-flex;align-items:center;justify-content:center;gap:9px;
+  padding:14px 28px;border-radius:999px;
+  background:linear-gradient(180deg,rgba(30,21,14,.96),rgba(16,11,7,.96));
+  box-shadow:0 0 26px -8px rgba(232,148,58,.5),0 8px 24px -12px rgba(0,0,0,.8);
+  font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.2em;
+  text-transform:uppercase;font-weight:700;color:#ffd9ae;
+}
+.trace-load::before{
+  content:'';position:absolute;left:50%;top:50%;width:260%;padding-bottom:260%;
+  transform:translate(-50%,-50%);
+  background:conic-gradient(from 0deg,
+    transparent 0 55%,
+    rgba(255,140,40,.20) 66%,
+    rgba(255,186,110,.75) 74%,
+    #fff3e0 79%,
+    rgba(255,186,110,.75) 84%,
+    rgba(255,140,40,.20) 92%,
+    transparent 100%);
+  filter:blur(1.5px);
+  animation:traceRun 1.9s linear infinite;
+  z-index:0;
+}
+.trace-load::after{
+  content:'';position:absolute;inset:1.5px;border-radius:inherit;
+  background:linear-gradient(180deg,#1a1209,#100b07);
+  z-index:1;
+}
+.trace-load .tl-txt{position:relative;z-index:2}
+.trace-load .tl-dot{position:relative;z-index:2;width:6px;height:6px;border-radius:50%;
+  background:var(--hi);box-shadow:0 0 8px rgba(232,148,58,.9);animation:tlDot 1.4s ease-in-out infinite}
+@keyframes traceRun{to{transform:translate(-50%,-50%) rotate(360deg)}}
+@keyframes tlDot{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){
+  .trace-load::before{animation:none}
+  .trace-load .tl-dot{animation:none}
+}
 .iz-status{font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--hi)}
 .iz-progress-bar{width:80%;height:4px;border-radius:2px;background:rgba(232,148,58,.1);overflow:hidden;max-width:400px}
 .iz-progress-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--hi),var(--hi-bright));box-shadow:0 0 8px rgba(232,148,58,.5);transition:width .3s}
@@ -2418,27 +2465,40 @@ input#tv_desc.is-auto{background:rgba(232,148,58,.05);border-color:rgba(232,148,
    bar slides left → right inside the button while the scan runs. */
 .scan-btn{position:relative;overflow:hidden;isolation:isolate}
 .scan-btn.scanning{pointer-events:none}
-.scan-btn.scanning::after{
+/* Working state: the same traced light as .trace-load, drawn around the
+   button itself. ::before is the rotating beam; ::after paints the
+   button's own flame face back over it, so only a hairline of that beam
+   survives at the edges and reads as a light tracing the border.
+   (Replaces the old one-shot left→right sweep.) */
+.scan-btn.scanning::before{
   content:"";
-  position:absolute;top:0;left:-40%;height:100%;width:35%;
-  background:linear-gradient(90deg,
-    transparent 0%,
-    rgba(232,148,58,.08) 25%,
-    rgba(232,148,58,.45) 50%,
-    rgba(232,148,58,.08) 75%,
+  position:absolute;left:50%;top:50%;width:320%;padding-bottom:320%;
+  transform:translate(-50%,-50%);
+  background:conic-gradient(from 0deg,
+    transparent 0 55%,
+    rgba(255,140,40,.25) 66%,
+    rgba(255,196,130,.85) 75%,
+    #fff3e0 79%,
+    rgba(255,196,130,.85) 83%,
+    rgba(255,140,40,.25) 92%,
     transparent 100%);
   filter:blur(1px);
-  animation:scanSweep .7s cubic-bezier(.22,.7,.32,1) forwards;
+  animation:traceRun 1.5s linear infinite;
   z-index:0;pointer-events:none;
 }
-.scan-btn > *{position:relative;z-index:1}
-.scan-btn.scanning{box-shadow:0 0 0 1px rgba(232,148,58,.4),0 0 12px rgba(232,148,58,.25)}
-@keyframes scanSweep{
-  0%   { left:-40%; opacity:0 }
-  10%  { opacity:1 }
-  90%  { opacity:1 }
-  100% { left:105%; opacity:0 }
+.scan-btn.scanning::after{
+  content:"";
+  position:absolute;inset:1.5px;border-radius:5px;
+  background:
+    radial-gradient(circle at 25% 75%, rgba(255,150,45,.40), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,80,25,.26), transparent 42%),
+    linear-gradient(135deg, rgba(60,32,12,.98), rgba(28,16,8,.98));
+  background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
+  z-index:1;pointer-events:none;
 }
+.scan-btn > *{position:relative;z-index:2}
+.scan-btn.scanning{box-shadow:0 0 18px -2px rgba(255,140,50,.45)}
+@media (prefers-reduced-motion:reduce){.scan-btn.scanning::before{animation:none}}
 
 /* In-modal scanning overlay — fades in over the existing tour scan
    contents while the fresh scan computes, then gets replaced when
@@ -17853,6 +17913,37 @@ function bindTabsClick() {
 }
 
 /* phone screen nav */
+// Enter submits the auth forms. The sign-in / sign-up blocks are plain
+// <div>s rather than <form>s, so the browser gives them no implicit submit
+// — pressing Enter after typing a password simply did nothing, and the user
+// had to reach for the mouse. Delegated from the document so it also covers
+// the sign-up form, the Get Started screen, and the single-field password
+// reset modal, and keeps working when any of those are re-rendered.
+function bindAuthEnterKey() {
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+    const el = e.target;
+    if (!el || el.tagName !== 'INPUT') return;
+    const type = (el.type || 'text').toLowerCase();
+    if (['checkbox', 'radio', 'button', 'submit', 'file', 'range'].includes(type)) return;
+
+    let btn = null;
+    const overlay = el.closest('.login-overlay');
+    if (overlay && !overlay.hidden) {
+      // Scope to the specific form block so the sign-in form can't fire the
+      // sign-up button (both live inside #loginScreen).
+      const block = el.closest('#loginForm, #signupForm') || overlay;
+      btn = [...block.querySelectorAll('.login-btn.primary')]
+        .find(b => !b.disabled && b.offsetParent !== null) || null;
+    } else if (el.id === 'fp_email') {
+      btn = document.getElementById('fp_send_btn');
+    }
+    if (!btn || btn.disabled || btn.offsetParent === null) return;
+    e.preventDefault();
+    btn.click();
+  });
+}
+
 function bindPhoneNav() {
   $$('.phone .nav button').forEach(b => b.onclick = () => {
     // Every tab — including "Today" — only switches the SCREEN, never the
@@ -18061,8 +18152,7 @@ function renderImportAnalyzing() {
     hideFooter: true,
     body: `
       <div class="iz-analyzing">
-        <div class="iz-loader"></div>
-        <div class="iz-status" id="iz_status">Reading 0 of ${s.files.length}…</div>
+        <div class="trace-load"><span class="tl-dot"></span><span class="tl-txt" id="iz_status">Reading 0 of ${s.files.length}…</span></div>
         <div class="iz-progress-bar"><i id="iz_pbar" style="width:0%"></i></div>
         <div class="iz-current" id="iz_current">${esc(s.files[0]?.name || '')}</div>
         <div class="iz-tip" style="margin-top:18px;text-align:center;max-width:520px">
@@ -30520,8 +30610,7 @@ function rescanTourAnimated(btn) {
     const overlay = document.createElement('div');
     overlay.className = 'scan-loading-overlay';
     overlay.innerHTML = `
-      <div class="scan-spinner" aria-hidden="true"></div>
-      <div class="scan-loading-text">Re-scanning tour…</div>
+      <div class="trace-load"><span class="tl-dot"></span><span class="tl-txt">Re-scanning tour…</span></div>
     `;
     modalBody.appendChild(overlay);
   }
@@ -30596,7 +30685,7 @@ function openTourScan() {
     hideFooter: true,
     body: `
       <div class="scan-toolbar">
-        <button type="button" class="tb-btn primary scan-btn" onclick="rescanTourAnimated(this)">↻ Re-scan tour</button>
+        <button type="button" class="tb-btn primary scan-btn" onclick="rescanTourAnimated(this)"><span>↻ Re-scan tour</span></button>
         <button type="button" class="tb-btn" onclick="openImportData()">↑ Import data</button>
         <button type="button" class="tb-btn" onclick="closeModal()">Done</button>
       </div>
@@ -30869,6 +30958,7 @@ function init() {
   try { _wireAllAutocomplete(document); } catch (e) { console.warn('autocomplete init:', e); }
   try { bindTabs(); } catch (e) { console.error('bindTabs:', e); }
   try { bindPhoneNav(); } catch (e) { console.error('bindPhoneNav:', e); }
+  try { bindAuthEnterKey(); } catch (e) { console.error('bindAuthEnterKey:', e); }
   // Track mouse globally so the Show Day badge glare aims at the cursor even
   // when the cursor is well outside the badge.
   try {
