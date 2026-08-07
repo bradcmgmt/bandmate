@@ -108,7 +108,7 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
 #bgLogoCanvas{position:fixed;inset:0;width:100vw;height:100vh;
   z-index:251;pointer-events:none;display:block;
   opacity:0;transition:opacity 700ms ease-out}
-#bgLogoCanvas.ready{opacity:.055}
+#bgLogoCanvas.ready{opacity:.09}
 body.bg-logo-hidden #bgLogoCanvas{opacity:0}
 @media (prefers-reduced-motion:reduce){#bgLogoCanvas{opacity:0!important}}
 
@@ -32313,237 +32313,350 @@ window.bandmateInstallPrompt = async function() {
 // Engine adapted from the Privatus build, retuned for Bandmate's copper
 // palette + smaller viewport tolerance.
 // ─────────────────────────────────────────────────────────────────────
+// AMBIENT BACKGROUND — RECURSIVE SURFACE EROSION (WebGL)
+// The Bandmate rabbit rendered as a depth-layered particle field that
+// continuously erodes and re-forms. Three nested noise scales decide the
+// order each particle dissolves in (big plates → mid chunks → fine
+// grain), so the mark eats itself and rebuilds on a 16s breath. Riding
+// on top: six "energy worms" that crawl the surviving surface trailing
+// light, and three bouncing light balls that illuminate particles they
+// pass. Replaces the old 2D cursor-drag engine.
+//
+// AMBIENT ONLY: the canvas is pointer-events:none, so it never takes a
+// click from the dashboard underneath. It still *watches* the cursor —
+// the mark tilts toward it and particles part around it — so it feels
+// alive without stealing input. (The source study's swipe-to-spin and
+// click-to-pulse are deliberately dropped for that reason.)
+//
+// Visibility is controlled by body.bg-logo-hidden (auth screens) exactly
+// as before. Because this now runs on the phone app too, the loop hard-
+// stops whenever the canvas is hidden or the tab is backgrounded, and
+// never starts at all under prefers-reduced-motion.
+// ─────────────────────────────────────────────────────────────────────
 (function initBandmateBackgroundParticles(){
   const canvas = document.getElementById('bgLogoCanvas');
-  if (!canvas || !canvas.getContext) return;
-  const ctx = canvas.getContext('2d');
+  if (!canvas) return;
+  // Reduced motion: the CSS already forces opacity:0 — don't burn a GPU
+  // context or a rAF loop drawing something nobody will see.
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches) return;
+  // No WebGL (old device, blocked context) → leave the canvas blank
+  // rather than crashing; the dashboard simply has no watermark.
+  try {
+    const probe = document.createElement('canvas');
+    if (!(probe.getContext('webgl') || probe.getContext('experimental-webgl'))) return;
+  } catch (e) { return; }
 
-  // ----- Tunables -----
-  const SAMPLE_STEP     = 3;     // 3px sample spacing through the avatar
-  const LOGO_FRACTION   = 0.26;  // logo is ~26% of the shorter viewport side
-  const MAX_LOGO_PX     = 360;   // hard cap on render size
-  const DRAG_STRENGTH   = 1.6;   // how strongly cursor velocity drags pixels
-  const DRAG_RADIUS     = 105;   // px, gaussian falloff radius
-  const MAX_DRAG_DIST   = 95;    // typical clamp; per-particle max varies
-  const RECALL_RADIUS   = 200;   // distance from center to start re-forming
-  const RECALL_STRENGTH = 0.16;  // lerp rate toward home position
-  const LIFE_AMP_HOME    = 2.2;  // baseline wobble amplitude
-  const LIFE_AMP_DRIFTED = 3.2;  // wobble when at max drag distance
-  const LIFE_AMP_CURSOR  = 4.5;  // bonus wobble when cursor is on top
-
-  let particles = [];
-  let logoImg = null;
-  let homeOffsetX = 0, homeOffsetY = 0;
-  let logoRenderW = 0, logoRenderH = 0;
-
-  // Cursor tracking — canvas fills viewport so clientX/Y is canvas space.
-  let mouseX = 0, mouseY = 0;
-  let prevMouseX = 0, prevMouseY = 0;
-  window.addEventListener('mousemove', e => {
-    mouseX = e.clientX; mouseY = e.clientY;
-  }, { passive: true });
-  window.addEventListener('touchmove', e => {
-    if (e.touches[0]) { mouseX = e.touches[0].clientX; mouseY = e.touches[0].clientY; }
-  }, { passive: true });
-
-  function fitCanvas(){
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width  = Math.floor(window.innerWidth  * dpr);
-    canvas.height = Math.floor(window.innerHeight * dpr);
-    canvas.style.width  = window.innerWidth  + 'px';
-    canvas.style.height = window.innerHeight + 'px';
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // Park cursor at logo center on init so first frame is an assembled
-    // logo, not particles flying toward (0,0).
-    mouseX = prevMouseX = window.innerWidth  / 2;
-    mouseY = prevMouseY = window.innerHeight / 2;
-  }
-
-  function buildParticles(img){
-    if (!img) return;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const maxSide = Math.min(Math.min(vw, vh) * LOGO_FRACTION, MAX_LOGO_PX);
-    const scale = Math.min(maxSide / img.width, maxSide / img.height);
-    logoRenderW = img.width  * scale;
-    logoRenderH = img.height * scale;
-    homeOffsetX = (vw - logoRenderW) / 2;
-    homeOffsetY = (vh - logoRenderH) / 2;
-
-    const off = document.createElement('canvas');
-    off.width  = Math.ceil(logoRenderW);
-    off.height = Math.ceil(logoRenderH);
-    const octx = off.getContext('2d');
-    octx.drawImage(img, 0, 0, off.width, off.height);
-    let data;
+  import('three').then((THREE) => {
+    let renderer;
     try {
-      data = octx.getImageData(0, 0, off.width, off.height).data;
-    } catch (e) {
-      // CORS taint — leave the canvas hidden so we don't crash.
-      console.warn('[Bandmate] background particle init: canvas tainted, aborting:', e);
-      return;
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, canvas });
+    } catch (e) { console.warn('[bg] WebGL init failed:', e); return; }
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+    renderer.setSize(innerWidth, innerHeight, false);
+
+    const scene = new THREE.Scene();
+    // Pulled back from the source study's 5.2 so the mark reads as a
+    // background watermark (~65% of viewport height) rather than filling
+    // the screen edge to edge behind the dashboard.
+    const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 50);
+    camera.position.z = 6.6;
+    const group = new THREE.Group();
+    scene.add(group);
+
+    // ---------- value noise ----------
+    const fract = (x) => x - Math.floor(x);
+    const hash3 = (x, y, z) => fract(Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453);
+    const smooth = (t) => t * t * (3 - 2 * t);
+    function n3(x, y, z){
+      const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+      const xf = smooth(x - xi), yf = smooth(y - yi), zf = smooth(z - zi);
+      const c000 = hash3(xi,yi,zi),     c100 = hash3(xi+1,yi,zi);
+      const c010 = hash3(xi,yi+1,zi),   c110 = hash3(xi+1,yi+1,zi);
+      const c001 = hash3(xi,yi,zi+1),   c101 = hash3(xi+1,yi,zi+1);
+      const c011 = hash3(xi,yi+1,zi+1), c111 = hash3(xi+1,yi+1,zi+1);
+      const x00 = c000 + (c100-c000)*xf, x10 = c010 + (c110-c010)*xf;
+      const x01 = c001 + (c101-c001)*xf, x11 = c011 + (c111-c011)*xf;
+      const y0 = x00 + (x10-x00)*yf, y1 = x01 + (x11-x01)*yf;
+      return y0 + (y1-y0)*zf;
     }
 
-    particles = [];
-    for (let py = 0; py < off.height; py += SAMPLE_STEP) {
-      for (let px = 0; px < off.width; px += SAMPLE_STEP) {
-        const i = (py * off.width + px) * 4;
-        const a = data[i + 3];
-        if (a < 40) continue;
-        const r = data[i], g = data[i + 1], b = data[i + 2];
-        const hx = homeOffsetX + px;
-        const hy = homeOffsetY + py;
-        // Per-particle max drag — cubed random skews most particles near
-        // the typical cap with a small "outlier" tail that wanders
-        // further. Gives the boundary a fuzzy, organic edge instead of
-        // a hard geometric wall.
-        const rOutlier = Math.random();
-        const maxDragMul = 0.85 + rOutlier * rOutlier * rOutlier * 3.2;
-        particles.push({
-          hx: hx + (Math.random() - 0.5) * 0.6,
-          hy: hy + (Math.random() - 0.5) * 0.6,
-          x: hx, y: hy,
-          r, g, b, a,
-          size: 1.1 + Math.random() * 1.4,
-          looseness: 0.7 + Math.random() * 0.6,
-          maxDrag: MAX_DRAG_DIST * maxDragMul,
-          phaseA: Math.random() * Math.PI * 2,
-          phaseB: Math.random() * Math.PI * 2,
-          phaseC: Math.random() * Math.PI * 2,
-          rateA: 0.0014 + Math.random() * 0.0010,
-          rateB: 0.0038 + Math.random() * 0.0024,
-          rateC: 0.0085 + Math.random() * 0.0050,
-        });
+    let N = 0, pos, home, vel, alpha, baseA, col, size, erodeKey, boost, seed;
+    let points, worms = [], headPts, balls = [], ballPts, bbox;
+    const THICK = 0.26;
+
+    function build(img){
+      const SW = 150, SH = Math.round(img.height / img.width * SW);
+      const off = document.createElement('canvas');
+      off.width = SW; off.height = SH;
+      const octx = off.getContext('2d');
+      octx.drawImage(img, 0, 0, SW, SH);
+      let data;
+      try { data = octx.getImageData(0, 0, SW, SH).data; }
+      catch (e) { console.warn('[bg] avatar canvas tainted:', e); return false; }
+      const s = 3.1 / SH;
+      const pts = [];
+      for (let py = 0; py < SH; py++) for (let px = 0; px < SW; px++){
+        if (data[(py*SW+px)*4+3] > 140){
+          pts.push(
+            (px - SW/2 + Math.random()*0.8) * s,
+            -(py - SH/2 + Math.random()*0.8) * s,
+            (Math.random()+Math.random()+Math.random()-1.5)/1.5 * THICK
+          );
+        }
       }
+      N = pts.length / 3;
+      if (!N) return false;
+      pos = new Float32Array(pts); home = new Float32Array(pts);
+      vel = new Float32Array(N*3);
+      alpha = new Float32Array(N); baseA = new Float32Array(N);
+      col = new Float32Array(N*3); size = new Float32Array(N);
+      erodeKey = new Float32Array(N); boost = new Float32Array(N); seed = new Float32Array(N);
+
+      const c1 = new THREE.Color('#c47323'), c2 = new THREE.Color('#ffb35a'), tmp = new THREE.Color();
+      for (let i = 0; i < N; i++){
+        const x = home[i*3], y = home[i*3+1], z = home[i*3+2];
+        // nested noise scales = the order the surface erodes in
+        erodeKey[i] = 0.5*n3(x*1.3+5, y*1.3, z*1.3) + 0.3*n3(x*3.4+17, y*3.4, z*3.4) + 0.2*n3(x*9.1+31, y*9.1, z*9.1);
+        tmp.copy(c1).lerp(c2, Math.random()*Math.random());
+        col[i*3] = tmp.r; col[i*3+1] = tmp.g; col[i*3+2] = tmp.b;
+        baseA[i] = 0.5 + Math.random()*0.5;
+        alpha[i] = baseA[i];
+        size[i] = 1.7 + Math.random()*1.9 + (Math.random() < 0.03 ? 3.0 : 0);
+        seed[i] = Math.random()*100;
+      }
+      let mn = 1e9, mx = -1e9;
+      for (let i = 0; i < N; i++){ mn = Math.min(mn, erodeKey[i]); mx = Math.max(mx, erodeKey[i]); }
+      for (let i = 0; i < N; i++) erodeKey[i] = (erodeKey[i]-mn)/(mx-mn);
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos,3).setUsage(THREE.DynamicDrawUsage));
+      geo.setAttribute('aColor', new THREE.BufferAttribute(col,3).setUsage(THREE.DynamicDrawUsage));
+      geo.setAttribute('aAlpha', new THREE.BufferAttribute(alpha,1).setUsage(THREE.DynamicDrawUsage));
+      geo.setAttribute('aSize', new THREE.BufferAttribute(size,1));
+      const mat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+        uniforms: { uScale: { value: innerHeight * renderer.getPixelRatio() * 0.5 } },
+        vertexShader: `
+          attribute vec3 aColor; attribute float aAlpha, aSize;
+          varying vec3 vC; varying float vA;
+          uniform float uScale;
+          void main(){
+            vC = aColor; vA = aAlpha;
+            vec4 mv = modelViewMatrix * vec4(position, 1.0);
+            gl_PointSize = aSize * uScale / (280.0 * -mv.z) * 4.6;
+            gl_Position = projectionMatrix * mv;
+          }`,
+        fragmentShader: `
+          varying vec3 vC; varying float vA;
+          void main(){
+            float d = length(gl_PointCoord - 0.5);
+            float a = smoothstep(0.5, 0.08, d) * vA;
+            gl_FragColor = vec4(vC * a, a);
+          }`
+      });
+      points = new THREE.Points(geo, mat);
+      group.add(points);
+
+      // ---------- energy worms ----------
+      const TL = 90, NW = 6;
+      const headGeo = new THREE.BufferGeometry();
+      headGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(NW*3),3).setUsage(THREE.DynamicDrawUsage));
+      headGeo.setAttribute('aColor', new THREE.BufferAttribute(new Float32Array(NW*3).fill(1),3));
+      headGeo.setAttribute('aAlpha', new THREE.BufferAttribute(new Float32Array(NW).fill(1),1));
+      headGeo.setAttribute('aSize', new THREE.BufferAttribute(new Float32Array(NW).fill(9),1));
+      headPts = new THREE.Points(headGeo, mat);
+      group.add(headPts);
+
+      for (let w = 0; w < NW; w++){
+        const idx = Math.floor(Math.random()*N);
+        const worm = { pos: new THREE.Vector3(home[idx*3], home[idx*3+1], home[idx*3+2]), tgt: idx, speed: 0.9 + Math.random()*0.5, trail: [], TL };
+        const lg = new THREE.BufferGeometry();
+        const lp = new Float32Array(TL*3);
+        lg.setAttribute('position', new THREE.BufferAttribute(lp,3).setUsage(THREE.DynamicDrawUsage));
+        const lc = new Float32Array(TL*3);
+        const hot = new THREE.Color('#ffd9a0'), cold = new THREE.Color('#83450e');
+        for (let i = 0; i < TL; i++){
+          const t = i/(TL-1);
+          tmp.copy(cold).lerp(hot, t*t);
+          const f = t*t*0.9;
+          lc[i*3] = tmp.r*f; lc[i*3+1] = tmp.g*f; lc[i*3+2] = tmp.b*f;
+        }
+        lg.setAttribute('color', new THREE.BufferAttribute(lc,3));
+        const line = new THREE.Line(lg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+        group.add(line);
+        worm.line = line; worm.lp = lp;
+        for (let i = 0; i < TL; i++) worm.trail.push(worm.pos.clone());
+        worms.push(worm);
+      }
+
+      // ---------- bouncing light balls ----------
+      bbox = new THREE.Box3().setFromBufferAttribute(geo.attributes.position);
+      bbox.expandByScalar(-0.12);
+      const NB = 3;
+      const bGeo = new THREE.BufferGeometry();
+      bGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(NB*3),3).setUsage(THREE.DynamicDrawUsage));
+      bGeo.setAttribute('aColor', new THREE.BufferAttribute(new Float32Array(NB*3).fill(1),3));
+      bGeo.setAttribute('aAlpha', new THREE.BufferAttribute(new Float32Array(NB).fill(0.85),1));
+      bGeo.setAttribute('aSize', new THREE.BufferAttribute(new Float32Array(NB).fill(13),1));
+      ballPts = new THREE.Points(bGeo, mat);
+      group.add(ballPts);
+      for (let b = 0; b < NB; b++){
+        const idx = (Math.random()*N)|0;
+        const dir = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, (Math.random()-0.5)*0.4).normalize().multiplyScalar(0.55 + Math.random()*0.25);
+        balls.push({ pos: new THREE.Vector3(home[idx*3], home[idx*3+1], home[idx*3+2]), vel: dir });
+      }
+      return true;
     }
-    canvas.classList.add('ready');
-  }
 
-  let rafId = 0;
-  function render(now){
-    rafId = requestAnimationFrame(render);
+    // ---------- passive cursor tracking (never intercepts) ----------
+    let mx = 0, my = 0;
+    addEventListener('pointermove', (e) => {
+      mx = (e.clientX/innerWidth)*2 - 1;
+      my = -(e.clientY/innerHeight)*2 + 1;
+    }, { passive: true });
 
-    const cursorVX = mouseX - prevMouseX;
-    const cursorVY = mouseY - prevMouseY;
-    prevMouseX = mouseX;
-    prevMouseY = mouseY;
-
-    // Motion-trail fade. destination-out erases existing pixels instead
-    // of painting a solid color over them — keeps the canvas mostly
-    // transparent so underlying UI shows through.
-    ctx.save();
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
-    ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
-    ctx.restore();
-
-    if (!particles.length) return;
-
-    // Reform factor: smoothstep so the logo eases gently back together
-    // as the cursor approaches its center.
-    const cx = homeOffsetX + logoRenderW / 2;
-    const cy = homeOffsetY + logoRenderH / 2;
-    const cdx = mouseX - cx;
-    const cdy = mouseY - cy;
-    const cursorDistFromCenter = Math.sqrt(cdx * cdx + cdy * cdy);
-    const t = Math.max(0, Math.min(1, 1 - cursorDistFromCenter / RECALL_RADIUS));
-    const reformFactor = t * t * (3 - 2 * t);
-    const recallRate = RECALL_STRENGTH * reformFactor;
-
-    const dragRSq2 = 2 * DRAG_RADIUS * DRAG_RADIUS;
-
-    for (const p of particles) {
-      // 1) Drag — particles near the cursor move with cursor velocity
-      const dx = mouseX - p.x;
-      const dy = mouseY - p.y;
-      const proximity = Math.exp(-(dx * dx + dy * dy) / dragRSq2);
-      if (proximity > 0.001) {
-        const k = proximity * DRAG_STRENGTH * p.looseness;
-        p.x += cursorVX * k;
-        p.y += cursorVY * k;
-      }
-      // 2) Reform — lerp toward home only when cursor is in recall zone
-      if (recallRate > 0.0001) {
-        p.x += (p.hx - p.x) * recallRate;
-        p.y += (p.hy - p.y) * recallRate;
-      }
-      // 3) Clamp — particles can't drift further than per-particle cap
-      const dxH = p.x - p.hx;
-      const dyH = p.y - p.hy;
-      const distH = Math.sqrt(dxH * dxH + dyH * dyH);
-      if (distH > p.maxDrag) {
-        const s = p.maxDrag / distH;
-        p.x = p.hx + dxH * s;
-        p.y = p.hy + dyH * s;
-      }
+    const ray = new THREE.Raycaster(), plane = new THREE.Plane(new THREE.Vector3(0,0,1), 0), hitV = new THREE.Vector3();
+    function screenToLocal(cx, cy){
+      ray.setFromCamera({ x: (cx/innerWidth)*2-1, y: -(cy/innerHeight)*2+1 }, camera);
+      if (!ray.ray.intersectPlane(plane, hitV)) return null;
+      return group.worldToLocal(hitV.clone());
     }
 
-    // Draw — liveliness wobble is a render-time offset so it never pollutes state.
-    for (const p of particles) {
-      const dx = p.x - p.hx;
-      const dy = p.y - p.hy;
-      const drift = Math.min(1, Math.sqrt(dx * dx + dy * dy) / MAX_DRAG_DIST);
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight, false);
+      if (points) points.material.uniforms.uScale.value = innerHeight * renderer.getPixelRatio() * 0.5;
+    }, { passive: true });
 
-      const cdxP = mouseX - p.x;
-      const cdyP = mouseY - p.y;
-      const cursorProximity = Math.exp(-(cdxP * cdxP + cdyP * cdyP) / dragRSq2);
-
-      const amp = LIFE_AMP_HOME
-                + (LIFE_AMP_DRIFTED - LIFE_AMP_HOME) * drift
-                + LIFE_AMP_CURSOR * cursorProximity;
-      const lifeX = Math.sin(now * p.rateA + p.phaseA)        * amp * 0.55
-                  + Math.sin(now * p.rateB + p.phaseB)        * amp * 0.30
-                  + Math.sin(now * p.rateC + p.phaseC)        * amp * 0.15;
-      const lifeY = Math.cos(now * p.rateA * 0.92 + p.phaseA) * amp * 0.55
-                  + Math.cos(now * p.rateB * 1.08 + p.phaseB) * amp * 0.30
-                  + Math.cos(now * p.rateC * 1.13 + p.phaseC) * amp * 0.15;
-
-      const size = p.size * (1 - drift * 0.18);
-      const alpha = (p.a / 255) * (1 - drift * 0.12);
-
-      ctx.fillStyle = `rgba(${p.r|0},${p.g|0},${p.b|0},${alpha})`;
-      ctx.beginPath();
-      ctx.arc(p.x + lifeX, p.y + lifeY, size, 0, Math.PI * 2);
-      ctx.fill();
+    // ---------- animation ----------
+    const CYCLE = 16; // seconds per erosion breath
+    let last = performance.now();
+    // Battery guard: this now runs on the phone app too, so skip all work
+    // whenever the watermark is invisible (auth screens) or backgrounded.
+    function isVisible(){
+      return !document.hidden && !document.body.classList.contains('bg-logo-hidden');
     }
-  }
+    function animate(){
+      requestAnimationFrame(animate);
+      const now = performance.now();
+      if (!isVisible()){ last = now; return; }
+      const dt = Math.min(0.05, (now-last)/1000); last = now;
+      const t = now/1000;
 
-  function start(){ if (!rafId) rafId = requestAnimationFrame(render); }
-  function stop(){ if (rafId) { cancelAnimationFrame(rafId); rafId = 0; } }
+      const ph = (t % CYCLE)/CYCLE;
+      const wave = 0.5 - 0.5*Math.cos(ph*Math.PI*2);
+      const threshold = Math.pow(wave, 1.35)*0.74;
 
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) stop(); else start();
+      // Slow self-rotation, with a gentle lean toward the cursor.
+      group.rotation.y = Math.sin(t*0.13)*0.45 + mx*0.12;
+      group.rotation.x = Math.sin(t*0.09)*0.10 + -my*0.06;
+
+      if (points){
+        const cursor = screenToLocal((mx*0.5+0.5)*innerWidth, (0.5-my*0.5)*innerHeight);
+        for (let i = 0; i < N; i++){
+          const i3 = i*3;
+          if (erodeKey[i] < threshold){
+            const x = pos[i3], y = pos[i3+1], z = pos[i3+2];
+            vel[i3]   += ((n3(x*1.6, y*1.6, t*0.25)-0.5)*1.4 + x*0.18) * dt;
+            vel[i3+1] += ((n3(x*1.6+9, y*1.6, t*0.25)-0.5)*1.4 + y*0.10 + 0.22) * dt;
+            vel[i3+2] += ((n3(x*1.6+23, y*1.6, t*0.25)-0.5)*1.6 + z*0.5) * dt;
+            vel[i3] *= 0.965; vel[i3+1] *= 0.965; vel[i3+2] *= 0.965;
+            pos[i3] += vel[i3]*dt*9; pos[i3+1] += vel[i3+1]*dt*9; pos[i3+2] += vel[i3+2]*dt*9;
+            alpha[i] += (baseA[i]*0.38 - alpha[i])*0.04;
+          } else {
+            const r = 0.055;
+            pos[i3]   += (home[i3]-pos[i3])*r;
+            pos[i3+1] += (home[i3+1]-pos[i3+1])*r;
+            pos[i3+2] += (home[i3+2]-pos[i3+2])*r;
+            vel[i3] = vel[i3+1] = vel[i3+2] = 0;
+            alpha[i] += (baseA[i]-alpha[i])*0.08;
+          }
+          if (cursor){
+            const dx = pos[i3]-cursor.x, dy = pos[i3+1]-cursor.y;
+            const d2 = dx*dx + dy*dy;
+            if (d2 < 0.16){ const f = (0.16-d2)*0.5*dt*8; pos[i3] += dx*f/(Math.sqrt(d2)+0.02); pos[i3+1] += dy*f/(Math.sqrt(d2)+0.02); }
+          }
+          const w = Math.sin(t*1.4+seed[i])*0.006 + Math.sin(t*4.1+seed[i]*2.7)*0.0025;
+          pos[i3] += w; pos[i3+1] += Math.cos(t*1.1+seed[i])*0.006;
+          boost[i] *= 0.90;
+          alpha[i] = Math.min(1.6, alpha[i] + boost[i]);
+        }
+
+        // worms trace the surviving surface
+        for (let w = 0; w < worms.length; w++){
+          const worm = worms[w];
+          const ti = worm.tgt*3;
+          const dx = home[ti]-worm.pos.x, dy = home[ti+1]-worm.pos.y, dz = home[ti+2]-worm.pos.z;
+          const d = Math.hypot(dx, dy, dz);
+          if (d < 0.06 || erodeKey[worm.tgt] < threshold){
+            let best = -1, bestD = 1e9;
+            for (let k = 0; k < 40; k++){
+              const j = (Math.random()*N)|0;
+              if (erodeKey[j] < threshold) continue;
+              const j3 = j*3;
+              const dd = (home[j3]-worm.pos.x)**2 + (home[j3+1]-worm.pos.y)**2 + (home[j3+2]-worm.pos.z)**2;
+              if (dd > 0.01 && dd < bestD){ bestD = dd; best = j; }
+            }
+            if (best >= 0) worm.tgt = best;
+          } else {
+            const sp = worm.speed*dt/d;
+            worm.pos.x += dx*sp; worm.pos.y += dy*sp; worm.pos.z += dz*sp;
+          }
+          worm.trail.push(worm.pos.clone());
+          if (worm.trail.length > worm.TL) worm.trail.shift();
+          for (let i = 0; i < worm.trail.length; i++){
+            const p = worm.trail[i];
+            worm.lp[i*3] = p.x; worm.lp[i*3+1] = p.y; worm.lp[i*3+2] = p.z;
+          }
+          worm.line.geometry.attributes.position.needsUpdate = true;
+          const ha = headPts.geometry.attributes.position.array;
+          ha[w*3] = worm.pos.x; ha[w*3+1] = worm.pos.y; ha[w*3+2] = worm.pos.z;
+          for (let i = 0; i < N; i += 4){
+            const i3 = i*3;
+            const dd = (home[i3]-worm.pos.x)**2 + (home[i3+1]-worm.pos.y)**2;
+            if (dd < 0.04) boost[i] = Math.max(boost[i], (0.04-dd)*9);
+          }
+        }
+        if (headPts) headPts.geometry.attributes.position.needsUpdate = true;
+
+        // bouncing light balls
+        for (let b = 0; b < balls.length; b++){
+          const ball = balls[b];
+          ball.pos.addScaledVector(ball.vel, dt);
+          if (ball.pos.x < bbox.min.x || ball.pos.x > bbox.max.x){ ball.vel.x *= -1; ball.pos.x = Math.max(bbox.min.x, Math.min(bbox.max.x, ball.pos.x)); }
+          if (ball.pos.y < bbox.min.y || ball.pos.y > bbox.max.y){ ball.vel.y *= -1; ball.pos.y = Math.max(bbox.min.y, Math.min(bbox.max.y, ball.pos.y)); }
+          if (ball.pos.z < bbox.min.z || ball.pos.z > bbox.max.z){ ball.vel.z *= -1; ball.pos.z = Math.max(bbox.min.z, Math.min(bbox.max.z, ball.pos.z)); }
+          const ba = ballPts.geometry.attributes.position.array;
+          ba[b*3] = ball.pos.x; ba[b*3+1] = ball.pos.y; ba[b*3+2] = ball.pos.z;
+          for (let i = (b%3); i < N; i += 3){
+            const i3 = i*3;
+            const dd = (home[i3]-ball.pos.x)**2 + (home[i3+1]-ball.pos.y)**2;
+            if (dd < 0.09){ const g = 1 - dd/0.09; boost[i] = Math.max(boost[i], 0.28*g*g); }
+          }
+        }
+        if (ballPts) ballPts.geometry.attributes.position.needsUpdate = true;
+        points.geometry.attributes.position.needsUpdate = true;
+        points.geometry.attributes.aAlpha.needsUpdate = true;
+      }
+      renderer.render(scene, camera);
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      try {
+        if (build(img)){
+          canvas.classList.add('ready');
+          animate();
+        }
+      } catch (e) { console.warn('[bg] particle build failed:', e); }
+    };
+    img.onerror = (e) => { console.warn('[bg] avatar failed to load:', e); };
+    img.src = 'avatar.png';
+  }).catch((e) => {
+    // three.js unavailable (offline first load / blocked CDN) — no
+    // watermark this session. Everything else is unaffected.
+    console.warn('[bg] three.js unavailable, skipping watermark:', e);
   });
-
-  let resizeDebounce;
-  window.addEventListener('resize', () => {
-    clearTimeout(resizeDebounce);
-    resizeDebounce = setTimeout(() => {
-      fitCanvas();
-      if (logoImg) buildParticles(logoImg);
-    }, 150);
-  });
-
-  fitCanvas();
-
-  // Load avatar.png and start the engine. crossOrigin deliberately
-  // omitted — setting it forces a CORS request that taints the canvas
-  // if the server (Vercel) doesn't send Access-Control-Allow-Origin,
-  // which would leave the watermark stuck at opacity:0 forever.
-  const img = new Image();
-  img.onload = () => {
-    try {
-      logoImg = img;
-      buildParticles(img);
-      start();
-    } catch (e) {
-      console.warn('[Bandmate] background particle init failed:', e);
-    }
-  };
-  img.onerror = (e) => {
-    console.warn('[Bandmate] background avatar failed to load:', e);
-  };
-  img.src = 'avatar.png';
 })();
 
 </script>
