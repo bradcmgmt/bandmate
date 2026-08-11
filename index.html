@@ -2599,6 +2599,24 @@ input#tv_desc.is-auto{background:rgba(232,148,58,.05);border-color:rgba(232,148,
   color:#b1c8ee;border-color:rgba(138,169,216,.35);
 }
 .tb-btn.cool:hover{color:#d6e3f5;border-color:#b1c8ee;box-shadow:0 0 12px rgba(138,169,216,.22)}
+/* Cool-flame variant — the burning highlight in its BLUE palette, for a
+   zone whose primary action belongs to the blue "groups" language rather
+   than the amber one. Same drifting embers as the Tools button, sharing
+   the tabFlame keyframes. Opt-in per button (.cool.flame) so other .cool
+   buttons elsewhere stay quiet. */
+.tb-btn.cool.flame{
+  background:
+    radial-gradient(circle at 25% 75%, rgba(138,169,216,.38), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(140,120,255,.28), transparent 42%),
+    linear-gradient(135deg,rgba(138,169,216,.18),rgba(138,169,216,.04));
+  background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 8s ease-in-out infinite alternate;
+  border-color:rgba(138,169,216,.5);color:#cfdef0;font-weight:700;
+  box-shadow:inset 0 1px 0 rgba(138,169,216,.15),0 0 14px rgba(138,169,216,.18);
+}
+.tb-btn.cool.flame:hover{color:#e6f0ff;border-color:#b1c8ee;
+  box-shadow:inset 0 1px 0 rgba(138,169,216,.25),0 0 18px rgba(138,169,216,.3)}
+@media (prefers-reduced-motion: reduce){.tb-btn.cool.flame{animation:none}}
 .tb-btn.primary{
   background:linear-gradient(135deg,var(--hi),var(--hi-2));
   color:#0a0705;border-color:var(--hi);font-weight:700;
@@ -4130,10 +4148,42 @@ body.travel-assistant-mode #travelAssistantArea{
 }
 .account-menu.open{display:flex}
 .am-current{padding:12px 12px 10px;border-bottom:1px solid var(--line);margin-bottom:6px;display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center}
-.am-current .am-avatar{width:42px;height:42px;border-radius:50%;
-  background:linear-gradient(135deg,#ffb35a,#c47323);color:#0a0705;display:grid;place-items:center;font-weight:800;font-size:14px;
-  box-shadow:0 0 14px rgba(232,148,58,.4)}
-.am-current .am-avatar.crew{background:linear-gradient(135deg,#b1c8ee,#7aa9d8)}
+.am-current .am-avatar{width:42px;height:42px;font-size:14px}
+/* Flames-in-glass on the account avatar — same treatment as the
+   header pill's avatar, so the identity mark reads identically wherever
+   it appears. Drifting ember blobs sit behind dark glass (::before) with
+   a top shine over them (::after); the initials ride above both. */
+.am-avatar{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;
+  position:relative;overflow:hidden;isolation:isolate;
+  background:radial-gradient(circle at 35% 28%, #2b1a0c, #0c0704 72%);
+  color:#ffe9c9;text-shadow:0 1px 4px rgba(0,0,0,.8);
+  box-shadow:0 0 14px rgba(232,148,58,.30), inset 0 0 0 1px rgba(255,220,170,.14), inset 0 -2px 6px rgba(0,0,0,.55)}
+.am-avatar::before{content:"";position:absolute;left:-45%;top:-45%;width:190%;height:190%;
+  z-index:-1;filter:blur(3px);
+  background:
+    radial-gradient(circle at 32% 72%, rgba(255,150,45,.95), transparent 42%),
+    radial-gradient(circle at 68% 58%, rgba(255,70,20,.8), transparent 38%),
+    radial-gradient(circle at 52% 30%, rgba(255,205,95,.55), transparent 44%);
+  animation:flameDrift 8s ease-in-out infinite alternate}
+.am-avatar::after{content:"";position:absolute;inset:0;border-radius:50%;pointer-events:none;
+  background:radial-gradient(ellipse 80% 45% at 50% 12%, rgba(255,255,255,.30), rgba(255,255,255,.05) 55%, transparent 70%)}
+/* Crew keeps its blue identity, but gains the same drifting motion. */
+.am-avatar.crew{background:radial-gradient(circle at 35% 28%, #101a2b, #04070c 72%);color:#e6f0ff}
+.am-avatar.crew::before{
+  background:
+    radial-gradient(circle at 32% 72%, rgba(120,175,255,.9), transparent 42%),
+    radial-gradient(circle at 68% 58%, rgba(60,110,220,.8), transparent 38%),
+    radial-gradient(circle at 52% 30%, rgba(160,215,255,.55), transparent 44%)}
+/* God: the neon variant, matching the purple pill upstairs. */
+.am-avatar.god{background:radial-gradient(circle at 35% 28%, #221733, #0a0714 72%);
+  color:#efe6ff;text-shadow:0 1px 4px rgba(0,0,0,.85);
+  box-shadow:0 0 12px rgba(140,120,255,.55), inset 0 0 0 1px rgba(200,170,255,.18), inset 0 -2px 6px rgba(0,0,0,.6)}
+.am-avatar.god::before{
+  background:
+    radial-gradient(circle at 30% 74%, rgba(255,60,180,.9), transparent 42%),
+    radial-gradient(circle at 70% 55%, rgba(140,90,255,.85), transparent 40%),
+    radial-gradient(circle at 52% 26%, rgba(70,200,255,.55), transparent 44%)}
+@media (prefers-reduced-motion: reduce){.am-avatar::before{animation:none}}
 .am-current .am-name{font-weight:800;font-size:14px;color:var(--warm)}
 .am-current .am-meta{font-family:'Bricolage Grotesque',monospace;font-size:10.5px;color:var(--warm-mute);letter-spacing:.06em;margin-top:2px}
 .am-section{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--hi);padding:8px 10px 4px}
@@ -22312,8 +22362,8 @@ function renderCrewProfiles() {
         <button type="button" class="${crewView==='list'?'on':''}" onclick="setCrewView('list')">List</button>
       </div>
       <span class="sp"></span>
-      <button type="button" class="tb-btn cool" onclick="openManageGroupsModal()">Manage groups</button>
-      <button type="button" class="tb-btn primary" onclick="downloadProfilesCSV()">↓ CSV</button>
+      <button type="button" class="tb-btn cool flame" onclick="openManageGroupsModal()">Manage groups</button>
+      <button type="button" class="tb-btn" onclick="downloadProfilesCSV()">↓ CSV</button>
       <button type="button" class="tb-btn" onclick="downloadProfilesJSON()">↓ JSON</button>
       <button type="button" class="tb-btn" onclick="remindAllPending()">Remind pending</button>
     </div>
@@ -28436,7 +28486,7 @@ function renderAccountMenu() {
   menu.classList.add('open');
   menu.innerHTML = `
     <div class="am-current">
-      <span class="am-avatar ${me?.role==='crew'?'crew':''}">${esc(me?.avatar || '??')}</span>
+      <span class="am-avatar ${me?.role==='crew'?'crew':''}${_isGodAccount()?' god':''}">${esc(me?.avatar || '??')}</span>
       <div>
         <div class="am-name">${esc(me?.name || '—')}</div>
         <div class="am-meta">${esc(me?.email || '')} · ${me?.role === 'tm' ? 'Tour Manager' : 'Crew'}</div>
@@ -28509,7 +28559,7 @@ function renderUniMenu() {
   const me = U();
   menu.innerHTML = `
     <div class="am-current">
-      <span class="am-avatar ${me?.role==='crew'?'crew':''}">${esc(me?.avatar || '??')}</span>
+      <span class="am-avatar ${me?.role==='crew'?'crew':''}${_isGodAccount()?' god':''}">${esc(me?.avatar || '??')}</span>
       <div>
         <div class="am-name">${esc(me?.name || '—')}</div>
         <div class="am-meta">${esc(me?.email || '')} · ${me?.role === 'tm' ? 'Tour Manager' : 'Crew'}</div>
@@ -28602,7 +28652,7 @@ function openAccountSettingsModal() {
     hideFooter: true,
     body: `
       <div style="display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--line)">
-        <span class="am-avatar ${u.role === 'crew' ? 'crew' : ''}" style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#ffb35a,#c47323);color:#0a0705;display:grid;place-items:center;font-weight:800;font-size:17px;box-shadow:0 0 14px rgba(232,148,58,.4)">${esc(u.avatar || '??')}</span>
+        <span class="am-avatar ${u.role === 'crew' ? 'crew' : ''}${_isGodAccount() ? ' god' : ''}" style="width:52px;height:52px;font-size:17px">${esc(u.avatar || '??')}</span>
         <div>
           <div style="font-weight:800;font-size:16px;color:var(--warm)">${esc(u.name || '—')}</div>
           <div class="mono" style="font-size:11px;color:var(--warm-mute);letter-spacing:.06em;margin-top:2px">${esc(u.email || '')} · ${u.role === 'tm' ? 'Tour Manager' : 'Crew'}${memberSince ? ' · member since ' + esc(memberSince) : ''}</div>
