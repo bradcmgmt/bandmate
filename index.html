@@ -1796,6 +1796,14 @@ input#tv_desc.is-auto{background:rgba(232,148,58,.05);border-color:rgba(232,148,
   background:radial-gradient(800px 500px at 50% 30%,rgba(232,148,58,.08),transparent 60%),var(--ink);
   display:flex;align-items:center;justify-content:center;padding:30px;overflow-y:auto;
 }
+/* HARD BLOCK for the oversight account. The create-your-first-tour
+   screen offers exactly two actions, both of which god is not allowed
+   to take — so it is a dead end with no way out. Several routing paths
+   can reach it, and rather than trust that every one is guarded in JS,
+   this makes it unreachable in CSS. Paired with body.god-account, set
+   from _syncGodBodyClass() on every render. */
+body.god-account #onboarding{display:none!important}
+body.god-account #app[hidden]{display:block!important}
 .onboard{
   width:100%;max-width:880px;
 }
@@ -7158,9 +7166,45 @@ function viewerTours(viewer) {
 // The invisible platform-oversight account. Read-only, sees every tour, and
 // never writes to the cloud (so it leaves no trace). Backed by patch-036's
 // RLS: its app hydrates ALL tours, so state.tours already holds everything.
+const GOD_EMAIL = 'god@bandmate.art';
+
+// The signed-in email read straight from the persisted Supabase session.
+//
+// U() reads the LOCAL user record, and there are real windows where that
+// record is missing, half-written, or stale: during sign-in it is briefly
+// re-keyed (old id deleted, new id written), and on a device where the
+// account was deleted and recreated the cached record can carry the old
+// id entirely. In those windows god was being misread as an ordinary
+// brand-new user — which is precisely how it kept landing on the
+// create-your-first-tour screen. The auth session is the authority on
+// WHO is signed in, so fall back to it whenever the local copy can't say.
+function _sessionEmail() {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !/^sb-.*-auth-token$/.test(k)) continue;
+      const j = JSON.parse(localStorage.getItem(k) || 'null');
+      const em = j && ((j.user && j.user.email) || (j.currentSession && j.currentSession.user && j.currentSession.user.email));
+      if (em) return String(em).toLowerCase();
+    }
+  } catch (e) { /* unreadable session — fall through */ }
+  return '';
+}
+
 function _isGodAccount() {
   const u = (typeof U === 'function') ? U() : null;
-  return !!(u && String(u.email || '').toLowerCase() === 'god@bandmate.art');
+  const localEmail = u ? String(u.email || '').toLowerCase() : '';
+  // A resolved local record wins — it's the cheapest and most specific.
+  if (localEmail) return localEmail === GOD_EMAIL;
+  // Otherwise ask the session (see above).
+  return _sessionEmail() === GOD_EMAIL;
+}
+
+// Mirrors god-ness onto <body> so CSS can hard-block the onboarding
+// overlay. Belt-and-braces: even if some path we haven't found strips
+// the `hidden` class off #onboarding, god physically cannot see it.
+function _syncGodBodyClass() {
+  try { document.body.classList.toggle('god-account', _isGodAccount()); } catch (e) {}
 }
 
 function _switchableTours() {
@@ -13072,6 +13116,9 @@ function openTagModal(id) {
    RENDER
    ===================================================================== */
 function renderAll() {
+  // Keep body.god-account in step with who's signed in — the CSS hard
+  // block for the onboarding dead end hangs off it.
+  _syncGodBodyClass();
   // Subscription gate · same check as postLoginRouting. When a TM isn't
   // subscribed, route them to the pricing screen instead of bailing
   // silently (which would leave the dashboard blank — confusing UX).
@@ -13085,6 +13132,13 @@ function renderAll() {
   // God never onboards — it can't create tours, so the create-your-first-
   // tour overlay is a dead end for it. Self-heal the flag and render.
   if (state && !state.onboarded && _isGodAccount()) state.onboarded = true;
+  // Identity not resolved yet? Don't make a routing decision. During
+  // sign-in the local user record is briefly re-keyed (old id deleted,
+  // new id written), so U() can be null for a tick — and deciding
+  // "no user → onboard" in that window is how a signed-in account ends
+  // up staring at the create-your-first-tour screen. Wait for the next
+  // render instead; whoever is signing in will have landed by then.
+  if (state && state.currentUserId && !_u) return;
   if (!state || !state.onboarded) {
     $('#onboarding').classList.remove('hidden');
     $('#app').hidden = true;
@@ -27075,6 +27129,38 @@ function _clearPendingSubscription() {
   try { localStorage.removeItem(PENDING_SUBSCRIPTION_KEY); } catch (e) {}
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// SINGLE GATE for the create-your-first-tour overlay.
+//
+// The god account owns no tours BY DESIGN, so more than one routing path
+// can legitimately conclude "this user has no tours → onboard them" and
+// strand it on a screen whose only two actions (create a tour / import
+// documents) it is not allowed to take — a dead end. Rather than bolt a
+// guard onto each call site and hope none is missed (including the
+// catch-all fallback, which shows onboarding after ANY boot error),
+// every path now funnels through here and god is refused once.
+//
+// Returns true if the overlay was actually shown.
+// ─────────────────────────────────────────────────────────────────────
+function showOnboardingOverlay() {
+  const ob = document.getElementById('onboarding');
+  const app = document.getElementById('app');
+  if (typeof _isGodAccount === 'function' && _isGodAccount()) {
+    if (state) state.onboarded = true;      // self-heal the flag
+    if (ob) ob.classList.add('hidden');
+    if (app) app.hidden = false;
+    document.body.classList.remove('bg-logo-hidden');
+    document.body.classList.remove('bg-video-on');
+    try { renderAll(); } catch (e) { console.warn('[god] renderAll:', e); }
+    try { applyTabFromState(); } catch (e) {}
+    try { syncPhoneScreenFromTab(); } catch (e) {}
+    return false;
+  }
+  if (ob) ob.classList.remove('hidden');
+  if (app) app.hidden = true;
+  return true;
+}
+
 function showWelcomeScreen() {
   const pending = _readPendingSubscription();
   if (!pending) return; // nothing to welcome
@@ -27245,7 +27331,7 @@ function _welcomeContinue() {
     document.body.classList.remove('bg-logo-hidden');
     toast(`Welcome to Bandmate — your subscription is active`, 'good');
     if (!state.onboarded) {
-      document.getElementById('onboarding').classList.remove('hidden');
+      showOnboardingOverlay();
     } else {
       renderAll();
       try { applyTabFromState(); } catch (e) {}
@@ -28415,8 +28501,7 @@ function postLoginRouting() {
       state.onboarded = false;
       state.currentTourId = null;
       saveState();
-      document.getElementById('app').hidden = true;
-      document.getElementById('onboarding').classList.remove('hidden');
+      showOnboardingOverlay();
     } else {
       // Crew with no tours
       state.onboarded = true;
@@ -30982,6 +31067,9 @@ function init() {
   // post-login by applyRoleMode().
   try { if (_isPhoneApp()) document.documentElement.classList.add('native-app'); } catch (e) {}
   try { loadState(); } catch (e) { console.error('loadState:', e); state = null; }
+  // Flag the oversight account before ANY routing runs, so the CSS block
+  // on the onboarding dead end is already in force during first paint.
+  try { _syncGodBodyClass(); } catch (e) {}
   // Corrupt local state was set aside by loadState — tell the user rather
   // than letting the device look mysteriously empty.
   if (window.__bandmateCorruptState) {
@@ -31141,8 +31229,7 @@ function init() {
         showCrewBlockScreen();
       }
     } else if (!state.onboarded && !_isGodAccount()) {
-      document.getElementById('onboarding').classList.remove('hidden');
-      document.getElementById('app').hidden = true;
+      showOnboardingOverlay();
       document.body.classList.remove('bg-logo-hidden');
       document.body.classList.remove('bg-video-on');
     } else {
@@ -31154,8 +31241,7 @@ function init() {
     }
   } catch (e) {
     console.error('init render:', e);
-    document.getElementById('onboarding').classList.remove('hidden');
-    document.getElementById('app').hidden = true;
+    showOnboardingOverlay();
   }
 }
 
