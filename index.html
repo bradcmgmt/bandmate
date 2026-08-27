@@ -13132,6 +13132,16 @@ function renderAll() {
   // God never onboards — it can't create tours, so the create-your-first-
   // tour overlay is a dead end for it. Self-heal the flag and render.
   if (state && !state.onboarded && _isGodAccount()) state.onboarded = true;
+  // Same self-heal for ANY signed-in user who has tours. renderAll runs
+  // on every hydrate/realtime event — so the moment tours land in state,
+  // the next paint must show the app, not resurrect the onboarding
+  // overlay off a stale onboarded=false stamped before those tours
+  // existed (comp granted later, invite accepted on another device).
+  if (state && !state.onboarded && _u && state.tours) {
+    const _mineNow = Object.values(state.tours).some(t => t && t.id !== '_empty' && !_isTombstoned(t.id)
+      && (t.ownerId === _u.id || (t.memberIds || []).includes(_u.id) || (t.managerIds || []).includes(_u.id)));
+    if (_mineNow) state.onboarded = true;
+  }
   // Identity not resolved yet? Don't make a routing decision. During
   // sign-in the local user record is briefly re-keyed (old id deleted,
   // new id written), so U() can be null for a tick — and deciding
@@ -27274,6 +27284,30 @@ function _clearPendingSubscription() {
 function showOnboardingOverlay() {
   const ob = document.getElementById('onboarding');
   const app = document.getElementById('app');
+  // A user WITH tours must never see this screen — it's a dead end that
+  // loses customers. Several paths decide "no tours" from stale or not-
+  // yet-hydrated local state (boot before cloud sync finishes, an invite
+  // accepted on another device, comp granted after first sign-in). If
+  // accessible tours exist RIGHT NOW, self-heal the persisted flag that
+  // kept resurrecting this screen and land in the app instead.
+  try {
+    const u = (typeof U === 'function') ? U() : null;
+    if (u && state && state.tours) {
+      const mine = Object.values(state.tours).filter(t => t && t.id !== '_empty' && !_isTombstoned(t.id)
+        && (t.ownerId === u.id || (t.memberIds || []).includes(u.id) || (t.managerIds || []).includes(u.id)));
+      if (mine.length) {
+        state.onboarded = true;
+        if (!state.currentTourId || !state.tours[state.currentTourId]) state.currentTourId = mine[0].id;
+        try { saveState(); } catch (e) {}
+        if (ob) ob.classList.add('hidden');
+        if (app) app.hidden = false;
+        try { renderAll(); } catch (e) {}
+        try { applyTabFromState(); } catch (e) {}
+        try { syncPhoneScreenFromTab(); } catch (e) {}
+        return false;
+      }
+    }
+  } catch (e) { /* fall through to normal behavior */ }
   if (typeof _isGodAccount === 'function' && _isGodAccount()) {
     if (state) state.onboarded = true;      // self-heal the flag
     if (ob) ob.classList.add('hidden');
@@ -28620,8 +28654,14 @@ function postLoginRouting() {
   // This catches any user whose Supabase signup ran before patch-012
   // disabled the demo seed, AND every fresh signup that arrives via
   // an old trigger.
+  // OWNED demos only. Real tours on this platform are frequently named
+  // "Demo Tour · Wayfinder" (clones of the sample) and get SHARED — a TM
+  // invited to one was being dismissed as tour-less and dumped on the
+  // create-your-first-tour screen. A tour someone put you on is never
+  // a reason to onboard you.
   const onlyDemoTour = u.role === 'tm'
     && accessible.length === 1
+    && accessible[0]?.ownerId === u.id
     && /demo tour/i.test(accessible[0]?.meta?.tourName || accessible[0]?.name || '')
     && !state.onboarded;
   if (!accessible.length || onlyDemoTour) {
@@ -32554,6 +32594,16 @@ window.bandmateInstallPrompt = async function() {
     const u = U();
     if (u && u.role === 'tm' && !userIsSubscribed(u)) {
       try { showPricingScreen(); } catch (e) {}
+    } else if (!state.onboarded
+        || (document.getElementById('onboarding') && !document.getElementById('onboarding').classList.contains('hidden'))) {
+      // Re-decide routing with REAL data. The first-paint routing above
+      // ran BEFORE hydration — a device stamped onboarded=false (signed
+      // in before an invite or comp existed) showed the create-a-tour
+      // screen, and nothing ever revisited that decision even after the
+      // user's tours streamed in underneath. Users WITH tours were
+      // permanently stranded on a dead end. Routing again now lands them
+      // in the app; genuinely tour-less new users still get onboarding.
+      try { postLoginRouting(); } catch (e) { console.warn('[boot] post-hydrate re-route:', e); }
     }
     db.subscribeRealtime(userId);
   } catch (e) {
