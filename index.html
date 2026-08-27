@@ -18847,6 +18847,13 @@ function _extractCAADealMemoBlocks(text) {
   if (blocks.length < 2) {
     blocks = text.split(/(?=CREATIVE\s+ARTISTS\s+AGENCY)/i).filter(s => s.trim().length > 200);
   }
+  // Portal exports put a fat page header (agency address, TODAY'S DATE,
+  // Offer Date) BEFORE the first Booking# — a fragment with dates but no
+  // show. Only blocks carrying an actual memo marker may produce shows;
+  // without this, the header's "TODAY'S DATE: Aug 26, 2026" becomes a
+  // phantom show dated the day of the export.
+  const memoish = blocks.filter(b => /SHOW\s+DATE\(S\)|VENUE:/i.test(b));
+  if (memoish.length) blocks = memoish;
   if (!blocks.length) blocks = [text];
   const out = [];
   for (const b of blocks) {
@@ -18868,13 +18875,30 @@ function _parseCAADealMemoBlock(block) {
   const dateLabelIdx = block.search(/SHOW\s+DATE\(S\):/i);
   if (dateLabelIdx >= 0) {
     const window = block.slice(dateLabelIdx, dateLabelIdx + 200);
-    // Pattern: "(Optional weekday) DD MonthName(,)? YYYY"
+    // Day-first: "(Optional weekday) DD MonthName(,)? YYYY" — the older
+    // agent-emailed CAA template ("Sun 21 Jun, 2026").
     const m = window.match(/(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)?\s*(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*,?\s+(\d{4})/i);
     if (m) {
       const monIdx = months[m[2].toLowerCase().slice(0,3)];
       if (monIdx) {
         const iso = `${m[3]}-${String(monIdx).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
         dates.push(iso);
+      }
+    }
+    // Month-first: "(Optional weekday) MonthName DD(,)? YYYY" — the CAA
+    // CLIENT-PORTAL export format ("Thu Sep 10, 2026"). Without this the
+    // portal memos yielded no body date at all and fell back to the
+    // filename, whose dotted date was then misread as European day-first
+    // ("09.10.2026" → Oct 9 instead of Sep 10) — a wrong show date on
+    // every portal download.
+    if (!dates.length) {
+      const m2 = window.match(/(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)?\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})/i);
+      if (m2) {
+        const monIdx = months[m2[1].toLowerCase().slice(0,3)];
+        if (monIdx) {
+          const iso = `${m2[3]}-${String(monIdx).padStart(2,'0')}-${String(m2[2]).padStart(2,'0')}`;
+          dates.push(iso);
+        }
       }
     }
   }
@@ -18886,6 +18910,23 @@ function _parseCAADealMemoBlock(block) {
       if (monIdx) {
         const iso = `${m[3]}-${String(monIdx).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
         dates.push(iso);
+      }
+    }
+  }
+  // Month-first fallback, skipping administrative dates. Portal memos
+  // carry several non-show dates in this format (TODAY'S DATE, Offer
+  // Date, deposit "on or before …") — accept the first match NOT
+  // preceded by one of those labels.
+  if (!dates.length) {
+    const mfRe = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b/gi;
+    let mf;
+    while ((mf = mfRe.exec(block)) !== null) {
+      const before = block.slice(Math.max(0, mf.index - 30), mf.index);
+      if (/(?:today'?s\s+date|offer\s+date|on\s+or\s+before)\s*:?\s*$/i.test(before)) continue;
+      const monIdx = months[mf[1].toLowerCase().slice(0,3)];
+      if (monIdx) {
+        dates.push(`${mf[3]}-${String(monIdx).padStart(2,'0')}-${String(mf[2]).padStart(2,'0')}`);
+        break;
       }
     }
   }
@@ -19370,6 +19411,7 @@ function _extractStructuredContacts(block, ctx) {
     { pattern: /\bMerch(?:andise|andising)?\s+(?:Contact|Manager)\b/g, role: 'Merch' },
     { pattern: /\b(?:Head\s+of\s+)?Security\s+(?:Contact|Manager)\b/g, role: 'Security' },
     { pattern: /\bRunner\s+Contact\b/g,                 role: 'Runner' },
+    { pattern: /\bContracts?\s+Contact\b/g,             role: 'Contracts' },
     { pattern: /\bCatering\s+Contact\b/g,               role: 'Catering' },
     // Bare colon-form labels itineraries use ("Production: Jane Doe …").
     { pattern: /\bPromoter\s*:/g,                       role: 'Promoter' },
@@ -19385,6 +19427,75 @@ function _extractStructuredContacts(block, ctx) {
   const PHONE_RE = /(\+?\d[\d\s\-().]{7,})/;
   const out = [];
   const usedEmails = new Set();
+
+  // ── COLUMNAR LAYOUTS (CAA client portal) ─────────────────────────────
+  // The portal prints ALL the role labels on one row, then ALL the people
+  // beneath: "Buyer Signatory Promoter Contact Production Contact
+  // Contracts Contact" followed by name/email stacks. The per-label
+  // look-ahead below pairs everyone with the FIRST label it meets, so
+  // every role came out shifted. Detect a run of ≥2 adjacent labels with
+  // no email between them, and pair label k with the k-th email after
+  // the row — the true column order.
+  (function columnarPass(){
+    const labelHits = [];
+    ROLE_LABELS.forEach(({ pattern, role }) => {
+      const re = new RegExp(pattern.source, pattern.flags);
+      let lm;
+      while ((lm = re.exec(block)) !== null) labelHits.push({ idx: lm.index, end: lm.index + lm[0].length, role });
+    });
+    labelHits.sort((a, b) => a.idx - b.idx);
+    // Longest run of adjacent labels. STRICT adjacency: the gap between
+    // labels in a real header row is pure whitespace ("Buyer Signatory
+    // Promoter Contact …"). Anything else is prose — "…of Net Box Office
+    // Receipts\nBuyer Signatory…" put a phrase-embedded 'Box Office' next
+    // to a real label and mislabeled the Wasserman signatory until the
+    // whitespace-only rule excluded it.
+    let run = [], best = [];
+    for (const h of labelHits) {
+      if (run.length) {
+        const prev = run[run.length - 1];
+        const gap = block.slice(prev.end, h.idx);
+        if (h.idx - prev.end <= 60 && gap.trim() === '') run.push(h);
+        else { if (run.length > best.length) best = run; run = [h]; }
+      } else run = [h];
+    }
+    if (run.length > best.length) best = run;
+    if (best.length < 2) return;                      // not a columnar header
+    // Emails after the row, in document order — one per label column.
+    const rowEnd = best[best.length - 1].end;
+    const after = block.slice(rowEnd);
+    const emRe = new RegExp(EMAIL_RE.source, 'g');
+    let em, prevEnd = 0, col = 0;
+    while (col < best.length && (em = emRe.exec(after)) !== null) {
+      const email = em[0];
+      if (usedEmails.has(email.toLowerCase())) { prevEnd = em.index + em[0].length; continue; }
+      // Name + phone live between the previous email and this one.
+      const seg = after.slice(prevEnd, em.index);
+      let name = '', nm;
+      const nRe = new RegExp(NAME_RE.source, 'g');
+      while ((nm = nRe.exec(seg)) !== null) {
+        const cand = nm[1].trim();
+        if (/Agent|Manager|Contact|Signatory|Number|Address|Office|Marketing|Runner|Catering|Stage|Buyer|Tour|Promoter|Production|Settlement|Contracts/i.test(cand)) continue;
+        name = cand;
+      }
+      if (!name) name = titleCase(em[1].replace(/[._]/g, ' '));
+      const phoneMatch = seg.match(PHONE_RE);
+      usedEmails.add(email.toLowerCase());
+      out.push({
+        name,
+        email,
+        phone: phoneMatch ? phoneMatch[0].trim() : '',
+        role: best[col].role,
+        organization: em[2].split('.')[0],
+        city: ctx.city || '',
+        country: ctx.country || '',
+        notes: ctx.fileName ? `From ${ctx.fileName}` : '',
+      });
+      prevEnd = em.index + em[0].length;
+      col++;
+    }
+  })();
+
   ROLE_LABELS.forEach(({ pattern, role }) => {
     let m;
     while ((m = pattern.exec(block)) !== null) {
@@ -19932,6 +20043,23 @@ function _parseFlightContext(ctx, code, num, absIdx, fullText) {
 //   "21-06-2026.pdf"                                                   → 2026-06-21
 //   "Detroit_03-04-2026.pdf"                                           → 2026-03-04 (assumes US)
 //   "Mar 4 2026 - Detroit.pdf"                                         → 2026-03-04
+// CAA portal filenames date shows as M.D.YYYY — "09.10.2026" means
+// Sep 10. The generic dotted-date rule reads dots as European day-first
+// (right for X-ray / UK agencies, wrong here), so the CAA branch asks
+// this US-biased variant FIRST. Day-first is still honored when the
+// numbers force it ("28.06.2026" can only be June 28).
+function _extractDateFromFilenameUS(name) {
+  if (!name) return '';
+  const base = name.split('/').pop();
+  const m = base.match(/\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b/);
+  if (!m) return '';
+  const a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+  let mon = a, day = b;                      // month-first by default (US)
+  if (a > 12 && b <= 12) { mon = b; day = a; } // impossible month → day-first
+  if (mon < 1 || mon > 12 || day < 1 || day > 31) return '';
+  return `${m[3]}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+}
+
 function _extractDateFromFilename(name) {
   if (!name) return '';
   // Strip the file extension and any path
@@ -20549,7 +20677,8 @@ function processTextDoc(text, file, result) {
   // CAA deal memos use SHOW DATE(S), VENUE, BUYER, DEAL TERMS labels.
   const caaBlocks = _extractCAADealMemoBlocks(text);
   if (caaBlocks && caaBlocks.length >= 1) {
-    const filenameDate = _extractDateFromFilename(file.name);
+    // US month-first filename reading for the US agency (see helper).
+    const filenameDate = _extractDateFromFilenameUS(file.name) || _extractDateFromFilename(file.name);
     let totalShows = 0;
     caaBlocks.forEach(b => {
       let nights = (b.dates && b.dates.length) ? b.dates : [b.date || ''];
