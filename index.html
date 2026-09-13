@@ -1579,6 +1579,19 @@ body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app):n
 .p-card.hi .h{font-size:20px;color:var(--warm);position:relative;z-index:1}
 .p-card .sub{font-family:'Bricolage Grotesque',monospace;font-size:11px;color:var(--warm-mute);letter-spacing:.06em}
 .p-card.hi .sub{color:var(--warm-mute);position:relative;z-index:1}
+/* Show-day hero: the venue is the headline, so it gets a touch more size. */
+.p-card.hi .h.ph-venue{font-size:22px;letter-spacing:-.01em;line-height:1.15}
+/* Tappable phone numbers in the phone view. A tap opens the call / message /
+   copy sheet below instead of jumping straight into the dialer. */
+.ph-tel{color:inherit;text-decoration:none;border-bottom:1px dashed rgba(232,148,58,.55);padding-bottom:1px;-webkit-tap-highlight-color:transparent}
+.ph-tel:active{color:var(--hi)}
+.tel-sheet-bg{position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center}
+.tel-sheet{width:100%;max-width:460px;background:#150e08;border:1px solid var(--line-2);border-bottom:0;border-radius:16px 16px 0 0;padding:14px 14px calc(14px + env(safe-area-inset-bottom));box-shadow:0 -12px 40px rgba(0,0,0,.5)}
+.tel-sheet .ts-lbl{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--warm-mute);text-align:center}
+.tel-sheet .ts-num{font-family:'Bricolage Grotesque',monospace;font-size:17px;font-weight:700;color:var(--warm);letter-spacing:.04em;margin:4px 0 12px;text-align:center}
+.tel-sheet button{display:block;width:100%;padding:14px;margin-top:8px;background:rgba(232,148,58,.08);border:1px solid rgba(232,148,58,.22);border-radius:10px;color:var(--warm);font-family:'Bricolage Grotesque',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;cursor:pointer}
+.tel-sheet button.primary{background:linear-gradient(135deg,#e8943a,#f5b35e);color:#0a0705;border-color:transparent}
+.tel-sheet button.quiet{background:transparent;border-color:transparent;color:var(--warm-mute)}
 .p-row{display:grid;grid-template-columns:54px 1fr auto;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px solid rgba(232,148,58,.08);position:relative;z-index:1}
 .p-card.hi .p-row:last-child{border-bottom:0}
 .p-row .t{font-family:'Bricolage Grotesque',monospace;font-weight:700;font-size:12px;color:var(--hi)}
@@ -9304,6 +9317,76 @@ function _tvAddPax() {
 // One phone Today travel item. Flights render as a rich card (dep → arr,
 // flight #, conf, passenger list, and a YOUR FLIGHT highlight when the viewer
 // is on it); ground transport stays a compact tappable row with a who-line.
+// ── Tappable phone numbers (phone view) ──────────────────────────────
+// Every phone number rendered in the crew-mobile view becomes a link that
+// opens a small call / message / copy sheet. The tel:/sms: URLs are handed
+// to the OS by Chrome (Android TWA) and by the PWABuilder iOS shell.
+const _PHONE_SCAN_RE = /\+?\d[\d\s().\-]{7,20}\d/g;
+function _telDigits(raw) {
+  const s = String(raw || '').trim();
+  return (s.startsWith('+') ? '+' : '') + s.replace(/\D/g, '');
+}
+// A candidate is a phone number when it carries 10–15 digits and isn't a
+// date (2026-07-10) hiding in the text.
+function _looksLikePhone(s) {
+  const digits = String(s).replace(/\D/g, '');
+  if (digits.length < 10 || digits.length > 15) return false;
+  if (/\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/.test(s)) return false;
+  return true;
+}
+function _telLinkHTML(raw, style) {
+  const digits = _telDigits(raw);
+  if (!digits || !_looksLikePhone(String(raw))) return esc(raw);
+  return `<a class="ph-tel" href="tel:${esc(digits)}"${style ? ` style="${style}"` : ''} onclick="return _openTelSheet(event, '${esc(digits)}', '${esc(String(raw).trim())}')">${esc(raw)}</a>`;
+}
+// Linkify phone numbers inside already-escaped HTML, leaving tags (and
+// anything already inside an <a>) alone.
+function _linkifyPhonesHTML(html) {
+  if (!html) return html;
+  let inA = false;
+  return String(html).split(/(<[^>]+>)/g).map(part => {
+    if (part.startsWith('<')) {
+      if (/^<a[\s>]/i.test(part)) inA = true;
+      else if (/^<\/a>/i.test(part)) inA = false;
+      return part;
+    }
+    if (inA) return part;
+    return part.replace(_PHONE_SCAN_RE, m => _looksLikePhone(m)
+      ? `<a class="ph-tel" href="tel:${_telDigits(m)}" onclick="return _openTelSheet(event, '${_telDigits(m)}', '${esc(m.trim())}')">${m}</a>`
+      : m);
+  }).join('');
+}
+function _openTelSheet(ev, digits, label) {
+  try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {}
+  _closeTelSheet();
+  const bg = document.createElement('div');
+  bg.className = 'tel-sheet-bg'; bg.id = 'telSheet';
+  bg.innerHTML = `
+    <div class="tel-sheet" role="dialog" aria-label="Contact options">
+      <div class="ts-lbl">Contact</div>
+      <div class="ts-num">${esc(label || digits)}</div>
+      <button type="button" class="primary" onclick="_telAct('call')">Call</button>
+      <button type="button" onclick="_telAct('sms')">Send a message</button>
+      <button type="button" onclick="_telAct('copy')">Copy number</button>
+      <button type="button" class="quiet" onclick="_closeTelSheet()">Cancel</button>
+    </div>`;
+  bg.addEventListener('click', e => { if (e.target === bg) _closeTelSheet(); });
+  bg._digits = digits;
+  document.body.appendChild(bg);
+  return false;
+}
+function _closeTelSheet() { const el = document.getElementById('telSheet'); if (el) el.remove(); }
+function _telAct(kind) {
+  const el = document.getElementById('telSheet'); const digits = el ? el._digits : '';
+  _closeTelSheet();
+  if (!digits) return;
+  if (kind === 'copy') {
+    try { navigator.clipboard.writeText(digits).then(() => { try { toast('Number copied', 'info'); } catch (e) {} }); } catch (e) {}
+    return;
+  }
+  try { window.location.href = (kind === 'sms' ? 'sms:' : 'tel:') + digits; } catch (e) {}
+}
+
 function _phoneTravelItemHTML(t, viewer, viewerKey) {
   const pax = _travelPassengers(t);
   const viewerIsPax = !!(viewerKey && (t.individuals || []).includes(viewerKey));
@@ -17568,6 +17651,15 @@ function renderPhone() {
   const _hasDayNotes = !!(ad.dayNotes && ad.dayNotes.replace(/<[^>]+>/g, '').trim());
   const _scheduleLeadsToday = (ad.status === 'travel') || !_hasDayNotes;
   const _heroTitle = isTM ? 'Full day view' : (viewer ? 'Hey ' + esc(viewer.name.split(' ')[0]) : 'Your day');
+  // Show days: the venue is the headline — it's the one thing everyone
+  // needs the moment they open the app — and the greeting moves up into
+  // the kicker beside SHOW NIGHT. Every other day keeps the greeting big.
+  const _showVenue = ad.status === 'show' && !!(ad.venue && String(ad.venue).trim());
+  const _greetRaw = isTM ? 'Full day view' : (viewer ? 'Hey ' + viewer.name.split(' ')[0] : 'Your day');
+  const _heroKicker = _showVenue
+    ? `${status} · ${esc(_greetRaw.toUpperCase())}`
+    : `${status}${ad.venue ? ' · ' + esc(ad.venue.toUpperCase()) : ''}`;
+  const _heroHeadline = _showVenue ? `<div class="h ph-venue">${esc(ad.venue)}</div>` : `<div class="h">${_heroTitle}</div>`;
   const _heroDoorsSet = ad.status === 'show'
     ? [ad.doors ? 'Doors ' + esc(ad.doors) : '', ad.setTime ? 'Set ' + esc(ad.setTime) : ''].filter(Boolean).join(' · ')
     : ad.status === 'travel' ? 'Travel day'
@@ -17578,8 +17670,8 @@ function renderPhone() {
   const _heroEmptyMsg = ad.status === 'travel' ? 'Travel day — no schedule items.' : ad.status === 'off' ? 'Day off — nothing scheduled.' : isTM ? 'No schedule items on this day yet.' : 'Nothing scheduled for you on this day.';
   const _todayHeroCard = _scheduleLeadsToday ? `
     <div class="p-card hi">
-      <div class="lbl">${status}${ad.venue ? ' · ' + esc(ad.venue.toUpperCase()) : ''}</div>
-      <div class="h">${_heroTitle}</div>
+      <div class="lbl">${_heroKicker}</div>
+      ${_heroHeadline}
       <div class="sub">${_heroDoorsSet}${_heroItemCount}</div>
       <div style="margin-top:8px">
         ${_phoneScheduleRowsHTML(myItems, myEarlyTomorrow, nextDateLabel, _heroEmptyMsg, 8)}
@@ -17587,11 +17679,11 @@ function renderPhone() {
     </div>
   ` : `
     <div class="p-card hi">
-      <div class="lbl">${status}${ad.venue ? ' · ' + esc(ad.venue.toUpperCase()) : ''}</div>
-      <div class="h">${_heroTitle}</div>
+      <div class="lbl">${_heroKicker}</div>
+      ${_heroHeadline}
       <div class="sub">${_heroDoorsSet}</div>
       <div class="lbl" style="color:#f5d76e;margin-top:14px">DAY NOTES</div>
-      <div class="p-notes-body">${ad.dayNotes}</div>
+      <div class="p-notes-body">${_linkifyPhonesHTML(ad.dayNotes)}</div>
       <button type="button" class="ph-sched-link" onclick="_phoneGoScreen('schedule')">Full schedule →</button>
     </div>
   `;
@@ -17636,12 +17728,12 @@ function renderPhone() {
               ${detailPairs.map(p => `
                 <div>
                   <div class="lbl" style="font-size:9px">${esc(p.k)}</div>
-                  <div class="mono" style="font-size:12px;color:var(--warm);font-weight:600">${esc(p.v)}</div>
+                  <div class="mono" style="font-size:12px;color:var(--warm);font-weight:600">${p.k === 'Phone' ? _telLinkHTML(p.v) : esc(p.v)}</div>
                 </div>
               `).join('')}
             </div>
           ` : ''}
-          ${myR?.notes ? `<div class="sub" style="margin-top:8px;color:var(--hi)">${esc(myR.notes)}</div>` : ''}
+          ${myR?.notes ? `<div class="sub" style="margin-top:8px;color:var(--hi)">${_linkifyPhonesHTML(esc(myR.notes))}</div>` : ''}
           ${!myR && !isTM ? `<div class="sub" style="margin-top:8px;color:var(--warm-mute);font-style:italic">No room assigned to ${esc(viewer?.name || 'you')} yet</div>` : ''}
         </div>
       `;
@@ -17650,7 +17742,7 @@ function renderPhone() {
     ${(_scheduleLeadsToday && _hasDayNotes) ? `
       <div class="p-card p-card-notes">
         <div class="lbl" style="color:#f5d76e">DAY NOTES</div>
-        <div class="p-notes-body">${ad.dayNotes}</div>
+        <div class="p-notes-body">${_linkifyPhonesHTML(ad.dayNotes)}</div>
       </div>
     ` : ''}
 
@@ -17693,7 +17785,7 @@ function renderPhone() {
                     <span style="font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:${accent}">${PRIO[n.priority]||'●'} ${esc((n.priority||'standard').toUpperCase())}${n.audience?.label?' · '+esc(n.audience.label):''}</span>
                     <span style="font-family:'Bricolage Grotesque',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.04em">${esc(time)}</span>
                   </div>
-                  <div style="font-size:12.5px;color:var(--warm);line-height:1.4">${esc(n.body)}</div>
+                  <div style="font-size:12.5px;color:var(--warm);line-height:1.4">${_linkifyPhonesHTML(esc(n.body))}</div>
                   ${n.sentBy ? `<div style="font-family:'Bricolage Grotesque',monospace;font-size:9.5px;color:var(--warm-mute);letter-spacing:.06em;margin-top:3px">— ${esc(n.sentBy)}</div>` : ''}
                 </div>
               `;
@@ -17818,7 +17910,7 @@ function renderPhone() {
         ${h.checkIn ? `<div><div class="lbl">CHECK-IN</div><div class="mono" style="font-size:14px;font-weight:700;color:var(--warm)">${esc(h.checkIn)}</div></div>` : ''}
         ${h.checkOut ? `<div><div class="lbl">CHECK-OUT</div><div class="mono" style="font-size:14px;font-weight:700;color:var(--warm)">${esc(h.checkOut)}</div></div>` : ''}
         ${h.conf ? `<div><div class="lbl">CONF</div><div class="mono" style="font-size:11px;color:var(--warm)">${esc(h.conf)}</div></div>` : ''}
-        ${h.phone ? `<div><div class="lbl">PHONE</div><div class="mono" style="font-size:11px;color:var(--warm)">${esc(h.phone)}</div></div>` : ''}
+        ${h.phone ? `<div><div class="lbl">PHONE</div><div class="mono" style="font-size:12px;color:var(--warm)">${_telLinkHTML(h.phone)}</div></div>` : ''}
       </div>
     </div>`;
   }).join('') : `<div class="p-card"><div class="lbl">HOTEL</div><div class="sub">Not added yet for this date.</div></div>`;
@@ -22168,8 +22260,21 @@ function openProfileForm(crewId, isSelf=false) {
             p_crew_id: c.id,
             p_profile: c.profile,
             p_submitted_at: c.profileSubmittedAt,
-          }).then(({ error }) => {
-            if (error) { console.warn('[submit_crew_profile]', error); toast("Couldn't sync your profile — check your connection", 'error'); }
+          }).then(async ({ error }) => {
+            if (error) {
+              // Say what actually went wrong — "check your connection" hid a
+              // server-side refusal (e.g. a stale crew id) behind a network
+              // excuse, so nobody knew the profile never reached the tour.
+              console.warn('[submit_crew_profile]', error);
+              toast("Your profile didn't reach the tour: " + (error.message || 'unknown error') + '. Try again, or ask your tour manager.', 'error');
+              return;
+            }
+            // Saved on the server — pull the tour back down so this device's
+            // copy (and the PENDING/ACCEPTED state) matches what the TM sees.
+            try {
+              if (state && state.currentUserId) await db.hydrateUserData(state.currentUserId);
+              renderAll();
+            } catch (e) { console.warn('[submit_crew_profile] rehydrate', e); }
           }).catch(e => console.warn('[submit_crew_profile] threw', e));
         }
       } catch (e) { console.warn('[openProfileForm] rpc dispatch', e); }
@@ -23134,7 +23239,7 @@ function _phoneShowTravel(itemId) {
   const detailRow = (label, value, mono = false, color = '') => `
     <div style="padding:9px 0;border-bottom:1px dashed rgba(232,148,58,.08)">
       <div style="font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.18em;color:var(--warm-mute);text-transform:uppercase;margin-bottom:3px;font-weight:700">${esc(label)}</div>
-      <div style="${mono ? "font-family:'Bricolage Grotesque',monospace;" : ''}font-size:14px;color:${color || 'var(--warm)'};line-height:1.45;font-weight:${mono ? '700' : '600'}">${esc(value)}</div>
+      <div style="${mono ? "font-family:'Bricolage Grotesque',monospace;" : ''}font-size:14px;color:${color || 'var(--warm)'};line-height:1.45;font-weight:${mono ? '700' : '600'}">${label === 'Notes' ? _linkifyPhonesHTML(esc(value)) : esc(value)}</div>
     </div>
   `;
   openModal({
@@ -31871,6 +31976,8 @@ function _chatRenderBody(body, mentions, myId) {
     const isYou = (u.id === myId);
     html = html.replace(re, `<span class="mention${isYou ? ' you' : ''}">@${esc(first)}</span>`);
   });
+  // Phone numbers in a message become tappable (call / message / copy).
+  html = _linkifyPhonesHTML(html);
   return html;
 }
 
