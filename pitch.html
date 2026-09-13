@@ -11,7 +11,18 @@
 <meta property="og:type" content="website" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Bebas+Neue&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Bebas+Neue&display=swap" rel="stylesheet" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.184.0/build/three.module.js"
+  },
+  "integrity": {
+    "https://unpkg.com/three@0.184.0/build/three.module.js": "sha384-8FCZ1eVO6it4+pbec2aDtnTrwjWXZLJRC+MAGCIPDgsYnUrl/E0A2YlF8ioMKI/J",
+    "https://unpkg.com/three@0.184.0/build/three.core.js": "sha384-dw2ooPewaEIrAgl6oFDBmmBWCE9oW9LxRGcfwZ0hLvEprzo202wXl7vCYHRlSnOT"
+  }
+}
+</script>
 <style>
 :root{
   --ink:#0a0705;--ink-2:#110c08;--ink-3:#18110b;--ink-4:#1f1610;
@@ -42,9 +53,9 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 @keyframes twinkle{0%,100%{opacity:.07}50%{opacity:.92}}
 
 .topbar{position:fixed;top:0;left:0;right:0;z-index:30;display:flex;justify-content:space-between;align-items:center;
-  padding:20px clamp(20px,5vw,54px);pointer-events:none}
+  padding:calc(18px + env(safe-area-inset-top)) clamp(20px,5vw,54px) 18px;pointer-events:none}
 .topbar img{height:22px;width:auto;filter:drop-shadow(0 0 8px rgba(232,148,58,.3));opacity:.92}
-.counter{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.22em;color:#7a6647}
+.counter{font-family:'Bricolage Grotesque',monospace;font-size:12px;letter-spacing:.22em;color:#7a6647}
 .counter b{color:var(--hi)}
 .rail{position:fixed;right:26px;top:50%;transform:translateY(-50%);z-index:30;display:flex;flex-direction:column;gap:11px}
 .rail button{width:9px;height:9px;border-radius:50%;border:1px solid var(--line-2);background:transparent;padding:0;cursor:pointer;transition:all .3s}
@@ -53,9 +64,9 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 .deck{position:relative;z-index:10;height:100vh;height:100dvh;overflow-y:scroll;overflow-x:clip;scroll-behavior:smooth;scroll-snap-type:y mandatory;scrollbar-width:none}
 .deck::-webkit-scrollbar{display:none}
 .slide{scroll-snap-align:start;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;justify-content:center;
-  padding:96px clamp(22px,7vw,120px) 90px;position:relative}
+  padding:calc(96px + env(safe-area-inset-top)) clamp(22px,7vw,120px) calc(90px + env(safe-area-inset-bottom));position:relative}
 
-.eyebrow{font-family:'JetBrains Mono',monospace;font-size:clamp(11px,1.3vw,13px);font-weight:700;letter-spacing:.34em;text-transform:uppercase;color:var(--hi);margin-bottom:20px}
+.eyebrow{font-family:'Bricolage Grotesque',monospace;font-size:clamp(11px,1.3vw,13px);font-weight:700;letter-spacing:.34em;text-transform:uppercase;color:var(--hi);margin-bottom:20px}
 /* Typewriter caret — blinks at the end of an eyebrow while it types / sits active */
 .tw-caret{display:inline-block;width:2px;height:1em;background:currentColor;margin-left:4px;vertical-align:-0.1em;animation:tw-blink .7s step-end infinite}
 @keyframes tw-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
@@ -63,9 +74,9 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 .display .amb{color:var(--hi)}
 .lead{font-size:clamp(16px,2.1vw,21px);line-height:1.6;color:var(--warm);max-width:780px;margin-top:24px;font-weight:400}
 .lead .mut{color:var(--warm-mute)}
-.kick{font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.06em;color:var(--warm-mute);margin-top:26px}
+.kick{font-family:'Bricolage Grotesque',monospace;font-size:13px;letter-spacing:.06em;color:var(--warm-mute);margin-top:26px}
 .turn{margin-top:28px;padding:3px 0 3px 22px;border-left:2px solid var(--hi);max-width:760px}
-.turn .tlab{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--hi);font-weight:700;margin-bottom:8px}
+.turn .tlab{font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--hi);font-weight:700;margin-bottom:8px}
 .turn .ttxt{font-size:clamp(15.5px,1.95vw,19px);line-height:1.55;color:var(--warm)}
 .turn .ttxt b{color:var(--warm)}
 
@@ -97,10 +108,10 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 .cover .word{height:clamp(44px,6.5vw,70px);width:auto;margin-top:28px;filter:drop-shadow(0 0 18px rgba(232,148,58,.28))}
 .cover .tag{font-family:'Bebas Neue','Inter',sans-serif;font-size:clamp(28px,5.4vw,60px);line-height:.96;letter-spacing:.012em;margin-top:30px;max-width:16ch}
 .cover .sub{font-size:clamp(15px,1.9vw,19px);color:var(--warm-mute);margin-top:14px}
-.cover .meta{position:absolute;left:0;right:0;bottom:38px;display:flex;justify-content:center;gap:22px;flex-wrap:wrap;
-  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#6f5c40}
+.cover .meta{position:absolute;left:0;right:0;bottom:calc(38px + env(safe-area-inset-bottom));display:flex;justify-content:center;gap:22px;flex-wrap:wrap;
+  font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#6f5c40}
 .cover .meta b{color:var(--hi);font-weight:700}
-.scrollhint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.3em;color:#6f5c40;animation:bob 1.8s ease-in-out infinite}
+.scrollhint{position:absolute;bottom:calc(12px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.3em;color:#6f5c40;animation:bob 1.8s ease-in-out infinite}
 @keyframes bob{0%,100%{transform:translateX(-50%) translateY(0);opacity:.6}50%{transform:translateX(-50%) translateY(5px);opacity:1}}
 
 .two{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(30px,5vw,70px);align-items:center;width:100%}
@@ -111,55 +122,55 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 
 .pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:36px;width:100%;max-width:980px}
 .pillar{border:1px solid var(--line-2);border-radius:14px;padding:22px 22px 24px;background:linear-gradient(180deg,rgba(31,22,16,.6),rgba(17,12,8,.4))}
-.pillar .pn{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--hi);font-weight:700}
+.pillar .pn{font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--hi);font-weight:700}
 .pillar .ph{font-family:'Bebas Neue','Inter',sans-serif;font-size:30px;color:var(--warm);margin:10px 0 8px;letter-spacing:.01em}
 .pillar .pb{font-size:14px;line-height:1.55;color:var(--warm-mute)}
 
 .features{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:34px;width:100%;max-width:940px}
 .feat{min-width:0;border:1px solid var(--line-2);border-radius:13px;padding:18px 20px;background:linear-gradient(180deg,rgba(31,22,16,.55),rgba(17,12,8,.4))}
-.feat .fh{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.15em;text-transform:uppercase;color:var(--hi);font-weight:700;margin-bottom:7px;overflow-wrap:break-word}
+.feat .fh{font-family:'Bricolage Grotesque',monospace;font-size:12px;letter-spacing:.15em;text-transform:uppercase;color:var(--hi);font-weight:700;margin-bottom:7px;overflow-wrap:break-word}
 .feat .fb{font-size:14px;line-height:1.5;color:var(--warm-mute);overflow-wrap:break-word}
 
 .dash{border:1px solid var(--line-2);border-radius:16px;overflow:hidden;background:linear-gradient(180deg,#1a1209,#0f0a06);box-shadow:0 30px 70px rgba(0,0,0,.55)}
 .dash .top{display:flex;justify-content:space-between;align-items:flex-start;padding:22px 24px 16px}
 .dash .city{font-family:'Bebas Neue','Inter',sans-serif;font-size:clamp(34px,4.6vw,48px);line-height:.9;color:var(--warm);letter-spacing:.01em}
 .dash .loc{font-size:12.5px;color:var(--warm-mute);margin-top:5px}
-.dash .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;background:rgba(109,207,139,.12);border:1px solid rgba(109,207,139,.42);color:#7adc97;white-space:nowrap}
-.dash .date{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--warm);text-align:right;margin-bottom:8px;letter-spacing:.06em}
+.dash .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;font-family:'Bricolage Grotesque',monospace;font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;background:rgba(109,207,139,.12);border:1px solid rgba(109,207,139,.42);color:#7adc97;white-space:nowrap}
+.dash .date{font-family:'Bricolage Grotesque',monospace;font-size:12px;color:var(--warm);text-align:right;margin-bottom:8px;letter-spacing:.06em}
 .dash .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line)}
 .dash .cell{background:var(--ink-3);padding:15px 16px}
-.dash .cl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--warm-mute);font-weight:700}
+.dash .cl{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--warm-mute);font-weight:700}
 .dash .cv{font-size:18px;color:var(--warm);margin-top:6px;font-weight:600}
 .dash .cv .g{color:var(--hi);margin-right:6px}
 
 .phone{width:clamp(230px,80%,278px);margin:0 auto;background:#0c0805;border:1px solid #2a1d12;border-radius:30px;padding:14px;box-shadow:0 30px 70px rgba(0,0,0,.55)}
-.phone .ph-top{display:flex;justify-content:space-between;align-items:center;padding:2px 8px 12px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.04em}
+.phone .ph-top{display:flex;justify-content:space-between;align-items:center;padding:2px 8px 12px;font-family:'Bricolage Grotesque',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.04em}
 .phone .ph-city{font-family:'Bebas Neue','Inter',sans-serif;font-size:30px;color:var(--warm);line-height:.95;padding:0 6px}
-.phone .ph-day{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.16em;color:var(--hi);padding:4px 6px 12px}
+.phone .ph-day{font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.16em;color:var(--hi);padding:4px 6px 12px}
 .phone .ph-row{display:flex;justify-content:space-between;align-items:center;padding:11px 12px;margin:6px 0;background:rgba(0,0,0,.3);border:1px solid var(--line-2);border-radius:9px}
-.phone .ph-row .l{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--warm-mute)}
+.phone .ph-row .l{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--warm-mute)}
 .phone .ph-row .t{font-size:15px;color:var(--warm);font-weight:700}
 .phone .ph-row.now{border-color:rgba(232,148,58,.5);background:rgba(232,148,58,.06)}
 .phone .ph-row.now .t{color:var(--hi-bright)}
 
 .docflow{display:flex;flex-direction:column;gap:13px;width:100%}
 .docrow{display:flex;flex-wrap:wrap;gap:8px}
-.dchip{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.03em;color:var(--warm);
+.dchip{font-family:'Bricolage Grotesque',monospace;font-size:12px;letter-spacing:.03em;color:var(--warm);
   padding:9px 13px;border:1px solid var(--line-2);border-radius:9px;background:rgba(0,0,0,.3)}
-.dflowarrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+.dflowarrow{font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
   color:var(--hi);font-weight:700;display:flex;align-items:center;gap:8px;padding-left:2px}
 .dresult{border:1px solid rgba(232,148,58,.4);border-radius:14px;padding:18px 20px;
   background:linear-gradient(180deg,rgba(232,148,58,.10),rgba(17,12,8,.4));box-shadow:0 0 26px rgba(232,148,58,.12)}
 .dresult .drh{font-family:'Bebas Neue','Inter',sans-serif;font-size:30px;color:var(--warm);letter-spacing:.02em;line-height:1}
 .dresult .drb{font-size:13.5px;color:var(--warm-mute);line-height:1.5;margin-top:7px}
 .dresult .drc{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
-.dresult .drc span{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.06em;color:#7adc97;
+.dresult .drc span{font-family:'Bricolage Grotesque',monospace;font-size:10.5px;letter-spacing:.06em;color:#7adc97;
   border:1px solid rgba(109,207,139,.4);border-radius:6px;padding:4px 9px}
 .chatwrap{height:204px;overflow:hidden;padding:0 6px 2px;display:flex;flex-direction:column;justify-content:flex-end}
 .chatfeed{display:flex;flex-direction:column;gap:7px;will-change:transform}
 .cbub{font-size:12.5px;line-height:1.35;padding:8px 11px;border-radius:11px;max-width:86%;animation:cbubin .5s ease both}
 @keyframes cbubin{from{opacity:0}to{opacity:1}}
-.cbub b{display:block;font-size:9px;font-family:'JetBrains Mono',monospace;letter-spacing:.1em;color:var(--warm-mute);margin-bottom:3px}
+.cbub b{display:block;font-size:9px;font-family:'Bricolage Grotesque',monospace;letter-spacing:.1em;color:var(--warm-mute);margin-bottom:3px}
 .cbub.them{align-self:flex-start;background:rgba(0,0,0,.35);border:1px solid var(--line-2);color:var(--warm)}
 .cbub.me{align-self:flex-end;background:rgba(232,148,58,.14);border:1px solid rgba(232,148,58,.35);color:#fbe3c4}
 .cbub.alert{align-self:stretch;max-width:none;background:rgba(232,148,58,.12);border:1px solid rgba(232,148,58,.5);color:var(--warm)}
@@ -169,14 +180,14 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 .bigquote .amb{color:var(--hi)}
 
 .price{border:1px solid rgba(232,148,58,.4);border-radius:18px;padding:clamp(26px,4vw,40px);width:100%;max-width:560px;margin-top:30px;background:linear-gradient(180deg,rgba(31,22,16,.7),rgba(17,12,8,.5));box-shadow:0 0 32px rgba(232,148,58,.14)}
-.price .pt{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--hi);font-weight:700}
+.price .pt{font-family:'Bricolage Grotesque',monospace;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--hi);font-weight:700}
 .price .pa{font-family:'Bebas Neue','Inter',sans-serif;font-size:clamp(56px,10vw,92px);color:var(--warm);line-height:.9;margin:8px 0 4px}
 .price .pa span{font-size:.34em;color:var(--warm-mute);letter-spacing:.04em}
 .price .pp{font-size:15px;color:var(--warm);margin-bottom:18px}
 .price ul{list-style:none;display:flex;flex-direction:column;gap:10px;margin-bottom:18px}
 .price li{position:relative;padding-left:24px;font-size:14.5px;color:var(--warm);line-height:1.4}
 .price li::before{content:"✓";position:absolute;left:0;color:var(--good);font-weight:700}
-.price .pf{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.05em;color:var(--warm-mute);margin-top:14px}
+.price .pf{font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.05em;color:var(--warm-mute);margin-top:14px}
 .price .pf b{color:var(--warm)}
 
 .close{align-items:center;text-align:center;justify-content:center;perspective:1000px}
@@ -190,11 +201,17 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
   .rail{display:none}
   .two{grid-template-columns:1fr;gap:26px}
   .pillars{grid-template-columns:1fr}
-  .slide{padding:84px 22px 40px}
+  .slide{padding:calc(84px + env(safe-area-inset-top)) 22px calc(40px + env(safe-area-inset-bottom))}
 }
 /* Phones — compact every slide so each fits on ONE screen (no in-slide scroll) */
 @media (max-width:560px){
-  .slide{padding:72px 20px 26px}
+  /* Newer iPhones: the status bar / Dynamic Island and the home indicator
+     sit INSIDE the viewport (viewport-fit=cover), so pad by the safe-area
+     insets — otherwise the first and last lines of a slide hide under them. */
+  .slide{padding:calc(62px + env(safe-area-inset-top)) 20px calc(22px + env(safe-area-inset-bottom))}
+  /* If a slide still runs taller than one screen, proximity snapping lets
+     the visitor scroll to its bottom instead of being snapped away from it. */
+  .deck{scroll-snap-type:y proximity}
   /* flex children default to min-width:auto and won't shrink below content —
      this is what let the 2-col features grid push past the screen edge. */
   .slide>*{min-width:0;max-width:100%}
@@ -240,11 +257,68 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
   .reveal{transition:none;opacity:1;transform:none}
   .twk{animation:none;opacity:.3}
 }
+/* ── Embers-in-glass — the dashboard's burn effect, ported. Two faint ember
+   blobs drift under each surface's own tint (shares the app's tabFlame
+   keyframes). Durations are staggered so neighbours never move in lockstep. */
+@keyframes tabFlame{
+  0%{background-position:0% 100%, 100% 0%, 0 0}
+  50%{background-position:65% 15%, 25% 85%, 0 0}
+  100%{background-position:100% 70%, 0% 35%, 0 0}
+}
+.cta{background:
+    radial-gradient(circle at 25% 75%, rgba(255,205,120,.42), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,110,40,.34), transparent 42%),
+    linear-gradient(135deg,var(--hi),var(--hi-2));
+  background-size:230% 230%,210% 210%,100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 8s ease-in-out infinite alternate}
+.cta.ghost{background:
+    radial-gradient(circle at 25% 75%, rgba(255,150,45,.16), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,80,25,.11), transparent 42%),
+    rgba(232,148,58,.04);
+  background-size:230% 230%,210% 210%,100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 11s ease-in-out infinite alternate;animation-delay:-4s}
+.cta.ghost:hover{border-color:var(--hi);background:
+    radial-gradient(circle at 25% 75%, rgba(255,150,45,.24), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,80,25,.16), transparent 42%),
+    rgba(232,148,58,.08);
+  background-size:230% 230%,210% 210%,100% 100%;background-repeat:no-repeat}
+.pillar,.feat{background:
+    radial-gradient(circle at 25% 75%, rgba(255,150,45,.11), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,80,25,.08), transparent 42%),
+    linear-gradient(180deg,rgba(31,22,16,.6),rgba(17,12,8,.4));
+  background-size:230% 230%,210% 210%,100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 12s ease-in-out infinite alternate}
+.price{background:
+    radial-gradient(circle at 25% 75%, rgba(255,150,45,.14), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,80,25,.10), transparent 42%),
+    linear-gradient(180deg,rgba(31,22,16,.7),rgba(17,12,8,.5));
+  background-size:230% 230%,210% 210%,100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 10s ease-in-out infinite alternate}
+.dresult{background:
+    radial-gradient(circle at 25% 75%, rgba(255,150,45,.16), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,80,25,.11), transparent 42%),
+    linear-gradient(180deg,rgba(232,148,58,.10),rgba(17,12,8,.4));
+  background-size:230% 230%,210% 210%,100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 9s ease-in-out infinite alternate;animation-delay:-2s}
+.pillars .pillar:nth-child(2),.features .feat:nth-child(3n+2){animation-duration:9.5s;animation-delay:-3s}
+.pillars .pillar:nth-child(3),.features .feat:nth-child(3n){animation-duration:14s;animation-delay:-6s}
+@media (prefers-reduced-motion:reduce){.cta,.cta.ghost,.pillar,.feat,.price,.dresult{animation:none}}
+
+/* ── Intro: the pixel bunny plays for ~3s on first landing, then fades into the deck ── */
+#intro{position:fixed;inset:0;z-index:100;background:#0a0705;opacity:1;transition:opacity .9s ease;cursor:pointer}
+#intro.out{opacity:0;pointer-events:none}
+#introCanvas{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;transition:opacity .7s ease}
+#introCanvas.ready{opacity:1}
+#intro .intro-hint{position:absolute;left:0;right:0;bottom:calc(26px + env(safe-area-inset-bottom));text-align:center;
+  font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:#6f5c40;opacity:0;animation:introhint 1s ease 1.6s forwards}
+@keyframes introhint{to{opacity:1}}
+@media (prefers-reduced-motion:reduce){#intro{display:none}}
 </style>
 </head>
 <body>
 <div class="bg"></div>
 <div class="twk twk1"></div><div class="twk twk2"></div><div class="twk twk3"></div>
+<div id="intro" aria-hidden="true"><canvas id="introCanvas"></canvas><div class="intro-hint">tap to skip</div></div>
 
 <div class="topbar">
   <img src="/logo.png" alt="Bandmate" />
@@ -277,7 +351,7 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     <a class="cta ghost reveal" href="https://bandmate.art">See it on your next tour →</a>
   </section>
 
-  <!-- 04 · HOW IT WORKS -->
+  <!-- 03 · HOW IT WORKS -->
   <section class="slide" data-label="How it works">
     <div class="eyebrow reveal">How it works</div>
     <h2 class="display reveal">Three steps to<br>on the same page.</h2>
@@ -288,7 +362,7 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     </div>
   </section>
 
-  <!-- 05 · DESKTOP -->
+  <!-- 04 · DESKTOP -->
   <section class="slide" data-label="The desktop">
     <div class="two">
       <div>
@@ -312,26 +386,27 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     </div>
   </section>
 
-  <!-- 05b · BUILD FROM DOCS -->
+  <!-- 05 · BUILD FROM DOCS -->
   <section class="slide" data-label="From your docs">
     <div class="two">
       <div>
         <div class="eyebrow reveal">Barely any data entry</div>
         <h2 class="display reveal" style="font-size:clamp(36px,5.6vw,78px)">Build a tour from<br>the docs you<br>already have.</h2>
-        <p class="lead reveal">Your agent sends an advance, an itinerary, a rooming list. Hand them to Bandmate and it <b>reads them and drafts the whole run</b> — shows, schedules, travel, hotels, contacts. You fine-tune, instead of typing it all in by hand.</p>
+        <p class="lead reveal">Your agent sends deal memos from the CAA or Wasserman portal, an itinerary, a rooming list. Hand them to Bandmate and it <b>reads them and drafts the whole run</b> — shows, schedules, travel, hotels, venue contacts. You fine-tune, instead of typing it all in by hand.</p>
       </div>
       <div class="reveal">
         <div class="docflow">
           <div class="docrow">
-            <span class="dchip">Advance.pdf</span>
+            <span class="dchip">Deal memo.pdf</span>
             <span class="dchip">Itinerary.xlsx</span>
             <span class="dchip">Rooming.pdf</span>
+            <span class="dchip">Advance.pdf</span>
           </div>
           <div class="dflowarrow">↓&nbsp;&nbsp;Bandmate reads them</div>
           <div class="dresult">
             <div class="drh">TOUR, DRAFTED</div>
             <div class="drb">Your run, built from your own paperwork.</div>
-            <div class="drc"><span>42 shows</span><span>schedules</span><span>travel</span><span>hotels</span><span>contacts</span></div>
+            <div class="drc"><span>42 shows</span><span>deal memos</span><span>schedules</span><span>travel</span><span>hotels</span><span>contacts</span></div>
           </div>
         </div>
       </div>
@@ -356,7 +431,7 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
       <div style="order:1">
         <div class="eyebrow reveal">The app</div>
         <h2 class="display reveal" style="font-size:clamp(40px,6vw,82px)">Their whole day,<br>in their pocket.</h2>
-        <p class="lead reveal">Your crew opens the app and sees <b>just their day</b> — call times, travel, where to be next. Glanceable from the side of a stage. <span class="mut">Native iOS &amp; Android, and free for them.</span></p>
+        <p class="lead reveal">Your crew opens the app and sees <b>just their day</b> — the venue up top, call times, travel, where to be next. Tap any number to call or text. Glanceable from the side of a stage. <span class="mut">Native iOS &amp; Android, and free for them.</span></p>
       </div>
     </div>
   </section>
@@ -369,9 +444,9 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
       <div class="feat"><div class="fh">Schedule &amp; day sheets</div><div class="fb">Build the day once; print it or push it to every phone.</div></div>
       <div class="feat"><div class="fh">Travel &amp; hotels</div><div class="fb">Flights, buses, rooms, confirmations — by person, by day.</div></div>
       <div class="feat"><div class="fh">Guest lists</div><div class="fb">Requests, approvals, allotments, a clean door-ready list.</div></div>
-      <div class="feat"><div class="fh">Settlements</div><div class="fb">Guarantees, deductions, net — tidy numbers you can export.</div></div>
-      <div class="feat"><div class="fh">Crew &amp; contacts</div><div class="fb">Your whole roster, their roles, and who sees what.</div></div>
-      <div class="feat"><div class="fh">Set lists</div><div class="fb">Build it, print the stage copy, share it with the band.</div></div>
+      <div class="feat"><div class="fh">Settlements &amp; advance</div><div class="fb">Guarantees, deductions, net — plus venue tech packs and advance notes.</div></div>
+      <div class="feat"><div class="fh">Crew profiles &amp; contacts</div><div class="fb">Roster, roles, emergency contacts, dietary and passport details — one form, filled once.</div></div>
+      <div class="feat"><div class="fh">Set lists &amp; files</div><div class="fb">Stage copies, riders, deal memos — every file on the tour, by date.</div></div>
     </div>
   </section>
 
@@ -382,7 +457,7 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     <p class="lead reveal">Doors moved? Bus call slipped? Update it in one place — no blast text, no “did everyone get the memo?” Everyone just <b>knows.</b></p>
   </section>
 
-  <!-- 08b · PUSH + MESSAGING -->
+  <!-- 09 · PUSH + MESSAGING -->
   <section class="slide" data-label="Push & chat">
     <div class="two">
       <div class="reveal" style="order:2">
@@ -399,32 +474,32 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     </div>
   </section>
 
-  <!-- 09 · CREW FREE -->
+  <!-- 10 · CREW FREE -->
   <section class="slide" data-label="Crew free">
     <div class="eyebrow reveal">Bring the whole crew</div>
     <h2 class="display reveal">Your crew is<br>free. <span class="amb">Always.</span></h2>
     <p class="lead reveal">Put your entire band and crew on Bandmate at no cost — they just need an invite from you. <b>You're the only one who pays,</b> no matter how big the tour or how many people are on it.</p>
   </section>
 
-  <!-- 10 · CO-MANAGE -->
+  <!-- 11 · CO-MANAGE -->
   <section class="slide" data-label="Second TM">
     <div class="eyebrow reveal">Share the wheel</div>
     <h2 class="display reveal">Two hands on<br>the wheel.</h2>
     <p class="lead reveal">Bring on a second tour manager with full access — split a busy run, hand off legs, cover your days off. <span class="mut">Everyone edits the same live tour, in real time, without stepping on each other.</span></p>
   </section>
 
-  <!-- 11 · EASY TO START -->
+  <!-- 12 · EASY TO START -->
   <section class="slide" data-label="Easy to start">
     <div class="eyebrow reveal">Easy to start</div>
     <h2 class="display reveal">Switch in<br>an afternoon.</h2>
     <ul class="bul reveal">
-      <li>Coming from spreadsheets or other touring applications? <b>Hand over your tour docs</b> — the import wizard + Travel Assistant build the run for you.</li>
+      <li>Coming from spreadsheets or other touring apps? <b>Hand over your tour docs</b> — deal memos, itineraries, rooming lists — and the import wizard + Travel Assistant build the run for you.</li>
       <li><b>Your data stays yours</b> <span class="mut">— export anytime, no lock-in.</span></li>
       <li>Works on the web and as <b>native iOS &amp; Android apps.</b></li>
     </ul>
   </section>
 
-  <!-- 12 · PRICING -->
+  <!-- 13 · PRICING -->
   <section class="slide" data-label="Pricing">
     <div class="eyebrow reveal">Pricing</div>
     <h2 class="display reveal" style="font-size:clamp(40px,6.4vw,86px)">One flat rate.<br>No tour limit.</h2>
@@ -443,7 +518,7 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     </div>
   </section>
 
-  <!-- 13 · CTA -->
+  <!-- 14 · CTA -->
   <section class="slide" data-label="Get started">
     <div class="eyebrow reveal">Get started</div>
     <h2 class="display reveal">Get your tour on<br>the same page.</h2>
@@ -451,7 +526,7 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     <a class="cta reveal" href="https://bandmate.art">Start free at bandmate.art →</a>
   </section>
 
-  <!-- 14 · CLOSE -->
+  <!-- 15 · CLOSE -->
   <section class="slide close" data-label="Close">
     <img class="mark reveal" src="/avatar.png" alt="" />
     <div class="big reveal">Your mate on<br>the road.</div>
@@ -459,6 +534,442 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
   </section>
 
 </main>
+
+<script>
+// Intro gate: play the pixel bunny for ~3s on the first landing of a session,
+// then fade into the deck. Skipped under reduced-motion, after it's been seen
+// this session (add ?intro=1 to force it), or if three.js / WebGL is unavailable.
+// A hard cap guarantees the deck appears within 5s no matter what; a tap skips.
+window.__pitchIntro = (function(){
+  var intro = document.getElementById('intro');
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  var force = /[?&]intro=1/.test(location.search);
+  var seen = false; try { seen = sessionStorage.getItem('bm_pitch_intro') === '1'; } catch (e) {}
+  if (!intro || reduce || (seen && !force)) { if (intro) intro.remove(); return Promise.resolve(); }
+  try { sessionStorage.setItem('bm_pitch_intro', '1'); } catch (e) {}
+  return new Promise(function(resolve){
+    var done = false;
+    function finish(){
+      if (done) return; done = true;
+      intro.classList.add('out');
+      setTimeout(function(){ try { window.__introStop && window.__introStop(); } catch (e) {} intro.remove(); resolve(); }, 950);
+    }
+    var cap = setTimeout(finish, 5000);
+    window.__introReady = function(){ clearTimeout(cap); setTimeout(finish, 3000); };
+    window.__introFail  = function(){ clearTimeout(cap); finish(); };
+    intro.addEventListener('click', finish);
+  });
+})();
+</script>
+<script>
+(function initPitchIntroBunny(){
+  const canvas = document.getElementById('introCanvas');
+  if (!canvas) return;
+  if (!document.getElementById('intro')) return;   // intro already skipped (reduced motion / seen this session)
+  // Reduced motion: the CSS already forces opacity:0 — don't burn a GPU
+  // context or a rAF loop drawing something nobody will see.
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches) { try { window.__introFail && window.__introFail(); } catch (e) {} return; }
+  // No WebGL (old device, blocked context) → leave the canvas blank
+  // rather than crashing; the dashboard simply has no watermark.
+  try {
+    const probe = document.createElement('canvas');
+    if (!(probe.getContext('webgl') || probe.getContext('experimental-webgl'))) return;
+  } catch (e) { try { window.__introFail && window.__introFail(); } catch (_) {} return; }
+
+  import('three').then((THREE) => {
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, canvas });
+    } catch (e) { console.warn('[bg] WebGL init failed:', e); return; }
+    window.__introStop = () => { window.__introStopped = true; try { renderer.dispose(); } catch (e) {} };
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+    renderer.setSize(innerWidth, innerHeight, false);
+
+    const scene = new THREE.Scene();
+    // Pulled back from the source study's 5.2 so the mark reads as a
+    // background watermark (~65% of viewport height) rather than filling
+    // the screen edge to edge behind the dashboard.
+    const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 50);
+    camera.position.z = 5.4;
+    const group = new THREE.Group();
+    scene.add(group);
+
+    // ---------- value noise ----------
+    const fract = (x) => x - Math.floor(x);
+    const hash3 = (x, y, z) => fract(Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453);
+    const smooth = (t) => t * t * (3 - 2 * t);
+    function n3(x, y, z){
+      const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+      const xf = smooth(x - xi), yf = smooth(y - yi), zf = smooth(z - zi);
+      const c000 = hash3(xi,yi,zi),     c100 = hash3(xi+1,yi,zi);
+      const c010 = hash3(xi,yi+1,zi),   c110 = hash3(xi+1,yi+1,zi);
+      const c001 = hash3(xi,yi,zi+1),   c101 = hash3(xi+1,yi,zi+1);
+      const c011 = hash3(xi,yi+1,zi+1), c111 = hash3(xi+1,yi+1,zi+1);
+      const x00 = c000 + (c100-c000)*xf, x10 = c010 + (c110-c010)*xf;
+      const x01 = c001 + (c101-c001)*xf, x11 = c011 + (c111-c011)*xf;
+      const y0 = x00 + (x10-x00)*yf, y1 = x01 + (x11-x01)*yf;
+      return y0 + (y1-y0)*zf;
+    }
+
+    let N = 0, pos, home, vel, alpha, baseA, col, size, erodeKey, boost, seed;
+    let dragVX, dragVY;                  // per-particle cursor-drag momentum
+    let points, worms = [], headPts, balls = [], ballPts, bbox;
+    const THICK = 0.26;
+
+    function build(img){
+      const SW = 150, SH = Math.round(img.height / img.width * SW);
+      const off = document.createElement('canvas');
+      off.width = SW; off.height = SH;
+      const octx = off.getContext('2d');
+      octx.drawImage(img, 0, 0, SW, SH);
+      let data;
+      try { data = octx.getImageData(0, 0, SW, SH).data; }
+      catch (e) { console.warn('[bg] avatar canvas tainted:', e); return false; }
+      const s = 3.1 / SH;
+      const pts = [];
+      for (let py = 0; py < SH; py++) for (let px = 0; px < SW; px++){
+        if (data[(py*SW+px)*4+3] > 140){
+          pts.push(
+            (px - SW/2 + Math.random()*0.8) * s,
+            -(py - SH/2 + Math.random()*0.8) * s,
+            (Math.random()+Math.random()+Math.random()-1.5)/1.5 * THICK
+          );
+        }
+      }
+      N = pts.length / 3;
+      if (!N) return false;
+      pos = new Float32Array(pts); home = new Float32Array(pts);
+      vel = new Float32Array(N*3);
+      alpha = new Float32Array(N); baseA = new Float32Array(N);
+      col = new Float32Array(N*3); size = new Float32Array(N);
+      erodeKey = new Float32Array(N); boost = new Float32Array(N); seed = new Float32Array(N);
+      dragVX = new Float32Array(N); dragVY = new Float32Array(N);
+
+      const c1 = new THREE.Color('#c47323'), c2 = new THREE.Color('#ffb35a'), tmp = new THREE.Color();
+      for (let i = 0; i < N; i++){
+        const x = home[i*3], y = home[i*3+1], z = home[i*3+2];
+        // nested noise scales = the order the surface erodes in
+        erodeKey[i] = 0.5*n3(x*1.3+5, y*1.3, z*1.3) + 0.3*n3(x*3.4+17, y*3.4, z*3.4) + 0.2*n3(x*9.1+31, y*9.1, z*9.1);
+        tmp.copy(c1).lerp(c2, Math.random()*Math.random());
+        col[i*3] = tmp.r; col[i*3+1] = tmp.g; col[i*3+2] = tmp.b;
+        baseA[i] = 0.5 + Math.random()*0.5;
+        alpha[i] = baseA[i];
+        size[i] = 1.7 + Math.random()*1.9 + (Math.random() < 0.03 ? 3.0 : 0);
+        seed[i] = Math.random()*100;
+      }
+      let mn = 1e9, mx = -1e9;
+      for (let i = 0; i < N; i++){ mn = Math.min(mn, erodeKey[i]); mx = Math.max(mx, erodeKey[i]); }
+      for (let i = 0; i < N; i++) erodeKey[i] = (erodeKey[i]-mn)/(mx-mn);
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos,3).setUsage(THREE.DynamicDrawUsage));
+      geo.setAttribute('aColor', new THREE.BufferAttribute(col,3).setUsage(THREE.DynamicDrawUsage));
+      geo.setAttribute('aAlpha', new THREE.BufferAttribute(alpha,1).setUsage(THREE.DynamicDrawUsage));
+      geo.setAttribute('aSize', new THREE.BufferAttribute(size,1));
+      const mat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+        uniforms: { uScale: { value: innerHeight * renderer.getPixelRatio() * 0.5 } },
+        vertexShader: `
+          attribute vec3 aColor; attribute float aAlpha, aSize;
+          varying vec3 vC; varying float vA;
+          uniform float uScale;
+          void main(){
+            vC = aColor; vA = aAlpha;
+            vec4 mv = modelViewMatrix * vec4(position, 1.0);
+            gl_PointSize = aSize * uScale / (280.0 * -mv.z) * 4.6;
+            gl_Position = projectionMatrix * mv;
+          }`,
+        fragmentShader: `
+          varying vec3 vC; varying float vA;
+          void main(){
+            float d = length(gl_PointCoord - 0.5);
+            float a = smoothstep(0.5, 0.08, d) * vA;
+            gl_FragColor = vec4(vC * a, a);
+          }`
+      });
+      points = new THREE.Points(geo, mat);
+      group.add(points);
+
+      // ---------- energy worms ----------
+      const TL = 90, NW = 6;
+      const headGeo = new THREE.BufferGeometry();
+      headGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(NW*3),3).setUsage(THREE.DynamicDrawUsage));
+      headGeo.setAttribute('aColor', new THREE.BufferAttribute(new Float32Array(NW*3).fill(1),3));
+      headGeo.setAttribute('aAlpha', new THREE.BufferAttribute(new Float32Array(NW).fill(1),1));
+      headGeo.setAttribute('aSize', new THREE.BufferAttribute(new Float32Array(NW).fill(9),1));
+      headPts = new THREE.Points(headGeo, mat);
+      group.add(headPts);
+
+      for (let w = 0; w < NW; w++){
+        const idx = Math.floor(Math.random()*N);
+        const worm = { pos: new THREE.Vector3(home[idx*3], home[idx*3+1], home[idx*3+2]), tgt: idx, speed: 0.9 + Math.random()*0.5, trail: [], TL };
+        const lg = new THREE.BufferGeometry();
+        const lp = new Float32Array(TL*3);
+        lg.setAttribute('position', new THREE.BufferAttribute(lp,3).setUsage(THREE.DynamicDrawUsage));
+        const lc = new Float32Array(TL*3);
+        const hot = new THREE.Color('#ffd9a0'), cold = new THREE.Color('#83450e');
+        for (let i = 0; i < TL; i++){
+          const t = i/(TL-1);
+          tmp.copy(cold).lerp(hot, t*t);
+          const f = t*t*0.9;
+          lc[i*3] = tmp.r*f; lc[i*3+1] = tmp.g*f; lc[i*3+2] = tmp.b*f;
+        }
+        lg.setAttribute('color', new THREE.BufferAttribute(lc,3));
+        const line = new THREE.Line(lg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+        group.add(line);
+        worm.line = line; worm.lp = lp;
+        for (let i = 0; i < TL; i++) worm.trail.push(worm.pos.clone());
+        worms.push(worm);
+      }
+
+      // ---------- bouncing light balls ----------
+      bbox = new THREE.Box3().setFromBufferAttribute(geo.attributes.position);
+      bbox.expandByScalar(-0.12);
+      const NB = 3;
+      const bGeo = new THREE.BufferGeometry();
+      bGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(NB*3),3).setUsage(THREE.DynamicDrawUsage));
+      bGeo.setAttribute('aColor', new THREE.BufferAttribute(new Float32Array(NB*3).fill(1),3));
+      bGeo.setAttribute('aAlpha', new THREE.BufferAttribute(new Float32Array(NB).fill(0.85),1));
+      bGeo.setAttribute('aSize', new THREE.BufferAttribute(new Float32Array(NB).fill(13),1));
+      ballPts = new THREE.Points(bGeo, mat);
+      group.add(ballPts);
+      for (let b = 0; b < NB; b++){
+        const idx = (Math.random()*N)|0;
+        const dir = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, (Math.random()-0.5)*0.4).normalize().multiplyScalar(0.55 + Math.random()*0.25);
+        balls.push({ pos: new THREE.Vector3(home[idx*3], home[idx*3+1], home[idx*3+2]), vel: dir });
+      }
+      return true;
+    }
+
+    // ---------- passive cursor tracking (never intercepts) ----------
+    // Listening to pointermove is passive — it reads the cursor but takes
+    // no input, so momentum costs the dashboard nothing. Two kinds of
+    // inertia come off it:
+    //   1. spinV*  — a fast swipe imparts angular momentum to the whole
+    //      mark, which coasts and decays back to facing front.
+    //   2. curVX/Y — the cursor's own velocity, handed to nearby particles
+    //      in the loop so they get dragged along and drift back home.
+    let mx = 0, my = 0;
+    let spinVX = 0, spinVY = 0;          // rotational momentum
+    let dragRX = 0, dragRY = 0;          // accumulated swipe rotation
+    let curVX = 0, curVY = 0;            // cursor velocity (screen px/frame)
+    let lastPX = -1, lastPY = -1;
+    // Inertia is OFF in the phone app. There, pointermove only fires while
+    // a finger is down — i.e. it IS the scroll gesture — so every swipe
+    // through a list would fling the watermark around. The mark still
+    // erodes, re-forms, and runs its worms; it just no longer reacts to
+    // touch. Desktop keeps the full drag + swipe momentum.
+    // Re-evaluated on resize/orientation change, not frozen at boot:
+    // _isPhoneApp() is partly a viewport-width test, so rotating a tablet
+    // or resizing an installed PWA can legitimately flip the answer.
+    const computeNoInertia = () => !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    let noInertia = computeNoInertia();
+    addEventListener('resize', () => { noInertia = computeNoInertia(); }, { passive: true });
+    addEventListener('orientationchange', () => { noInertia = computeNoInertia(); }, { passive: true });
+    // Track whether a pointer has ever been seen. Without this, mx/my sit
+    // at 0,0 — dead centre of the mark — and the repulsion below would
+    // punch a permanent hole in the middle before the mouse ever moves
+    // (and forever on the phone, where we ignore the pointer entirely).
+    let hasPointer = false;
+    addEventListener('pointermove', (e) => {
+      // Phone app: purely ambient. Touch-drags ARE scrolling here, so the
+      // mark ignores the pointer completely — no lean, no drag, no spin.
+      if (noInertia) return;
+      hasPointer = true;
+      mx = (e.clientX/innerWidth)*2 - 1;
+      my = -(e.clientY/innerHeight)*2 + 1;
+      if (lastPX >= 0){
+        const dxp = e.clientX - lastPX, dyp = e.clientY - lastPY;
+        spinVY += dxp * 0.0008;
+        spinVX += dyp * 0.00032;
+        // Accumulate so a fast flick lands harder than a slow drift.
+        curVX += dxp; curVY += dyp;
+      }
+      lastPX = e.clientX; lastPY = e.clientY;
+    }, { passive: true });
+
+    const ray = new THREE.Raycaster(), plane = new THREE.Plane(new THREE.Vector3(0,0,1), 0), hitV = new THREE.Vector3();
+    function screenToLocal(cx, cy){
+      ray.setFromCamera({ x: (cx/innerWidth)*2-1, y: -(cy/innerHeight)*2+1 }, camera);
+      if (!ray.ray.intersectPlane(plane, hitV)) return null;
+      return group.worldToLocal(hitV.clone());
+    }
+
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight, false);
+      if (points) points.material.uniforms.uScale.value = innerHeight * renderer.getPixelRatio() * 0.5;
+    }, { passive: true });
+
+    // ---------- animation ----------
+    const CYCLE = 16; // seconds per erosion breath
+    let last = performance.now();
+    // Battery guard: this now runs on the phone app too, so skip all work
+    // whenever the watermark is invisible (auth screens) or backgrounded.
+    function isVisible(){
+      return !document.hidden && !window.__introStopped;
+    }
+    function animate(){
+      if (window.__introStopped) return;
+      requestAnimationFrame(animate);
+      const now = performance.now();
+      if (!isVisible()){ last = now; return; }
+      const dt = Math.min(0.05, (now-last)/1000); last = now;
+      const t = now/1000;
+
+      const ph = (t % CYCLE)/CYCLE;
+      const wave = 0.5 - 0.5*Math.cos(ph*Math.PI*2);
+      const threshold = Math.pow(wave, 1.35)*0.74;
+
+      // Rotational inertia: momentum from a swipe coasts and decays, and
+      // the accumulated angle eases back so the mark always drifts home to
+      // facing front rather than ending up parked at a random angle.
+      const damp = Math.pow(0.55, dt);
+      spinVY = Math.max(-4.5, Math.min(4.5, spinVY)) * damp;
+      spinVX = Math.max(-1.4, Math.min(1.4, spinVX)) * damp;
+      dragRY += spinVY*dt*3.2;
+      dragRX = Math.max(-0.9, Math.min(0.9, dragRX + spinVX*dt*3.2));
+      dragRY *= Math.pow(0.90, dt); dragRX *= Math.pow(0.82, dt);
+
+      // Slow self-rotation + swipe momentum + a gentle lean toward the cursor.
+      group.rotation.y = Math.sin(t*0.13)*0.45 + dragRY + mx*0.12;
+      group.rotation.x = Math.sin(t*0.09)*0.10 + dragRX + -my*0.06;
+
+      // Cursor velocity decays each frame; whatever's left this frame is
+      // handed to nearby particles below as a drag impulse.
+      const dragImpulseX = curVX, dragImpulseY = curVY;
+      curVX *= 0.72; curVY *= 0.72;
+      if (Math.abs(curVX) < 0.01) curVX = 0;
+      if (Math.abs(curVY) < 0.01) curVY = 0;
+
+      if (points){
+        const cursor = hasPointer ? screenToLocal((mx*0.5+0.5)*innerWidth, (0.5-my*0.5)*innerHeight) : null;
+        for (let i = 0; i < N; i++){
+          const i3 = i*3;
+          if (erodeKey[i] < threshold){
+            const x = pos[i3], y = pos[i3+1], z = pos[i3+2];
+            vel[i3]   += ((n3(x*1.6, y*1.6, t*0.25)-0.5)*1.4 + x*0.18) * dt;
+            vel[i3+1] += ((n3(x*1.6+9, y*1.6, t*0.25)-0.5)*1.4 + y*0.10 + 0.22) * dt;
+            vel[i3+2] += ((n3(x*1.6+23, y*1.6, t*0.25)-0.5)*1.6 + z*0.5) * dt;
+            vel[i3] *= 0.965; vel[i3+1] *= 0.965; vel[i3+2] *= 0.965;
+            pos[i3] += vel[i3]*dt*9; pos[i3+1] += vel[i3+1]*dt*9; pos[i3+2] += vel[i3+2]*dt*9;
+            alpha[i] += (baseA[i]*0.38 - alpha[i])*0.04;
+          } else {
+            const r = 0.055;
+            pos[i3]   += (home[i3]-pos[i3])*r;
+            pos[i3+1] += (home[i3+1]-pos[i3+1])*r;
+            pos[i3+2] += (home[i3+2]-pos[i3+2])*r;
+            vel[i3] = vel[i3+1] = vel[i3+2] = 0;
+            alpha[i] += (baseA[i]-alpha[i])*0.08;
+          }
+          // CURSOR RESPONSE — tuned toward the Pixel Bunny reference, where
+          // the mark holds its shape and the inertia lives in the whole
+          // group's rotation rather than in flying pixels. Particles now
+          // only *flinch* toward the sweep (a fraction of the old impulse,
+          // and it dies fast), so the rabbit stays legible while a swipe
+          // still reads as physical. Whole-mark swipe momentum is
+          // unchanged — that's the inertia you feel on desktop.
+          if (cursor){
+            const dx = pos[i3]-cursor.x, dy = pos[i3+1]-cursor.y;
+            const d2 = dx*dx + dy*dy;
+            if (d2 < 0.16){
+              const fall = (0.16 - d2)/0.16;              // 1 at cursor → 0 at edge
+              dragVX[i] += dragImpulseX * fall * 0.00008;
+              dragVY[i] -= dragImpulseY * fall * 0.00008; // screen Y is inverted
+              // the reference's own parting push — cursor opens a soft gap
+              const f = (0.16-d2)*0.5*dt*8;
+              pos[i3] += dx*f/(Math.sqrt(d2)+0.02); pos[i3+1] += dy*f/(Math.sqrt(d2)+0.02);
+            }
+          }
+          // Coast + apply. Faster decay = the flinch settles almost at once
+          // instead of the pixels touring the screen.
+          pos[i3] += dragVX[i]; pos[i3+1] += dragVY[i];
+          dragVX[i] *= 0.78; dragVY[i] *= 0.78;
+          const w = Math.sin(t*1.4+seed[i])*0.006 + Math.sin(t*4.1+seed[i]*2.7)*0.0025;
+          pos[i3] += w; pos[i3+1] += Math.cos(t*1.1+seed[i])*0.006;
+          boost[i] *= 0.90;
+          alpha[i] = Math.min(1.6, alpha[i] + boost[i]);
+        }
+
+        // worms trace the surviving surface
+        for (let w = 0; w < worms.length; w++){
+          const worm = worms[w];
+          const ti = worm.tgt*3;
+          const dx = home[ti]-worm.pos.x, dy = home[ti+1]-worm.pos.y, dz = home[ti+2]-worm.pos.z;
+          const d = Math.hypot(dx, dy, dz);
+          if (d < 0.06 || erodeKey[worm.tgt] < threshold){
+            let best = -1, bestD = 1e9;
+            for (let k = 0; k < 40; k++){
+              const j = (Math.random()*N)|0;
+              if (erodeKey[j] < threshold) continue;
+              const j3 = j*3;
+              const dd = (home[j3]-worm.pos.x)**2 + (home[j3+1]-worm.pos.y)**2 + (home[j3+2]-worm.pos.z)**2;
+              if (dd > 0.01 && dd < bestD){ bestD = dd; best = j; }
+            }
+            if (best >= 0) worm.tgt = best;
+          } else {
+            const sp = worm.speed*dt/d;
+            worm.pos.x += dx*sp; worm.pos.y += dy*sp; worm.pos.z += dz*sp;
+          }
+          worm.trail.push(worm.pos.clone());
+          if (worm.trail.length > worm.TL) worm.trail.shift();
+          for (let i = 0; i < worm.trail.length; i++){
+            const p = worm.trail[i];
+            worm.lp[i*3] = p.x; worm.lp[i*3+1] = p.y; worm.lp[i*3+2] = p.z;
+          }
+          worm.line.geometry.attributes.position.needsUpdate = true;
+          const ha = headPts.geometry.attributes.position.array;
+          ha[w*3] = worm.pos.x; ha[w*3+1] = worm.pos.y; ha[w*3+2] = worm.pos.z;
+          for (let i = 0; i < N; i += 4){
+            const i3 = i*3;
+            const dd = (home[i3]-worm.pos.x)**2 + (home[i3+1]-worm.pos.y)**2;
+            if (dd < 0.04) boost[i] = Math.max(boost[i], (0.04-dd)*9);
+          }
+        }
+        if (headPts) headPts.geometry.attributes.position.needsUpdate = true;
+
+        // bouncing light balls
+        for (let b = 0; b < balls.length; b++){
+          const ball = balls[b];
+          ball.pos.addScaledVector(ball.vel, dt);
+          if (ball.pos.x < bbox.min.x || ball.pos.x > bbox.max.x){ ball.vel.x *= -1; ball.pos.x = Math.max(bbox.min.x, Math.min(bbox.max.x, ball.pos.x)); }
+          if (ball.pos.y < bbox.min.y || ball.pos.y > bbox.max.y){ ball.vel.y *= -1; ball.pos.y = Math.max(bbox.min.y, Math.min(bbox.max.y, ball.pos.y)); }
+          if (ball.pos.z < bbox.min.z || ball.pos.z > bbox.max.z){ ball.vel.z *= -1; ball.pos.z = Math.max(bbox.min.z, Math.min(bbox.max.z, ball.pos.z)); }
+          const ba = ballPts.geometry.attributes.position.array;
+          ba[b*3] = ball.pos.x; ba[b*3+1] = ball.pos.y; ba[b*3+2] = ball.pos.z;
+          for (let i = (b%3); i < N; i += 3){
+            const i3 = i*3;
+            const dd = (home[i3]-ball.pos.x)**2 + (home[i3+1]-ball.pos.y)**2;
+            if (dd < 0.09){ const g = 1 - dd/0.09; boost[i] = Math.max(boost[i], 0.28*g*g); }
+          }
+        }
+        if (ballPts) ballPts.geometry.attributes.position.needsUpdate = true;
+        points.geometry.attributes.position.needsUpdate = true;
+        points.geometry.attributes.aAlpha.needsUpdate = true;
+      }
+      renderer.render(scene, camera);
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      try {
+        if (build(img)){
+          canvas.classList.add('ready');
+          try { window.__introReady && window.__introReady(); } catch (e) {}
+          animate();
+        }
+      } catch (e) { console.warn('[bg] particle build failed:', e); }
+    };
+    img.onerror = (e) => { console.warn('[intro] avatar failed to load:', e); try { window.__introFail && window.__introFail(); } catch (_) {} };
+    img.src = '/avatar.png';
+  }).catch((e) => {
+    // three.js unavailable (offline first load / blocked CDN) — no
+    // watermark this session. Everything else is unaffected.
+    console.warn('[intro] three.js unavailable, skipping intro:', e);
+    try { window.__introFail && window.__introFail(); } catch (_) {}
+  });
+})();
+</script>
 
 <script>
 (function(){
@@ -516,7 +1027,8 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
       }
     });
   }, { threshold: 0.55 });
-  slides.forEach(function(s){ io.observe(s); });
+  var startObserving = function(){ slides.forEach(function(s){ io.observe(s); }); };
+  (window.__pitchIntro || Promise.resolve()).then(startObserving);
 
   function go(dir){
     var h = deck.clientHeight;
