@@ -26927,17 +26927,22 @@ function _showInstalledAppBillingNotice() {
   notice.hidden = false;
   const u = U();
   const lapsed = u && (u.subscriptionStatus === 'canceled' || u.subscriptionStatus === 'past_due' || u.subscriptionStatus === 'unpaid');
+  // Google Play build (TWA): Play's payments policy forbids steering to an
+  // outside purchase — no website link, no "go subscribe" wording. State
+  // the fact and offer the re-check, the Netflix/Spotify pattern. The iOS
+  // build keeps its Apple-approved copy and link.
+  const twa = (typeof _twaLaunched === 'function') && _twaLaunched();
   notice.innerHTML = `
     <div style="max-width:420px;text-align:center;display:flex;flex-direction:column;gap:18px">
       <img src="/icon-192.png" alt="Bandmate" style="width:72px;height:72px;border-radius:18px;margin:0 auto;box-shadow:0 0 30px rgba(232,148,58,.25)">
-      <div style="font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#fdba74;font-weight:700">${lapsed ? 'Subscription needed' : 'Activate Bandmate'}</div>
-      <h2 style="font-size:22px;font-weight:800;color:#f4e4cf;line-height:1.25;margin:0">${lapsed ? 'Your subscription has lapsed' : 'Set up your subscription on the web'}</h2>
+      <div style="font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#fdba74;font-weight:700">${(lapsed || twa) ? 'Subscription needed' : 'Activate Bandmate'}</div>
+      <h2 style="font-size:22px;font-weight:800;color:#f4e4cf;line-height:1.25;margin:0">${lapsed ? 'Your subscription has lapsed' : (twa ? 'No active subscription' : 'Set up your subscription on the web')}</h2>
       <p style="font-size:14px;line-height:1.6;color:#b8a690;margin:0">
-        Subscriptions for Bandmate are managed on our website. Open
+        ${twa ? `You can't set up or renew a Bandmate subscription in the app. We know it's a hassle. Once this account has an active subscription, tap check again and you're in — your login stays the same.` : `Subscriptions for Bandmate are managed on our website. Open
         <b style="color:#fdba74">bandmate.art</b> in your browser to
-        ${lapsed ? 'reactivate your plan' : 'start your subscription'}, then return here and you're all set — your login stays the same.
+        ${lapsed ? 'reactivate your plan' : 'start your subscription'}, then return here and you're all set — your login stays the same.`}
       </p>
-      <button type="button" onclick="_openSubscribeWeb()" style="padding:14px 18px;background:linear-gradient(135deg,#e8943a,#f5b35e);color:#0a0705;border:none;border-radius:12px;font-weight:800;letter-spacing:.06em;font-size:14px;cursor:pointer;box-shadow:0 0 18px rgba(232,148,58,.3)">Open bandmate.art →</button>
+      ${twa ? '' : `<button type="button" onclick="_openSubscribeWeb()" style="padding:14px 18px;background:linear-gradient(135deg,#e8943a,#f5b35e);color:#0a0705;border:none;border-radius:12px;font-weight:800;letter-spacing:.06em;font-size:14px;cursor:pointer;box-shadow:0 0 18px rgba(232,148,58,.3)">Open bandmate.art →</button>`}
       <button type="button" onclick="(async()=>{ if(typeof _installedBillingRecheck==='function'){await _installedBillingRecheck();} })()" style="padding:11px;background:transparent;color:#b8a690;border:1px solid rgba(232,148,58,.3);border-radius:10px;font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;cursor:pointer">↻ I've subscribed — check again</button>
       <button type="button" onclick="logout()" style="padding:9px;background:transparent;color:var(--warm-mute);border:none;font-family:'Bricolage Grotesque',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer">Sign out</button>
     </div>
@@ -29089,12 +29094,29 @@ function ensureLoggedInState() {
 //     appends this to its WKWebView user-agent string
 //   • app-platform cookie — the wrapper sets app-platform="iOS App Store"
 //     (or "Google Play") which a normal browser never has
+//   • android-app:// referrer — the Google Play build is a Trusted Web
+//     Activity (Chrome, no JS injection possible), and Android identifies
+//     it by launching with document.referrer = "android-app://<package>".
+//     That referrer only exists on the launch navigation, so _twaLaunched
+//     remembers it for the session — a reload inside the TWA still counts.
 // These are reliable inside a WKWebView, where display-mode/navigator.
 // standalone are unreliable. This is what lets the iOS App Store build
 // force the phone view + hide Stripe with zero Xcode code changes.
+const TWA_PACKAGE = 'art.bandmate.app';
+function _twaLaunched() {
+  try {
+    const ref = (typeof document !== 'undefined' && document.referrer) || '';
+    if (ref.indexOf('android-app://' + TWA_PACKAGE) === 0) {
+      try { sessionStorage.setItem('bandmate.twa', '1'); } catch (e) {}
+      return true;
+    }
+    return sessionStorage.getItem('bandmate.twa') === '1';
+  } catch (e) { return false; }
+}
 function _isNativeWrapper() {
   try {
     if (window.BANDMATE_NATIVE === true) return true;
+    if (_twaLaunched()) return true;
     const ua = (navigator && navigator.userAgent) || '';
     if (/PWAShell/i.test(ua)) return true;
     const ck = (typeof document !== 'undefined' && document.cookie) || '';
