@@ -727,6 +727,41 @@ body.admin-active .stage{grid-template-columns:1fr!important}
 /* Refresh spinner */
 .god-spin{display:inline-block;line-height:1}
 .god-spin.on{animation:godspin .7s linear infinite}
+/* Admin Panel v2 */
+.god-search{font-family:'Bricolage Grotesque',monospace;font-size:12px;padding:7px 11px;border:1px solid rgba(140,120,255,.35);border-radius:8px;background:rgba(140,120,255,.05);color:#e3d6ff;min-width:240px;outline:none}
+.god-search:focus{border-color:rgba(140,120,255,.7);box-shadow:0 0 0 3px rgba(140,120,255,.12)}
+.god-search::placeholder{color:#7f74a6}
+.god-tile.gt-good .gt-val{color:var(--good)}
+.god-tile.gt-warn .gt-val{color:#fdba74}
+.god-att{border:1px solid rgba(140,120,255,.25);border-radius:10px;overflow:hidden;margin:6px 0 4px;background:rgba(140,120,255,.02)}
+.god-att-row{display:grid;grid-template-columns:64px 1fr auto;gap:12px;align-items:center;padding:10px 14px;border-bottom:1px solid rgba(140,120,255,.12);cursor:pointer;transition:background .12s}
+.god-att-row:last-child{border-bottom:0}
+.god-att-row:hover{background:rgba(140,120,255,.08)}
+.god-att-row .n{font-size:20px;font-weight:800;color:#fdba74;font-variant-numeric:tabular-nums;line-height:1}
+.god-att-row .n.zero{color:var(--warm-mute);opacity:.55}
+.god-att-row .d{font-size:12.5px;color:var(--warm)}
+.god-att-row .d small{display:block;color:var(--warm-mute);font-size:11px;margin-top:2px}
+.god-att-row .go{font-family:'Bricolage Grotesque',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#a99bd8;white-space:nowrap}
+.god-th{cursor:pointer;user-select:none;white-space:nowrap}
+.god-th:hover,.god-th.on{color:#e3d6ff}
+.god-row-click{cursor:pointer;transition:background .12s}
+.god-row-click:hover{background:rgba(140,120,255,.07)}
+.god-kick{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;white-space:nowrap}
+.god-kick.st-live{color:var(--good)}
+.god-kick.st-upcoming,.god-kick.st-active{color:#8aa9d8}
+.god-kick.st-ended{color:var(--warm-mute)}
+.god-kick.st-empty{color:#fdba74}
+.god-modal-tools{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.god-detail{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.god-card{border:1px solid rgba(140,120,255,.22);border-radius:10px;padding:12px 14px;background:rgba(140,120,255,.04);min-width:0}
+.god-card h4{margin:0 0 8px;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#c9b3ff;font-weight:700}
+.god-kv{display:grid;grid-template-columns:110px minmax(0,1fr);gap:5px 10px;font-size:12.5px}
+.god-kv .k{color:var(--warm-mute);font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;padding-top:2px}
+.god-kv .v{color:var(--warm);min-width:0;overflow-wrap:anywhere}
+.god-list-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(140,120,255,.1);font-size:12.5px;color:var(--warm)}
+.god-list-row:last-child{border-bottom:0}
+body.mobile .god-detail{grid-template-columns:1fr}
+body.mobile .god-search{min-width:0;width:100%}
 @keyframes godspin{to{transform:rotate(360deg)}}
 .tab.tab-recs:hover{color:#d4e7fa;background:rgba(184,212,245,.07)}
 .tab.tab-recs.active{color:#d4e7fa;background:linear-gradient(90deg,rgba(184,212,245,.18),rgba(184,212,245,.03) 70%);text-shadow:0 0 10px rgba(184,212,245,.4)}
@@ -2147,6 +2182,12 @@ body.god-account #app[hidden]{display:block!important}
 .profile-tile .pt-stat{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;padding:3px 8px;border-radius:4px;margin-left:auto}
 .profile-tile.submitted .pt-stat{color:var(--good);background:rgba(109,207,139,.08);border:1px solid rgba(109,207,139,.3)}
 .profile-tile.pending .pt-stat{color:var(--hi);background:rgba(232,148,58,.08);border:1px solid rgba(232,148,58,.3)}
+/* Invite not accepted yet — the gray state. Distinct from PENDING (they're
+   in, but haven't submitted the form), which stays amber. */
+.profile-tile.unclaimed{border-color:rgba(168,158,142,.25);border-style:dashed;background:rgba(168,158,142,.03)}
+.profile-tile.unclaimed .pt-ini{filter:grayscale(1);opacity:.55}
+.profile-tile.unclaimed .pt-name{color:var(--warm-mute)}
+.profile-tile.unclaimed .pt-stat{color:var(--warm-mute);background:rgba(168,158,142,.08);border:1px solid rgba(168,158,142,.28)}
 /* Inline status chip on the Crew Roster rows — shows whether the
    invited crew member has signed up with the matching email yet.
    Sits next to the email address on the second line of the name cell. */
@@ -2569,6 +2610,7 @@ body.god-account #app[hidden]{display:block!important}
 .crew-list-table .stat-cell{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700}
 .crew-list-table .stat-cell.sub{color:var(--good)}
 .crew-list-table .stat-cell.pend{color:var(--hi)}
+.crew-list-table .stat-cell.wait{color:var(--warm-mute)}
 .crew-list-table td.muted{color:var(--warm-mute);font-style:italic}
 
 .groups-mgr-list{display:flex;flex-direction:column;gap:8px}
@@ -22172,6 +22214,14 @@ function ensureProfile(c) {
   return c.profile;
 }
 
+// Invite still unaccepted? Same rule as the roster's ✓ ACCEPTED badge.
+// Someone with no email can't be invited at all, so they're never "awaiting"
+// — the TM fills their form in directly and they show as plain PENDING.
+function crewAwaitingInvite(c) {
+  if (!c || !c.email) return false;
+  const userRec = c.userId ? (state.users || {})[c.userId] : null;
+  return !(c.claimed || (userRec && userRec.claimed));
+}
 function isProfileSubmitted(c) {
   return !!(c && c.profileSubmittedAt);
 }
@@ -22443,23 +22493,25 @@ function renderAdminPanel() {
   if (!_isGodAccount()) { root.innerHTML = ''; return; }
 
   const s = _godStatsCache;
+  const n = (v) => (v == null ? '—' : Number(v).toLocaleString());
   // `drill` = a _godDrill() key; when set the tile is clickable and opens the
   // detail list of exactly the rows behind that number.
-  const tile = (lbl, val, sub, drill) => `
-    <div class="god-tile${drill ? ' gt-click' : ''}"${drill ? ` onclick="_godDrill('${drill}')" role="button" tabindex="0"` : ''}>
+  const tile = (lbl, val, sub, drill, tone) => `
+    <div class="god-tile${drill ? ' gt-click' : ''}${tone ? ' gt-' + tone : ''}"${drill ? ` onclick="_godDrill('${drill}')" role="button" tabindex="0"` : ''}>
       <div class="gt-lbl">${esc(lbl)}</div><div class="gt-val">${val}</div>${sub ? `<div class="gt-sub">${esc(sub)}</div>` : ''}${drill ? '<div class="gt-more">View all →</div>' : ''}</div>`;
-  const n = (v) => (v == null ? '—' : Number(v).toLocaleString());
   const _tourCount = _switchableTours().length;
+  const genLabel = s && s.generated_at ? new Date(s.generated_at).toLocaleString() : '';
 
   const header = `
     <div class="section-title">
       <h2 style="color:#e3d6ff">◆ Admin Panel</h2>
       <span class="crumb" style="color:#a99bd8">/ PLATFORM OVERSIGHT · GOD</span>
       <span class="flex1"></span>
-      <button type="button" class="tb-btn" style="border-color:rgba(140,120,255,.4);color:#c9b3ff" onclick="_loadGodStats(true)" ${_godLoading ? 'disabled' : ''}><span class="god-spin ${_godLoading ? 'on' : ''}">↻</span> ${_godLoading ? 'Refreshing…' : 'Refresh'}</button>
+      <input class="god-search" id="godSearch" type="search" placeholder="Search users, emails, tours, artists…" value="${esc(_godQuery)}" oninput="_godSetQuery(this.value)" autocomplete="off">
+      <button type="button" class="tb-btn" style="border-color:rgba(140,120,255,.4);color:#c9b3ff" onclick="_loadGodStats(true)" ${_godLoading ? 'disabled' : ''}><span class="god-spin ${_godLoading ? 'on' : ''}">↻</span> ${_godLoading ? 'Refreshing' : 'Refresh'}</button>
     </div>
     <div class="iz-tip" style="margin-bottom:6px;border-color:rgba(140,120,255,.3);background:rgba(140,120,255,.05)">
-      Read-only, invisible oversight. You can open any of the <b>${_tourCount}</b> tours loaded from the tour switcher above — no owner, TM, or crew can see that you have access.
+      Read-only, invisible oversight. Every number is clickable; every row opens a detail view. <b>${_tourCount}</b> tours are loaded in the tour switcher above — no owner, TM, or crew can see that you have access.${genLabel ? ` <span style="color:var(--warm-mute)">Stats generated ${esc(genLabel)}.</span>` : ''}
     </div>`;
 
   if (!s) {
@@ -22473,133 +22525,414 @@ function renderAdminPanel() {
   }
 
   const u = s.users || {}, sub = s.subscriptions || {}, tr = s.tours || {}, d = s.dates || {}, c = s.content || {};
-  const genLabel = s.generated_at ? new Date(s.generated_at).toLocaleString() : '';
-  const fmtDate = (v) => v ? new Date(v).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+  const users = s.all_users || [], tours = s.all_tours || [];
+  const v2 = Number(s.schema) >= 2;
+  const schemaNote = v2 ? '' : `<div class="iz-tip" style="margin-bottom:10px;border-color:rgba(253,186,116,.4);background:rgba(253,186,116,.06)">Running on the older stats function — tour status, crew acceptance, mobile and detail views need <b>patch-043</b> in Supabase. Counts shown are still accurate.</div>`;
 
-  root.innerHTML = header + `
+  // ── Search: matching users + tours, above everything else ──────────
+  let searchBlock = '';
+  if (_godQuery.trim()) {
+    const q = _godQuery.trim().toLowerCase();
+    const mu = users.filter(x => [x.email, x.display_name, x.role].some(v => (v || '').toLowerCase().includes(q)));
+    const mt = tours.filter(x => [x.name, x.artist, x.owner, x.owner_email].some(v => (v || '').toLowerCase().includes(q)));
+    searchBlock = `
+      <div class="god-sec">Search · “${esc(_godQuery.trim())}” <span style="color:var(--warm-mute);letter-spacing:.06em">— ${mu.length} account${mu.length === 1 ? '' : 's'}, ${mt.length} tour${mt.length === 1 ? '' : 's'}</span>
+        <button type="button" class="tb-btn" style="margin-left:10px;padding:3px 9px;font-size:9.5px" onclick="_godSetQuery('')">Clear</button></div>
+      ${mt.length ? `<div class="god-sec" style="margin-top:8px">Tours</div>${_godTourTable(mt.slice(0, 50), 'search-t')}` : ''}
+      ${mu.length ? `<div class="god-sec" style="margin-top:12px">Accounts</div>${_godUserTable(mu.slice(0, 50), 'search-u')}` : ''}
+      ${!mu.length && !mt.length ? `<div class="sub muted" style="padding:10px 0 4px;font-style:italic">Nothing matches.</div>` : ''}
+      <div style="height:10px"></div>`;
+  }
+
+  // ── Needs attention: operational signals derived from the same lists ──
+  const att = _godAttention(s);
+  const attBlock = `
+    <div class="god-sec">Needs attention</div>
+    <div class="god-att">
+      ${att.map(a => `
+        <div class="god-att-row" onclick="_godDrill('${a.drill}')" role="button" tabindex="0">
+          <div class="n${a.count ? '' : ' zero'}">${n(a.count)}</div>
+          <div class="d">${esc(a.label)}<small>${esc(a.desc)}</small></div>
+          <div class="go">${a.count ? 'View →' : 'Clear'}</div>
+        </div>`).join('')}
+    </div>`;
+
+  const liveTours = tours.filter(t => _godTourStatus(t) === 'live');
+  const recentlyActive = users.filter(x => x.last_active).slice().sort((a, b) => new Date(b.last_active) - new Date(a.last_active)).slice(0, 10);
+
+  root.innerHTML = header + schemaNote + searchBlock + `
     <div class="god-sec">Accounts</div>
     <div class="god-grid">
-      ${tile('Total users', n(u.total), `${n(u.signups_last_30d)} new in 30d`, 'users:all')}
-      ${tile('Tour managers', n(u.tour_managers), '', 'users:tm')}
-      ${tile('Crew / band', n(u.crew), '', 'users:crew')}
-      ${tile('Active last 7d', n(u.active_last_7d), `${n(u.confirmed)} confirmed`, 'users:active')}
+      ${tile('Total users', n(u.total), `${n(u.signups_last_30d)} new in 30d · ${n(u.signups_last_7d ?? '—')} in 7d`, 'users:all')}
+      ${tile('Tour managers', n(u.tour_managers), `${n(u.tm_no_access ?? 0)} without an active plan`, 'users:tm')}
+      ${tile('Crew / band', n(u.crew), u.no_role ? `${n(u.no_role)} with no role yet` : '', 'users:crew')}
+      ${tile('Active last 7d', n(u.active_last_7d), `${n(u.active_last_30d ?? '—')} in 30d`, 'users:active')}
+      ${tile('Unconfirmed email', n(u.unconfirmed ?? (u.total != null && u.confirmed != null ? u.total - u.confirmed : null)), `${n(u.confirmed)} confirmed`, 'users:unconfirmed', 'warn')}
+      ${tile('On the mobile app', n(u.on_mobile), 'have push registered', 'users:mobile')}
     </div>
 
     <div class="god-sec">Subscriptions</div>
     <div class="god-grid">
-      ${tile('Paying', n(sub.paying), 'via Stripe', 'subs:paying')}
-      ${tile('Trialing', n(sub.trialing), '', 'subs:trialing')}
-      ${tile('Comp', n(sub.comp), 'incl. manual grants', 'subs:comp')}
-      ${tile('Past due', n(sub.past_due), `${n(sub.canceled)} canceled`, 'subs:pastdue')}
+      ${tile('Paying', n(sub.paying), 'real Stripe billing', 'subs:paying', 'good')}
+      ${tile('Trialing', n(sub.trialing), 'Stripe trials', 'subs:trialing')}
+      ${tile('Comp', n(sub.comp), 'manual grants', 'subs:comp')}
+      ${tile('Past due', n(sub.past_due), `${n(sub.canceled)} canceled`, 'subs:pastdue', 'warn')}
+      ${tile('Set to cancel', n(sub.canceling), 'at period end', 'subs:canceling', 'warn')}
+      ${tile('Expiring ≤ 30d', n(sub.expiring_30d), 'incl. comps', 'subs:expiring')}
     </div>
 
-    <div class="god-sec">Tours &amp; content</div>
+    <div class="god-sec">Tours</div>
     <div class="god-grid">
       ${tile('Total tours', n(tr.total), `${n(tr.created_last_30d)} new in 30d`, 'tours:all')}
-      ${tile('With dates', n(tr.with_dates), `${n(tr.empty)} empty`, 'tours:withdates')}
+      ${tile('Live now', n(tr.live), 'on the road today', 'tours:live', 'good')}
+      ${tile('Upcoming', n(tr.upcoming), 'first date ahead', 'tours:upcoming')}
+      ${tile('Ended', n(tr.ended), 'last date passed', 'tours:ended')}
+      ${tile('Empty', n(tr.empty), 'no dates yet', 'tours:empty', 'warn')}
       ${tile('Co-managed', n(tr.with_co_managers), '', 'tours:comanaged')}
-      ${tile('Total dates', n(d.total), `${n(d.shows)} shows · ${n(d.travel)} travel`, 'tours:all')}
+    </div>
+
+    <div class="god-sec">Activity &amp; content</div>
+    <div class="god-grid">
+      ${tile('Total dates', n(d.total), `${n(d.shows)} shows · ${n(d.travel)} travel · ${n(d.off ?? '—')} off`, 'tours:all')}
+      ${tile('Shows next 30d', n(d.shows_next_30d), 'across all tours', 'tours:live')}
+      ${tile('Crew seats', n(tr.crew_total), `${n(tr.crew_awaiting)} invites not accepted`, 'tours:awaiting')}
+      ${tile('Profiles missing', n(tr.profiles_missing), 'accepted, form not filed', 'tours:profiles', 'warn')}
       ${tile('Guest entries', n(c.guests), '', 'tours:guests')}
       ${tile('Attachments', n(c.attachments), '', 'tours:attachments')}
+      ${tile('Messages', n(c.messages), `${n(c.messages_last_7d)} in 7d · ${n(c.chats)} threads`, 'tours:messages')}
     </div>
 
-    <div class="god-sec">Newest tours <span style="color:var(--warm-mute);letter-spacing:.06em">— tap Total tours above for all</span></div>
-    ${_godTourTable((s.all_tours || []).slice(0, 10))}
+    ${attBlock}
 
-    <div class="god-sec">Newest signups <span style="color:var(--warm-mute);letter-spacing:.06em">— tap Total users above for all</span></div>
-    ${_godUserTable((s.all_users || []).slice(0, 10))}
+    ${liveTours.length ? `<div class="god-sec">Live now <span style="color:var(--warm-mute);letter-spacing:.06em">— ${liveTours.length} on the road</span></div>${_godTourTable(liveTours.slice(0, 10), 'live')}` : ''}
 
-    <div style="font-family:'Bricolage Grotesque',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.06em;margin-top:16px">Generated ${esc(genLabel)} · every number above is clickable for the full list</div>
+    <div class="god-sec">Newest tours <span style="color:var(--warm-mute);letter-spacing:.06em">— tap a row for detail, Total tours for all</span></div>
+    ${_godTourTable(tours.slice(0, 10), 'newest-t')}
+
+    <div class="god-sec">Recently active accounts</div>
+    ${_godUserTable(recentlyActive, 'active-u')}
+
+    <div class="god-sec">Newest signups <span style="color:var(--warm-mute);letter-spacing:.06em">— tap Total users for all</span></div>
+    ${_godUserTable(users.slice(0, 10), 'newest-u')}
+
+    <div style="font-family:'Bricolage Grotesque',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.06em;margin-top:16px">Generated ${esc(genLabel)} · tiles and their lists are computed from the same classification, so a count always matches the rows behind it.</div>
   `;
+  const si = document.getElementById('godSearch');
+  if (si && _godSearchFocus) { si.focus(); try { si.setSelectionRange(si.value.length, si.value.length); } catch (e) {} }
 }
 
-// Detail tables shared by the summary + drill-down modals.
+let _godQuery = '';
+let _godSearchFocus = false;
+function _godSetQuery(v) { _godQuery = v || ''; _godSearchFocus = true; renderAdminPanel(); _godSearchFocus = false; }
+
+// ── Formatting helpers ──────────────────────────────────────────────
 function _godFmtDate(v) { return v ? new Date(v).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '—'; }
+function _godFmtRel(v) {
+  if (!v) return '—';
+  const ms = Date.now() - new Date(v).getTime();
+  if (!isFinite(ms)) return '—';
+  const m = Math.round(ms / 6e4), h = Math.round(ms / 36e5), dd = Math.round(ms / 864e5);
+  if (m < 1) return 'just now'; if (m < 60) return m + 'm ago'; if (h < 48) return h + 'h ago';
+  if (dd < 60) return dd + 'd ago';
+  return _godFmtDate(v);
+}
 function _godNum(v) { return (v == null ? 0 : Number(v)).toLocaleString(); }
-
-function _godUserTable(rows) {
-  if (!rows || !rows.length) return `<div class="sub muted" style="padding:14px;font-style:italic">No accounts in this group.</div>`;
-  const subLabel = (u) => {
-    if (!u.sub_status) return '—';
-    const granted = String(u.sub_plan || '').toLowerCase() === 'comp' || u.sub_stripe === false;
-    if (granted && ['active', 'trialing'].includes(u.sub_status)) return 'COMP';
-    return String(u.sub_status).toUpperCase();
-  };
-  const cols = 'grid-template-columns:minmax(180px,1.8fr) 64px 88px 108px 108px';
-  return `<div class="god-scroll"><div class="tbl">
-    <div class="contact-row" style="background:rgba(140,120,255,.06);font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#c9b3ff;${cols}">
-      <div>Email</div><div>Role</div><div>Plan</div><div>Joined</div><div>Last active</div>
-    </div>
-    ${rows.map(u => `
-      <div class="contact-row" style="${cols}">
-        <div class="nm" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.email || '—')}${u.confirmed ? '' : '<span style="color:#fdba74;font-size:10px"> · unconf</span>'}</div>
-        <div class="role">${esc((u.role || '—').toUpperCase())}</div>
-        <div class="role">${esc(subLabel(u))}</div>
-        <div class="role">${esc(_godFmtDate(u.joined))}</div>
-        <div class="role">${esc(_godFmtDate(u.last_active))}</div>
-      </div>`).join('')}
-  </div></div>`;
-}
-
-function _godTourTable(rows) {
-  if (!rows || !rows.length) return `<div class="sub muted" style="padding:14px;font-style:italic">No tours in this group.</div>`;
-  const cols = 'grid-template-columns:minmax(160px,1.7fr) minmax(150px,1.5fr) 48px 48px 54px 46px 96px';
-  return `<div class="god-scroll wide"><div class="tbl">
-    <div class="contact-row" style="background:rgba(140,120,255,.06);font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#c9b3ff;${cols}">
-      <div>Tour</div><div>Owner</div><div>Dates</div><div>Shows</div><div>Guests</div><div>Files</div><div>Created</div>
-    </div>
-    ${rows.map(t => `
-      <div class="contact-row" style="${cols}">
-        <div class="nm">${esc(t.name || 'Untitled')}${t.co_managers > 0 ? `<span style="color:#8aa9d8;font-size:10px"> · ${t.co_managers} co-mgr</span>` : ''}</div>
-        <div class="org" style="min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">${esc(t.owner || '—')}</span><span style="display:block;font-size:11px;color:var(--warm-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.owner_email || '')}</span></div>
-        <div class="role">${_godNum(t.date_count)}</div>
-        <div class="role">${_godNum(t.show_count)}</div>
-        <div class="role">${_godNum(t.guest_count)}</div>
-        <div class="role">${_godNum(t.attachment_count)}</div>
-        <div class="role" style="white-space:nowrap">${esc(_godFmtDate(t.created_at))}</div>
-      </div>`).join('')}
-  </div></div>`;
-}
-
+function _godRoleLabel(u) { const r = (u.role || '').toString().trim(); return r && r !== '—' ? r.toUpperCase() : '—'; }
 // A user's best subscription is real Stripe billing (vs a manual/comp
-// grant). sub_stripe arrives from patch-038's god_platform_stats(); until
-// that patch runs the field is absent and we fall back to the old
-// plan-based guess so the drill-downs keep working.
+// grant). sub_stripe arrives from the stats RPC; before patch-038 it was
+// absent and we fall back to the plan-based guess.
 function _godIsStripeSub(u) {
-  return u.sub_stripe !== undefined ? !!u.sub_stripe
+  return u.sub_stripe !== undefined && u.sub_stripe !== null ? !!u.sub_stripe
     : String(u.sub_plan || '').toLowerCase() !== 'comp';
 }
+// One classification for a user's plan, matching the RPC's sub_class so the
+// tile counts and the lists can't drift apart. Falls back to the legacy
+// fields when the stats come from the pre-043 function.
+function _godSubClass(u) {
+  if (u.sub_class) return u.sub_class;
+  const st = u.sub_status, stripe = _godIsStripeSub(u), comp = String(u.sub_plan || '').toLowerCase() === 'comp';
+  if (st === 'active' && stripe && !comp) return 'paying';
+  if (st === 'trialing' && stripe) return 'trialing';
+  if (st === 'active' || st === 'trialing') return 'comp';
+  if ((st === 'past_due' || st === 'unpaid') && stripe) return 'past_due';
+  if (st === 'canceled' && stripe) return 'canceled';
+  return 'none';
+}
+function _godSubLabel(u) {
+  const cls = _godSubClass(u);
+  return { paying: 'PAYING', trialing: 'TRIAL', comp: 'COMP', past_due: 'PAST DUE', canceled: 'CANCELED', none: '—' }[cls] || '—';
+}
+function _godTourStatus(t) {
+  if (t.status) return t.status;
+  return (t.date_count || 0) > 0 ? 'active' : 'empty';
+}
+function _godStatusKick(st) {
+  const label = { live: 'LIVE', upcoming: 'UPCOMING', ended: 'ENDED', empty: 'EMPTY', active: 'HAS DATES' }[st] || st.toUpperCase();
+  return `<span class="god-kick st-${esc(st)}">${esc(label)}</span>`;
+}
 
-// Tile click-through: open the exact rows behind a stat as a scrollable modal.
+// ── Sortable tables ────────────────────────────────────────────────
+const _godSort = {};
+function _godSortBy(key, col) {
+  const cur = _godSort[key];
+  _godSort[key] = cur && cur.col === col ? { col, dir: cur.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' };
+  if (_godDrillState && _godDrillState.key === key) _godDrillRender(); else renderAdminPanel();
+}
+function _godSorted(rows, key, defaultCol, defaultDir) {
+  const st = _godSort[key] || { col: defaultCol, dir: defaultDir || 'desc' };
+  if (!st.col) return rows;
+  const val = (r) => { const v = r[st.col]; if (v == null || v === '') return null; if (typeof v === 'number') return v; const t = Date.parse(v); return (/\d{4}-\d{2}-\d{2}/.test(String(v)) && !isNaN(t)) ? t : String(v).toLowerCase(); };
+  return rows.slice().sort((a, b) => {
+    const x = val(a), y = val(b);
+    if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+    const c = (typeof x === 'number' && typeof y === 'number') ? x - y : String(x).localeCompare(String(y));
+    return st.dir === 'asc' ? c : -c;
+  });
+}
+function _godTh(key, col, label, extra) {
+  const st = _godSort[key]; const on = st && st.col === col;
+  return `<div class="god-th${on ? ' on' : ''}" ${extra || ''} onclick="_godSortBy('${key}','${col}')">${esc(label)}${on ? (st.dir === 'asc' ? ' ▲' : ' ▼') : ''}</div>`;
+}
+
+function _godUserTable(rows, key) {
+  key = key || 'u';
+  if (!rows || !rows.length) return `<div class="sub muted" style="padding:14px;font-style:italic">No accounts in this group.</div>`;
+  rows = _godSorted(rows, key, null);
+  const cols = 'grid-template-columns:minmax(190px,1.9fr) 58px 76px 92px 96px 96px 64px';
+  const hdr = `font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#c9b3ff;background:rgba(140,120,255,.06);`;
+  return `<div class="god-scroll wide"><div class="tbl">
+    <div class="contact-row" style="${hdr}${cols}">
+      ${_godTh(key, 'email', 'Account')}${_godTh(key, 'role', 'Role')}${_godTh(key, 'sub_class', 'Plan')}${_godTh(key, 'tours_owned', 'Tours')}${_godTh(key, 'joined', 'Joined')}${_godTh(key, 'last_active', 'Last active')}${_godTh(key, 'mobile', 'Mobile')}
+    </div>
+    ${rows.map(x => {
+      const toursTxt = (x.tours_owned != null) ? `${_godNum(x.tours_owned)} own${x.tours_managing ? ' · ' + _godNum(x.tours_managing) + ' mgr' : ''}${x.tours_member ? ' · ' + _godNum(x.tours_member) + ' crew' : ''}${x.invites_pending ? ' · ' + _godNum(x.invites_pending) + ' inv' : ''}` : '—';
+      const click = x.id ? ` class="contact-row god-row-click" onclick="_godOpenUser('${esc(x.id)}')"` : ' class="contact-row"';
+      return `
+      <div${click} style="${cols}">
+        <div class="nm" style="min-width:0"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.email || '—')}${x.confirmed === false ? '<span style="color:#fdba74;font-size:10px"> · unconfirmed</span>' : ''}</span>${x.display_name ? `<span style="display:block;font-size:11px;color:var(--warm-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.display_name)}</span>` : ''}</div>
+        <div class="role">${esc(_godRoleLabel(x))}</div>
+        <div class="role">${esc(_godSubLabel(x))}</div>
+        <div class="role" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(toursTxt)}">${esc(toursTxt)}</div>
+        <div class="role" style="white-space:nowrap">${esc(_godFmtDate(x.joined))}</div>
+        <div class="role" style="white-space:nowrap" title="${esc(x.last_active ? new Date(x.last_active).toLocaleString() : '')}">${esc(_godFmtRel(x.last_active))}</div>
+        <div class="role">${esc(x.mobile || '—')}</div>
+      </div>`; }).join('')}
+  </div></div>`;
+}
+
+function _godTourTable(rows, key) {
+  key = key || 't';
+  if (!rows || !rows.length) return `<div class="sub muted" style="padding:14px;font-style:italic">No tours in this group.</div>`;
+  rows = _godSorted(rows, key, null);
+  const cols = 'grid-template-columns:minmax(170px,1.8fr) minmax(140px,1.3fr) 84px 50px 50px 78px 52px 46px 48px 92px';
+  const hdr = `font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#c9b3ff;background:rgba(140,120,255,.06);`;
+  return `<div class="god-scroll wide"><div class="tbl" style="min-width:960px">
+    <div class="contact-row" style="${hdr}${cols}">
+      ${_godTh(key, 'name', 'Tour')}${_godTh(key, 'owner', 'Owner')}${_godTh(key, 'status', 'Status')}${_godTh(key, 'date_count', 'Dates')}${_godTh(key, 'show_count', 'Shows')}${_godTh(key, 'crew_count', 'Crew')}${_godTh(key, 'guest_count', 'Guests')}${_godTh(key, 'attachment_count', 'Files')}${_godTh(key, 'message_count', 'Msgs')}${_godTh(key, 'created_at', 'Created')}
+    </div>
+    ${rows.map(t => {
+      const st = _godTourStatus(t);
+      const crewTxt = t.crew_count != null ? `${_godNum(t.crew_accepted || 0)}/${_godNum(t.crew_count)}${t.crew_awaiting ? ' · ' + _godNum(t.crew_awaiting) + ' wait' : ''}` : '—';
+      const click = t.id ? ` class="contact-row god-row-click" onclick="_godOpenTour('${esc(t.id)}')"` : ' class="contact-row"';
+      return `
+      <div${click} style="${cols}">
+        <div class="nm" style="min-width:0"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name || 'Untitled')}${t.co_managers > 0 ? `<span style="color:#8aa9d8;font-size:10px"> · ${t.co_managers} co-mgr</span>` : ''}</span>${t.artist ? `<span style="display:block;font-size:11px;color:var(--warm-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.artist)}</span>` : ''}</div>
+        <div class="org" style="min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">${esc(t.owner || '—')}</span><span style="display:block;font-size:11px;color:var(--warm-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.owner_email || '')}</span></div>
+        <div class="role">${_godStatusKick(st)}${t.next_show_date && st !== 'ended' ? `<span style="display:block;font-size:10px;color:var(--warm-mute)">next ${esc(_godFmtDate(t.next_show_date))}</span>` : (t.last_date ? `<span style="display:block;font-size:10px;color:var(--warm-mute)">${esc(_godFmtDate(t.first_date))} – ${esc(_godFmtDate(t.last_date))}</span>` : '')}</div>
+        <div class="role">${_godNum(t.date_count)}</div>
+        <div class="role">${_godNum(t.show_count)}</div>
+        <div class="role" style="white-space:nowrap" title="accepted / rostered · waiting on invite">${esc(crewTxt)}</div>
+        <div class="role">${_godNum(t.guest_count)}</div>
+        <div class="role">${_godNum(t.attachment_count)}</div>
+        <div class="role">${t.message_count != null ? _godNum(t.message_count) : '—'}</div>
+        <div class="role" style="white-space:nowrap">${esc(_godFmtDate(t.created_at))}</div>
+      </div>`; }).join('')}
+  </div></div>`;
+}
+
+// ── "Needs attention" signals — all derived from the same lists as the tiles ──
+function _godAttention(s) {
+  const users = s.all_users || [], tours = s.all_tours || [];
+  const now = Date.now(), day = 864e5;
+  const daysOld = (v) => v ? (now - new Date(v).getTime()) / day : 0;
+  return [
+    { label: 'Tour managers without an active plan', desc: 'Signed up as TM but no paying / trial / comp subscription — they hit the paywall.', drill: 'users:tmnoaccess',
+      count: users.filter(x => x.role === 'tm' && ['none', 'canceled', 'past_due'].includes(_godSubClass(x))).length },
+    { label: 'Past due or unpaid', desc: 'Stripe could not collect — access lapses when the retry window closes.', drill: 'subs:pastdue',
+      count: users.filter(x => _godSubClass(x) === 'past_due').length },
+    { label: 'Subscriptions set to cancel', desc: 'Paying / trialing customers who have canceled at period end.', drill: 'subs:canceling',
+      count: users.filter(x => x.sub_cancel_at_end && ['paying', 'trialing'].includes(_godSubClass(x))).length },
+    { label: 'Plans expiring within 30 days', desc: 'Includes comp grants about to run out.', drill: 'subs:expiring',
+      count: users.filter(x => ['paying', 'trialing', 'comp'].includes(_godSubClass(x)) && x.sub_period_end && daysOld(x.sub_period_end) < 0 && daysOld(x.sub_period_end) > -30).length },
+    { label: 'Unconfirmed emails older than 3 days', desc: 'Never clicked the confirmation link — likely a typo or a dead signup.', drill: 'users:unconfirmed',
+      count: users.filter(x => x.confirmed === false && daysOld(x.joined) > 3).length },
+    { label: 'Tour managers with no tour', desc: 'Have access but never built anything — onboarding drop-off.', drill: 'users:tmnotours',
+      count: users.filter(x => x.role === 'tm' && x.tours_owned != null && x.tours_owned === 0 && (x.tours_managing || 0) === 0).length },
+    { label: 'Crew invites not accepted', desc: 'Rostered with an email but never joined — the tour they are on is listed.', drill: 'tours:awaiting',
+      count: tours.filter(t => (t.crew_awaiting || 0) > 0).length },
+    { label: 'Accepted crew missing their profile', desc: 'Joined the tour but never filed the required form.', drill: 'tours:profiles',
+      count: tours.filter(t => (t.crew_accepted || 0) > (t.profiles_submitted || 0)).length },
+    { label: 'Empty tours older than 14 days', desc: 'Created, never given a single date.', drill: 'tours:emptyold',
+      count: tours.filter(t => _godTourStatus(t) === 'empty' && daysOld(t.created_at) > 14).length },
+  ];
+}
+
+// ── Drill-downs: the exact rows behind a number, sortable + searchable ──
+let _godDrillState = null;
 function _godDrill(kind) {
   const s = _godStatsCache;
   if (!s || s.__error) { toast('Stats still loading — try Refresh', 'error'); return; }
-  const users = s.all_users || [];
-  const tours = s.all_tours || [];
-  const sevenDaysAgo = Date.now() - 7 * 864e5;
-  const activeSub = (u) => ['active', 'trialing'].includes(u.sub_status);
+  const users = s.all_users || [], tours = s.all_tours || [];
+  const now = Date.now(), day = 864e5;
+  const daysOld = (v) => v ? (now - new Date(v).getTime()) / day : 0;
   let title, rows, type = 'user';
   switch (kind) {
-    case 'users:all':    title = 'All users';                rows = users; break;
-    case 'users:tm':     title = 'Tour managers';            rows = users.filter(u => u.role === 'tm'); break;
-    case 'users:crew':   title = 'Crew / band';              rows = users.filter(u => u.role === 'crew'); break;
-    case 'users:active': title = 'Active in the last 7 days'; rows = users.filter(u => u.last_active && new Date(u.last_active).getTime() > sevenDaysAgo); break;
-    case 'subs:paying':   title = 'Paying subscribers';      rows = users.filter(u => u.sub_status === 'active' && _godIsStripeSub(u) && String(u.sub_plan || '').toLowerCase() !== 'comp'); break;
-    case 'subs:trialing': title = 'Trialing';                rows = users.filter(u => u.sub_status === 'trialing' && _godIsStripeSub(u)); break;
-    case 'subs:comp':     title = 'Comp / manual grants';    rows = users.filter(u => activeSub(u) && (!_godIsStripeSub(u) || String(u.sub_plan || '').toLowerCase() === 'comp')); break;
-    case 'subs:pastdue':  title = 'Past due / unpaid';       rows = users.filter(u => ['past_due', 'unpaid'].includes(u.sub_status)); break;
-    case 'tours:all':        title = 'All tours';                     rows = tours; type = 'tour'; break;
-    case 'tours:withdates':  title = 'Tours with dates';              rows = tours.filter(t => t.date_count > 0); type = 'tour'; break;
-    case 'tours:comanaged':  title = 'Co-managed tours';             rows = tours.filter(t => t.co_managers > 0); type = 'tour'; break;
-    case 'tours:guests':     title = 'Tours by guest entries';       rows = tours.slice().sort((a, b) => (b.guest_count || 0) - (a.guest_count || 0)); type = 'tour'; break;
-    case 'tours:attachments':title = 'Tours by attachments';         rows = tours.slice().sort((a, b) => (b.attachment_count || 0) - (a.attachment_count || 0)); type = 'tour'; break;
+    case 'users:all':        title = 'All users';                       rows = users; break;
+    case 'users:tm':         title = 'Tour managers';                   rows = users.filter(x => x.role === 'tm'); break;
+    case 'users:crew':       title = 'Crew / band';                     rows = users.filter(x => x.role === 'crew'); break;
+    case 'users:active':     title = 'Active in the last 7 days';       rows = users.filter(x => x.last_active && daysOld(x.last_active) < 7); break;
+    case 'users:unconfirmed':title = 'Unconfirmed email';               rows = users.filter(x => x.confirmed === false); break;
+    case 'users:mobile':     title = 'On the mobile app';               rows = users.filter(x => x.mobile); break;
+    case 'users:tmnoaccess': title = 'Tour managers without an active plan'; rows = users.filter(x => x.role === 'tm' && ['none', 'canceled', 'past_due'].includes(_godSubClass(x))); break;
+    case 'users:tmnotours':  title = 'Tour managers with no tour';      rows = users.filter(x => x.role === 'tm' && x.tours_owned != null && x.tours_owned === 0 && (x.tours_managing || 0) === 0); break;
+    case 'subs:paying':      title = 'Paying subscribers';              rows = users.filter(x => _godSubClass(x) === 'paying'); break;
+    case 'subs:trialing':    title = 'Trialing';                        rows = users.filter(x => _godSubClass(x) === 'trialing'); break;
+    case 'subs:comp':        title = 'Comp / manual grants';            rows = users.filter(x => _godSubClass(x) === 'comp'); break;
+    case 'subs:pastdue':     title = 'Past due / unpaid';               rows = users.filter(x => _godSubClass(x) === 'past_due'); break;
+    case 'subs:canceling':   title = 'Set to cancel at period end';     rows = users.filter(x => x.sub_cancel_at_end && ['paying', 'trialing'].includes(_godSubClass(x))); break;
+    case 'subs:expiring':    title = 'Plans expiring within 30 days';   rows = users.filter(x => ['paying', 'trialing', 'comp'].includes(_godSubClass(x)) && x.sub_period_end && daysOld(x.sub_period_end) < 0 && daysOld(x.sub_period_end) > -30); break;
+    case 'tours:all':        title = 'All tours';                       rows = tours; type = 'tour'; break;
+    case 'tours:live':       title = 'Live now';                        rows = tours.filter(t => _godTourStatus(t) === 'live'); type = 'tour'; break;
+    case 'tours:upcoming':   title = 'Upcoming tours';                  rows = tours.filter(t => _godTourStatus(t) === 'upcoming'); type = 'tour'; break;
+    case 'tours:ended':      title = 'Ended tours';                     rows = tours.filter(t => _godTourStatus(t) === 'ended'); type = 'tour'; break;
+    case 'tours:empty':      title = 'Empty tours (no dates)';          rows = tours.filter(t => _godTourStatus(t) === 'empty'); type = 'tour'; break;
+    case 'tours:emptyold':   title = 'Empty tours older than 14 days';  rows = tours.filter(t => _godTourStatus(t) === 'empty' && daysOld(t.created_at) > 14); type = 'tour'; break;
+    case 'tours:withdates':  title = 'Tours with dates';                rows = tours.filter(t => (t.date_count || 0) > 0); type = 'tour'; break;
+    case 'tours:comanaged':  title = 'Co-managed tours';                rows = tours.filter(t => (t.co_managers || 0) > 0); type = 'tour'; break;
+    case 'tours:awaiting':   title = 'Tours with unaccepted crew invites'; rows = tours.filter(t => (t.crew_awaiting || 0) > 0).sort((a, b) => (b.crew_awaiting || 0) - (a.crew_awaiting || 0)); type = 'tour'; break;
+    case 'tours:profiles':   title = 'Tours with crew missing profiles'; rows = tours.filter(t => (t.crew_accepted || 0) > (t.profiles_submitted || 0)); type = 'tour'; break;
+    case 'tours:guests':     title = 'Tours by guest entries';          rows = tours.slice().sort((a, b) => (b.guest_count || 0) - (a.guest_count || 0)); type = 'tour'; break;
+    case 'tours:attachments':title = 'Tours by attachments';            rows = tours.slice().sort((a, b) => (b.attachment_count || 0) - (a.attachment_count || 0)); type = 'tour'; break;
+    case 'tours:messages':   title = 'Tours by messages';               rows = tours.slice().sort((a, b) => (b.message_count || 0) - (a.message_count || 0)); type = 'tour'; break;
     default: return;
   }
+  _godDrillState = { kind, title, rows, type, q: '', key: 'drill:' + kind };
+  openModal({ title: `◆ ${title} · ${rows.length}`, size: 'xl', hideFooter: true, body: `<div id="godDrillBody"></div>` });
+  _godDrillRender();
+}
+function _godDrillRender() {
+  const st = _godDrillState; const host = document.getElementById('godDrillBody');
+  if (!st || !host) return;
+  const q = st.q.trim().toLowerCase();
+  const rows = q ? st.rows.filter(r => Object.values(r).some(v => v != null && typeof v !== 'object' && String(v).toLowerCase().includes(q))) : st.rows;
+  host.innerHTML = `
+    <div class="god-modal-tools">
+      <input class="god-search" type="search" placeholder="Filter this list…" value="${esc(st.q)}" oninput="_godDrillState.q=this.value;_godDrillRender();_godDrillFocus()" autocomplete="off" id="godDrillSearch">
+      <span style="font-family:'Bricolage Grotesque',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.06em">${rows.length} of ${st.rows.length}</span>
+      <span class="flex1"></span>
+      <button type="button" class="tb-btn" onclick="_godExportCSV()">↓ CSV</button>
+    </div>
+    <div style="max-height:62vh;overflow-y:auto;margin:0 -2px">${st.type === 'tour' ? _godTourTable(rows, st.key) : _godUserTable(rows, st.key)}</div>`;
+}
+function _godDrillFocus() { const i = document.getElementById('godDrillSearch'); if (i) { i.focus(); try { i.setSelectionRange(i.value.length, i.value.length); } catch (e) {} } }
+function _godExportCSV() {
+  const st = _godDrillState; if (!st || !st.rows.length) return;
+  const cols = Object.keys(st.rows[0]).filter(k => !['id', 'owner_id'].includes(k));
+  const cell = (v) => { if (v == null) return ''; const s = typeof v === 'object' ? JSON.stringify(v) : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const csv = [cols.join(',')].concat(st.rows.map(r => cols.map(c => cell(r[c])).join(','))).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `bandmate-admin-${st.kind.replace(/[^a-z0-9]+/gi, '-')}-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+// ── Detail views ──────────────────────────────────────────────────
+function _godBackBtn() {
+  return _godDrillState ? `<button type="button" class="tb-btn" onclick="openModal({title:'◆ ' + _godDrillState.title + ' · ' + _godDrillState.rows.length, size:'xl', hideFooter:true, body:'<div id=&quot;godDrillBody&quot;></div>'}); _godDrillRender();">← Back to list</button>` : '';
+}
+function _godKV(pairs) {
+  return `<div class="god-kv">${pairs.filter(p => p).map(([k, v]) => `<div class="k">${esc(k)}</div><div class="v">${v == null || v === '' ? '<span class="muted">—</span>' : v}</div>`).join('')}</div>`;
+}
+async function _godOpenUser(id) {
+  if (!sb) return;
+  openModal({ title: '◆ Account', size: 'xl', hideFooter: true, body: `<div class="empty"><h3 style="color:#c9b3ff">Loading account…</h3></div>` });
+  let data, error;
+  try { ({ data, error } = await sb.rpc('god_user_detail', { p_user_id: id })); } catch (e) { error = e; }
+  if (error || !data) {
+    const msg = (error && error.message) || 'No data';
+    openModal({ title: '◆ Account', size: 'xl', hideFooter: true, body: `<div class="empty"><h3 style="color:#c9b3ff">Couldn't load this account</h3><p>${esc(msg)}${/god_user_detail/.test(msg) ? ' — run patch-043 in Supabase.' : ''}</p>${_godBackBtn()}</div>` });
+    return;
+  }
+  const u = data.user || {}, subs = data.subscriptions || [], tours = data.tours || [], dev = data.devices || [], act = data.activity || {};
+  const rel = { owner: 'OWNER', 'co-manager': 'CO-MANAGER', member: 'CREW', invited: 'INVITED · NOT ACCEPTED' };
+  const subRow = (x) => `<div class="god-list-row"><span>${esc(String(x.status || '—').toUpperCase())} · ${esc(x.plan || '—')}${x.is_stripe ? ' · <span style="color:var(--good)">Stripe</span>' : ' · manual grant'}${x.cancel_at_period_end ? ' · <span style="color:#fdba74">cancels at period end</span>' : ''}</span><span style="color:var(--warm-mute);white-space:nowrap">${x.period_end ? 'until ' + esc(_godFmtDate(x.period_end)) : ''}</span></div>`;
+  const tourRow = (t) => `<div class="god-list-row god-row-click" onclick="_godOpenTour('${esc(t.id)}')"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name || 'Untitled')}${t.artist ? ` <span style="color:var(--warm-mute)">· ${esc(t.artist)}</span>` : ''}</span><span class="god-kick st-${t.relationship === 'invited' ? 'empty' : t.relationship === 'owner' ? 'live' : 'upcoming'}" style="white-space:nowrap">${esc(rel[t.relationship] || t.relationship)} · ${_godNum(t.date_count)} dates</span></div>`;
   openModal({
-    title: `◆ ${title} · ${rows.length}`,
-    size: 'xl',
-    hideFooter: true,
-    body: `<div style="max-height:64vh;overflow-y:auto;margin:-4px -2px 0">${type === 'tour' ? _godTourTable(rows) : _godUserTable(rows)}</div>`,
+    title: `◆ ${esc(u.email || 'Account')}`, size: 'xl', hideFooter: true,
+    body: `
+      <div class="god-modal-tools">${_godBackBtn()}<span class="flex1"></span><span class="god-kick st-${u.confirmed ? 'live' : 'empty'}">${u.confirmed ? 'EMAIL CONFIRMED' : 'EMAIL NOT CONFIRMED'}</span></div>
+      <div class="god-detail">
+        <div class="god-card"><h4>Identity</h4>${_godKV([
+          ['Name', esc(u.display_name || '')], ['Email', esc(u.email || '')], ['Role', esc((u.role || '—').toUpperCase())],
+          ['Joined', esc(_godFmtDate(u.joined))], ['Last active', esc(u.last_active ? new Date(u.last_active).toLocaleString() : '—')],
+          ['Profile row', u.has_profile_row ? 'yes' : '<span style="color:#fdba74">missing — role falls back to signup metadata</span>'],
+          ['User id', `<span class="mono" style="font-size:11px">${esc(u.id || '')}</span>`],
+        ])}</div>
+        <div class="god-card"><h4>Subscription${subs.length === 1 ? '' : 's'} · ${subs.length}</h4>${subs.length ? subs.map(subRow).join('') : '<div class="muted" style="font-size:12.5px;font-style:italic">No subscription rows — a tour manager with none is locked out at the paywall.</div>'}</div>
+        <div class="god-card" style="grid-column:1/-1"><h4>Tours · ${tours.length}</h4>${tours.length ? tours.map(tourRow).join('') : '<div class="muted" style="font-size:12.5px;font-style:italic">Not on any tour.</div>'}</div>
+        <div class="god-card"><h4>Devices</h4>${dev.length ? dev.map(x => `<div class="god-list-row"><span>${esc(x.platform || '?')} · push registered</span><span style="color:var(--warm-mute)">${esc(_godFmtRel(x.updated_at))}</span></div>`).join('') : '<div class="muted" style="font-size:12.5px;font-style:italic">No mobile app registered.</div>'}</div>
+        <div class="god-card"><h4>Activity</h4>${_godKV([
+          ['Edits · 30d', _godNum(act.changes_30d)], ['Last edit', esc(_godFmtRel(act.last_change))], ['Messages sent', _godNum(act.messages_sent)],
+        ])}</div>
+      </div>`,
+  });
+}
+async function _godOpenTour(id) {
+  if (!sb) return;
+  openModal({ title: '◆ Tour', size: 'xl', hideFooter: true, body: `<div class="empty"><h3 style="color:#c9b3ff">Loading tour…</h3></div>` });
+  let data, error;
+  try { ({ data, error } = await sb.rpc('god_tour_detail', { p_tour_id: id })); } catch (e) { error = e; }
+  if (error || !data) {
+    const msg = (error && error.message) || 'No data';
+    openModal({ title: '◆ Tour', size: 'xl', hideFooter: true, body: `<div class="empty"><h3 style="color:#c9b3ff">Couldn't load this tour</h3><p>${esc(msg)}${/god_tour_detail/.test(msg) ? ' — run patch-043 in Supabase.' : ''}</p>${_godBackBtn()}</div>` });
+    return;
+  }
+  const t = data.tour || {}, dts = data.dates || {}, ct = data.content || {}, crew = data.crew || [], mgrs = data.managers || [], hist = data.history || [];
+  const today = new Date().toISOString().slice(0, 10);
+  const status = !dts.total ? 'empty' : (dts.first > today ? 'upcoming' : (dts.last < today ? 'ended' : 'live'));
+  const loaded = !!(state && state.tours && state.tours[id]);
+  const crewRows = crew.filter(c => !c.is_manager);
+  const crewTable = crewRows.length ? `
+    <div class="tbl">
+      <div class="contact-row" style="grid-template-columns:minmax(140px,1.4fr) minmax(90px,1fr) minmax(150px,1.5fr) 96px 92px;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#c9b3ff;background:rgba(140,120,255,.06)"><div>Name</div><div>Role</div><div>Email</div><div>Invite</div><div>Profile</div></div>
+      ${crewRows.map(c => `<div class="contact-row" style="grid-template-columns:minmax(140px,1.4fr) minmax(90px,1fr) minmax(150px,1.5fr) 96px 92px">
+        <div class="nm">${esc(c.name || '—')}</div><div class="role">${esc(c.role || '—')}</div>
+        <div class="role" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.email || '—')}</div>
+        <div class="role">${c.accepted ? '<span class="god-kick st-live">ACCEPTED</span>' : (c.email ? (c.has_account ? '<span class="god-kick st-empty">NOT ACCEPTED</span>' : '<span class="god-kick st-ended">NO ACCOUNT</span>') : '<span class="god-kick st-ended">NO EMAIL</span>')}</div>
+        <div class="role">${c.profile_submitted ? '<span class="god-kick st-live">FILED</span>' : (c.accepted ? '<span class="god-kick st-empty">MISSING</span>' : '<span class="god-kick st-ended">—</span>')}</div>
+      </div>`).join('')}
+    </div>` : '<div class="muted" style="font-size:12.5px;font-style:italic">No crew on the roster.</div>';
+  openModal({
+    title: `◆ ${esc(t.name || 'Tour')}`, size: 'xl', hideFooter: true,
+    body: `
+      <div class="god-modal-tools">${_godBackBtn()}<span class="flex1"></span>${_godStatusKick(status)}${loaded ? `<button type="button" class="tb-btn" style="border-color:rgba(140,120,255,.5);color:#e3d6ff" onclick="closeModal(); switchToTour('${esc(id)}'); try { goToTab('dashboard'); } catch (e) {}">Open this tour →</button>` : ''}</div>
+      <div class="god-detail">
+        <div class="god-card"><h4>Tour</h4>${_godKV([
+          ['Artist', esc(t.artist || '')], ['Presenter', esc(t.presenter || '')],
+          ['Owner', `${esc(t.owner || '—')}${t.owner_email ? ` <span style="color:var(--warm-mute)">· ${esc(t.owner_email)}</span>` : ''}${t.owner_id ? ` <button type="button" class="tb-btn" style="padding:2px 8px;font-size:9px;margin-left:6px" onclick="_godOpenUser('${esc(t.owner_id)}')">account</button>` : ''}`],
+          ['Co-managers', mgrs.length ? mgrs.map(m => esc(m.name || m.email)).join(', ') : ''],
+          ['Members', _godNum(t.members)], ['Created', esc(_godFmtDate(t.created_at))], ['Last change', esc(_godFmtRel(t.updated_at))],
+        ])}</div>
+        <div class="god-card"><h4>Dates</h4>${_godKV([
+          ['Run', dts.first ? `${esc(_godFmtDate(dts.first))} → ${esc(_godFmtDate(dts.last))}` : ''],
+          ['Next show', dts.next_show ? `${esc(_godFmtDate(dts.next_show.date))} · ${esc(dts.next_show.city || '')}${dts.next_show.venue ? ' · ' + esc(dts.next_show.venue) : ''}` : ''],
+          ['Total', `${_godNum(dts.total)} <span style="color:var(--warm-mute)">· ${_godNum(dts.shows)} shows · ${_godNum(dts.travel)} travel · ${_godNum(dts.off)} off</span>`],
+          ['Guest entries', _godNum(dts.guests)], ['Attachments', _godNum(ct.attachments)],
+          ['Messages', `${_godNum(ct.messages)} <span style="color:var(--warm-mute)">in ${_godNum(ct.chats)} threads${ct.last_message ? ' · last ' + esc(_godFmtRel(ct.last_message)) : ''}</span>`],
+        ])}</div>
+        <div class="god-card" style="grid-column:1/-1"><h4>Crew &amp; band · ${crewRows.length} <span style="color:var(--warm-mute);letter-spacing:.06em;text-transform:none">— ${crewRows.filter(c => c.accepted).length} accepted · ${crewRows.filter(c => c.profile_submitted).length} profiles filed</span></h4><div class="god-scroll">${crewTable}</div></div>
+        <div class="god-card" style="grid-column:1/-1"><h4>Recent changes</h4>${hist.length ? hist.map(h => `<div class="god-list-row"><span>${esc(h.table === 'dates' ? 'Date content' : 'Tour roster / contacts / tasks')} edited by ${esc(h.by || '—')}</span><span style="color:var(--warm-mute);white-space:nowrap">${esc(_godFmtRel(h.at))}</span></div>`).join('') : '<div class="muted" style="font-size:12.5px;font-style:italic">No recorded changes yet.</div>'}</div>
+      </div>`,
   });
 }
 
@@ -22633,6 +22966,11 @@ function renderCrewProfiles() {
   const roster = T().crew.filter(c => !c.isManager);
   const submitted = roster.filter(c => isProfileSubmitted(c));
   const pending = roster.filter(c => !isProfileSubmitted(c));
+  // Two different "pending"s: accepted-but-no-form (amber) vs. hasn't even
+  // accepted the invite (gray). Counted and shown separately so the TM can
+  // tell who to nudge for the form and who to chase for the invite.
+  const awaiting = pending.filter(c => crewAwaitingInvite(c));
+  const pendingForm = pending.filter(c => !crewAwaitingInvite(c));
 
   if (!T().crew.length) {
     // Empty roster still shows the Managers card — the owner must be able to
@@ -22652,14 +22990,15 @@ function renderCrewProfiles() {
   root.innerHTML = `
     <div class="section-title">
       <h2>Crew</h2>
-      <span class="crumb">/ ${roster.length} CREW · ${submitted.length} SUBMITTED · ${pending.length} PENDING</span>
+      <span class="crumb">/ ${roster.length} CREW · ${submitted.length} SUBMITTED · ${pendingForm.length} PENDING${awaiting.length ? ' · ' + awaiting.length + ' NOT ACCEPTED' : ''}</span>
     </div>
 
     ${renderManagersCard()}
 
     <div class="profiles-toolbar">
       <span class="stat"><b>${submitted.length}</b> / ${roster.length} profiles submitted</span>
-      ${pending.length ? `<span class="stat" style="color:var(--hi)">⚠ ${pending.length} pending</span>` : ''}
+      ${pendingForm.length ? `<span class="stat" style="color:var(--hi)">⚠ ${pendingForm.length} pending</span>` : ''}
+      ${awaiting.length ? `<span class="stat" style="color:var(--warm-mute)">○ ${awaiting.length} not accepted</span>` : ''}
       <div class="view-toggle">
         <button type="button" class="${crewView==='grid'?'on':''}" onclick="setCrewView('grid')">Grid</button>
         <button type="button" class="${crewView==='list'?'on':''}" onclick="setCrewView('list')">List</button>
@@ -22675,9 +23014,10 @@ function renderCrewProfiles() {
       ${roster.map(c => {
         const sub = isProfileSubmitted(c);
         const p = c.profile || {};
-        const cls = sub ? 'submitted' : 'pending';
-        const stat = sub ? '✓ SUBMITTED' : '⧖ PENDING';
-        const subText = sub ? `Submitted ${fmtDate(new Date(c.profileSubmittedAt).toISOString().slice(0,10))}` : 'Not yet submitted';
+        const awaiting = !sub && crewAwaitingInvite(c);
+        const cls = sub ? 'submitted' : awaiting ? 'unclaimed' : 'pending';
+        const stat = sub ? '✓ SUBMITTED' : awaiting ? '○ NOT ACCEPTED' : '⧖ PENDING';
+        const subText = sub ? `Submitted ${fmtDate(new Date(c.profileSubmittedAt).toISOString().slice(0,10))}` : awaiting ? "Hasn't accepted the invite yet" : 'Not yet submitted';
         return `
           <div class="profile-tile ${cls}">
             <div class="pt-head">
@@ -22699,9 +23039,12 @@ function renderCrewProfiles() {
               <div class="pt-row"><span class="pl">T-shirt</span><span class="pv">${esc(p.tshirt || '—')}</span></div>
               <div class="pt-row"><span class="pl">Passport #1</span><span class="pv">${p.p1Number?'****'+esc(String(p.p1Number).slice(-4))+' · '+esc(p.p1Country||'')+(p.p1Exp?' · exp '+esc(p.p1Exp):''):'—'}</span></div>
             ` : `
-              <div class="muted" style="padding:8px 0;font-size:12.5px">Tour Manager: ask <b>${esc(c.name.split(' ')[0])}</b> to fill out the form on their phone (More tab → Required Profile).</div>
+              ${awaiting
+                ? `<div class="muted" style="padding:8px 0;font-size:12.5px">Waiting on <b>${esc(c.name.split(' ')[0])}</b> to accept the invite sent to ${esc(c.email)}. Once they're in, they fill out the form on their phone.</div>`
+                : `<div class="muted" style="padding:8px 0;font-size:12.5px">Tour Manager: ask <b>${esc(c.name.split(' ')[0])}</b> to fill out the form on their phone (More tab → Required Profile).</div>`}
             `}
             <div class="pt-actions">
+              ${awaiting ? `<button type="button" onclick="resendCrewInvite('${c.id}')">Resend invite</button>` : ''}
               <button type="button" onclick="openProfileForm('${c.id}')">${sub ? 'View / edit' : 'Fill on their behalf'}</button>
               ${sub ? `<button type="button" onclick="downloadOneProfileCSV('${c.id}')">↓ CSV</button>` : ''}
             </div>
@@ -22728,7 +23071,7 @@ function renderCrewListTable() {
               esc(c.role || ''),
               esc(c.type || ''),
               (c.groups || []).map(g => `<span class="group-chip">${esc(g)}</span>`).join('') || '<span class="muted mono">none</span>',
-              `<span class="stat-cell ${submitted?'sub':'pend'}">${submitted ? '✓ DONE' : '⧖ PEND'}</span>`,
+              `<span class="stat-cell ${submitted?'sub':(crewAwaitingInvite(c)?'wait':'pend')}">${submitted ? '✓ DONE' : crewAwaitingInvite(c) ? '○ NOT ACCEPTED' : '⧖ PEND'}</span>`,
               esc(p.cell || ''),
               esc(p.email || ''),
               esc(p.address || ''),
@@ -22784,8 +23127,8 @@ function renderCrewListTable() {
 }
 
 function remindAllPending() {
-  const pending = T().crew.filter(c => !c.isManager && !isProfileSubmitted(c));
-  if (!pending.length) { toast('All profiles already submitted', 'good'); return; }
+  const pending = T().crew.filter(c => !c.isManager && !isProfileSubmitted(c) && !crewAwaitingInvite(c));
+  if (!pending.length) { toast('All profiles already submitted (anyone still gray hasn\'t accepted their invite yet — resend it from the roster)', 'good'); return; }
   toast(`Reminders queued for ${pending.length} crew member${pending.length===1?'':'s'} (would send via email/SMS in production)`, '');
 }
 
