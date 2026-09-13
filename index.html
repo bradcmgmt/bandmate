@@ -22254,7 +22254,12 @@ function openProfileForm(crewId, isSelf=false) {
       try {
         const tour = T();
         const u = U();
-        if (sb && u && tour && tour.id && tour.ownerId && tour.ownerId !== u.id) {
+        // Anyone who isn't the owner / a co-manager goes through the RPC —
+        // decided by _isTourManager, NOT by whether ownerId happens to be
+        // populated locally (a truncated sync could blank it, which used to
+        // skip the RPC silently and leave the profile stranded on the phone).
+        const _mgr = (typeof _isTourManager === 'function') ? _isTourManager(tour, u && u.id) : (tour && tour.ownerId === (u && u.id));
+        if (sb && u && tour && tour.id && !_mgr) {
           sb.rpc('submit_crew_profile', {
             p_tour_id: tour.id,
             p_crew_id: c.id,
