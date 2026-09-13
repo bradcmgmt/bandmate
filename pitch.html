@@ -61,9 +61,9 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 .rail button{width:9px;height:9px;border-radius:50%;border:1px solid var(--line-2);background:transparent;padding:0;cursor:pointer;transition:all .3s}
 .rail button.on{background:var(--hi);border-color:var(--hi);box-shadow:0 0 10px rgba(232,148,58,.6)}
 
-.deck{position:relative;z-index:10;height:100vh;height:100dvh;overflow-y:scroll;overflow-x:clip;scroll-behavior:smooth;scroll-snap-type:y mandatory;scrollbar-width:none}
+.deck{position:relative;z-index:10;height:100vh;height:100dvh;overflow-y:scroll;overflow-x:clip;scroll-behavior:smooth;scroll-snap-type:y mandatory;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .deck::-webkit-scrollbar{display:none}
-.slide{scroll-snap-align:start;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;justify-content:center;
+.slide{scroll-snap-align:start;scroll-snap-stop:always;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;justify-content:center;
   padding:calc(96px + env(safe-area-inset-top)) clamp(22px,7vw,120px) calc(90px + env(safe-area-inset-bottom));position:relative}
 
 .eyebrow{font-family:'Bricolage Grotesque',monospace;font-size:clamp(11px,1.3vw,13px);font-weight:700;letter-spacing:.34em;text-transform:uppercase;color:var(--hi);margin-bottom:20px}
@@ -86,13 +86,14 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 .cta:hover{transform:translateY(-2px);box-shadow:0 0 38px rgba(232,148,58,.45)}
 .cta.ghost{background:transparent;color:var(--hi);border:1px solid var(--hi-2);box-shadow:none;font-weight:700}
 .cta.ghost:hover{border-color:var(--hi);background:rgba(232,148,58,.06)}
-/* Cover "Continue" — underlined text link (option C): minimal, no box. */
-.cta-link{display:inline-flex;align-items:center;gap:9px;margin-top:28px;padding:6px 1px 9px;background:none;border:none;cursor:pointer;
-  color:var(--hi-bright);font-family:'Inter',sans-serif;font-weight:700;font-size:clamp(16px,2.1vw,18px);letter-spacing:.01em;position:relative}
-.cta-link::after{content:"";position:absolute;left:0;bottom:2px;height:2px;width:100%;background:var(--hi-2);transition:background .25s,box-shadow .25s}
-.cta-link:hover::after{background:var(--hi);box-shadow:0 0 10px rgba(232,148,58,.6)}
-.cta-link .ar{transition:transform .2s}
-.cta-link:hover .ar{transform:translateX(5px)}
+/* Cover "Continue" — the glowing ember button (flames drift inside, glow breathes). */
+.cta-go{display:inline-flex;align-items:center;gap:9px;margin-top:30px;padding:15px 30px;border-radius:12px;border:1px solid rgba(255,190,90,.55);cursor:pointer;
+  color:#0a0705;font-family:'Inter',sans-serif;font-weight:800;font-size:clamp(16px,2.1vw,18px);letter-spacing:.02em;position:relative;
+  transition:transform .15s,border-color .3s}
+.cta-go:hover{transform:translateY(-2px);border-color:#ffd9a0}
+.cta-go .ar{transition:transform .2s}
+.cta-go:hover .ar{transform:translateX(5px)}
+@keyframes ctaGlow{0%,100%{box-shadow:0 0 20px rgba(232,148,58,.35),0 0 0 0 rgba(255,150,60,0)}50%{box-shadow:0 0 42px rgba(255,150,60,.72),0 0 70px rgba(255,120,40,.25)}}
 
 .reveal{opacity:0;transform:translateY(20px);transition:opacity .7s ease,transform .7s ease}
 .slide.in .reveal{opacity:1;transform:none}
@@ -209,9 +210,8 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
      sit INSIDE the viewport (viewport-fit=cover), so pad by the safe-area
      insets — otherwise the first and last lines of a slide hide under them. */
   .slide{padding:calc(62px + env(safe-area-inset-top)) 20px calc(22px + env(safe-area-inset-bottom))}
-  /* If a slide still runs taller than one screen, proximity snapping lets
-     the visitor scroll to its bottom instead of being snapped away from it. */
-  .deck{scroll-snap-type:y proximity}
+  /* Every slide fits one screen on phones, so snapping stays MANDATORY:
+     a flick always lands on a slide, never between two. */
   /* flex children default to min-width:auto and won't shrink below content —
      this is what let the 2-col features grid push past the screen edge. */
   .slide>*{min-width:0;max-width:100%}
@@ -271,6 +271,12 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     linear-gradient(135deg,var(--hi),var(--hi-2));
   background-size:230% 230%,210% 210%,100% 100%;background-repeat:no-repeat;
   animation:tabFlame 8s ease-in-out infinite alternate}
+.cta-go{background:
+    radial-gradient(circle at 25% 75%, rgba(255,215,130,.48), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,110,40,.38), transparent 42%),
+    linear-gradient(135deg,var(--hi-bright),var(--hi-2));
+  background-size:230% 230%,210% 210%,100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 7s ease-in-out infinite alternate, ctaGlow 2.6s ease-in-out infinite}
 .cta.ghost{background:
     radial-gradient(circle at 25% 75%, rgba(255,150,45,.16), transparent 46%),
     radial-gradient(circle at 70% 30%, rgba(255,80,25,.11), transparent 42%),
@@ -302,23 +308,25 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
   animation:tabFlame 9s ease-in-out infinite alternate;animation-delay:-2s}
 .pillars .pillar:nth-child(2),.features .feat:nth-child(3n+2){animation-duration:9.5s;animation-delay:-3s}
 .pillars .pillar:nth-child(3),.features .feat:nth-child(3n){animation-duration:14s;animation-delay:-6s}
-@media (prefers-reduced-motion:reduce){.cta,.cta.ghost,.pillar,.feat,.price,.dresult{animation:none}}
+@media (prefers-reduced-motion:reduce){.cta,.cta.ghost,.cta-go,.pillar,.feat,.price,.dresult{animation:none}}
 
 /* ── Intro: the pixel bunny plays for ~3s on first landing, then fades into the deck ── */
 #intro{position:fixed;inset:0;z-index:100;background:#0a0705;opacity:1;transition:opacity .9s ease;cursor:pointer}
 #intro.out{opacity:0;pointer-events:none}
 #introCanvas{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;transition:opacity .7s ease}
 #introCanvas.ready{opacity:1}
-#intro .intro-hint{position:absolute;left:0;right:0;bottom:calc(26px + env(safe-area-inset-bottom));text-align:center;
-  font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:#6f5c40;opacity:0;animation:introhint 1s ease 1.6s forwards}
-@keyframes introhint{to{opacity:1}}
+#intro .intro-hint{position:absolute;left:0;right:0;bottom:calc(30px + env(safe-area-inset-bottom));text-align:center;
+  font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:#a08868;opacity:0;transition:opacity .8s ease .9s}
+#intro.go .intro-hint{opacity:1;animation:introhint 2.2s ease-in-out 1.7s infinite}
+#intro .intro-hint .ar{display:inline-block;margin-left:6px}
+@keyframes introhint{0%,100%{opacity:.55}50%{opacity:1}}
 @media (prefers-reduced-motion:reduce){#intro{display:none}}
 </style>
 </head>
 <body>
 <div class="bg"></div>
 <div class="twk twk1"></div><div class="twk twk2"></div><div class="twk twk3"></div>
-<div id="intro" aria-hidden="true"><canvas id="introCanvas"></canvas><div class="intro-hint">tap to skip</div></div>
+<div id="intro" aria-hidden="true"><canvas id="introCanvas"></canvas><div class="intro-hint">Tap to continue <span class="ar">↓</span></div></div>
 
 <div class="topbar">
   <img src="/logo.png" alt="Bandmate" />
@@ -334,7 +342,7 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     <img class="word reveal" src="/logo.png" alt="Bandmate" />
     <h1 class="tag reveal display">Run your tour from one place.</h1>
     <p class="sub reveal">The road book your whole crew actually opens.</p>
-    <button type="button" class="cta-link reveal" onclick="document.querySelectorAll('.slide')[1].scrollIntoView({behavior:'smooth'})">Continue <span class="ar">→</span></button>
+    <button type="button" class="cta-go reveal" onclick="document.querySelectorAll('.slide')[1].scrollIntoView({behavior:'smooth'})">Continue <span class="ar">→</span></button>
     <div class="meta"><span>For Tour Managers</span><span><b>bandmate.art</b></span></div>
     <div class="scrollhint">SCROLL ↓</div>
   </section>
@@ -536,28 +544,30 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 </main>
 
 <script>
-// Intro gate: play the pixel bunny for ~3s on the first landing of a session,
-// then fade into the deck. Skipped under reduced-motion, after it's been seen
-// this session (add ?intro=1 to force it), or if three.js / WebGL is unavailable.
-// A hard cap guarantees the deck appears within 5s no matter what; a tap skips.
+// Intro gate: the pixel bunny is the cover. It plays until the visitor taps,
+// clicks, or presses a key, then fades into the deck. Skipped under
+// reduced-motion or if three.js / WebGL can't start (a 7s cap makes sure a
+// blocked CDN never leaves anyone staring at a black screen).
 window.__pitchIntro = (function(){
   var intro = document.getElementById('intro');
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
-  var force = /[?&]intro=1/.test(location.search);
-  var seen = false; try { seen = sessionStorage.getItem('bm_pitch_intro') === '1'; } catch (e) {}
-  if (!intro || reduce || (seen && !force)) { if (intro) intro.remove(); return Promise.resolve(); }
-  try { sessionStorage.setItem('bm_pitch_intro', '1'); } catch (e) {}
+  if (!intro || reduce) { if (intro) intro.remove(); return Promise.resolve(); }
   return new Promise(function(resolve){
-    var done = false;
+    var done = false, ready = false;
     function finish(){
       if (done) return; done = true;
       intro.classList.add('out');
       setTimeout(function(){ try { window.__introStop && window.__introStop(); } catch (e) {} intro.remove(); resolve(); }, 950);
     }
-    var cap = setTimeout(finish, 5000);
-    window.__introReady = function(){ clearTimeout(cap); setTimeout(finish, 3000); };
+    var cap = setTimeout(function(){ if (!ready) finish(); }, 7000);
+    window.__introReady = function(){ ready = true; clearTimeout(cap); intro.classList.add('go'); };
     window.__introFail  = function(){ clearTimeout(cap); finish(); };
     intro.addEventListener('click', finish);
+    intro.addEventListener('touchend', function(e){ e.preventDefault(); finish(); }, {passive:false});
+    window.addEventListener('keydown', function(e){
+      if (done) return;
+      if (['Enter',' ','ArrowDown','ArrowRight','PageDown'].indexOf(e.key) > -1){ e.preventDefault(); e.stopImmediatePropagation(); finish(); }
+    });
   });
 })();
 </script>
@@ -1010,6 +1020,7 @@ window.__pitchIntro = (function(){
   function typeHeaders(slide){
     if (slide._twT) slide._twT.forEach(clearTimeout);
     slide._twT = [];
+    slide._twAt = Date.now();
     Array.prototype.slice.call(slide.querySelectorAll('.eyebrow, .tlab, .pn, .fh, .pt'))
       .forEach(function(el, idx){
         slide._twT.push(setTimeout(function(){ typewrite(el); }, idx * 80));
@@ -1023,12 +1034,44 @@ window.__pitchIntro = (function(){
         var i = slides.indexOf(e.target);
         cnum.textContent = pad(i+1);
         dots.forEach(function(d,di){ d.classList.toggle('on', di===i); });
-        typeHeaders(e.target);
+        // Don't retype headers that were typed a moment ago (the hand-off
+        // below marks the first slide before the observer's first delivery).
+        if (!(e.target._twAt && Date.now() - e.target._twAt < 1500)) typeHeaders(e.target);
       }
     });
   }, { threshold: 0.55 });
-  var startObserving = function(){ slides.forEach(function(s){ io.observe(s); }); };
+  var startObserving = function(){
+    slides.forEach(function(s){ io.observe(s); });
+    // Reveal whichever slide is on screen right now, without waiting on the
+    // observer's first delivery — so the cover appears the instant the intro fades.
+    var i = Math.max(0, Math.min(slides.length - 1, Math.round(deck.scrollTop / (deck.clientHeight || 1))));
+    if (!slides[i].classList.contains('in')){
+      slides[i].classList.add('in');
+      cnum.textContent = pad(i+1);
+      dots.forEach(function(d,di){ d.classList.toggle('on', di===i); });
+      typeHeaders(slides[i]);
+    }
+  };
   (window.__pitchIntro || Promise.resolve()).then(startObserving);
+
+  // Belt-and-braces for touch: if a scroll ever comes to rest between two
+  // slides (a slow half-drag, a rubber-band, a momentum edge case), glide to
+  // the nearest slide once the scrolling has settled.
+  var settleT = null, touching = false;
+  function settle(){
+    if (touching) return;
+    var h = deck.clientHeight; if (!h) return;
+    var off = deck.scrollTop % h;
+    if (off > 2 && off < h - 2){
+      var i = Math.max(0, Math.min(slides.length - 1, Math.round(deck.scrollTop / h)));
+      slides[i].scrollIntoView({behavior:'smooth'});
+    }
+  }
+  function scheduleSettle(){ clearTimeout(settleT); settleT = setTimeout(settle, 160); }
+  deck.addEventListener('scroll', scheduleSettle, {passive:true});
+  deck.addEventListener('touchstart', function(){ touching = true; clearTimeout(settleT); }, {passive:true});
+  deck.addEventListener('touchend', function(){ touching = false; scheduleSettle(); }, {passive:true});
+  deck.addEventListener('touchcancel', function(){ touching = false; scheduleSettle(); }, {passive:true});
 
   function go(dir){
     var h = deck.clientHeight;
