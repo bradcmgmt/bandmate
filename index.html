@@ -1621,8 +1621,8 @@ body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app):n
 .p-card.hi .sub{color:var(--warm-mute);position:relative;z-index:1}
 /* Show-day hero: the venue is the headline, so it gets a touch more size. */
 .p-card.hi .h.ph-venue{font-size:22px;letter-spacing:-.01em;line-height:1.15}
-/* Tappable phone numbers in the phone view. A tap opens the call / message /
-   copy sheet below instead of jumping straight into the dialer. */
+/* Tappable phone numbers in the phone view. A tap opens the call / copy
+   sheet below instead of jumping straight into the dialer. */
 .ph-tel{color:inherit;text-decoration:none;border-bottom:1px dashed rgba(232,148,58,.55);padding-bottom:1px;-webkit-tap-highlight-color:transparent}
 .ph-tel:active{color:var(--hi)}
 .tel-sheet-bg{position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center}
@@ -9366,8 +9366,9 @@ function _tvAddPax() {
 // is on it); ground transport stays a compact tappable row with a who-line.
 // ── Tappable phone numbers (phone view) ──────────────────────────────
 // Every phone number rendered in the crew-mobile view becomes a link that
-// opens a small call / message / copy sheet. The tel:/sms: URLs are handed
-// to the OS by Chrome (Android TWA) and by the PWABuilder iOS shell.
+// opens a small call / copy sheet. The tel: URL is handed to the OS by
+// Chrome (Android TWA) and by the PWABuilder iOS shell. (No SMS option —
+// sms: links don't hand off reliably from the wrappers.)
 const _PHONE_SCAN_RE = /\+?\d[\d\s().\-]{7,20}\d/g;
 function _telDigits(raw) {
   const s = String(raw || '').trim();
@@ -9413,7 +9414,6 @@ function _openTelSheet(ev, digits, label) {
       <div class="ts-lbl">Contact</div>
       <div class="ts-num">${esc(label || digits)}</div>
       <button type="button" class="primary" onclick="_telAct('call')">Call</button>
-      <button type="button" onclick="_telAct('sms')">Send a message</button>
       <button type="button" onclick="_telAct('copy')">Copy number</button>
       <button type="button" class="quiet" onclick="_closeTelSheet()">Cancel</button>
     </div>`;
@@ -9431,7 +9431,7 @@ function _telAct(kind) {
     try { navigator.clipboard.writeText(digits).then(() => { try { toast('Number copied', 'info'); } catch (e) {} }); } catch (e) {}
     return;
   }
-  try { window.location.href = (kind === 'sms' ? 'sms:' : 'tel:') + digits; } catch (e) {}
+  try { window.location.href = 'tel:' + digits; } catch (e) {}
 }
 
 function _phoneTravelItemHTML(t, viewer, viewerKey) {
