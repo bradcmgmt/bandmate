@@ -1709,6 +1709,53 @@ body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app):n
 .ph-flight .phf-k{font-size:8.5px;letter-spacing:.16em;color:var(--warm-mute);font-weight:700;margin-right:4px;vertical-align:1px}
 .ph-flight .phf-pax{font-size:12px;color:var(--warm-mute);line-height:1.45;border-top:1px dashed rgba(138,169,216,.15);padding-top:7px}
 .ph-flight .phf-pax b{color:var(--hi)}
+/* Live flight status — bare coloured kickers, no badges. */
+.phf-status{font-family:'Bricolage Grotesque',monospace;font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;white-space:nowrap}
+.phf-status.good{color:#7adc97}
+.phf-status.warn{color:#fdba74}
+.phf-status.bad{color:var(--red)}
+.phf-status.air{color:#8aa9d8}
+.phf-status.ok{color:var(--warm)}
+.phf-status.muted{color:var(--warm-mute)}
+.ph-flight .phf-live{display:flex;flex-wrap:wrap;align-items:baseline;gap:3px 10px;margin:-2px 0 8px;font-family:'Bricolage Grotesque',monospace;font-size:10.5px;color:var(--warm)}
+.ph-flight .phf-upd{margin-left:auto;font-size:9.5px;color:var(--warm-mute)}
+.ph-flight s,.ph-myflight s,.pfl s{opacity:.5;font-weight:500;margin-right:5px}
+/* "Your flight" card (Today tab) */
+.p-card.ph-myflight{cursor:pointer;border-color:rgba(232,148,58,.35);background:linear-gradient(180deg,rgba(232,148,58,.08),rgba(232,148,58,.02))}
+.ph-myflight .pmf-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.ph-myflight .pmf-kick{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:var(--hi)}
+.ph-myflight .pmf-flight{font-size:12.5px;color:var(--warm-mute);margin-top:4px}
+.ph-myflight .pmf-flight b{color:var(--warm)}
+.ph-myflight .pmf-route{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;margin:12px 0 3px}
+.ph-myflight .pmf-code{font-family:'Bricolage Grotesque',monospace;font-size:30px;font-weight:800;line-height:1;letter-spacing:.02em;color:var(--warm)}
+.ph-myflight .pmf-line{display:flex;align-items:center;gap:6px;min-width:0}
+.ph-myflight .pmf-line i{height:1px;min-width:6px}
+.ph-myflight .pmf-line i:first-child{background:linear-gradient(90deg,rgba(232,148,58,.12),rgba(232,148,58,.6))}
+.ph-myflight .pmf-line i:last-child{background:repeating-linear-gradient(90deg,rgba(232,148,58,.4) 0 4px,transparent 4px 8px)}
+.ph-myflight .pmf-line svg{width:15px;height:15px;flex:none;fill:var(--hi)}
+.ph-myflight .pmf-desc{font-size:21px;font-weight:700;line-height:1.2;color:var(--warm);margin:10px 0 12px;overflow-wrap:anywhere}
+.ph-myflight .pmf-cities{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:var(--warm-mute);margin-bottom:12px}
+.ph-myflight .pmf-grid,.pfl .pfl-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;border-top:1px dashed rgba(232,148,58,.14);padding-top:10px}
+.ph-myflight .pmf-k,.pfl .pfl-k{font-family:'Bricolage Grotesque',monospace;font-size:8.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--warm-mute)}
+.ph-myflight .pmf-v,.pfl .pfl-v{font-family:'Bricolage Grotesque',monospace;font-size:15px;font-weight:800;color:var(--warm);margin-top:2px;white-space:nowrap}
+.pmf-plus{font-size:10px;font-weight:700;color:var(--hi);margin-left:4px;vertical-align:4px}
+.ph-myflight .pmf-sub,.pfl .pfl-s{font-size:10.5px;color:var(--warm-mute);margin-top:2px;line-height:1.35}
+.ph-myflight .pmf-foot,.pfl .pfl-foot{display:flex;justify-content:space-between;gap:10px;margin-top:10px;font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.04em;color:var(--warm-mute)}
+/* Flight detail sheet — live section */
+.pfl{padding:4px 0 12px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.pfl .pfl-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:6px}
+.pfl .pfl-upd{font-family:'Bricolage Grotesque',monospace;font-size:10px;color:var(--warm-mute)}
+.pfl .pfl-route{font-size:13px;color:var(--warm-mute);margin-bottom:10px}
+.pfl .pfl-route b{color:var(--warm);font-family:'Bricolage Grotesque',monospace;letter-spacing:.04em}
+.pfl .pfl-refresh{margin-top:10px;background:none;border:0;border-top:1px dashed rgba(232,148,58,.14);width:100%;padding:9px 0 0;text-align:left;cursor:pointer;
+  font-family:'Bricolage Grotesque',monospace;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--hi)}
+.pfl .pfl-refresh:disabled{opacity:.5;cursor:default}
+.pfl-hint{font-size:12px;color:var(--warm-mute);font-style:italic;padding:6px 0 10px;border-bottom:1px dashed rgba(232,148,58,.08)}
+#pflSheet .pfl-row{padding:9px 0;border-bottom:1px dashed rgba(232,148,58,.08)}
+#pflSheet .pfl-row .pfl-k{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--warm-mute);margin-bottom:3px}
+#pflSheet .pfl-rv{font-family:'Bricolage Grotesque',monospace;font-size:14px;font-weight:700;line-height:1.45;color:var(--warm)}
+#pflSheet .pfl-rv.hi{color:var(--hi)}
+.ph-travel-row .ptr-live{display:block;margin-top:3px;font-size:8.5px}
 
 /* travel modal — free-text passenger chips (crew not on the roster yet) */
 .pax-chips{display:flex;flex-wrap:wrap;gap:6px}
@@ -9477,26 +9524,325 @@ function _telAct(kind) {
   try { window.location.href = 'tel:' + digits; } catch (e) {}
 }
 
-function _phoneTravelItemHTML(t, viewer, viewerKey) {
+// ── Live flight tracking (phone view) ─────────────────────────────────
+// A flight whose number includes an airline code gets live status from
+// /api/flight-lookup (AeroDataBox). The server caches each flight for
+// everyone and refreshes it every 5 minutes from 2 hours before departure
+// until an hour after landing, so polling here stays cheap however many crew
+// are watching. Tracking starts the day before a flight; the last known
+// status is kept on the device for when there's no signal.
+const FLIGHT_LIVE_KEY = 'bandmate.flightLive.v1';
+const FLIGHT_POLL_MS = 5 * 60 * 1000;
+const _PLANE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path transform="rotate(90 12 12)" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>';
+let _flightLive = (() => { try { return JSON.parse(localStorage.getItem(FLIGHT_LIVE_KEY) || '{}') || {}; } catch (e) { return {}; } })();
+const _flightLiveInFlight = {};
+let _flightRerenderT = null;
+let _flightLiveNoAuth = false;   // not signed in: nothing live to show
+
+// Only track while the phone view is actually on screen: the installed app,
+// a phone browser, or the crew preview beside the desktop dashboard.
+function _phoneViewOn() {
+  const b = document.body.classList;
+  if (b.contains('phone-app') || b.contains('mobile')) return true;
+  if (b.contains('phone-collapsed')) return false;
+  const rig = document.querySelector('.phone-rig');
+  return !!rig && rig.getClientRects().length > 0;
+}
+function _fmt12Safe(v) { return /^\d{1,2}:\d{2}$/.test(v || '') ? _tvFmt12(v) : (v || ''); }
+
+function _flightCode(num) {
+  const c = String(num || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return /^((?:[A-Z]{2}|[A-Z]\d|\d[A-Z])|[A-Z]{3})\d{1,4}[A-Z]?$/.test(c) ? c : '';
+}
+function _flightLiveKey(t, date) {
+  const c = _flightCode(t && t.flightNumber);
+  return c && date ? `${c}|${date}` : '';
+}
+function _isoAddDays(date, n) {
+  const x = new Date(date + 'T12:00:00Z');
+  x.setUTCDate(x.getUTCDate() + n);
+  return x.toISOString().slice(0, 10);
+}
+// Live status is fetched from the day before a flight to the day after.
+function _flightTrackable(t, date) {
+  if (!t || t.type !== 'flight' || !_flightLiveKey(t, date)) return false;
+  const days = Math.round((Date.parse(date + 'T12:00:00Z') - Date.parse(todayISO() + 'T12:00:00Z')) / 864e5);
+  return days >= -1 && days <= 1;
+}
+// The viewer is on this travel item: picked from the roster, or typed in by name.
+function _viewerIsPassenger(t, viewer, viewerKey) {
+  if (!t || !viewerKey) return false;
+  let ids = [viewerKey], name = (viewer && viewer.name) || '';
+  if (viewerKey === 'tm') {
+    // The tour manager is "tm" in the app but can also be on the roster.
+    const uid = state && state.currentUserId;
+    const mine = uid ? ((T() || {}).crew || []).filter(c => c.userId === uid) : [];
+    if (!mine.length) return false;
+    ids = mine.map(c => c.id);
+    name = mine[0].name || '';
+  }
+  if ((t.individuals || []).some(id => ids.includes(id))) return true;
+  const n = name.trim().toLowerCase();
+  return !!n && String(t.person || '').split(/[,;]/).some(x => x.trim().toLowerCase() === n);
+}
+// Several legs can share a number (a multi-stop flight): pick the one this
+// item is about, by airport code in its cities/description, else by time.
+function _flightLegFor(t, legs) {
+  if (!Array.isArray(legs) || !legs.length) return null;
+  if (legs.length === 1) return legs[0];
+  const hay = `${t.fromCity || ''} ${t.toCity || ''} ${t.description || ''}`.toUpperCase();
+  const byRoute = legs.find(l => l.departure.iata && hay.includes(l.departure.iata) && (!l.arrival.iata || hay.includes(l.arrival.iata)))
+    || legs.find(l => l.departure.iata && hay.includes(l.departure.iata));
+  if (byRoute) return byRoute;
+  const mins = v => { const m = /^(\d{2}):(\d{2})/.exec(v || ''); return m ? +m[1] * 60 + +m[2] : null; };
+  const want = mins(t.time);
+  if (want == null) return legs[0];
+  const gap = l => { const v = mins(l.departure.time); return v == null ? 1e9 : Math.abs(v - want); };
+  return legs.slice().sort((a, b) => gap(a) - gap(b))[0];
+}
+function _flightStatusInfo(leg) {
+  const st = (leg && leg.status) || '';
+  const dep = (leg && leg.departure) || {};
+  const late = dep.utc && dep.revisedUtc ? Math.round((Date.parse(dep.revisedUtc) - Date.parse(dep.utc)) / 60000) : 0;
+  const map = {
+    Canceled: ['Canceled', 'bad'], CanceledUncertain: ['Possibly canceled', 'bad'], Diverted: ['Diverted', 'bad'],
+    Arrived: ['Landed', 'good'], Approaching: ['Landing soon', 'air'], EnRoute: ['In the air', 'air'], Departed: ['Departed', 'air'],
+    GateClosed: ['Gate closed', 'warn'], Boarding: ['Boarding', 'warn'], CheckIn: ['Check-in open', 'ok'],
+    Delayed: ['Delayed', 'warn'], Expected: ['On time', 'good'],
+  };
+  let [label, tone] = map[st] || ['Scheduled', 'muted'];
+  if (['Expected', 'Delayed', 'CheckIn', 'Unknown', ''].includes(st) && late >= 15) {
+    label = 'Delayed ' + (late >= 60 ? `${Math.floor(late / 60)}h ${String(late % 60).padStart(2, '0')}m` : `${late} min`);
+    tone = 'warn';
+  }
+  return { label, tone };
+}
+function _flightLiveFor(t, date) {
+  const key = _flightLiveKey(t, date);
+  const e = key && _flightLive[key];
+  if (!e || !Array.isArray(e.legs)) return null;
+  const leg = _flightLegFor(t, e.legs);
+  return leg ? { leg, info: _flightStatusInfo(leg), fetchedAt: e.fetchedAt } : null;
+}
+function _flightFinished(t, date) {
+  const live = _flightLiveFor(t, date);
+  if (!live || live.leg.status !== 'Arrived') return false;
+  const arr = Date.parse(live.leg.arrival.revisedUtc || live.leg.arrival.utc || '');
+  return isFinite(arr) && Date.now() > arr + 60 * 60 * 1000;
+}
+function _flightTrackNote(t, date) {
+  if (!_flightCode(t.flightNumber) || _flightLiveNoAuth || _flightApiConfigured === false) return '';
+  const live = _flightLiveFor(t, date);
+  if (live) return `Updated ${_agoShort(live.fetchedAt)}`;
+  if (!_flightTrackable(t, date)) return 'Live status starts the day before';
+  const e = _flightLive[_flightLiveKey(t, date)];
+  if (e && Array.isArray(e.legs)) return 'No live status found for this flight number';
+  if (e && e.failed) return 'Live status unavailable right now';
+  return 'Checking live status…';
+}
+function _agoShort(iso) {
+  const ms = Date.now() - Date.parse(iso || '');
+  if (!isFinite(ms)) return '';
+  const m = Math.round(ms / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m} min ago`;
+  return `${Math.round(m / 60)}h ago`;
+}
+function _iataIn(s) { const m = String(s || '').match(/\(([A-Z]{3})\)/); return m ? m[1] : ''; }
+function _cityOnly(s) { return String(s || '').replace(/\s*\([A-Z]{3}\)\s*/, '').trim(); }
+// "1:20 PM", or "<s>1:20 PM</s> 1:45 PM" when the time moved. `mv` is the
+// live departure/arrival (null when there's no live data yet).
+function _flightTimeHTML(entered24, mv) {
+  const current = (mv && (mv.revisedTime || mv.time)) || entered24 || '';
+  const was = mv && mv.revisedTime && mv.time && mv.revisedTime !== mv.time ? mv.time
+    : (mv && mv.time && entered24 && entered24 !== current ? entered24 : '');
+  if (!current) return '—';
+  return was ? `<s>${esc(_fmt12Safe(was))}</s>${esc(_fmt12Safe(current))}` : esc(_fmt12Safe(current));
+}
+
+async function _flightLiveFetch(t, date, force) {
+  const key = _flightLiveKey(t, date);
+  if (!key || !sb || _flightApiConfigured === false) return;
+  const cur = _flightLive[key];
+  if (!force && cur && Date.now() - (cur.checkedAt || 0) < FLIGHT_POLL_MS - 30000) return;
+  if (_flightLiveInFlight[key]) return;
+  _flightLiveInFlight[key] = true;
+  try {
+    const token = await _placeAuthToken();
+    if (!token) { if (!_flightLiveNoAuth) { _flightLiveNoAuth = true; _flightLiveRedraw(key); } return; }
+    _flightLiveNoAuth = false;
+    const r = await fetch('/api/flight-lookup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ flight: t.flightNumber, date, supabaseAccessToken: token }),
+    });
+    const j = await r.json().catch(() => null);
+    if (j && j.configured === false) { _flightApiConfigured = false; _flightLiveRedraw(key); return; }
+    if (!j || !r.ok) { _flightLive[key] = { ...(cur || {}), checkedAt: Date.now(), failed: true }; if (!cur) _flightLiveRedraw(key); return; }
+    _flightApiConfigured = true;
+    const next = { legs: Array.isArray(j.flights) ? j.flights : [], fetchedAt: j.fetchedAt || new Date().toISOString(), checkedAt: Date.now() };
+    const changed = !cur || JSON.stringify(cur.legs) !== JSON.stringify(next.legs) || cur.fetchedAt !== next.fetchedAt;
+    _flightLive[key] = next;
+    try {
+      const t0 = Date.parse(todayISO() + 'T12:00:00Z'), keep = {};
+      Object.keys(_flightLive).forEach(k => { const d = k.split('|')[1]; if (d && Math.abs(Date.parse(d + 'T12:00:00Z') - t0) <= 3 * 864e5) keep[k] = _flightLive[k]; });
+      localStorage.setItem(FLIGHT_LIVE_KEY, JSON.stringify(keep));
+    } catch (e) {}
+    if (changed) _flightLiveRedraw(key);
+  } catch (e) { /* offline: keep the last known status */ }
+  finally { delete _flightLiveInFlight[key]; }
+}
+// Redraw what shows live status: the phone screens, and an open flight sheet.
+function _flightLiveRedraw(key) {
+  clearTimeout(_flightRerenderT);
+  _flightRerenderT = setTimeout(() => {
+    try { renderPhone(); } catch (e) {}
+    _flightSheetRedraw(key);
+  }, 120);
+}
+function _flightSheetRedraw(key) {
+  const el = document.getElementById('pflSheet');
+  if (!el || (key && el.dataset.key !== key)) return;
+  const d = (T().dates || []).find(x => x.id === el.dataset.date);
+  const it = d && (d.travel || []).find(x => x.id === el.dataset.item);
+  if (it) el.outerHTML = _flightLiveSheetHTML(it, d);
+}
+function _flightLiveEnsure(items, date) {
+  if (!_phoneViewOn()) return;
+  (items || []).forEach(t => { if (_flightTrackable(t, date)) _flightLiveFetch(t, date); });
+}
+// Poll while the app is on screen, and again the moment it comes back.
+function _flightLiveTick() {
+  try {
+    const ad = getPhoneDate();
+    if (!ad) return;
+    const viewer = getCrewById(viewerKey);
+    const hasMgmt = viewerKey === 'tm' || _viewerHasMgmtAccess(viewer);
+    const visible = t => isItemVisibleToViewer(t, viewer, hasMgmt);
+    _flightLiveEnsure((ad.travel || []).filter(visible), ad.date);
+    if (ad.date === todayISO()) {
+      const nd = (T().dates || []).find(d => d.date === _isoAddDays(ad.date, 1));
+      if (nd) _flightLiveEnsure((nd.travel || []).filter(t => visible(t) && _viewerIsPassenger(t, viewer, viewerKey)), nd.date);
+    }
+  } catch (e) {}
+}
+setInterval(() => { if (document.visibilityState === 'visible') _flightLiveTick(); }, FLIGHT_POLL_MS);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') _flightLiveTick(); });
+
+// The viewer's own flight, big, at the top of the Today tab.
+function _phoneMyFlightCardHTML(t, d, when) {
+  const live = _flightLiveFor(t, d.date);
+  const leg = live && live.leg;
+  const dep = leg ? leg.departure : null, arr = leg ? leg.arrival : null;
+  const fromCode = (dep && dep.iata) || _iataIn(t.fromCity);
+  const toCode = (arr && arr.iata) || _iataIn(t.toCity);
+  const fromCity = (dep && dep.city) || _cityOnly(t.fromCity);
+  const toCity = (arr && arr.city) || _cityOnly(t.toCity);
+  const nextDay = leg ? !!(arr.date && dep.date && arr.date > dep.date) : !!(t.arriveTime && t.time && t.arriveTime < t.time);
+  const tracking = _flightTrackNote(t, d.date);
+  const hasArr = !!(t.arriveTime || (arr && arr.time));
+  // Plane sits at the origin before takeoff, moves along the line in the
+  // air (by elapsed flight time), and at the destination once landed.
+  let prog = .5;
+  if (leg && !/^(Canceled|CanceledUncertain|Diverted)$/.test(leg.status || '')) {
+    const a = Date.parse(dep.runwayUtc || dep.revisedUtc || dep.utc || ''), b = Date.parse(arr.revisedUtc || arr.utc || '');
+    if (leg.status === 'Arrived') prog = .9;
+    else if (/^(Departed|EnRoute|Approaching)$/.test(leg.status) && isFinite(a) && isFinite(b) && b > a) prog = Math.min(.9, Math.max(.1, (Date.now() - a) / (b - a)));
+    else prog = .1;
+  }
+  const depSub = dep ? [dep.terminal ? 'Terminal ' + esc(dep.terminal) : '', dep.gate ? 'Gate ' + esc(dep.gate) : ''].filter(Boolean).join(' · ') : '';
+  const arrSub = arr ? [arr.baggageBelt ? 'Belt ' + esc(arr.baggageBelt) : '', arr.terminal ? 'Terminal ' + esc(arr.terminal) : ''].filter(Boolean).join(' · ') : '';
+  return `
+    <div class="p-card ph-myflight" role="button" tabindex="0" onclick="_phoneShowTravel('${esc(t.id)}','${esc(d.id)}')">
+      <div class="pmf-top"><span class="pmf-kick">${esc(['Your flight', when].filter(Boolean).join(' · '))}</span>${live ? `<span class="phf-status ${live.info.tone}">${esc(live.info.label)}</span>` : ''}</div>
+      <div class="pmf-flight"><b>${esc((leg && leg.number) || t.flightNumber || 'Flight')}</b>${leg && leg.airline ? ' · ' + esc(leg.airline) : ''}</div>
+      ${fromCode || toCode ? `
+      <div class="pmf-route"><span class="pmf-code">${esc(fromCode || '—')}</span><span class="pmf-line"><i style="flex:${prog.toFixed(3)}"></i>${_PLANE_SVG}<i style="flex:${(1 - prog).toFixed(3)}"></i></span><span class="pmf-code">${esc(toCode || '—')}</span></div>
+      <div class="pmf-cities"><span>${esc(fromCity)}</span><span>${esc(toCity)}</span></div>` : `
+      <div class="pmf-desc">${esc(t.description || [fromCity, toCity].filter(Boolean).join(' → ') || 'Flight')}</div>`}
+      <div class="pmf-grid">
+        <div><div class="pmf-k">Departs</div><div class="pmf-v">${t.allDay ? 'All day' : _flightTimeHTML(t.time, dep)}</div>${depSub ? `<div class="pmf-sub">${depSub}</div>` : ''}</div>
+        ${hasArr ? `<div><div class="pmf-k">Lands</div><div class="pmf-v">${_flightTimeHTML(t.arriveTime, arr)}${nextDay ? '<span class="pmf-plus">+1</span>' : ''}</div>${arrSub ? `<div class="pmf-sub">${arrSub}</div>` : ''}</div>` : ''}
+      </div>
+      <div class="pmf-foot"><span>${t.conf ? 'Conf ' + esc(t.conf) : ''}</span><span>${esc(tracking)}</span></div>
+    </div>`;
+}
+
+// The flight block at the top of a flight's detail sheet: live status when
+// there is some, otherwise the booked route and times. It's redrawn in place
+// when fresh status arrives (_flightSheetRedraw), so an open sheet stays live.
+function _flightLiveSheetHTML(t, ad) {
+  const key = _flightLiveKey(t, ad.date);
+  const live = _flightLiveFor(t, ad.date);
+  const k = label => `<div class="pfl-k">${label}</div>`;
+  let inner;
+  if (live) {
+    const { leg, info } = live, dep = leg.departure, arr = leg.arrival;
+    const nextDay = arr.date && dep.date && arr.date > dep.date;
+    const join = parts => parts.filter(Boolean).join(' · ');
+    inner = `
+      <div class="pfl">
+        <div class="pfl-top"><span class="phf-status ${info.tone}">${esc(info.label)}</span><span class="pfl-upd">${esc(_flightTrackNote(t, ad.date))}</span></div>
+        <div class="pfl-route"><b>${esc(dep.iata)}</b> ${esc(dep.city)} → <b>${esc(arr.iata)}</b> ${esc(arr.city)}</div>
+        <div class="pfl-grid">
+          <div>${k('Departs')}<div class="pfl-v">${_flightTimeHTML(t.time, dep)}</div>
+            <div class="pfl-s">${join([dep.terminal && 'Terminal ' + esc(dep.terminal), dep.gate && 'Gate ' + esc(dep.gate), dep.checkInDesk && 'Check-in ' + esc(dep.checkInDesk)]) || 'Gate not posted yet'}</div></div>
+          <div>${k('Lands')}<div class="pfl-v">${_flightTimeHTML(t.arriveTime, arr)}${nextDay ? '<span class="pmf-plus">+1</span>' : ''}</div>
+            <div class="pfl-s">${join([arr.terminal && 'Terminal ' + esc(arr.terminal), arr.gate && 'Gate ' + esc(arr.gate), arr.baggageBelt && 'Belt ' + esc(arr.baggageBelt)])}</div></div>
+        </div>
+        <div class="pfl-foot"><span>${join([leg.airline && esc(leg.airline), leg.aircraft && esc(leg.aircraft)])}</span><span>Local time at each airport</span></div>
+        <button type="button" class="pfl-refresh" onclick="_flightLiveRefreshSheet(this)">Refresh</button>
+      </div>`;
+  } else {
+    const viewer = getCrewById(viewerKey);
+    const hasMgmt = viewerKey === 'tm' || _viewerHasMgmtAccess(viewer);
+    const digits = String(t.flightNumber || '').replace(/\D/g, '');
+    const note = _flightCode(t.flightNumber) ? _flightTrackNote(t, ad.date)
+      : (hasMgmt && digits ? `Add the airline code to the flight number (e.g. AA ${digits}) to get live status.` : '');
+    const row = (label, value, hi) => `<div class="pfl-row">${k(label)}<div class="pfl-rv${hi ? ' hi' : ''}">${value}</div></div>`;
+    inner = `
+      ${note ? `<div class="pfl-hint">${esc(note)}</div>` : ''}
+      ${t.fromCity || t.toCity ? row('Route', esc([t.fromCity || '—', t.toCity || '—'].join(' → '))) : ''}
+      ${!t.allDay && t.time ? row('Departs', esc(_fmt12Safe(t.time))) : ''}
+      ${t.arriveTime ? row('Lands', esc(_fmt12Safe(t.arriveTime)), true) : ''}`;
+  }
+  return `<div id="pflSheet" data-key="${esc(key)}" data-item="${esc(t.id)}" data-date="${esc(ad.id)}">${inner}</div>`;
+}
+async function _flightLiveRefreshSheet(btn) {
+  const el = document.getElementById('pflSheet');
+  const d = el && (T().dates || []).find(x => x.id === el.dataset.date);
+  const t = d && (d.travel || []).find(x => x.id === el.dataset.item);
+  if (!t) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Refreshing…'; }
+  await _flightLiveFetch(t, d.date, true);
+  _flightSheetRedraw(el.dataset.key);
+}
+
+function _phoneTravelItemHTML(t, viewer, viewerKey, onDate) {
   const pax = _travelPassengers(t);
-  const viewerIsPax = !!(viewerKey && (t.individuals || []).includes(viewerKey));
+  const viewerIsPax = _viewerIsPassenger(t, viewer, viewerKey);
   const viewerName = (viewer && viewer.name) || '';
   const paxHtml = pax.length
     ? pax.map(n => (viewerName && n.toLowerCase() === viewerName.toLowerCase()) ? `<b>${esc(n)}</b>` : esc(n)).join(', ')
     : 'No passengers assigned yet';
   if ((t.type || '') === 'flight') {
     const flt = t.flightNumber || 'Flight';
-    const dep = t.allDay ? 'All day' : (t.time || '—');
+    const live = _flightLiveFor(t, onDate || (getPhoneDate() || {}).date || '');
+    const leg = live && live.leg;
+    const dep = t.allDay ? 'All day' : _flightTimeHTML(t.time, leg && leg.departure);
+    const arrive = (t.arriveTime || (leg && leg.arrival.time)) ? _flightTimeHTML(t.arriveTime, leg && leg.arrival) : '';
+    const gateBits = leg ? [leg.departure.terminal && 'Terminal ' + esc(leg.departure.terminal), leg.departure.gate && 'Gate ' + esc(leg.departure.gate),
+      leg.status === 'Arrived' && leg.arrival.baggageBelt && 'Belt ' + esc(leg.arrival.baggageBelt)].filter(Boolean).join(' · ') : '';
     return `
       <button type="button" class="ph-flight ${viewerIsPax ? 'mine' : ''}" onclick="_phoneShowTravel('${esc(t.id)}')">
         <div class="phf-top">
           <span class="phf-badge">✈ ${esc(flt)}</span>
           ${viewerIsPax ? '<span class="phf-you">Your flight</span>' : ''}
         </div>
+        ${live ? `<div class="phf-live"><span class="phf-status ${live.info.tone}">${esc(live.info.label)}</span>${gateBits ? `<span>${gateBits}</span>` : ''}<span class="phf-upd">${esc(_agoShort(live.fetchedAt))}</span></div>` : ''}
         ${t.description ? `<div class="phf-route">${esc(t.description)}</div>` : ''}
         <div class="phf-times">
-          <span><span class="phf-k">DEP</span>${esc(dep)}</span>
-          ${t.arriveTime ? `<span><span class="phf-k">ARR</span>${esc(t.arriveTime)}</span>` : ''}
+          <span><span class="phf-k">DEP</span>${dep}</span>
+          ${arrive ? `<span><span class="phf-k">ARR</span>${arrive}</span>` : ''}
           ${t.conf ? `<span><span class="phf-k">CONF</span>${esc(t.conf)}</span>` : ''}
         </div>
         <div class="phf-pax"><span class="phf-k">PAX</span>${paxHtml}</div>
@@ -17863,8 +18209,20 @@ function renderPhone() {
   const myTravel = (ad.travel || []).filter(t => isItemVisibleToViewer(t, viewer, hasMgmt));
   // Put the travel the viewer is personally on (their own flight / ride) first,
   // keeping each partition in the existing time order.
-  const _viewerOnTravel = t => !!(viewerKey && (t.individuals || []).includes(viewerKey));
+  const _viewerOnTravel = t => _viewerIsPassenger(t, viewer, viewerKey);
   const travelOrdered = [...myTravel.filter(_viewerOnTravel), ...myTravel.filter(t => !_viewerOnTravel(t))];
+  // Live flight status for today's visible flights, plus the viewer's own
+  // flights on this day (and tomorrow, when looking at today) as big cards at
+  // the top of Today. A flight that landed over an hour ago drops off the top.
+  _flightLiveEnsure(myTravel, ad.date);
+  const _flightTomorrow = ad.date === todayISO() ? (T().dates || []).find(d => d.date === _isoAddDays(ad.date, 1)) : null;
+  const _myTomorrowFlights = _flightTomorrow ? (_flightTomorrow.travel || []).filter(t => t.type === 'flight'
+    && isItemVisibleToViewer(t, viewer, hasMgmt) && _viewerIsPassenger(t, viewer, viewerKey)) : [];
+  if (_flightTomorrow) _flightLiveEnsure(_myTomorrowFlights, _flightTomorrow.date);
+  const _myFlightCards = [
+    ...myTravel.filter(t => t.type === 'flight' && _viewerIsPassenger(t, viewer, viewerKey)).map(t => ({ t, d: ad, when: ad.date === todayISO() ? 'Today' : '' })),
+    ..._myTomorrowFlights.map(t => ({ t, d: _flightTomorrow, when: 'Tomorrow' })),
+  ].filter(x => !_flightFinished(x.t, x.d.date)).map(x => _phoneMyFlightCardHTML(x.t, x.d, x.when)).join('');
   const status = ad.status === 'show' ? 'SHOW NIGHT'
     : ad.status === 'travel' ? 'TRAVEL'
     : ad.status === 'off' ? 'DAY OFF'
@@ -17916,7 +18274,7 @@ function renderPhone() {
   `;
 
   $('#ph-today').innerHTML = `
-    ${_todayHeroCard}
+    ${_myFlightCards}${_todayHeroCard}
 
     ${myTravel.length ? `
       <div class="p-card">
@@ -23726,6 +24084,7 @@ function _phoneShowDayTravel(dateId) {
   // _viewerHasMgmtAccess helper for the group-match rules.
   const hasMgmt = isTM || _viewerHasMgmtAccess(viewer);
   const items = (d.travel || []).filter(t => isItemVisibleToViewer(t, viewer, hasMgmt));
+  _flightLiveEnsure(items.filter(t => t.type === 'flight'), d.date);
   const dateLabel = `${fmtMD(d.date)} · ${dow(d.date)}`;
   openModal({
     title: `Travel day · ${dateLabel}`,
@@ -23738,10 +24097,10 @@ function _phoneShowDayTravel(dateId) {
               const typeLabel = ({bus:'BUS', flight:'FLT', van:'VAN', car:'CAR', train:'TRAIN'})[t.type] || (t.type || '').toUpperCase();
               const codeLabel = t.flightNumber || t.conf || '';
               return `
-                <button type="button" class="ph-travel-row" onclick="closeModal();setTimeout(()=>_phoneShowTravel('${esc(t.id)}'),50)">
+                <button type="button" class="ph-travel-row" onclick="closeModal();setTimeout(()=>_phoneShowTravel('${esc(t.id)}','${esc(d.id)}'),50)">
                   <span class="ptr-type">${esc(typeLabel)}</span>
                   <span class="ptr-time">${t.allDay ? 'ALL' : esc(t.time || '—')}</span>
-                  <span class="ptr-desc">${esc(t.description || '—')}</span>
+                  <span class="ptr-desc">${esc(t.description || '—')}${(() => { const lv = t.type === 'flight' && _flightLiveFor(t, d.date); return lv ? `<span class="ptr-live phf-status ${lv.info.tone}">${esc(lv.info.label)}</span>` : ''; })()}</span>
                   ${codeLabel ? `<span class="ptr-code">${esc(codeLabel)}</span>` : ''}
                   <span class="ptr-chev">›</span>
                 </button>
@@ -23765,13 +24124,14 @@ function _phoneShowDayTravel(dateId) {
 // Surfaces every field they might need at a glance — flight #, conf #,
 // who it's for, notes — so they don't have to ping the TM mid-day to
 // ask "what's the confirmation number again?"
-function _phoneShowTravel(itemId) {
-  const ad = getActiveDate();
+function _phoneShowTravel(itemId, dateId) {
+  const ad = dateId ? (T().dates || []).find(d => d.id === dateId) : getActiveDate();
   if (!ad) return;
   const t = (ad.travel || []).find(x => x.id === itemId);
   if (!t) return;
+  if (t.type === 'flight') _flightLiveEnsure([t], ad.date);
   const typeLabel = ({bus:'Bus / Coach', flight:'Flight', van:'Van / Sprinter', car:'Car / Runner', train:'Train'})[t.type] || (t.type || 'Travel');
-  const timeLabel = t.allDay ? 'All day' : (t.time ? t.time : '—');
+  const timeLabel = t.allDay ? 'All day' : (t.time ? _fmt12Safe(t.time) : '—');
   const detailRow = (label, value, mono = false, color = '') => `
     <div style="padding:9px 0;border-bottom:1px dashed rgba(232,148,58,.08)">
       <div style="font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.18em;color:var(--warm-mute);text-transform:uppercase;margin-bottom:3px;font-weight:700">${esc(label)}</div>
@@ -23783,10 +24143,8 @@ function _phoneShowTravel(itemId) {
     hideFooter: true,
     body: `
       <div style="display:flex;flex-direction:column;gap:0">
+        ${t.type === 'flight' ? _flightLiveSheetHTML(t, ad) : ''}
         ${t.description ? detailRow('Description', t.description) : ''}
-        ${t.type === 'flight' && (t.fromCity || t.toCity) ? detailRow('Route', [t.fromCity || '—', t.toCity || '—'].join(' → ')) : ''}
-        ${t.type === 'flight' && !t.allDay ? detailRow('Departs', t.time || '—', true) : ''}
-        ${t.type === 'flight' && t.arriveTime ? detailRow('Lands', t.arriveTime, true, 'var(--hi)') : ''}
         ${t.flightNumber ? detailRow('Flight number', t.flightNumber, true, 'var(--hi)') : ''}
         ${t.conf ? detailRow('Confirmation #', t.conf, true) : ''}
         ${(() => { const pax = _travelPassengers(t); return pax.length ? detailRow(t.type === 'flight' ? 'Passengers' : 'Who', pax.join(', ')) : ''; })()}
