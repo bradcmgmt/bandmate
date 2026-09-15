@@ -1091,19 +1091,6 @@ body.mobile .god-search{min-width:0;width:100%}
 .bm-hop .h-drive .dur b{color:var(--warm);font-weight:700}
 
 /* Compact route list — drops below the cards, scrollable horizontal pills */
-.bm-route{display:flex;gap:6px;overflow-x:auto;padding:2px 0 6px;margin:0 -2px;scrollbar-width:thin}
-.bm-route::-webkit-scrollbar{height:6px}
-.bm-route::-webkit-scrollbar-thumb{background:rgba(232,148,58,.2);border-radius:3px}
-.bm-route .rr{flex:none;min-width:106px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;cursor:pointer;
-  background:rgba(20,13,7,.4);transition:border-color .15s,background .15s;display:flex;flex-direction:column;gap:2px}
-.bm-route .rr:hover{border-color:var(--hi);background:rgba(232,148,58,.05)}
-.bm-route .rr.current{border-color:var(--hi);background:rgba(232,148,58,.1);box-shadow:0 0 10px -2px rgba(232,148,58,.3)}
-.bm-route .rr.past{opacity:.45}
-.bm-route .rr.today{box-shadow:inset 0 0 0 1px rgba(232,148,58,.3)}
-.bm-route .rr.off{border-style:dashed}
-.bm-route .rr .rr-date{font-family:'Bricolage Grotesque',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.1em;text-transform:uppercase}
-.bm-route .rr .rr-city{font-size:12.5px;font-weight:700;color:var(--warm);line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bm-route .rr .rr-venue{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;color:var(--warm-mute);letter-spacing:.04em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .k-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
 .kpi{background:linear-gradient(180deg,rgba(24,17,11,.9),rgba(17,12,8,.9));border:1px solid var(--line);border-radius:12px;padding:16px;
@@ -14150,26 +14137,6 @@ function renderDashboard() {
           <div class="card-body">${dayNotesHtml}</div>
         </div>
       </div>
-
-      <div class="bm-route">
-        ${T().dates.map(d => {
-          const isCurrent = d.id === ad.id;
-          const isPast = d.date && d.date < todayISO();
-          const isToday = d.date === todayISO();
-          const hasContent = (d.date || d.city || d.venue);
-          if (!hasContent) return '';
-          const isOff = d.status === 'off';
-          const cityLabel = isOff ? 'Day off' : (esc(d.city) || '—');
-          const venueLabel = isOff ? '' : esc(d.venue || '').slice(0, 22);
-          return `
-            <div class="rr${isCurrent ? ' current' : ''}${isPast ? ' past' : ''}${isToday ? ' today' : ''}${isOff ? ' off' : ''}" onclick="setActive('${d.id}')">
-              <div class="rr-date">${fmtMD(d.date)} · ${dow(d.date).slice(0, 3)}</div>
-              <div class="rr-city">${cityLabel}</div>
-              ${venueLabel ? `<div class="rr-venue">${venueLabel}</div>` : ''}
-            </div>
-          `;
-        }).join('')}
-      </div>
     </div>
 
     <div class="k-grid">
@@ -18053,7 +18020,10 @@ function renderPhone() {
   `;
 
   // SCHEDULE — today's full schedule (including the ↗ TOMORROW past-midnight
-  // overlap) leads; the multi-day UPCOMING list sits BELOW it.
+  // overlap) leads; the multi-day UPCOMING list sits BELOW it and lists EVERY
+  // remaining date, so the count in its header always matches the rows shown.
+  const _upIdx = Math.max(0, T().dates.findIndex(d => d.id === ad.id));
+  const _upcoming = T().dates.slice(_upIdx);
   $('#ph-schedule').innerHTML = `
     <div class="p-card">
       <div class="lbl">${esc(fmtMD(ad.date))} ${esc(dow(ad.date).slice(0,3).toUpperCase())} · ${status}${ad.city && ad.status !== 'off' ? ' · ' + esc(ad.city.toUpperCase()) : ''}</div>
@@ -18063,9 +18033,9 @@ function renderPhone() {
     </div>
 
     <div class="p-card">
-      <div class="lbl">UPCOMING — ${T().dates.length - T().dates.findIndex(d=>d.id===ad.id)} DAYS</div>
+      <div class="lbl">UPCOMING — ${_upcoming.length} ${_upcoming.length === 1 ? 'DAY' : 'DAYS'}</div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
-        ${T().dates.slice(T().dates.findIndex(d=>d.id===ad.id), T().dates.findIndex(d=>d.id===ad.id) + 6).map(d => {
+        ${_upcoming.map(d => {
           // Travel day rows open a quick travel-detail sheet instead of
           // just jumping the active date — saves the crew member a tab
           // switch to find their bus/flight info. Other day types keep
