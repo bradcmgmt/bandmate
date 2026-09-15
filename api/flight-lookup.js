@@ -7,16 +7,23 @@
 //   POST { flight:'AA 3192', date:'2026-09-24', supabaseAccessToken }
 //     → { configured:true, flight:'AA 3192', date, cached, flights:[leg, …] }
 //
-// A leg is { number, airline, status, aircraft, departure, arrival } where
-// departure / arrival = { iata, airport, city, country, timeZone, date, time,
-// terminal, gate }. `time` is HH:MM, local to that airport.
+// A leg is { number, airline, status, aircraft, lastUpdatedUtc, departure,
+// arrival } where departure / arrival = { iata, airport, city, country,
+// timeZone, date, time, utc, revisedDate, revisedTime, revisedUtc, runwayTime,
+// runwayUtc, terminal, gate, checkInDesk, baggageBelt }. `time` values are
+// HH:MM local to that airport; `utc` values are ISO strings for arithmetic.
+// status is AeroDataBox's: Unknown, Expected, CheckIn, Boarding, GateClosed,
+// Departed, EnRoute, Approaching, Arrived, Delayed, Canceled, Diverted,
+// CanceledUncertain.
 //
 // Auth: requires a valid Supabase access token, so nobody outside the app
 // can spend the lookup quota. Same verification as place-search.js.
 //
 // Cache: results are kept in public.flight_cache (patch-044), keyed by flight
-// and date, so looking the same flight up again costs nothing. If that table
-// doesn't exist yet the lookup still works; it just isn't cached.
+// and date and shared by everyone, so a whole crew watching one flight costs
+// one lookup per refresh. How long an answer stays fresh depends on where the
+// flight is in its day — see cacheTtlMs(). If the table doesn't exist yet the
+// lookup still works; it just isn't cached.
 //
 // Env vars (Vercel → Settings → Environment Variables):
 //   AERODATABOX_KEY            (RapidAPI → My Apps → default-application → Authorization)
@@ -29,9 +36,6 @@
 const { createClient } = require('@supabase/supabase-js');
 
 const HOST = 'aerodatabox.p.rapidapi.com';
-// Schedules for far-off flights barely move; close to departure they do.
-const CACHE_FAR_MS = 24 * 3600 * 1000;
-const CACHE_NEAR_MS = 2 * 3600 * 1000;
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -81,14 +85,12 @@ module.exports = async function handler(req, res) {
   }
 
   // ── Cache ────────────────────────────────────────────────────────────
-  const daysAway = Math.abs(Date.parse(date + 'T12:00:00Z') - Date.now()) / (24 * 3600 * 1000);
-  const ttl = daysAway > 3 ? CACHE_FAR_MS : CACHE_NEAR_MS;
   if (supa) {
     try {
       const { data, error } = await supa.from('flight_cache')
         .select('payload, fetched_at').eq('flight', flightKey).eq('flight_date', date).maybeSingle();
-      if (!error && data && Date.now() - Date.parse(data.fetched_at) < ttl) {
-        res.status(200).json({ configured: true, flight: display, date, cached: true, flights: data.payload || [] });
+      if (!error && data && Date.now() - Date.parse(data.fetched_at) < cacheTtlMs(data.payload, date)) {
+        res.status(200).json({ configured: true, flight: display, date, cached: true, fetchedAt: data.fetched_at, flights: data.payload || [] });
         return;
       }
     } catch (e) { /* no cache table yet — look it up live */ }
@@ -122,34 +124,67 @@ module.exports = async function handler(req, res) {
       flights.sort((a, b) => (a.departure.time || '').localeCompare(b.departure.time || ''));
     }
 
+    const fetchedAt = new Date().toISOString();
     if (supa) {
       try {
         await supa.from('flight_cache').upsert(
-          { flight: flightKey, flight_date: date, payload: flights, fetched_at: new Date().toISOString() },
+          { flight: flightKey, flight_date: date, payload: flights, fetched_at: fetchedAt },
           { onConflict: 'flight,flight_date' });
       } catch (e) { /* caching is best-effort */ }
     }
-    res.status(200).json({ configured: true, flight: display, date, cached: false, flights });
+    res.status(200).json({ configured: true, flight: display, date, cached: false, fetchedAt, flights });
   } catch (err) {
     console.error('[flight-lookup] handler error:', err);
     res.status(500).json({ error: 'failed', message: 'Lookup failed. Try again, or fill the fields in by hand.' });
   }
 };
 
-// Local wall-clock "YYYY-MM-DD HH:MM" from a provider time. Current responses
-// nest { utc, local }; older ones used a flat *Local string. Only the LOCAL
-// value is used: a UTC time would put the wrong hour in the form.
-function localTime(t) {
-  const s = typeof t === 'string' ? t : (t && t.local) || '';
-  const m = String(s).match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/);
-  return m ? { date: m[1], time: `${m[2]}:${m[3]}` } : { date: '', time: '' };
+// How long a saved answer stays fresh. Far-off flights barely change; the day
+// before, hourly is enough to catch schedule changes. From 2 hours before
+// departure until an hour after landing the status moves all the time (gates,
+// delays, takeoff, landing), so it's refreshed every 5 minutes. Once every leg
+// has landed, been canceled or diverted, it freezes.
+function cacheTtlMs(flights, date) {
+  const MIN = 60 * 1000, HOUR = 60 * MIN, now = Date.now();
+  const legs = Array.isArray(flights) ? flights : [];
+  const times = (mv) => [mv && mv.utc, mv && mv.revisedUtc].map(v => Date.parse(v || '')).filter(n => isFinite(n));
+  const deps = legs.flatMap(l => times(l.departure));
+  const arrs = legs.flatMap(l => times(l.arrival));
+  if (deps.length) {
+    const dep = Math.min(...deps);
+    const end = arrs.length ? Math.max(...arrs) + HOUR : dep + 12 * HOUR;
+    const done = legs.every(l => /^(Arrived|Canceled|Diverted)$/.test(l.status || ''));
+    if (now > end) return done ? 24 * HOUR : 6 * HOUR;
+    if (now >= dep - 2 * HOUR) return 5 * MIN;
+    if (now >= dep - 24 * HOUR) return HOUR;
+  }
+  const daysAway = Math.abs(Date.parse(date + 'T12:00:00Z') - now) / (24 * HOUR);
+  return daysAway > 3 ? 24 * HOUR : 2 * HOUR;
+}
+
+// One provider time → { date, time } local to the airport, plus a UTC ISO
+// string. Current responses nest { utc, local }; older ones used flat
+// *Local / *Utc strings. The local value is what people read; UTC is only for
+// arithmetic (delays, the refresh window).
+function timeParts(nested, flatLocal, flatUtc) {
+  const obj = nested && typeof nested === 'object' ? nested : null;
+  const local = obj ? obj.local : (typeof nested === 'string' ? nested : flatLocal);
+  const utc = obj ? obj.utc : flatUtc;
+  const lm = String(local || '').match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/);
+  const um = String(utc || '').match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/);
+  return {
+    date: lm ? lm[1] : '',
+    time: lm ? `${lm[2]}:${lm[3]}` : '',
+    utc: um ? `${um[1]}T${um[2]}:${um[3]}:00Z` : '',
+  };
 }
 
 function normalizeMovement(x) {
   x = x || {};
   const a = x.airport || {};
-  const sched = localTime(x.scheduledTime || x.scheduledTimeLocal);
-  const revised = localTime(x.revisedTime || x.revisedTimeLocal);
+  const sched = timeParts(x.scheduledTime, x.scheduledTimeLocal, x.scheduledTimeUtc);
+  const revised = timeParts(x.revisedTime, x.revisedTimeLocal, x.revisedTimeUtc);
+  const runway = timeParts(x.runwayTime, x.runwayTimeLocal, x.runwayTimeUtc);
   return {
     iata: a.iata || '',
     icao: a.icao || '',
@@ -159,9 +194,16 @@ function normalizeMovement(x) {
     timeZone: a.timeZone || '',
     date: sched.date || revised.date,
     time: sched.time || revised.time,
+    utc: sched.utc || revised.utc,
+    revisedDate: revised.date,
     revisedTime: revised.time,
+    revisedUtc: revised.utc,
+    runwayTime: runway.time,
+    runwayUtc: runway.utc,
     terminal: x.terminal || '',
     gate: x.gate || '',
+    checkInDesk: x.checkInDesk || '',
+    baggageBelt: x.baggageBelt || '',
   };
 }
 
@@ -175,6 +217,7 @@ function normalizeLeg(f) {
     codeshare: f.codeshareStatus || '',
     isCargo: !!f.isCargo,
     aircraft: (f.aircraft && f.aircraft.model) || '',
+    lastUpdatedUtc: f.lastUpdatedUtc || '',
     departure: normalizeMovement(f.departure),
     arrival: normalizeMovement(f.arrival),
   };
