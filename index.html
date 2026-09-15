@@ -396,9 +396,8 @@ input,select,textarea{font:inherit;color:inherit;
 }
 .day-strip::-webkit-scrollbar{height:0}
 .day-pill{
-  flex:none;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;
-  column-gap:14px;row-gap:3px;align-items:baseline;
-  padding:8px 12px;min-width:140px;
+  flex:none;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:stretch;
+  padding:0;min-width:156px;
   background:linear-gradient(135deg,rgba(232,148,58,.04),rgba(232,148,58,.01));
   border:1px solid var(--line-2);border-radius:9px;
   text-align:left;color:var(--warm-mute);
@@ -411,22 +410,38 @@ input,select,textarea{font:inherit;color:inherit;
   border-color:var(--hi);color:var(--warm);
   box-shadow:0 0 16px rgba(232,148,58,.25),inset 0 0 0 1px rgba(232,148,58,.2);
 }
-.day-pill .pdate{font-family:'Bricolage Grotesque',monospace;font-size:11px;font-weight:700;color:var(--hi);letter-spacing:.06em;grid-row:1;grid-column:1}
-/* right column: weekday over the city, both set flush to the pill's right edge */
-.day-pill .pdow{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;color:var(--warm-mute);letter-spacing:.18em;grid-row:1;grid-column:2;text-align:right;justify-self:end}
-.day-pill .pcity{font-size:12.5px;font-weight:700;grid-row:2;grid-column:2;line-height:1.1;color:var(--warm);text-align:right;justify-self:end}
-/* Day-type label under the date — a micro kicker coloured by type, sharing
-   the city's baseline so the two rows read as one clean line each:
-       09.14              MON
-       SHOW       San Antonio
-   Same colour key the old dot used:
+/* Ticket-stub day pill.
+     ┌──────┬───────────────────┐
+     │ SEP  │ MON               │
+     │  14  │ San Antonio       │
+     │ SHOW │ Frost Bank Center │
+     └──────┴───────────────────┘
+   Left, the stub: month, date, day type. A dashed hairline is the
+   perforation. Right: weekday, city, and the venue (on a travel day, the
+   first move). Both columns stretch to the pill's full height and centre
+   their content, and the strip stretches every pill to the tallest one, so
+   a two-line day (a day off) sits in the vertical middle with equal space
+   above and below, never top-heavy. */
+.day-pill .pstub{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:8px 11px;min-width:48px;border-right:1px dashed rgba(232,148,58,.26)}
+.day-pill.active .pstub{border-right-color:rgba(232,148,58,.5)}
+/* Letter-spaced caps carry extra space after the last letter; matching left
+   padding keeps each line optically centred in the stub. */
+.day-pill .pmon{font-family:'Bricolage Grotesque',monospace;font-size:8px;font-weight:600;letter-spacing:.24em;padding-left:.24em;
+  color:var(--warm-mute);line-height:1}
+.day-pill .pday{font-family:'Bricolage Grotesque',monospace;font-size:21px;font-weight:800;color:var(--hi);
+  line-height:1;margin:3px 0 4px;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.day-pill .pbody{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:2px;padding:8px 14px;min-width:0}
+.day-pill .pdow{font-family:'Bricolage Grotesque',monospace;font-size:9px;letter-spacing:.2em;color:var(--warm-mute);line-height:1.15}
+.day-pill .pcity{font-size:13px;font-weight:700;color:var(--warm);line-height:1.2;white-space:nowrap}
+.day-pill .pvenue{font-size:10.5px;color:var(--warm-mute);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+/* Day type, in the stub's footer. Same colour key the old status dot used:
      • Tan / muted-warm — status unknown or not yet set
      • Green            — show day
      • Blue             — travel OR off day (off uses softer blue)
      • Yellow           — press day
      • Lilac            — rehearsal */
-.day-pill .pstatus{grid-row:2;grid-column:1;
-  font-family:'Bricolage Grotesque',monospace;font-size:7.5px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;
+.day-pill .pstatus{font-family:'Bricolage Grotesque',monospace;font-size:6.5px;font-weight:700;letter-spacing:.2em;padding-left:.2em;text-transform:uppercase;
   line-height:1;color:#c9a47a;opacity:.85;white-space:nowrap;pointer-events:none}
 .day-pill.s-show .pstatus{color:#6dcf8b}
 .day-pill.s-travel .pstatus{color:#8aa9d8}
@@ -894,7 +909,7 @@ body.mobile .god-search{min-width:0;width:100%}
 }
 .day-sheet .ribbon-show:hover{box-shadow:0 0 22px rgba(232,148,58,.6),inset 0 1px 0 rgba(255,255,255,.35)}
 .day-sheet h3{margin:0 0 6px;font-size:11px;letter-spacing:.28em;text-transform:uppercase;font-weight:700;font-family:'Bricolage Grotesque',monospace;color:var(--hi)}
-.day-sheet .city{font-weight:900;font-size:34px;letter-spacing:.005em;line-height:1;margin:0 0 6px;
+.day-sheet .city{font-weight:900;font-size:34px;letter-spacing:.005em;line-height:1;margin:0 0 calc(6px - .16em);padding-bottom:.16em;
   background:linear-gradient(180deg,#fff5e0,#e8943a);-webkit-background-clip:text;background-clip:text;color:transparent}
 .day-sheet .venue{font-size:13px;color:var(--warm-mute);margin-bottom:20px;font-weight:500;letter-spacing:.02em}
 /* Schedule grid inside the day-sheet. Auto-fit lets the layout collapse from
@@ -946,7 +961,7 @@ body.mobile .god-search{min-width:0;width:100%}
 .bm-dash{display:flex;flex-direction:column;gap:16px;margin-bottom:18px}
 .bm-dash-head{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap}
 .bm-dash-head .h-left{flex:1;min-width:0}
-.bm-dash-head .h-city{font-weight:900;font-size:38px;letter-spacing:.005em;line-height:1;margin:0 0 6px;
+.bm-dash-head .h-city{font-weight:900;font-size:38px;letter-spacing:.005em;line-height:1;margin:0 0 calc(6px - .16em);padding-bottom:.16em;
   background:linear-gradient(180deg,#fff2dc,#e8943a);-webkit-background-clip:text;background-clip:text;color:transparent}
 .bm-dash-head .h-loc{font-size:13px;color:var(--warm-mute);font-weight:500;letter-spacing:.02em}
 .bm-dash-head .h-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px;min-width:160px}
@@ -4797,7 +4812,11 @@ html body.phone-app .phone .nav {
   body.mobile .day-strip-wrap { padding: 6px 12px 8px !important; gap: 6px }
   body.mobile .day-strip { gap: 4px !important; padding: 2px 14px 4px 0 }
   body.mobile .day-add-btn { padding: 5px 8px !important; font-size: 9.5px !important; white-space: nowrap }
-  body.mobile .day-pill { min-width: 110px !important; padding: 6px 10px !important }
+  body.mobile .day-pill { min-width: 128px !important; padding: 0 !important }
+  body.mobile .day-pill .pstub { padding: 6px 9px; min-width: 42px }
+  body.mobile .day-pill .pday { font-size: 18px; margin: 2px 0 3px }
+  body.mobile .day-pill .pbody { padding: 6px 11px }
+  body.mobile .day-pill .pvenue { max-width: 120px }
 
   /* ─── CONSOLE ─── */
   body.mobile .console { border-radius: 0 !important; margin: 0; border-left: none; border-right: none }
@@ -13424,14 +13443,20 @@ function renderDayStrip() {
     const hardGaps = liveGaps.filter(g => g !== 'hotel or travel').length > 0;
     const isOff = (d.status === 'off') || (d.city || '').toUpperCase() === 'OFF';
     const cityLabel = isOff ? 'Day off' : (d.city || '—');
+    // Third line of the pill: the venue, or on a travel day the first move.
+    // A day off shows nothing, and the right side re-centres on two lines.
+    const _move = (d.status === 'travel' && Array.isArray(d.travel) && d.travel[0]) ? (d.travel[0].description || d.travel[0].flightNumber || '') : '';
+    const subLabel = isOff ? '' : String(d.venue || _move || '').trim();
+    const _ymd = String(d.date || '').split('-');
+    const monLabel = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][parseInt(_ymd[1], 10) - 1] || '';
+    const dayLabel = _ymd[2] ? _ymd[2].slice(0, 2) : '—';
+    const typeLabel = ({show:'Show', travel:'Travel', off:'Day off', press:'Press', rehearsal:'Rehearsal'})[d.status] || (d.status ? esc(d.status) : 'Show');
     const reviewClass = hardGaps ? ' needs-review' : (onlyOr ? ' needs-or' : '');
-    sig += `${d.id}~${d.date}~${d.status || ''}~${cityLabel}~${isActive ? 'A' : ''}~${isToday ? 'T' : ''}~${liveGaps.join(',')}|`;
+    sig += `${d.id}~${d.date}~${d.status || ''}~${cityLabel}~${subLabel}~${isActive ? 'A' : ''}~${isToday ? 'T' : ''}~${liveGaps.join(',')}|`;
     return `
       <button type="button" class="day-pill s-${d.status || 'show'} ${isActive ? 'active' : ''} ${isToday ? 'is-today' : ''}${reviewClass}" onclick="setActive('${d.id}')" title="${liveGaps.length ? 'Needs: ' + liveGaps.join(', ') : 'Complete'}">
-        <span class="pdate">${fmtMD(d.date)}</span>
-        <span class="pdow">${dow(d.date)}</span>
-        <span class="pcity">${esc(cityLabel)}</span>
-        <span class="pstatus">${({show:'Show', travel:'Travel', off:'Day off', press:'Press', rehearsal:'Rehearsal'})[d.status] || (d.status ? esc(d.status) : 'Show')}</span>
+        <span class="pstub"><span class="pmon">${monLabel}</span><span class="pday">${esc(dayLabel)}</span><span class="pstatus">${typeLabel}</span></span>
+        <span class="pbody"><span class="pdow">${dow(d.date)}</span><span class="pcity">${esc(cityLabel)}</span>${subLabel ? `<span class="pvenue">${esc(subLabel)}</span>` : ''}</span>
       </button>
     `;
   }).join('');
