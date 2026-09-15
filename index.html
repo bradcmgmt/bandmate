@@ -1724,6 +1724,21 @@ body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app):n
 .tv-desc-badge{font-family:'Bricolage Grotesque',monospace;font-size:8px;letter-spacing:.14em;font-weight:800;color:#0a0705;
   background:var(--hi);border-radius:4px;padding:1px 6px;text-transform:uppercase}
 input#tv_desc.is-auto{background:rgba(232,148,58,.05);border-color:rgba(232,148,58,.28)}
+/* travel modal — flight number + Look up */
+.tv-flight-row{display:flex;gap:8px;align-items:stretch}
+.tv-flight-row input{flex:1 1 auto;min-width:0}
+.tv-lookup-btn{flex:none;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;
+  color:var(--hi);background:rgba(232,148,58,.05);border:1px solid rgba(232,148,58,.4);border-radius:8px;padding:0 14px;cursor:pointer;white-space:nowrap}
+.tv-lookup-btn:hover{background:rgba(232,148,58,.12)}
+.tv-lookup-btn:disabled{opacity:.55;cursor:default}
+.tv-lookup-status{font-family:'Bricolage Grotesque',monospace;font-size:10.5px;letter-spacing:.03em;line-height:1.5;color:var(--warm-mute);margin-top:6px}
+.tv-lookup-status:empty{display:none}
+.tv-lookup-status.ok{color:#7adc97}
+.tv-lookup-status.err{color:#fdba74}
+.tv-lookup-pick{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.tv-lookup-pick button{font-family:'Bricolage Grotesque',monospace;font-size:10.5px;letter-spacing:.04em;color:var(--warm);background:rgba(232,148,58,.05);
+  border:1px solid var(--line-2);border-radius:6px;padding:5px 9px;cursor:pointer}
+.tv-lookup-pick button:hover{border-color:var(--hi);color:var(--hi)}
 
 /* Day Notes card on the crew mobile TODAY screen. Yellow eyebrow
    matches the TM-side tab color. Body renders any HTML the TM saved
@@ -9661,6 +9676,111 @@ function _travelDescToggle() {
   if (!_tvDescAuto) document.getElementById('tv_desc')?.focus();
 }
 
+// ── Flight lookup ────────────────────────────────────────────────────
+// The travel form's Look up button sends the flight number and the travel
+// date to /api/flight-lookup (AeroDataBox, key kept server-side) and fills
+// departs / lands / both cities from the answer. Conf # and passengers stay
+// manual: they belong to the booking, not the flight.
+let _flightApiConfigured = null;   // null = unknown yet, false = no key on the server
+let _tvLookupSeq = 0;
+let _tvLookupLegs = [];
+
+function _setTime12Picker(prefix, value24) {
+  const t = _to12h(value24 || '');
+  const hh = document.getElementById(`${prefix}_hh`);
+  const mm = document.getElementById(`${prefix}_mm`);
+  const ap = document.getElementById(`${prefix}_ampm`);
+  if (hh) hh.value = t.hh;
+  if (mm) mm.value = t.mm;
+  if (ap) ap.value = t.ampm;
+}
+function _tvFmt12(value24) {
+  const t = _to12h(value24 || '');
+  return t.hh ? `${t.hh}:${t.mm} ${t.ampm}` : '—';
+}
+function _tvLookupStatus(html, kind) {
+  const el = document.getElementById('tv_lookup_status');
+  if (!el) return;
+  el.className = 'tv-lookup-status' + (kind ? ' ' + kind : '');
+  el.innerHTML = html || '';
+}
+
+async function _tvFlightLookup() {
+  const inp = document.getElementById('tv_flight');
+  const btn = document.getElementById('tv_lookup_btn');
+  const ad = getActiveDate();
+  if (!inp || !ad) return;
+  const flight = inp.value.trim();
+  if (!flight) { _tvLookupStatus('Type the airline code and flight number first, e.g. AA 3192.', 'err'); inp.focus(); return; }
+  if (!/[A-Za-z]/.test(flight)) {
+    _tvLookupStatus(`Add the airline code in front of the number, e.g. AA ${esc(flight.replace(/\D/g, ''))}.`, 'err'); inp.focus(); return;
+  }
+  if (!sb) { _tvLookupStatus('Not connected to the cloud.', 'err'); return; }
+  const token = await _placeAuthToken();
+  if (!token) { _tvLookupStatus('Sign in to look up flights.', 'err'); return; }
+
+  const seq = ++_tvLookupSeq;
+  if (btn) { btn.disabled = true; btn.textContent = 'Looking…'; }
+  _tvLookupStatus(`Looking up ${esc(flight.toUpperCase())} departing ${esc(fmtDate(ad.date))}…`);
+  let j = null, status = 0;
+  try {
+    const r = await fetch('/api/flight-lookup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ flight, date: ad.date, supabaseAccessToken: token }),
+    });
+    status = r.status;
+    j = await r.json().catch(() => null);
+  } catch (e) { j = null; }
+
+  // A newer lookup started, or the form was closed, while this one was out.
+  if (seq !== _tvLookupSeq || !document.getElementById('tv_flight')) return;
+  if (btn) { btn.disabled = false; btn.textContent = 'Look up'; }
+
+  if (j && j.configured === false) {
+    _flightApiConfigured = false;
+    if (btn) btn.hidden = true;
+    _tvLookupStatus('');
+    return;
+  }
+  _flightApiConfigured = true;
+  if (!j || status >= 400) {
+    _tvLookupStatus(esc((j && j.message) || 'Lookup failed. Try again, or fill the fields in by hand.'), 'err');
+    return;
+  }
+  const legs = Array.isArray(j.flights) ? j.flights : [];
+  if (!legs.length) {
+    _tvLookupStatus(`No flight ${esc(j.flight || flight.toUpperCase())} found departing ${esc(fmtDate(ad.date))}. Check the number, or fill the fields in by hand.`, 'err');
+    return;
+  }
+  if (legs.length === 1) { _tvApplyFlightLeg(legs[0]); return; }
+  // A multi-stop flight: several legs share the number. Let the TM pick.
+  _tvLookupLegs = legs;
+  _tvLookupStatus(`<div>${legs.length} legs share this flight number. Pick the one you're on:</div>
+    <div class="tv-lookup-pick">${legs.map((l, n) => `<button type="button" onclick="_tvApplyFlightLeg(_tvLookupLegs[${n}])">${esc(l.departure.iata || l.departure.city || '?')} ${esc(_tvFmt12(l.departure.time))} → ${esc(l.arrival.iata || l.arrival.city || '?')} ${esc(_tvFmt12(l.arrival.time))}</button>`).join('')}</div>`);
+}
+
+function _tvApplyFlightLeg(leg) {
+  if (!leg || !document.getElementById('tv_flight')) return;
+  const dep = leg.departure || {}, arr = leg.arrival || {};
+  const place = (mv) => mv.city ? `${mv.city}${mv.iata ? ' (' + mv.iata + ')' : ''}` : (mv.iata || mv.airport || '');
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+  if (leg.number) setVal('tv_flight', leg.number);
+  if (dep.time) _setTime12Picker('tv_time', dep.time);
+  if (arr.time) _setTime12Picker('tv_arrive', arr.time);
+  setVal('tv_from', place(dep));
+  setVal('tv_to', place(arr));
+  _travelDescRefresh();
+  const nextDay = dep.date && arr.date && arr.date > dep.date;
+  const extras = [
+    dep.terminal ? `Terminal ${esc(dep.terminal)}` : '',
+    dep.gate ? `Gate ${esc(dep.gate)}` : '',
+    leg.aircraft ? esc(leg.aircraft) : '',
+  ].filter(Boolean).join(' · ');
+  _tvLookupStatus(`✓ ${esc(leg.number || '')}${leg.airline ? ' · ' + esc(leg.airline) : ''}<br>
+    ${esc(dep.iata || dep.city || '')} ${esc(_tvFmt12(dep.time))} → ${esc(arr.iata || arr.city || '')} ${esc(_tvFmt12(arr.time))}${nextDay ? ' (next day)' : ''}
+    <span style="color:var(--warm-mute)">· times are local to each airport</span>${extras ? `<br><span style="color:var(--warm-mute)">${extras}</span>` : ''}`, 'ok');
+}
+
 function openTravelModal(itemId) {
   const ad = getActiveDate();
   if (!ad) return;
@@ -9684,6 +9804,14 @@ function openTravelModal(itemId) {
             <option value="car" ${i.type==='car'?'selected':''}>Car / Runner</option>
             <option value="train" ${i.type==='train'?'selected':''}>Train</option>
           </select>
+        </div>
+        <div class="field" data-flight-only ${isFlight ? '' : 'hidden'}>
+          <label>Flight # <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional)</span></label>
+          <div class="tv-flight-row">
+            <input id="tv_flight" value="${esc(i.flightNumber || '')}" oninput="_travelDescRefresh()" onkeydown="if(event.key==='Enter'){event.preventDefault();_tvFlightLookup();}" placeholder="e.g. AA 484 · DL 1290" autocomplete="off">
+            <button type="button" class="tv-lookup-btn" id="tv_lookup_btn" onclick="_tvFlightLookup()" ${_flightApiConfigured === false ? 'hidden' : ''}>Look up</button>
+          </div>
+          <div class="tv-lookup-status" id="tv_lookup_status"></div>
         </div>
         <div class="field"><label id="tv_time_lbl">${isFlight ? 'Departs' : 'Time'} ${i.allDay ? '' : '*'}</label>
           <div class="time-row">
@@ -9711,10 +9839,6 @@ function openTravelModal(itemId) {
           <input id="tv_desc" value="${esc(i.description)}" placeholder="e.g. Sleeper bus → Chicago">
         </div>
         <div class="field"><label id="tv_conf_lbl">Conf # ${isFlight ? '*' : ''}</label><input id="tv_conf" value="${esc(i.conf)}"></div>
-        <div class="field" data-flight-only ${isFlight ? '' : 'hidden'}>
-          <label>Flight # <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional)</span></label>
-          <input id="tv_flight" value="${esc(i.flightNumber || '')}" oninput="_travelDescRefresh()" placeholder="e.g. AA 484 · DL 1290">
-        </div>
 
         <div class="field full">
           <label><span id="tv_pax_lbl">${isFlight ? 'Passengers' : '+ Specific individuals'}</span> <span id="tv_pax_req" class="mono" style="color:var(--hi);${isFlight ? '' : 'display:none'}">*</span>
