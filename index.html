@@ -1019,6 +1019,19 @@ body.mobile .god-search{min-width:0;width:100%}
   background:radial-gradient(400px 80px at 50% -10%,rgba(232,148,58,.03),transparent 70%)}
 .bm-card.span-2{grid-column:span 2}
 @media (max-width:760px){.bm-card.span-2{grid-column:span 1}}
+/* The four number tiles, living inside the card grid. Default (and every
+   layout narrower than desktop): a full-width row of four. At desktop width
+   the renderer's _dashKpiSlot() drops them into the gap the cards leave. */
+.bm-kpis{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.bm-kpis .kpi{display:flex;flex-direction:column;justify-content:flex-start;gap:4px;min-width:0}
+.bm-kpis .kpi .delta{overflow-wrap:anywhere}
+@media (min-width:1201px){
+  .bm-kpis.tall{grid-column:var(--kc);grid-row:var(--kr) / span 2;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:1fr;gap:12px}
+  .bm-kpis.across{grid-column:var(--kc) / span 2;grid-row:var(--kr);gap:12px}
+  .bm-kpis.tall .kpi,.bm-kpis.across .kpi{padding:14px}
+  .bm-kpis.tall .kpi .value,.bm-kpis.across .kpi .value{font-size:26px}
+}
+@media (max-width:760px){.bm-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .bm-card .card-h{display:flex;align-items:center;gap:8px;padding-bottom:9px;border-bottom:1px solid rgba(232,148,58,.08);position:relative;z-index:1}
 .bm-card .card-h .ic{color:var(--hi);font-family:'Bricolage Grotesque',monospace;font-size:12px}
 .bm-card .card-h .h{font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--warm-mute);font-weight:700;flex:1}
@@ -14072,6 +14085,16 @@ function renderDashboard() {
     </div>
   `;
 
+  // The four number tiles sit in whatever gap the cards leave at the bottom
+  // of the 3-column desktop grid (which cards render varies by day type).
+  const _kpiSlot = _dashKpiSlot([
+    2,                                                         // Schedule
+    ...((ad.status === 'travel' || ad.status === 'off') ? [] : [1]),  // Venue
+    1, 1, 1, 1,                                                // Hotel · Tomorrow · Today's tasks · Key contacts
+    ...(advHasContent ? [1] : []),                             // Advance
+    1,                                                         // Today's flags
+    advHasContent ? 1 : 2,                                     // Day notes
+  ]);
   root.innerHTML = `
     ${reviewBanner}
     <div class="bm-dash">
@@ -14136,16 +14159,49 @@ function renderDashboard() {
           <div class="card-h"><span class="ic">✎</span><span class="h">Day notes</span><a class="card-link" onclick="_dashGoTab('notes')">Edit →</a></div>
           <div class="card-body">${dayNotesHtml}</div>
         </div>
+        <div class="bm-kpis ${_kpiSlot.mode}" style="--kc:${_kpiSlot.col || 1};--kr:${_kpiSlot.row || 1}">
+          <div class="kpi"><div class="label">Tour dates</div><div class="value mono">${totalDates}</div><div class="delta">${T().dates.filter(d=>d.status==='show').length} shows · ${T().dates.filter(d=>d.status==='rehearsal').length} reh · ${T().dates.filter(d=>d.status==='travel').length} travel · ${T().dates.filter(d=>d.status==='off').length} off</div></div>
+          <div class="kpi"><div class="label">Settled</div><div class="value mono">${settled} / ${T().dates.filter(d=>d.status==='show').length}</div><div class="delta">${T().meta.currency} ${totalSettled.toLocaleString()}</div></div>
+          <div class="kpi ${dueToday?'bad':''}"><div class="label">Open tasks</div><div class="value mono">${openTasks}</div><div class="delta" style="${dueToday?'color:var(--red)':''}">${dueToday} due today</div></div>
+          <div class="kpi"><div class="label">Guests today</div><div class="value mono">${todayGuests}</div><div class="delta">${ad.guests.filter(g=>g.status==='pending').length} pending</div></div>
+        </div>
       </div>
     </div>
 
-    <div class="k-grid">
-      <div class="kpi"><div class="label">Tour dates</div><div class="value mono">${totalDates}</div><div class="delta">${T().dates.filter(d=>d.status==='show').length} shows · ${T().dates.filter(d=>d.status==='rehearsal').length} reh · ${T().dates.filter(d=>d.status==='travel').length} travel · ${T().dates.filter(d=>d.status==='off').length} off</div></div>
-      <div class="kpi"><div class="label">Settled</div><div class="value mono">${settled} / ${T().dates.filter(d=>d.status==='show').length}</div><div class="delta">${T().meta.currency} ${totalSettled.toLocaleString()}</div></div>
-      <div class="kpi ${dueToday?'bad':''}"><div class="label">Open tasks</div><div class="value mono">${openTasks}</div><div class="delta" style="${dueToday?'color:var(--red)':''}">${dueToday} due today</div></div>
-      <div class="kpi"><div class="label">Guest list · today</div><div class="value mono">${todayGuests}</div><div class="delta">${ad.guests.filter(g=>g.status==='pending').length} pending</div></div>
-    </div>
   `;
+}
+
+// Where the dashboard's four number tiles fit in the 3-column card grid.
+// Replays the browser's auto-placement for the cards (given their column
+// spans, in order), then looks at the bottom of the grid:
+//   'tall'   — one column is empty in the last two rows → a 2×2 block there
+//   'across' — two side-by-side cells are empty in the last row → tiles in a row there
+//   'wide'   — no usable gap → a full-width row under the cards
+// col / row are 1-based grid lines for the CSS. Only used at desktop width;
+// narrower layouts always get the full-width row (see .bm-kpis CSS).
+function _dashKpiSlot(spans) {
+  const COLS = 3, grid = [];
+  const free = (r, c) => !(grid[r] && grid[r][c]);
+  let r = 0, c = 0;
+  for (const span of spans) {
+    for (;;) {
+      if (c + span > COLS) { r++; c = 0; continue; }
+      let fits = true;
+      for (let k = 0; k < span; k++) if (!free(r, c + k)) fits = false;
+      if (fits) break;
+      c++;
+    }
+    for (let k = 0; k < span; k++) (grid[r] = grid[r] || [])[c + k] = true;
+    c += span;
+  }
+  const last = grid.length - 1;
+  for (let col = COLS - 1; col >= 0; col--) {
+    if (last >= 1 && free(last - 1, col) && free(last, col)) return { mode: 'tall', col: col + 1, row: last };
+  }
+  for (let col = 0; col + 1 < COLS; col++) {
+    if (free(last, col) && free(last, col + 1)) return { mode: 'across', col: col + 1, row: last + 1 };
+  }
+  return { mode: 'wide', col: 1, row: 1 };
 }
 
 // Helper · switch to a tab from a dashboard card link
