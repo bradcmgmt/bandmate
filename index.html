@@ -414,18 +414,25 @@ input,select,textarea{font:inherit;color:inherit;
 .day-pill .pdate{font-family:'Bricolage Grotesque',monospace;font-size:11px;font-weight:700;color:var(--hi);letter-spacing:.06em;grid-row:1/3;grid-column:1}
 .day-pill .pdow{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;color:var(--warm-mute);letter-spacing:.18em;grid-row:1;grid-column:2}
 .day-pill .pcity{font-size:12.5px;font-weight:700;grid-row:2;grid-column:2;line-height:1.1;color:var(--warm)}
-/* Status dot in the top-right corner of each day pill.
-   Color key:
+/* Day-type label in the top-right corner of each day pill — a micro kicker
+   that sits on the weekday line ("WED ........ SHOW"), coloured by type.
+   Same colour key the old dot used:
      • Tan / muted-warm — status unknown or not yet set
      • Green            — show day
      • Blue             — travel OR off day (off uses softer blue)
-     • Yellow           — press day */
-.day-pill .pstatus{position:absolute;right:6px;top:6px;width:6px;height:6px;border-radius:50%;background:#c9a47a;box-shadow:0 0 4px rgba(201,164,122,.4)}
-.day-pill.s-show .pstatus{background:#6dcf8b;box-shadow:0 0 6px rgba(109,207,139,.55)}
-.day-pill.s-travel .pstatus{background:#8aa9d8;box-shadow:0 0 6px rgba(138,169,216,.55)}
-.day-pill.s-off .pstatus{background:#8aa9d8;box-shadow:0 0 6px rgba(138,169,216,.4)}
-.day-pill.s-press .pstatus{background:#f5d76e;box-shadow:0 0 6px rgba(245,215,110,.55)}
-.day-pill.s-rehearsal .pstatus{background:#b89ad8;box-shadow:0 0 6px rgba(184,154,216,.55)}
+     • Yellow           — press day
+     • Lilac            — rehearsal */
+.day-pill .pstatus{position:absolute;right:11px;top:9px;
+  font-family:'Bricolage Grotesque',monospace;font-size:7.5px;font-weight:700;letter-spacing:.26em;text-transform:uppercase;
+  line-height:1;color:#c9a47a;opacity:.85;white-space:nowrap;pointer-events:none}
+.day-pill.s-show .pstatus{color:#6dcf8b}
+.day-pill.s-travel .pstatus{color:#8aa9d8}
+.day-pill.s-off .pstatus{color:#8aa9d8;opacity:.7}
+.day-pill.s-press .pstatus{color:#f5d76e}
+.day-pill.s-rehearsal .pstatus{color:#b89ad8}
+.day-pill.active .pstatus{opacity:1}
+/* Keep the weekday from running under the label on narrow pills. */
+.day-pill .pdow{padding-right:60px}
 /* TODAY — the pill matching the real calendar date burns.
    The strip sets .is-today on EXACT date equality (never a nearest-match),
    so at most one pill ever lights up, and a tour built in advance or
@@ -13422,7 +13429,7 @@ function renderDayStrip() {
         <span class="pdate">${fmtMD(d.date)}</span>
         <span class="pdow">${dow(d.date)}</span>
         <span class="pcity">${esc(cityLabel)}</span>
-        <span class="pstatus"></span>
+        <span class="pstatus">${({show:'Show', travel:'Travel', off:'Day off', press:'Press', rehearsal:'Rehearsal'})[d.status] || (d.status ? esc(d.status) : 'Show')}</span>
       </button>
     `;
   }).join('');
