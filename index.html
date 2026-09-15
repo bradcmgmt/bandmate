@@ -352,15 +352,15 @@ input,select,textarea{font:inherit;color:inherit;
    Holds the active date's context (day count, city, venue, date,
    status, doors). Static positioning — the .sticky-header parent
    does the sticking for the whole header band. */
-.tape-strip{height:38px;
+.tape-strip{height:22px;
   background:linear-gradient(180deg,rgba(232,148,58,.10),rgba(232,148,58,.04)),#0f0a06;
   border-bottom:1px solid var(--line);overflow:hidden}
 .tape-strip::before{content:"";position:absolute;inset:0;pointer-events:none;
-  background:radial-gradient(ellipse 600px 60px at 50% 100%,rgba(232,148,58,.18),transparent 60%)}
-.tape-strip .label{display:flex;align-items:center;gap:14px;height:100%;padding:0 22px;
-  font-family:'Bricolage Grotesque',monospace;font-weight:600;font-size:10.5px;color:var(--hi);
+  background:radial-gradient(ellipse 600px 34px at 50% 100%,rgba(232,148,58,.16),transparent 60%)}
+.tape-strip .label{display:flex;align-items:center;gap:12px;height:100%;padding:0 22px;
+  font-family:'Bricolage Grotesque',monospace;font-weight:600;font-size:10px;line-height:1;color:var(--hi);
   letter-spacing:.22em;text-transform:uppercase;position:relative;z-index:1;overflow-x:auto;white-space:nowrap}
-.tape-strip .label .dot{width:5px;height:5px;background:var(--hi);border-radius:50%;display:inline-block;box-shadow:0 0 8px var(--hi);flex:none}
+.tape-strip .label .dot{width:4px;height:4px;background:var(--hi);border-radius:50%;display:inline-block;box-shadow:0 0 8px var(--hi);flex:none}
 .tape-strip .label .sep{color:var(--line-2);margin:0 4px}
 
 /* ============ DAY STRIP ============ */
@@ -371,7 +371,7 @@ input,select,textarea{font:inherit;color:inherit;
   background:linear-gradient(180deg,#0c0805 0%,#100a06 100%);
   border-bottom:1px solid var(--line);
   box-shadow:0 8px 16px -8px rgba(0,0,0,.5);
-  display:flex;align-items:stretch;gap:10px;padding:10px 22px 14px;
+  display:flex;align-items:stretch;gap:10px;padding:8px 22px 12px;
 }
 .day-strip{display:flex;gap:6px;overflow-x:auto;flex:1;scroll-behavior:smooth;padding:4px 18px 8px 0;min-width:0;scrollbar-width:none;
   /* Edge-aware fade mask: the strip is fully visible by default. The left
@@ -561,7 +561,7 @@ input,select,textarea{font:inherit;color:inherit;
   border-color:transparent}
 
 /* ============ STAGE ============ */
-.stage{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:24px;padding:24px 22px 60px;max-width:1640px;margin:0 auto;min-width:0}
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:24px;padding:16px 22px 60px;max-width:1640px;margin:0 auto;min-width:0}
 
 /* ============ CONSOLE ============ */
 .console{
