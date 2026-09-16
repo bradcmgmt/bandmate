@@ -1755,7 +1755,47 @@ body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app):n
 #pflSheet .pfl-row .pfl-k{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--warm-mute);margin-bottom:3px}
 #pflSheet .pfl-rv{font-family:'Bricolage Grotesque',monospace;font-size:14px;font-weight:700;line-height:1.45;color:var(--warm)}
 #pflSheet .pfl-rv.hi{color:var(--hi)}
-.ph-travel-row .ptr-live{display:block;margin-top:3px;font-size:8.5px}
+.ph-travel-row .ptr-live{display:block;margin-top:3px;font-size:8.5px;font-family:'Bricolage Grotesque',monospace;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--warm-mute)}
+/* Connecting flights (layovers) */
+.tv-legs{display:flex;flex-direction:column;gap:2px;margin:6px 0 10px}
+.tv-leg-row{display:grid;grid-template-columns:18px minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line-2);border-radius:8px;background:rgba(232,148,58,.04)}
+.tv-leg-row.cur{border-color:rgba(232,148,58,.45);background:rgba(232,148,58,.09)}
+.tv-leg-n{font-family:'Bricolage Grotesque',monospace;font-size:10px;font-weight:800;color:var(--warm-mute)}
+.tv-leg-main{font-size:12.5px;color:var(--warm-mute);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tv-leg-main b{color:var(--warm);font-family:'Bricolage Grotesque',monospace;letter-spacing:.03em;margin-right:7px}
+.tv-leg-t{font-family:'Bricolage Grotesque',monospace;font-size:11px;color:var(--hi);white-space:nowrap}
+.tv-leg-here{font-family:'Bricolage Grotesque',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--warm-mute)}
+.tv-leg-edit{background:none;border:0;padding:0;cursor:pointer;font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--hi)}
+.tv-leg-lay{padding:3px 0 3px 28px;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.04em;color:var(--warm-mute)}
+.tv-leg-lay.warn{color:#fdba74}
+.tv-leg-lay.bad{color:var(--red)}
+.tv-leg-unlink{color:var(--warm-mute)}
+.tv-leg-sugg{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 10px;margin:0 0 10px;border:1px dashed rgba(232,148,58,.22);border-radius:8px}
+.tv-leg-sugg-k{font-family:'Bricolage Grotesque',monospace;font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--warm-mute)}
+.tv-leg-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.tv-leg-hint{font-size:10px;letter-spacing:.04em;color:var(--warm-mute);line-height:1.45;flex:1;min-width:160px}
+.leg-kick{display:block;margin-top:5px;font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--warm-mute)}
+.leg-kick.warn{color:#fdba74}
+.leg-kick.bad{color:var(--red)}
+.ph-flight .phf-leg{margin:-4px 0 8px;font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--warm-mute)}
+.ph-flight .phf-leg.warn{color:#fdba74}
+.ph-flight .phf-leg.bad{color:var(--red)}
+.ph-myflight .pmf-conn{display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline;margin:-2px 0 11px;font-size:11px;color:var(--warm-mute)}
+.ph-myflight .pmf-conn-k{font-family:'Bricolage Grotesque',monospace;font-size:9px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--hi)}
+.ph-myflight .pmf-conn.warn,.ph-myflight .pmf-conn.warn .pmf-conn-k{color:#fdba74}
+.ph-myflight .pmf-conn.bad,.ph-myflight .pmf-conn.bad .pmf-conn-k{color:var(--red)}
+.ptl{margin-top:14px;border-top:1px solid var(--line);padding-top:11px}
+.ptl-h{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--warm-mute);margin-bottom:4px}
+.ptl-row{display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;text-align:left;padding:9px 0;background:none;border:0;border-bottom:1px dashed rgba(232,148,58,.08);color:inherit;font-family:inherit;cursor:pointer}
+.ptl-row.cur{cursor:default;opacity:1}
+.ptl-n{font-family:'Bricolage Grotesque',monospace;font-size:10px;font-weight:800;color:var(--warm-mute)}
+.ptl-main{font-size:12.5px;color:var(--warm-mute);min-width:0}
+.ptl-main b{color:var(--warm);font-family:'Bricolage Grotesque',monospace;margin-right:7px}
+.ptl-main .phf-status{margin-left:7px}
+.ptl-t{font-family:'Bricolage Grotesque',monospace;font-size:12px;font-weight:700;color:var(--hi);white-space:nowrap}
+.ptl-lay{padding:4px 0 6px 26px;font-family:'Bricolage Grotesque',monospace;font-size:10px;color:var(--warm-mute)}
+.ptl-lay.warn{color:#fdba74}
+.ptl-lay.bad{color:var(--red)}
 
 /* travel modal — free-text passenger chips (crew not on the roster yet) */
 .pax-chips{display:flex;flex-wrap:wrap;gap:6px}
@@ -9740,6 +9780,7 @@ function _phoneMyFlightCardHTML(t, d, when) {
   const nextDay = leg ? !!(arr.date && dep.date && arr.date > dep.date) : !!(t.arriveTime && t.time && t.arriveTime < t.time);
   const tracking = _flightTrackNote(t, d.date);
   const hasArr = !!(t.arriveTime || (arr && arr.time));
+  const legSum = _legSummary(t);
   // Plane sits at the origin before takeoff, moves along the line in the
   // air (by elapsed flight time), and at the destination once landed.
   let prog = .5;
@@ -9759,6 +9800,7 @@ function _phoneMyFlightCardHTML(t, d, when) {
       <div class="pmf-route"><span class="pmf-code">${esc(fromCode || '—')}</span><span class="pmf-line"><i style="flex:${prog.toFixed(3)}"></i>${_PLANE_SVG}<i style="flex:${(1 - prog).toFixed(3)}"></i></span><span class="pmf-code">${esc(toCode || '—')}</span></div>
       <div class="pmf-cities"><span>${esc(fromCity)}</span><span>${esc(toCity)}</span></div>` : `
       <div class="pmf-desc">${esc(t.description || [fromCity, toCity].filter(Boolean).join(' → ') || 'Flight')}</div>`}
+      ${legSum ? `<div class="pmf-conn ${legSum.tone}"><span class="pmf-conn-k">${esc(legSum.label)}</span>${legSum.text ? `<span>${esc(legSum.text)}</span>` : ''}</div>` : ''}
       <div class="pmf-grid">
         <div><div class="pmf-k">Departs</div><div class="pmf-v">${t.allDay ? 'All day' : _flightTimeHTML(t.time, dep)}</div>${depSub ? `<div class="pmf-sub">${depSub}</div>` : ''}</div>
         ${hasArr ? `<div><div class="pmf-k">Lands</div><div class="pmf-v">${_flightTimeHTML(t.arriveTime, arr)}${nextDay ? '<span class="pmf-plus">+1</span>' : ''}</div>${arrSub ? `<div class="pmf-sub">${arrSub}</div>` : ''}</div>` : ''}
@@ -9807,6 +9849,25 @@ function _flightLiveSheetHTML(t, ad) {
   }
   return `<div id="pflSheet" data-key="${esc(key)}" data-item="${esc(t.id)}" data-date="${esc(ad.id)}">${inner}</div>`;
 }
+// Every leg of the journey in the flight sheet, tappable.
+function _flightTripSheetHTML(t, ad) {
+  const info = _legInfo(t);
+  if (!info) return '';
+  const rows = info.legs.map((l, n) => {
+    const cur = l.item.id === t.id;
+    const live = _flightLiveFor(l.item, l.date.date);
+    const lay = n < info.legs.length - 1 ? _layoverInfo(l, info.legs[n + 1]) : null;
+    const route = [_cityOnly(l.item.fromCity), _cityOnly(l.item.toCity)].filter(Boolean).join(' → ') || l.item.description || '';
+    return `
+      <button type="button" class="ptl-row${cur ? ' cur' : ''}" ${cur ? '' : `onclick="closeModal();setTimeout(()=>_phoneShowTravel('${esc(l.item.id)}','${esc(l.date.id)}'),50)"`}>
+        <span class="ptl-n">${n + 1}</span>
+        <span class="ptl-main"><b>${esc(l.item.flightNumber || 'Flight')}</b>${esc(route)}${live ? `<span class="phf-status ${live.info.tone}">${esc(live.info.label)}</span>` : ''}</span>
+        <span class="ptl-t">${esc(l.item.time ? _fmt12Safe(l.item.time) : '—')}</span>
+      </button>
+      ${lay ? `<div class="ptl-lay ${lay.tone}">${esc(lay.text)}</div>` : ''}`;
+  }).join('');
+  return `<div class="ptl"><div class="ptl-h">Journey · ${info.count} flights</div>${rows}</div>`;
+}
 async function _flightLiveRefreshSheet(btn) {
   const el = document.getElementById('pflSheet');
   const d = el && (T().dates || []).find(x => x.id === el.dataset.date);
@@ -9826,6 +9887,7 @@ function _phoneTravelItemHTML(t, viewer, viewerKey, onDate) {
     : 'No passengers assigned yet';
   if ((t.type || '') === 'flight') {
     const flt = t.flightNumber || 'Flight';
+    const legSum = _legSummary(t);
     const live = _flightLiveFor(t, onDate || (getPhoneDate() || {}).date || '');
     const leg = live && live.leg;
     const dep = t.allDay ? 'All day' : _flightTimeHTML(t.time, leg && leg.departure);
@@ -9839,6 +9901,7 @@ function _phoneTravelItemHTML(t, viewer, viewerKey, onDate) {
           ${viewerIsPax ? '<span class="phf-you">Your flight</span>' : ''}
         </div>
         ${live ? `<div class="phf-live"><span class="phf-status ${live.info.tone}">${esc(live.info.label)}</span>${gateBits ? `<span>${gateBits}</span>` : ''}<span class="phf-upd">${esc(_agoShort(live.fetchedAt))}</span></div>` : ''}
+        ${legSum ? `<div class="phf-leg ${legSum.tone}">${esc(legSum.label)}${legSum.text ? ' · ' + esc(legSum.text) : ''}</div>` : ''}
         ${t.description ? `<div class="phf-route">${esc(t.description)}</div>` : ''}
         <div class="phf-times">
           <span><span class="phf-k">DEP</span>${dep}</span>
@@ -10127,16 +10190,205 @@ function _tvApplyFlightLeg(leg) {
     <span style="color:var(--warm-mute)">· times are local to each airport</span>${extras ? `<br><span style="color:var(--warm-mute)">${extras}</span>` : ''}`, 'ok');
 }
 
-function openTravelModal(itemId) {
+/* =====================================================================
+   CONNECTING FLIGHTS (LAYOVERS)
+   A journey with a stop is stored as ONE TRAVEL ITEM PER LEG, each with
+   its own times, flight number, gate and live status, all sharing a
+   tripId. That means every existing view — the Travel panel, the merged
+   day schedule, the tour book, the crew's phone — shows each leg without
+   knowing anything about trips; the helpers below only add the leg
+   numbering and layover line on top. Leg order is DERIVED from day +
+   departure time rather than stored, so deleting or re-timing a leg can
+   never leave stale numbering behind. A trip with one leg is just a
+   normal flight and renders exactly as before.
+   ===================================================================== */
+let _tvWantLeg = false;   // "+ Add connecting flight" was clicked in the form
+let _tvModalCtx = null;   // the travel form that's open, for in-place redraws
+
+// Every leg of a journey, in travel order, across days.
+function _tripLegs(tripId) {
+  if (!tripId) return [];
+  const out = [];
+  (T().dates || []).forEach(d => (d.travel || []).forEach((t, ti) => {
+    if (t.tripId === tripId) out.push({ item: t, date: d, ti });
+  }));
+  return out.sort((a, b) => (a.date.date || '').localeCompare(b.date.date || '')
+    || (a.item.time || 'zz').localeCompare(b.item.time || 'zz') || a.ti - b.ti);
+}
+// Where this item sits in its journey — null for a normal single flight.
+function _legInfo(t) {
+  const legs = _tripLegs(t && t.tripId);
+  if (legs.length < 2) return null;
+  const index = legs.findIndex(l => l.item.id === t.id);
+  if (index < 0) return null;
+  return { index, number: index + 1, count: legs.length, legs,
+    prev: index > 0 ? legs[index - 1] : null,
+    next: index < legs.length - 1 ? legs[index + 1] : null,
+    label: `Leg ${index + 1} of ${legs.length}` };
+}
+function _fmtDur(m) { const h = Math.floor(m / 60), mm = m % 60; return h ? `${h}h${mm ? ' ' + mm + 'm' : ''}` : `${mm}m`; }
+// Time on the ground between two legs. Both clocks belong to the SAME
+// connecting airport, so they compare directly. Live revised times win
+// when we have them, which is what turns a delay into "no time to
+// connect". A leg that lands after midnight (landing clock earlier than
+// its departure clock) already spent a day, so that day isn't counted
+// twice; a gap that still comes out impossibly negative is read as the
+// next leg being after midnight on the same tour date.
+function _layoverInfo(a, b) {
+  const toMin = v => { const m = /^(\d{1,2}):(\d{2})/.exec(v || ''); return m ? +m[1] * 60 + +m[2] : null; };
+  const liveA = _flightLiveFor(a.item, a.date.date), liveB = _flightLiveFor(b.item, b.date.date);
+  const arrStr = (liveA && (liveA.leg.arrival.revisedTime || liveA.leg.arrival.time)) || a.item.arriveTime || '';
+  const depStr = (liveB && (liveB.leg.departure.revisedTime || liveB.leg.departure.time)) || b.item.time || '';
+  const where = _cityOnly(b.item.fromCity) || _cityOnly(a.item.toCity) || (liveA && liveA.leg.arrival.city) || '';
+  const arr = toMin(arrStr), dep = toMin(depStr);
+  if (arr == null || dep == null) return { mins: null, tone: '', where, text: where ? `Connects in ${where}` : 'Connecting flight' };
+  const dayGap = Math.round((Date.parse((b.date.date || '') + 'T12:00:00Z') - Date.parse((a.date.date || '') + 'T12:00:00Z')) / 864e5) || 0;
+  const landedNextDay = toMin(a.item.time) != null && arr < toMin(a.item.time) ? 1 : 0;
+  let mins = dep - arr + (dayGap - landedNextDay) * 1440;
+  if (mins <= -720) mins += 1440;
+  const tone = mins <= 0 ? 'bad' : mins < 45 ? 'warn' : '';
+  const text = mins <= 0
+    ? `No time to connect${where ? ' in ' + where : ''} — lands ${_fmt12Safe(arrStr)}, next leaves ${_fmt12Safe(depStr)}`
+    : `${_fmtDur(mins)}${where ? ' in ' + where : ''} between flights`;
+  return { mins, tone, where, text };
+}
+// One short line for a leg, used on every screen: "Leg 1 of 2 · 1h 45m in Chicago, then DL 2200".
+function _legSummary(t) {
+  const info = _legInfo(t);
+  if (!info) return null;
+  const cur = info.legs[info.index];
+  let text = '', tone = '';
+  if (info.next) {
+    const lay = _layoverInfo(cur, info.next);
+    tone = lay.tone;
+    if (lay.mins == null || lay.mins <= 0) text = lay.text;
+    else {
+      text = `${_fmtDur(lay.mins)}${lay.where ? ' in ' + lay.where : ''}`;
+      if (info.next.item.flightNumber) text += `, then ${info.next.item.flightNumber}`;
+    }
+  } else if (info.prev) {
+    text = info.prev.item.flightNumber ? `Connects from ${info.prev.item.flightNumber}` : 'Connecting flight';
+  }
+  return { label: info.label, text, tone, info };
+}
+// A new leg inherits who's travelling and the booking reference, and
+// starts where the previous leg lands.
+function _legSeed(prev) {
+  return { type: 'flight', description: '', time: '', arriveTime: '', allDay: false,
+    conf: prev.conf || '', person: prev.person || '', notes: '',
+    groups: [...(prev.groups || [])], individuals: [...(prev.individuals || [])],
+    flightNumber: '', fromCity: prev.toCity || '', toCity: '', tripId: prev.tripId };
+}
+// Open a blank form for the next leg after a saved flight.
+function _tvAddLegAfter(dateId, itemId) {
+  const d = (T().dates || []).find(x => x.id === dateId);
+  const t = d && (d.travel || []).find(x => x.id === itemId);
+  if (!t) { toast('Save this flight first, then add the connection', 'error'); return; }
+  if (!t.tripId) { t.tripId = uid('trip'); saveState(); }
+  const legs = _tripLegs(t.tripId);
+  const last = legs.length ? legs[legs.length - 1] : { item: t, date: d };
+  openTravelModal(null, { seed: _legSeed(last.item), dayId: last.date.id, legNumber: Math.max(legs.length, 1) + 1 });
+}
+// The button inside the travel form: save what's on screen, then open the next leg.
+function _tvAddLeg() { _tvWantLeg = true; _modalSubmit(); }
+// Jump from the form to another leg of the same journey.
+function _tvOpenLeg(dateId, itemId) {
+  closeModal();
+  const ad = getActiveDate();
+  if (!ad || ad.id !== dateId) setActive(dateId);
+  setTimeout(() => openTravelModal(itemId), 60);
+}
+// Flights already on the tour that look like part of this journey: same
+// confirmation number, within a day either side, not already linked.
+// Imported itineraries land this way — one row per leg, one booking ref.
+function _tvLinkCandidates(item) {
+  const conf = String((item && item.conf) || '').trim().toUpperCase();
+  if (!conf || !item) return [];
+  const day = ((T().dates || []).find(d => (d.travel || []).some(x => x.id === item.id)) || {}).date || '';
+  const out = [];
+  (T().dates || []).forEach(d => (d.travel || []).forEach(t => {
+    if (t.id === item.id || t.type !== 'flight') return;
+    if (String(t.conf || '').trim().toUpperCase() !== conf) return;
+    if (t.tripId && item.tripId && t.tripId === item.tripId) return;
+    if (t.tripId && !item.tripId) return;            // already part of another journey
+    const gap = day && d.date ? Math.abs(Date.parse(d.date + 'T12:00:00Z') - Date.parse(day + 'T12:00:00Z')) / 864e5 : 0;
+    if (gap <= 1) out.push({ item: t, date: d });
+  }));
+  return out.sort((a, b) => (a.date.date || '').localeCompare(b.date.date || '') || (a.item.time || '').localeCompare(b.item.time || ''));
+}
+function _tvLinkLeg(dateId, itemId) {
+  const ctx = _tvModalCtx;
+  const d = (T().dates || []).find(x => x.id === dateId);
+  const other = d && (d.travel || []).find(x => x.id === itemId);
+  if (!ctx || !ctx.item || !other) return;
+  if (!ctx.item.tripId) ctx.item.tripId = uid('trip');
+  other.tripId = ctx.item.tripId;
+  saveState();
+  _tvRefreshTripPanel();
+  toast(`Linked ${other.flightNumber || 'flight'} into this journey`, 'good');
+}
+function _tvUnlinkLeg(dateId, itemId) {
+  const d = (T().dates || []).find(x => x.id === dateId);
+  const t = d && (d.travel || []).find(x => x.id === itemId);
+  if (!t) return;
+  const was = t.tripId;
+  t.tripId = '';
+  // A journey needs two legs; the last one left goes back to a plain flight.
+  const left = _tripLegs(was);
+  if (left.length === 1) left[0].item.tripId = '';
+  saveState();
+  _tvRefreshTripPanel();
+  toast(`${t.flightNumber || 'Flight'} is no longer part of the journey`, 'good');
+}
+function _tvRefreshTripPanel() {
+  const row = document.getElementById('tv_trip_row');
+  const ctx = _tvModalCtx;
+  if (row && ctx) row.innerHTML = _tvTripPanelHTML(ctx.item || ctx.i, ctx.item, ctx.ad);
+}
+function _tvTripPanelHTML(i, item, ad) {
+  const legs = _tripLegs(i.tripId);
+  const rows = legs.map((l, n) => {
+    const cur = item && l.item.id === item.id;
+    const lay = n < legs.length - 1 ? _layoverInfo(l, legs[n + 1]) : null;
+    const route = [_cityOnly(l.item.fromCity), _cityOnly(l.item.toCity)].filter(Boolean).join(' → ');
+    return `
+      <div class="tv-leg-row${cur ? ' cur' : ''}">
+        <span class="tv-leg-n">${n + 1}</span>
+        <span class="tv-leg-main"><b>${esc(l.item.flightNumber || 'Flight')}</b>${esc(route)}</span>
+        <span class="tv-leg-t">${esc(l.item.time ? _fmt12Safe(l.item.time) : '—')}${l.date.id !== ad.id ? ' · ' + esc(fmtMD(l.date.date)) : ''}</span>
+        ${cur ? '<span class="tv-leg-here">editing</span>'
+          : `<button type="button" class="tv-leg-edit" onclick="_tvOpenLeg('${esc(l.date.id)}','${esc(l.item.id)}')">Open</button>`}
+        <button type="button" class="tv-leg-edit tv-leg-unlink" title="Remove this flight from the journey" onclick="_tvUnlinkLeg('${esc(l.date.id)}','${esc(l.item.id)}')">Unlink</button>
+      </div>
+      ${lay ? `<div class="tv-leg-lay ${lay.tone}">${esc(lay.text)}</div>` : ''}`;
+  }).join('');
+  const cands = item ? _tvLinkCandidates(item) : [];
+  return `
+    <label>Connecting flights <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(layovers)</span></label>
+    ${rows ? `<div class="tv-legs">${rows}</div>` : ''}
+    ${cands.length ? `
+      <div class="tv-leg-sugg">
+        <span class="tv-leg-sugg-k">Same confirmation #</span>
+        ${cands.map(c => `<button type="button" class="tv-leg-edit" onclick="_tvLinkLeg('${esc(c.date.id)}','${esc(c.item.id)}')">Link ${esc(c.item.flightNumber || 'flight')}${c.item.time ? ' · ' + esc(_fmt12Safe(c.item.time)) : ''}</button>`).join('')}
+      </div>` : ''}
+    <div class="tv-leg-actions">
+      <button type="button" class="add-btn" onclick="_tvAddLeg()">+ Add connecting flight</button>
+      <span class="muted mono tv-leg-hint">Saves this flight, then opens the next leg with the same passengers and confirmation #.</span>
+    </div>`;
+}
+
+function openTravelModal(itemId, opts) {
   const ad = getActiveDate();
   if (!ad) return;
+  opts = opts || {};
   const item = itemId ? ad.travel.find(i => i.id === itemId) : null;
-  const i = item || { type: 'bus', description: '', time: '', arriveTime: '', conf: '', person: '', notes: '', allDay: false, groups: ['All'], individuals: [], flightNumber: '', fromCity: '', toCity: '' };
+  const seed = !item && opts.seed ? opts.seed : null;
+  const i = item || seed || { type: 'bus', description: '', time: '', arriveTime: '', conf: '', person: '', notes: '', allDay: false, groups: ['All'], individuals: [], flightNumber: '', fromCity: '', toCity: '' };
   const isFlight = i.type === 'flight';
   // Pre-seed free-text passenger chips from the legacy `person` field.
   const seedPax = (i.person || '').split(/[,;]/).map(s => s.trim()).filter(s => s && !/^all$/i.test(s));
   openModal({
-    title: item ? 'Edit travel' : 'Add travel item',
+    title: item ? 'Edit travel' : (seed ? `Add connecting flight · leg ${opts.legNumber || 2}` : 'Add travel item'),
     size: 'lg',
     showDelete: !!item,
     onDelete: item ? () => { ad.travel = ad.travel.filter(x => x.id !== item.id); saveState(); } : null,
@@ -10151,6 +10403,12 @@ function openTravelModal(itemId) {
             <option value="train" ${i.type==='train'?'selected':''}>Train</option>
           </select>
         </div>
+        ${seed ? `
+        <div class="field"><label>Day</label>
+          <select id="tv_day">
+            ${(T().dates || []).map(d => `<option value="${d.id}" ${d.id === (opts.dayId || ad.id) ? 'selected' : ''}>${esc(fmtMD(d.date))} · ${esc(dow(d.date))}${d.city ? ' · ' + esc(d.city) : ''}</option>`).join('')}
+          </select>
+        </div>` : ''}
         <div class="field" data-flight-only ${isFlight ? '' : 'hidden'}>
           <label>Flight # <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional)</span></label>
           <div class="tv-flight-row">
@@ -10185,6 +10443,7 @@ function openTravelModal(itemId) {
           <input id="tv_desc" value="${esc(i.description)}" placeholder="e.g. Sleeper bus → Chicago">
         </div>
         <div class="field"><label id="tv_conf_lbl">Conf # ${isFlight ? '*' : ''}</label><input id="tv_conf" value="${esc(i.conf)}"></div>
+        <div class="field full" data-flight-only ${isFlight ? '' : 'hidden'} id="tv_trip_row">${_tvTripPanelHTML(i, item, ad)}</div>
 
         <div class="field full">
           <label><span id="tv_pax_lbl">${isFlight ? 'Passengers' : '+ Specific individuals'}</span> <span id="tv_pax_req" class="mono" style="color:var(--hi);${isFlight ? '' : 'display:none'}">*</span>
@@ -10214,6 +10473,7 @@ function openTravelModal(itemId) {
       </div>
     `,
     onSubmit: () => {
+      const wantLeg = _tvWantLeg; _tvWantLeg = false;
       const type = $('#tv_type').value;
       const isFlt = type === 'flight';
       const description = $('#tv_desc').value.trim();
@@ -10244,21 +10504,35 @@ function openTravelModal(itemId) {
         type, description, time, arriveTime, allDay,
         person: paxChips.join(', '), conf, notes: $('#tv_notes').value.trim(),
         groups, individuals, flightNumber, fromCity, toCity,
+        // A journey link only means something on a flight.
+        tripId: isFlt ? (i.tripId || '') : '',
       };
       // Clear the audience-needed flag once anyone is assigned (group, roster
       // individual, or free-text passenger).
       if (groups.length || individuals.length || paxChips.length) data._audienceNeeded = false;
-      if (item) Object.assign(item, data);
-      else ad.travel.push({ id: uid('tv'), ...data });
+      // A connecting leg can land on a different tour day than the one
+      // being edited, so it goes to the day picked in the form.
+      const daySel = document.getElementById('tv_day');
+      const target = (daySel && (T().dates || []).find(d => d.id === daySel.value)) || ad;
+      if (!target.travel) target.travel = [];
+      let saved;
+      if (item) { Object.assign(item, data); saved = item; }
+      else { saved = { id: uid('tv'), ...data }; target.travel.push(saved); }
       // All-day items sort first, then by time
-      ad.travel.sort((a, b) => {
+      target.travel.sort((a, b) => {
         if (a.allDay && !b.allDay) return -1;
         if (b.allDay && !a.allDay) return 1;
         return (a.time || 'zz').localeCompare(b.time || 'zz');
       });
       saveState();
+      if (wantLeg && saved.type === 'flight') {
+        if (!saved.tripId) { saved.tripId = uid('trip'); saveState(); }
+        const sid = saved.id, did = target.id;
+        setTimeout(() => _tvAddLegAfter(did, sid), 70);
+      }
     }
   });
+  _tvModalCtx = { i, item, ad };
   // New items start with an auto-written description; editing an existing item
   // preserves whatever was saved (manual), with the toggle to regenerate.
   _tvDescAuto = !item;
@@ -14737,7 +15011,8 @@ function _mergedDaySchedule(ad) {
   const travelLabel = (t) => {
     const type = ({ bus:'BUS', flight:'FLIGHT', van:'VAN', car:'CAR', train:'TRAIN' })[t.type] || (t.type || 'TRAVEL').toUpperCase();
     const code = t.flightNumber ? ' · ' + t.flightNumber : (t.conf ? ' · ' + t.conf : '');
-    return `${type}${code}${t.description ? ' · ' + t.description : ''}`;
+    const li = _legInfo(t);
+    return `${type}${code}${t.description ? ' · ' + t.description : ''}${li ? ` · LEG ${li.number}/${li.count}` : ''}`;
   };
   const travelRows = (ad.travel || []).map(t => {
     // Propagate the audience-needed flag onto the virtual schedule
@@ -14959,6 +15234,8 @@ function renderTravel() {
           // Free-text passengers (crew typed in but not on the roster yet).
           const freeNames = (t.person || '').split(/[,;]/).map(s => s.trim()).filter(s => s && !/^all$/i.test(s));
           const audienceNeeded = !!t._audienceNeeded || (((t.type || '').toLowerCase() === 'flight') && !grps.length && !indivs.length && !freeNames.length);
+          const legSum = t.type === 'flight' ? _legSummary(t) : null;
+          const legKick = legSum ? `<span class="leg-kick ${legSum.tone}">${esc(legSum.label)}${legSum.text ? ' · ' + esc(legSum.text) : ''}</span>` : '';
           let sharedHtml;
           if (audienceNeeded) {
             sharedHtml = `<div class="travel-share"><span class="viz-chip warn-chip" title="Needs audience — pick who's on this flight">! NEEDS AUDIENCE</span></div>`;
@@ -14968,12 +15245,12 @@ function renderTravel() {
             sharedHtml = `<div class="travel-share muted-share">Visible to all — set audience in Edit</div>`;
           }
           return `
-          <div class="item-row${audienceNeeded ? ' travel-needs-audience' : ''}" style="grid-template-columns:60px 80px 1fr 110px 80px;align-items:flex-start">
+          <div class="item-row${audienceNeeded ? ' travel-needs-audience' : ''}" style="grid-template-columns:60px 80px 1fr 110px 132px;align-items:flex-start">
             <span class="who" style="color:var(--hi);padding-top:6px">${esc(TRAVEL_BADGE[t.type] || t.type.toUpperCase())}</span>
             <span class="t" style="padding-top:6px">${t.allDay ? 'ALL DAY' : esc(t.time || '—')}${t.type === 'flight' && t.arriveTime ? `<span style="display:block;color:var(--warm-mute);font-weight:400;font-size:10px">↓ ${esc(t.arriveTime)}</span>` : ''}</span>
-            <span class="what" style="padding-top:6px">${esc(t.description)}${t.notes ? `<span class="note">${esc(t.notes)}</span>` : ''}${sharedHtml}</span>
+            <span class="what" style="padding-top:6px">${esc(t.description)}${t.notes ? `<span class="note">${esc(t.notes)}</span>` : ''}${legKick}${sharedHtml}</span>
             <span class="who" style="color:var(--warm-mute);padding-top:6px">${esc(t.conf || '')}</span>
-            <div class="tbl-actions" style="padding-top:6px"><button type="button" onclick="openTravelModal('${t.id}')">Edit</button></div>
+            <div class="tbl-actions" style="padding-top:6px"><button type="button" onclick="openTravelModal('${t.id}')">Edit</button>${t.type === 'flight' ? `<button type="button" title="Add a connecting flight (layover)" onclick="_tvAddLegAfter('${ad.id}','${t.id}')">+ Leg</button>` : ''}</div>
           </div>`;
         }).join('')}
       </div>
@@ -24100,7 +24377,12 @@ function _phoneShowDayTravel(dateId) {
                 <button type="button" class="ph-travel-row" onclick="closeModal();setTimeout(()=>_phoneShowTravel('${esc(t.id)}','${esc(d.id)}'),50)">
                   <span class="ptr-type">${esc(typeLabel)}</span>
                   <span class="ptr-time">${t.allDay ? 'ALL' : esc(t.time || '—')}</span>
-                  <span class="ptr-desc">${esc(t.description || '—')}${(() => { const lv = t.type === 'flight' && _flightLiveFor(t, d.date); return lv ? `<span class="ptr-live phf-status ${lv.info.tone}">${esc(lv.info.label)}</span>` : ''; })()}</span>
+                  <span class="ptr-desc">${esc(t.description || '—')}${(() => {
+                    const li = t.type === 'flight' ? _legInfo(t) : null;
+                    const lv = t.type === 'flight' ? _flightLiveFor(t, d.date) : null;
+                    const bits = [li ? `Leg ${li.number}/${li.count}` : '', lv ? lv.info.label : ''].filter(Boolean);
+                    return bits.length ? `<span class="ptr-live ${lv ? 'phf-status ' + lv.info.tone : ''}">${esc(bits.join(' · '))}</span>` : '';
+                  })()}</span>
                   ${codeLabel ? `<span class="ptr-code">${esc(codeLabel)}</span>` : ''}
                   <span class="ptr-chev">›</span>
                 </button>
@@ -24143,7 +24425,7 @@ function _phoneShowTravel(itemId, dateId) {
     hideFooter: true,
     body: `
       <div style="display:flex;flex-direction:column;gap:0">
-        ${t.type === 'flight' ? _flightLiveSheetHTML(t, ad) : ''}
+        ${t.type === 'flight' ? _flightLiveSheetHTML(t, ad) + _flightTripSheetHTML(t, ad) : ''}
         ${t.description ? detailRow('Description', t.description) : ''}
         ${t.flightNumber ? detailRow('Flight number', t.flightNumber, true, 'var(--hi)') : ''}
         ${t.conf ? detailRow('Confirmation #', t.conf, true) : ''}
@@ -25161,7 +25443,7 @@ function renderTourBook(opts) {
             ${d.travel.map(t => `
               <div class="tb-sched-row">
                 <span class="tb-t">${t.allDay ? 'ALL DAY' : esc(t.time || '—')}</span>
-                <span class="tb-w">${esc(t.description)}${t.person ? ` · ${esc(t.person)}` : ''}</span>
+                <span class="tb-w">${esc(t.description)}${t.person ? ` · ${esc(t.person)}` : ''}${(() => { const li = _legInfo(t); return li ? ` · Leg ${li.number}/${li.count}` : ''; })()}</span>
                 <span class="tb-grp">${esc(t.conf || (t.type || '').toUpperCase())}</span>
               </div>
             `).join('')}
