@@ -357,9 +357,26 @@ input,select,textarea{font:inherit;color:inherit;
   border-bottom:1px solid var(--line);overflow:hidden}
 .tape-strip::before{content:"";position:absolute;inset:0;pointer-events:none;
   background:radial-gradient(ellipse 600px 34px at 50% 100%,rgba(232,148,58,.16),transparent 60%)}
-.tape-strip .label{display:flex;align-items:center;gap:12px;height:100%;padding:0 22px;
+.tape-strip .label{display:block;height:100%;padding:0;overflow:hidden;
   font-family:'Bricolage Grotesque',monospace;font-weight:600;font-size:10px;line-height:1;color:var(--hi);
-  letter-spacing:.22em;text-transform:uppercase;position:relative;z-index:1;overflow-x:auto;white-space:nowrap}
+  letter-spacing:.22em;text-transform:uppercase;position:relative;z-index:1;white-space:nowrap;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 26px,#000 calc(100% - 26px),transparent 100%);
+          mask-image:linear-gradient(90deg,transparent 0,#000 26px,#000 calc(100% - 26px),transparent 100%)}
+/* Ticker crawl. The line is repeated end to end and the whole track slides
+   left by exactly one repeat, so the moment a copy leaves the left edge the
+   next one has already taken its place — the loop has no seam and no gap.
+   Copy count and duration are measured per render (see _tapeCrawlSetup) so
+   the speed stays constant whatever the day's text says. */
+.tape-strip .tape-track{display:flex;align-items:center;gap:52px;height:100%;width:max-content;
+  will-change:transform;animation:tape-crawl var(--tape-dur,40s) linear infinite}
+.tape-strip .tape-run{display:flex;align-items:center;gap:12px;flex:none}
+@keyframes tape-crawl{from{transform:translate3d(0,0,0)}to{transform:translate3d(var(--tape-shift,0px),0,0)}}
+.tape-strip:hover .tape-track{animation-play-state:paused}
+@media (prefers-reduced-motion: reduce){
+  .tape-strip .label{-webkit-mask-image:none;mask-image:none;padding:0 22px}
+  .tape-strip .tape-track{animation:none;width:100%;justify-content:center}
+  .tape-strip .tape-run.copy{display:none}
+}
 .tape-strip .label .dot{width:4px;height:4px;background:var(--hi);border-radius:50%;display:inline-block;box-shadow:0 0 8px var(--hi);flex:none}
 .tape-strip .label .sep{color:var(--line-2);margin:0 4px}
 
@@ -575,10 +592,32 @@ input,select,textarea{font:inherit;color:inherit;
 .console-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line);
   background:linear-gradient(180deg,rgba(232,148,58,.04),transparent);position:relative}
 .console-head::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,var(--line-glow),transparent)}
-.console-head .title{display:flex;align-items:center;gap:10px;font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--warm-mute)}
+.console-head .title{display:flex;align-items:center;gap:10px;flex:none;font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--warm-mute)}
 .console-head .title .live{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px rgba(109,207,139,.18),0 0 10px rgba(109,207,139,.5)}
 .console-head .title b{color:var(--warm);font-weight:600}
-.console-head .actions{display:flex;gap:6px;flex-wrap:wrap}
+/* Date-review status, sitting between the date title and the buttons. */
+.console-head .ch-status{display:flex;align-items:center;gap:11px;min-width:0;max-width:46%;flex:0 1 auto;margin:0 auto;
+  font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:700;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--warm-mute);white-space:nowrap}
+.ch-status:empty{display:none}
+.ch-status .chs-dot{width:6px;height:6px;border-radius:50%;flex:none;background:var(--good);box-shadow:0 0 9px rgba(109,207,139,.55)}
+.ch-status.warn .chs-dot{background:#fdba74;box-shadow:0 0 9px rgba(253,186,116,.55)}
+.ch-status.info .chs-dot{background:#8aa9d8;box-shadow:0 0 9px rgba(138,169,216,.5)}
+.ch-status .chs-t{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.ch-status .chs-t em{font-style:normal;color:var(--warm);margin-left:9px;padding-left:10px;border-left:1px solid var(--line-2)}
+.ch-status.warn .chs-t em{color:#fdba74}
+.ch-status.info .chs-t em{color:#b1c8ee}
+.ch-status .chs-act{flex:none;background:none;border:0;border-bottom:1px solid rgba(232,148,58,.35);padding:0 0 2px;cursor:pointer;
+  font-family:inherit;font-size:9.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--hi);
+  transition:border-color .15s,text-shadow .15s}
+.ch-status .chs-act:hover{border-bottom-color:var(--hi);text-shadow:0 0 10px rgba(232,148,58,.45)}
+@media (max-width:1340px){.ch-status .chs-t em{display:none}}
+@media (max-width:1140px){.ch-status .chs-t{display:none}}
+body.mobile .console-head{flex-wrap:wrap}
+body.mobile .console-head .ch-status{order:3;width:100%;margin:9px 0 0;justify-content:flex-start}
+body.mobile .ch-status .chs-t{display:block}
+body.mobile .ch-status .chs-t em{display:none}
+.console-head .actions{display:flex;gap:6px;flex-wrap:nowrap;flex:none}
 .console-head .actions .btn{padding:7px 12px;border:1px solid var(--line-2);border-radius:7px;
   background:linear-gradient(135deg,rgba(232,148,58,.06),rgba(232,148,58,.01));
   font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--warm-mute)}
@@ -5159,7 +5198,7 @@ setTimeout(window._hideAppBoot,6000);
 
     <div class="landing-wordmark">
       <img src="logo.png" class="brand-logo landing-wordmark-img" alt="Bandmate" />
-      <span class="lb-version">v0.7</span>
+      <span class="lb-version">v1.0</span>
     </div>
   </div>
 </div>
@@ -5461,7 +5500,7 @@ setTimeout(window._hideAppBoot,6000);
       <div class="laminate">
         <div class="brand">
           <span class="bm-shine-wrap"><img src="logo.png" class="brand-logo" alt="Bandmate" /><span class="bm-shine"></span></span>
-          <span class="tag">v0.7</span>
+          <span class="tag">v1.0</span>
         </div>
       </div>
       <div class="tools-dropdown" id="toolsDropdown">
@@ -5517,6 +5556,7 @@ setTimeout(window._hideAppBoot,6000);
     <section class="console">
       <div class="console-head">
         <div class="title"><span class="live"></span> <span id="consoleTitle">—</span></div>
+        <div class="ch-status" id="consoleStatus"></div>
         <div class="actions">
           <button type="button" class="btn" onclick="printDay()">Print Day</button>
           <button type="button" class="btn" onclick="openCrewModal()">Crew Roster</button>
@@ -14190,11 +14230,54 @@ function renderTopBar() {
   $('#tourPresenter').textContent = (T().meta.presenter || 'BANDMATE TOUR').toUpperCase();
 }
 
+// Speed of the ticker in pixels per second. Slow enough to read a word at a
+// glance, quick enough that the whole line comes round again.
+const TAPE_SPEED_PX_S = 34;
+let _tapeResizeT = null;
+// Repeat the line enough times to cover the bar plus one spare, then tell the
+// animation to travel exactly one repeat. Duration follows the width so the
+// text always moves at the same speed, whether the day line is short or long.
+function _tapeCrawlSetup() {
+  const stamp = document.getElementById('dayStamp');
+  const track = stamp && stamp.querySelector('.tape-track');
+  const first = track && track.querySelector('.tape-run');
+  if (!first) return;
+  track.querySelectorAll('.tape-run.copy').forEach(n => n.remove());
+  const gap = parseFloat(getComputedStyle(track).columnGap) || 0;
+  const runW = first.getBoundingClientRect().width;
+  const stripW = stamp.getBoundingClientRect().width;
+  // Hidden (phone/mobile layouts) or not laid out yet: nothing to measure.
+  if (!runW || !stripW) return;
+  const shift = runW + gap;
+  const copies = Math.max(1, Math.ceil(stripW / shift) + 1);
+  for (let i = 0; i < copies; i++) {
+    const c = first.cloneNode(true);
+    c.classList.add('copy');
+    c.setAttribute('aria-hidden', 'true');
+    track.appendChild(c);
+  }
+  track.style.setProperty('--tape-shift', `-${shift.toFixed(1)}px`);
+  track.style.setProperty('--tape-dur', `${(shift / TAPE_SPEED_PX_S).toFixed(2)}s`);
+}
+window.addEventListener('resize', () => {
+  clearTimeout(_tapeResizeT);
+  _tapeResizeT = setTimeout(_tapeCrawlSetup, 250);
+});
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { try { _tapeCrawlSetup(); } catch (e) {} });
+
 function renderDayStamp() {
   const ad = getActiveDate();
   const stamp = $('#dayStamp');
+  const paint = (runHTML) => {
+    // Rebuilding restarts the crawl mid-travel, and renderAll fires on every
+    // realtime echo — so the DOM is only touched when the words change.
+    if (stamp.dataset.sig === runHTML) return;
+    stamp.dataset.sig = runHTML;
+    stamp.innerHTML = `<div class="tape-track"><span class="tape-run">${runHTML}</span></div>`;
+    _tapeCrawlSetup();
+  };
   if (!ad) {
-    stamp.innerHTML = `<span class="dot"></span><span>NO DATES — START BY ADDING ONE</span>`;
+    paint(`<span class="dot"></span><span>NO DATES — START BY ADDING ONE</span>`);
     return;
   }
   const idx = T().dates.findIndex(d => d.id === ad.id);
@@ -14215,7 +14298,7 @@ function renderDayStamp() {
     `<span class="sep">·</span><span>${status}</span>`,
     ad.doors ? `<span class="sep">·</span><span>DOORS ${esc(ad.doors)}</span>` : ''
   ];
-  stamp.innerHTML = parts.join(' ');
+  paint(parts.filter(Boolean).join(' '));
 }
 
 function renderDayStrip() {
@@ -14307,8 +14390,48 @@ function renderDayStrip() {
 function renderConsoleHead() {
   const ad = getActiveDate();
   const t = $('#consoleTitle');
-  if (!ad) { t.textContent = 'No active date'; return; }
-  t.innerHTML = `<b>${esc(ad.city || 'New date')}</b> · ${fmtDate(ad.date)} · ${esc((ad.status || 'show').toUpperCase())}`;
+  if (ad) t.innerHTML = `<b>${esc(ad.city || 'New date')}</b> · ${fmtDate(ad.date)} · ${esc((ad.status || 'show').toUpperCase())}`;
+  else t.textContent = 'No active date';
+  renderConsoleStatus();
+}
+
+// The date-review notice. It used to be a full-width banner sitting on top of
+// the dashboard, which cost a whole row of vertical space on every screen;
+// it's one line in the console header now — same four states, same actions.
+function renderConsoleStatus() {
+  const el = document.getElementById('consoleStatus');
+  if (!el) return;
+  const ad = getActiveDate();
+  if (!ad) { el.className = 'ch-status'; el.innerHTML = ''; return; }
+  const gaps = calcLiveDateGaps(ad);
+  const onlyOr = gaps.length === 1 && gaps[0] === 'hotel or travel';
+  const others = T().dates.filter(x => x.id !== ad.id && calcLiveDateGaps(x).length > 0).length;
+  let kind = 'ok', text = '', detail = '', action = '', onclick = '', title = '';
+  if (onlyOr) {
+    kind = 'info';
+    text = 'Needs a hotel or a travel item';
+    title = 'Off days need either a hotel or a travel item logged — whichever applies.';
+    action = 'Edit date'; onclick = "openDateModal(getActiveDate()?.id)";
+  } else if (gaps.length) {
+    const hard = gaps.filter(g => g !== 'hotel or travel');
+    kind = 'warn';
+    text = `${hard.length} field${hard.length === 1 ? '' : 's'} need${hard.length === 1 ? 's' : ''} entry`;
+    detail = hard.join(', ') + (gaps.length !== hard.length ? ' · hotel or travel' : '');
+    title = `Missing on this date: ${detail}`;
+    action = 'Fix now'; onclick = "openDateModal(getActiveDate()?.id)";
+  } else if (others) {
+    text = 'Date complete';
+    detail = `${others} date${others === 1 ? '' : 's'} need${others === 1 ? 's' : ''} attention`;
+    title = 'Other dates on this tour still have gaps.';
+    action = 'Re-scan'; onclick = 'openTourScan()';
+  } else {
+    text = 'Tour complete';
+    title = 'Every date is fully populated.';
+    action = 'Re-scan'; onclick = 'openTourScan()';
+  }
+  el.className = 'ch-status ' + kind;
+  el.innerHTML = `<span class="chs-dot"></span><span class="chs-t" title="${esc(title)}">${esc(text)}${detail ? `<em>${esc(detail)}</em>` : ''}</span>`
+    + `<button type="button" class="chs-act" onclick="${onclick}">${esc(action)}</button>`;
 }
 
 
@@ -14530,44 +14653,6 @@ function renderDashboard() {
   const isMissing = (field) => liveGaps.includes(field);
   // "Or" gap: off-day needs either a hotel OR a travel item — render with the blue treatment
   const isOrGap = (field) => field === 'hotel or travel' && liveGaps.includes('hotel or travel');
-  const onlyOrGap = liveGaps.length === 1 && liveGaps[0] === 'hotel or travel';
-
-  // Live banner: either "needs work" or "complete + re-scan suggestion"
-  const datesWithGaps = T().dates.filter(x => calcLiveDateGaps(x).length > 0);
-  let reviewBanner = '';
-  if (onlyOrGap) {
-    reviewBanner = `
-      <div class="review-banner" style="background:linear-gradient(135deg,rgba(138,169,216,.12),rgba(138,169,216,.04));border-color:rgba(138,169,216,.4);color:#b1c8ee">
-        <span class="rb-icon" style="color:#8aa9d8;text-shadow:0 0 6px rgba(138,169,216,.7);font-family:'Bricolage Grotesque',monospace;font-weight:900">!</span>
-        <span>This off day needs <b>either</b> a hotel <b>or</b> a travel item logged. Pick whichever applies — staying in a city or moving overnight.</span>
-      </div>
-    `;
-  } else if (liveGaps.length) {
-    const hardGaps = liveGaps.filter(g => g !== 'hotel or travel');
-    const orPart = liveGaps.includes('hotel or travel') ? ' · also: hotel or travel (either)' : '';
-    reviewBanner = `
-      <div class="review-banner">
-        <span class="rb-icon">⚠</span>
-        <span><b>${hardGaps.length}</b> field${hardGaps.length===1?'':'s'} on this date need${hardGaps.length===1?'s':''} entry: <span style="color:#fdba74">${hardGaps.join(', ')}</span><span style="color:#b1c8ee">${orPart}</span></span>
-      </div>
-    `;
-  } else if (datesWithGaps.length === 0) {
-    // Whole tour is clean
-    reviewBanner = `
-      <div class="rescan-nudge">
-        <span>✓ All dates fully populated — re-scan to confirm tour status.</span>
-        <button type="button" onclick="openTourScan()">↻ Re-scan tour</button>
-      </div>
-    `;
-  } else {
-    // This date is clean but other dates still have gaps — nudge to re-scan
-    reviewBanner = `
-      <div class="rescan-nudge">
-        <span>✓ This date is complete. <b>${datesWithGaps.length}</b> other date${datesWithGaps.length===1?'':'s'} still need${datesWithGaps.length===1?'s':''} attention.</span>
-        <button type="button" onclick="openTourScan()">↻ Re-scan tour</button>
-      </div>
-    `;
-  }
 
   // Day-of-tour progress (1-indexed)
   const dayIdx = T().dates.findIndex(d => d.id === ad.id) + 1;
@@ -14774,7 +14859,6 @@ function renderDashboard() {
     advHasContent ? 1 : 2,                                     // Day notes
   ]);
   root.innerHTML = `
-    ${reviewBanner}
     <div class="bm-dash">
       <div class="bm-dash-head">
         <div class="h-left">
@@ -27851,7 +27935,7 @@ function _renderAdminConsole() {
     </div>
 
     <div class="admin-foot">
-      <span class="afoot-version">BANDMATE · v0.7 · OWNER CONSOLE</span>
+      <span class="afoot-version">BANDMATE · v1.0 · OWNER CONSOLE</span>
       <span class="afoot-info">This page is intentionally unlinked from the public site. Bookmark <code>${esc(window.location.origin)}/admin</code> to return.</span>
     </div>
   `;
