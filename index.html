@@ -597,14 +597,23 @@ input,select,textarea{font:inherit;color:inherit;
 .console-head .title b{color:var(--warm);font-weight:600}
 /* Date-review status, sitting between the date title and the buttons. */
 .console-head .ch-status{display:flex;align-items:center;gap:11px;min-width:0;max-width:46%;flex:0 1 auto;margin:0 auto;
+  padding:6px 13px;border:1px solid rgba(109,207,139,.34);border-radius:7px;
+  background:linear-gradient(180deg,rgba(109,207,139,.10),rgba(109,207,139,.025));
+  box-shadow:0 0 16px rgba(109,207,139,.09),inset 0 1px 0 rgba(255,255,255,.04);
   font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:700;letter-spacing:.18em;
-  text-transform:uppercase;color:var(--warm-mute);white-space:nowrap}
+  text-transform:uppercase;color:rgba(159,216,176,.85);white-space:nowrap}
+.console-head .ch-status.warn{border-color:rgba(253,186,116,.42);color:rgba(253,186,116,.85);
+  background:linear-gradient(180deg,rgba(253,186,116,.11),rgba(253,186,116,.03));
+  box-shadow:0 0 16px rgba(253,186,116,.10),inset 0 1px 0 rgba(255,255,255,.04)}
+.console-head .ch-status.info{border-color:rgba(138,169,216,.42);color:rgba(177,200,238,.85);
+  background:linear-gradient(180deg,rgba(138,169,216,.11),rgba(138,169,216,.03));
+  box-shadow:0 0 16px rgba(138,169,216,.10),inset 0 1px 0 rgba(255,255,255,.04)}
 .ch-status:empty{display:none}
 .ch-status .chs-dot{width:6px;height:6px;border-radius:50%;flex:none;background:var(--good);box-shadow:0 0 9px rgba(109,207,139,.55)}
 .ch-status.warn .chs-dot{background:#fdba74;box-shadow:0 0 9px rgba(253,186,116,.55)}
 .ch-status.info .chs-dot{background:#8aa9d8;box-shadow:0 0 9px rgba(138,169,216,.5)}
 .ch-status .chs-t{min-width:0;overflow:hidden;text-overflow:ellipsis}
-.ch-status .chs-t em{font-style:normal;color:var(--warm);margin-left:9px;padding-left:10px;border-left:1px solid var(--line-2)}
+.ch-status .chs-t em{font-style:normal;color:var(--warm);margin-left:9px;padding-left:10px;border-left:1px solid currentColor;border-left-color:rgba(245,233,214,.22)}
 .ch-status.warn .chs-t em{color:#fdba74}
 .ch-status.info .chs-t em{color:#b1c8ee}
 .ch-status .chs-act{flex:none;background:none;border:0;border-bottom:1px solid rgba(232,148,58,.35);padding:0 0 2px;cursor:pointer;
