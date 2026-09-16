@@ -1656,10 +1656,10 @@ body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app):n
 .tel-sheet button{display:block;width:100%;padding:14px;margin-top:8px;background:rgba(232,148,58,.08);border:1px solid rgba(232,148,58,.22);border-radius:10px;color:var(--warm);font-family:'Bricolage Grotesque',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;cursor:pointer}
 .tel-sheet button.primary{background:linear-gradient(135deg,#e8943a,#f5b35e);color:#0a0705;border-color:transparent}
 .tel-sheet button.quiet{background:transparent;border-color:transparent;color:var(--warm-mute)}
-.p-row{display:grid;grid-template-columns:54px 1fr auto;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px solid rgba(232,148,58,.08);position:relative;z-index:1}
+.p-row{display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px solid rgba(232,148,58,.08);position:relative;z-index:1}
 .p-card.hi .p-row:last-child{border-bottom:0}
 .p-row .t{font-family:'Bricolage Grotesque',monospace;font-weight:700;font-size:12px;color:var(--hi)}
-.p-row .lbl{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--warm-mute)}
+.p-row .lbl{justify-self:end;text-align:right;max-width:124px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--warm-mute)}
 
 /* Phone travel row — tappable card listing each travel item with a
    small type pill (BUS/FLT/VAN/...), time, description, and on the
@@ -1667,7 +1667,7 @@ body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app):n
    it expands. Tapping opens _phoneShowTravel() which renders the
    full detail (notes, person, all fields). */
 .ph-travel-row{
-  display:grid;grid-template-columns:36px 44px 1fr auto auto;gap:10px;align-items:center;
+  display:grid;grid-template-columns:34px 62px minmax(0,1fr) auto auto;gap:9px;align-items:center;
   padding:10px 11px;background:rgba(232,148,58,.04);
   border:1px solid var(--line-2);border-radius:10px;
   text-align:left;font-family:inherit;color:inherit;cursor:pointer;width:100%;
@@ -9902,7 +9902,7 @@ function _phoneTravelItemHTML(t, viewer, viewerKey, onDate) {
         </div>
         ${live ? `<div class="phf-live"><span class="phf-status ${live.info.tone}">${esc(live.info.label)}</span>${gateBits ? `<span>${gateBits}</span>` : ''}<span class="phf-upd">${esc(_agoShort(live.fetchedAt))}</span></div>` : ''}
         ${legSum ? `<div class="phf-leg ${legSum.tone}">${esc(legSum.label)}${legSum.text ? ' · ' + esc(legSum.text) : ''}</div>` : ''}
-        ${t.description ? `<div class="phf-route">${esc(t.description)}</div>` : ''}
+        ${_travelShortDesc(t) ? `<div class="phf-route">${esc(_travelShortDesc(t))}</div>` : ''}
         <div class="phf-times">
           <span><span class="phf-k">DEP</span>${dep}</span>
           ${arrive ? `<span><span class="phf-k">ARR</span>${arrive}</span>` : ''}
@@ -10271,6 +10271,32 @@ function _legSummary(t) {
   }
   return { label: info.label, text, tone, info };
 }
+// "Los Angeles (LAX) → Chicago (ORD)" is too long for a phone row, so the
+// route shortens to airport codes when both ends have one, and to bare city
+// names otherwise.
+function _shortRoute(t) {
+  const f = t.fromCity || '', to = t.toCity || '';
+  if (!f || !to) return '';
+  const fc = _iataIn(f), tc = _iataIn(to);
+  return fc && tc ? `${fc}\u00a0→\u00a0${tc}` : `${_cityOnly(f)} → ${_cityOnly(to)}`;
+}
+// What to print for a travel item when the flight number is already shown
+// next to it. The auto-written description starts with the flight number and
+// repeats the route, so it collapses to the short route; wording the tour
+// manager typed themselves is kept as-is.
+function _travelShortDesc(t) {
+  const code = String(t.flightNumber || '').trim();
+  const desc = String(t.description || '').trim();
+  const bare = code && desc.toUpperCase().startsWith(code.toUpperCase())
+    ? desc.slice(code.length).replace(/^[\s·\-–—]+/, '') : desc;
+  const route = _shortRoute(t);
+  if (!route) return bare;
+  if (!bare) return route;
+  const plain = bare.replace(/\s*\([A-Z]{3}\)/g, '').toLowerCase();
+  const fromN = _cityOnly(t.fromCity).toLowerCase(), toN = _cityOnly(t.toCity).toLowerCase();
+  const justTheRoute = !!(fromN && toN && plain.includes(fromN) && plain.includes(toN));
+  return justTheRoute ? route : bare;
+}
 // A new leg inherits who's travelling and the booking reference, and
 // starts where the previous leg lands.
 function _legSeed(prev) {
@@ -10607,6 +10633,9 @@ function toggleAllDay(timeInputId, btnId) {
 //   4. Empty
 function _scheduleItemDisplayLabel(s) {
   if (!s) return '';
+  // Two names plus a count: a four-name passenger list used to wrap onto four
+  // lines and squeeze the item itself into a single-word column.
+  const cap = names => names.length <= 2 ? names.join(' · ') : `${names[0]} +${names.length - 1}`;
   const indivs = s.individuals || [];
   if (indivs.length) {
     const crew = T().crew || [];
@@ -10614,14 +10643,15 @@ function _scheduleItemDisplayLabel(s) {
       const c = crew.find(x => x.id === id);
       return c ? (c.name || '').split(' ')[0] : '';
     }).filter(Boolean);
-    if (names.length) {
-      if (names.length <= 3) return names.join(' · ');
-      return `${names.slice(0, 3).join(' · ')} · +${names.length - 3}`;
-    }
+    if (names.length) return cap(names);
   }
   const groups = (s.groups || []).filter(g => g && g !== 'All');
   if (groups.length) return groups.map(g => g.toUpperCase()).join(' · ');
-  if (s.who) return s.who;
+  // Free-text passengers ("Tommy, Jamie, Mike, Sage") — first names, same cap.
+  if (s.who) {
+    const names = String(s.who).split(/[,;]/).map(x => x.trim().split(' ')[0]).filter(Boolean);
+    if (names.length) return cap(names);
+  }
   return '';
 }
 
@@ -15010,9 +15040,12 @@ function _mergedDaySchedule(ad) {
   const sched = (ad.schedule || []).slice();
   const travelLabel = (t) => {
     const type = ({ bus:'BUS', flight:'FLIGHT', van:'VAN', car:'CAR', train:'TRAIN' })[t.type] || (t.type || 'TRAVEL').toUpperCase();
-    const code = t.flightNumber ? ' · ' + t.flightNumber : (t.conf ? ' · ' + t.conf : '');
+    // A flight number introduces the row on its own, so it replaces the word
+    // FLIGHT rather than sitting next to it (and never appears twice).
+    const head = String(t.flightNumber || '').trim() || (t.type === 'flight' ? type : type);
+    const body = _travelShortDesc(t) || (t.conf ? t.conf : '');
     const li = _legInfo(t);
-    return `${type}${code}${t.description ? ' · ' + t.description : ''}${li ? ` · LEG ${li.number}/${li.count}` : ''}`;
+    return [head, body, li ? `LEG\u00a0${li.number}/${li.count}` : ''].filter(Boolean).join(' · ');
   };
   const travelRows = (ad.travel || []).map(t => {
     // Propagate the audience-needed flag onto the virtual schedule
@@ -24376,8 +24409,8 @@ function _phoneShowDayTravel(dateId) {
               return `
                 <button type="button" class="ph-travel-row" onclick="closeModal();setTimeout(()=>_phoneShowTravel('${esc(t.id)}','${esc(d.id)}'),50)">
                   <span class="ptr-type">${esc(typeLabel)}</span>
-                  <span class="ptr-time">${t.allDay ? 'ALL' : esc(t.time || '—')}</span>
-                  <span class="ptr-desc">${esc(t.description || '—')}${(() => {
+                  <span class="ptr-time">${t.allDay ? 'ALL' : esc(_fmt12Safe(t.time) || '—')}</span>
+                  <span class="ptr-desc">${esc(_travelShortDesc(t) || t.description || '—')}${(() => {
                     const li = t.type === 'flight' ? _legInfo(t) : null;
                     const lv = t.type === 'flight' ? _flightLiveFor(t, d.date) : null;
                     const bits = [li ? `Leg ${li.number}/${li.count}` : '', lv ? lv.info.label : ''].filter(Boolean);
