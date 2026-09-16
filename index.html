@@ -921,6 +921,15 @@ body.mobile .god-search{min-width:0;width:100%}
 .day-sheet .row .t{font-family:'Bricolage Grotesque',monospace;font-weight:700;font-size:13px;color:var(--hi);white-space:nowrap}
 .day-sheet .row .what{font-size:13px;font-weight:600;color:var(--warm);min-width:0;line-height:1.3;overflow-wrap:anywhere}
 .day-sheet .row .who{font-family:'Bricolage Grotesque',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;flex:none;max-width:80px;overflow:hidden;text-overflow:ellipsis}
+.p-row .t2{display:block;margin-top:2px;font-size:9px;font-weight:700;letter-spacing:.02em;color:var(--warm-mute);white-space:nowrap}
+.p-row .lbl.live-good{color:#7adc97}
+.p-row .lbl.live-warn{color:#fdba74}
+.p-row .lbl.live-bad{color:var(--red)}
+.p-row .lbl.live-air{color:#8aa9d8}
+.p-row .lbl.live-ok{color:var(--hi)}
+.p-row .lbl.live-muted{color:var(--warm-mute)}
+.ph-travel-row .ptr-arr{display:block;margin-top:2px;font-size:9px;font-weight:700;color:var(--warm-mute);white-space:nowrap}
+.day-sheet .row .pax,.p-row .pax{grid-column:2/-1;margin-top:3px;font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--warm-mute);line-height:1.6;overflow-wrap:anywhere}
 .day-sheet .meta{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 14px;padding-top:14px;border-top:1px solid rgba(232,148,58,.12)}
 .day-sheet .meta .m{display:flex;flex-direction:column;gap:3px}
 .day-sheet .meta .m .l{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm-mute)}
@@ -2559,7 +2568,10 @@ body.god-account #app[hidden]{display:block!important}
 .dm-tpl-meta{font-family:'Bricolage Grotesque',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.1em;text-transform:uppercase}
 .dm-tpl-empty{font-family:'Bricolage Grotesque',monospace;font-size:10.5px;color:var(--warm-mute);font-style:italic;line-height:1.5;letter-spacing:.04em}
 
-.travel-share{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.travel-share{margin-top:6px;display:block}
+.travel-share .ts-part{display:block;margin-top:3px;font-family:'Bricolage Grotesque',monospace;font-size:10.5px;letter-spacing:.06em;line-height:1.5;color:var(--warm-mute)}
+.travel-share .ts-k{margin-right:9px;font-size:8.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:rgba(232,148,58,.6)}
+.travel-share .ts-pax{color:var(--warm)}
 .travel-share.muted-share{color:var(--warm-mute);font-family:'Bricolage Grotesque',monospace;font-size:10px;
   letter-spacing:.06em;font-style:italic}
 /* Imported flights start with no audience and surface a bright warning
@@ -9657,6 +9669,17 @@ function _flightStatusInfo(leg) {
   }
   return { label, tone };
 }
+// Status wording for a narrow column. "Delayed 45 min" doesn't fit next to
+// an item on a phone; "Delayed 45m" does.
+function _shortStatus(label) {
+  return String(label || '')
+    .replace(/^In the air$/, 'In air')
+    .replace(/^Landing soon$/, 'Landing')
+    .replace(/^Check-in open$/, 'Check-in')
+    .replace(/^Possibly canceled$/, 'May cancel')
+    .replace(/^Delayed (\d+)h \d+m$/, 'Delayed $1h+')
+    .replace(/ min$/, 'm');
+}
 function _flightLiveFor(t, date) {
   const key = _flightLiveKey(t, date);
   const e = key && _flightLive[key];
@@ -10623,37 +10646,40 @@ function toggleAllDay(timeInputId, btnId) {
   if (on) t.value = '';
 }
 
-// Derive a display label for a schedule item now that the legacy
-// `who` free-text field has been removed. Order of preference:
-//   1. Specific individuals → first names joined "Devon · Lila"
-//      (capped at 3 to avoid the row blowing out; "+N" for the rest)
-//   2. Groups (excluding the all-encompassing "All") → uppercased
-//      "BAND · CREW"
-//   3. Legacy `who` value still on the item → use as-is
-//   4. Empty
-function _scheduleItemDisplayLabel(s) {
-  if (!s) return '';
-  // Two names plus a count: a four-name passenger list used to wrap onto four
-  // lines and squeeze the item itself into a single-word column.
-  const cap = names => names.length <= 2 ? names.join(' · ') : `${names[0]} +${names.length - 1}`;
+// Who a schedule item is for, split by KIND so each surface can place it
+// properly. A short group tag ("CREW") rides on the right of the row, but a
+// passenger list gets its own line underneath: names in a right-hand column
+// squeezed the item itself down to one word per line, and shortening them to
+// "Tommy +3" hid who was actually on the flight. Order of preference:
+//   1. Specific individuals → full names from the roster
+//   2. Groups, excluding the all-encompassing "All"
+//   3. Free-text names typed on the item ("Tommy, Jamie, Mike, Sage")
+function _scheduleAudience(s) {
+  // Anything longer than this can't sit beside the item without either
+  // being cut off or squeezing it onto a second line, so it moves below.
+  // Group tags ("CREW", "BAND · CREW") fit; people's names generally don't.
+  const FITS_BESIDE = 11;
+  const place = text => ({ kind: text.length > FITS_BESIDE ? 'list' : 'tag', text });
+  if (!s) return { kind: '', text: '' };
   const indivs = s.individuals || [];
   if (indivs.length) {
     const crew = T().crew || [];
     const names = indivs.map(id => {
       const c = crew.find(x => x.id === id);
-      return c ? (c.name || '').split(' ')[0] : '';
+      return c ? String(c.name || '').trim() : '';
     }).filter(Boolean);
-    if (names.length) return cap(names);
+    if (names.length) return place(names.join(' · '));
   }
   const groups = (s.groups || []).filter(g => g && g !== 'All');
-  if (groups.length) return groups.map(g => g.toUpperCase()).join(' · ');
-  // Free-text passengers ("Tommy, Jamie, Mike, Sage") — first names, same cap.
+  if (groups.length) return place(groups.map(g => g.toUpperCase()).join(' · '));
   if (s.who) {
-    const names = String(s.who).split(/[,;]/).map(x => x.trim().split(' ')[0]).filter(Boolean);
-    if (names.length) return cap(names);
+    const names = String(s.who).split(/[,;]/).map(x => x.trim()).filter(Boolean);
+    if (names.length) return place(names.join(' · '));
   }
-  return '';
+  return { kind: '', text: '' };
 }
+// Flat version for surfaces with a column wide enough for the whole thing.
+function _scheduleItemDisplayLabel(s) { return _scheduleAudience(s).text; }
 
 // All-day toggle for the schedule modal's structured 12-hour time
 // pickers. Disables/clears BOTH start (s_time) and end (s_end)
@@ -14423,7 +14449,9 @@ function renderDashboard() {
         <div class="row">
           <span class="t">${s.allDay ? 'ALL DAY' : esc(s.time)}</span>
           <span class="what">${esc(s.what)}</span>
-          <span class="who">${esc(_scheduleItemDisplayLabel(s))}</span>
+          ${(() => { const a = _scheduleAudience(s);
+            return a.kind === 'tag' ? `<span class="who">${esc(a.text)}</span>`
+              : a.kind === 'list' ? `<span class="pax">${esc(a.text)}</span>` : ''; })()}
         </div>
       `).join('')
     : `<div class="row"><span class="what muted" style="grid-column:1/-1">No schedule yet for this day. <a onclick="activeTab='schedule';bindTabs();$$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab==='schedule'));$$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel==='schedule'));renderSchedule()" style="color:var(--hi);cursor:pointer">Add an item →</a></span></div>`;
@@ -14565,7 +14593,7 @@ function renderDashboard() {
           <div class="time">${s.allDay ? 'ALL DAY' : esc(_scheduleTimeDisplay(s))}</div>
           <div>
             <div class="what">${esc(s.what)}</div>
-            ${s.who ? `<div class="who">${esc(s.who)}</div>` : ''}
+            ${(() => { const a = _scheduleAudience(s); return a.text ? `<div class="who">${esc(a.text)}</div>` : ''; })()}
           </div>
         </div>
       `).join('')
@@ -15070,6 +15098,11 @@ function _mergedDaySchedule(ad) {
       _fromTravel: true,
       _travelId: t.id,
       _travelType: t.type,
+      // Carried so a phone row can show the landing time and live status
+      // without looking the travel item up again.
+      _travelArrive: t.arriveTime || '',
+      _travelDate: ad.date || '',
+      _travelRef: t,
       _audienceNeeded: audienceNeeded,
     };
   });
@@ -15273,7 +15306,11 @@ function renderTravel() {
           if (audienceNeeded) {
             sharedHtml = `<div class="travel-share"><span class="viz-chip warn-chip" title="Needs audience — pick who's on this flight">! NEEDS AUDIENCE</span></div>`;
           } else if (grps.length || indivs.length || freeNames.length) {
-            sharedHtml = `<div class="travel-share">${grps.map(g => `<span class="viz-chip group ${g==='All'?'all':''}">${esc(g)}</span>`).join('')}${indivCrew.map(c => `<span class="viz-chip indiv">${esc(c.name.split(' ')[0])}</span>`).join('')}${freeNames.map(n => `<span class="viz-chip indiv" title="Not on roster yet">${esc(n.split(' ')[0])}</span>`).join('')}</div>`;
+            // Two different things used to look identical here: the groups a
+            // row is VISIBLE to, and the people actually ON it. Labelled and
+            // set in plain type instead of matching chips.
+            const paxNames = [...indivCrew.map(c => c.name), ...freeNames];
+            sharedHtml = `<div class="travel-share">${grps.length ? `<span class="ts-part"><span class="ts-k">Visible to</span>${esc(grps.join(' · ').toUpperCase())}</span>` : ''}${paxNames.length ? `<span class="ts-part ts-pax"><span class="ts-k">${t.type === 'flight' ? 'Passengers' : 'Who'}</span>${esc(paxNames.join(' · '))}</span>` : ''}</div>`;
           } else {
             sharedHtml = `<div class="travel-share muted-share">Visible to all — set audience in Edit</div>`;
           }
@@ -18410,12 +18447,24 @@ function _renderPhoneMoreMinimal() {
 // the next-day overlap can never go missing on one of them again.
 function _phoneScheduleRowsHTML(items, earlyTomorrow, nextDateLabel, emptyMsg, limit) {
   const shown = (typeof limit === 'number') ? items.slice(0, limit) : items;
-  const row = (s, cls) => `
+  const row = (s, cls) => {
+    const aud = _scheduleAudience(s);
+    // A flight carries its landing time under the departure time, and its
+    // live status where a group tag would sit, so crew get both without
+    // opening anything.
+    const flt = s._travelType === 'flight' ? (s._travelRef || null) : null;
+    const live = flt ? _flightLiveFor(flt, s._travelDate) : null;
+    const lands = flt ? ((live && (live.leg.arrival.revisedTime || live.leg.arrival.time)) || s._travelArrive || '') : '';
+    const status = live ? _shortStatus(live.info.label) : '';
+    return `
     <div class="p-row${cls || ''}">
-      <span class="t">${esc(_scheduleTimeDisplay(s))}</span>
+      <span class="t">${esc(_scheduleTimeDisplay(s))}${lands ? `<span class="t2">↓ ${esc(_fmt12Safe(lands))}</span>` : ''}</span>
       <span class="what">${esc(s.what)}</span>
-      <span class="lbl">${esc(_scheduleItemDisplayLabel(s))}</span>
+      ${status ? `<span class="lbl live-${live.info.tone}">${esc(status)}</span>`
+        : aud.kind === 'tag' ? `<span class="lbl">${esc(aud.text)}</span>` : ''}
+      ${aud.kind === 'list' ? `<span class="pax">${esc(aud.text)}</span>` : ''}
     </div>`;
+  };
   return `
     ${shown.length ? shown.map(s => row(s, '')).join('') : `<div class="p-row"><span class="what muted" style="grid-column:1/-1">${esc(emptyMsg)}</span></div>`}
     ${(earlyTomorrow && earlyTomorrow.length) ? `
@@ -24409,7 +24458,7 @@ function _phoneShowDayTravel(dateId) {
               return `
                 <button type="button" class="ph-travel-row" onclick="closeModal();setTimeout(()=>_phoneShowTravel('${esc(t.id)}','${esc(d.id)}'),50)">
                   <span class="ptr-type">${esc(typeLabel)}</span>
-                  <span class="ptr-time">${t.allDay ? 'ALL' : esc(_fmt12Safe(t.time) || '—')}</span>
+                  <span class="ptr-time">${t.allDay ? 'ALL' : esc(_fmt12Safe(t.time) || '—')}${t.arriveTime ? `<span class="ptr-arr">↓ ${esc(_fmt12Safe(t.arriveTime))}</span>` : ''}</span>
                   <span class="ptr-desc">${esc(_travelShortDesc(t) || t.description || '—')}${(() => {
                     const li = t.type === 'flight' ? _legInfo(t) : null;
                     const lv = t.type === 'flight' ? _flightLiveFor(t, d.date) : null;
