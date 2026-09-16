@@ -23918,9 +23918,20 @@ async function _godOpenUser(id) {
     return;
   }
   const u = data.user || {}, subs = data.subscriptions || [], tours = data.tours || [], dev = data.devices || [], act = data.activity || {};
+  // data.invite: an object when we know, null when nobody invited them, and
+  // undefined when the database function predates patch-045.
+  const inv = data.invite;
+  const invWhen = (ms) => { const n = Number(ms); return isFinite(n) && n > 0 ? new Date(n).toLocaleDateString() : ''; };
+  const invitedByHTML = inv === undefined
+    ? '<span class="muted">Needs patch-045</span>'
+    : !inv
+      ? '<span class="muted">No invite on record — signed up on their own</span>'
+      : `${esc(inv.by || 'Unknown')}`
+        + (inv.source === 'assumed' ? ' <span class="muted" style="font-size:11px">· tour owner, not recorded</span>' : '')
+        + (inv.tour ? `<div style="color:var(--warm-mute);font-size:11.5px;margin-top:2px">${esc(inv.tour)}${invWhen(inv.at) ? ' · ' + esc(invWhen(inv.at)) : ''}${inv.accepted ? '' : ' · not accepted yet'}</div>` : '');
   const rel = { owner: 'OWNER', 'co-manager': 'CO-MANAGER', member: 'CREW', invited: 'INVITED · NOT ACCEPTED' };
   const subRow = (x) => `<div class="god-list-row"><span>${esc(String(x.status || '—').toUpperCase())} · ${esc(x.plan || '—')}${x.is_stripe ? ' · <span style="color:var(--good)">Stripe</span>' : ' · manual grant'}${x.cancel_at_period_end ? ' · <span style="color:#fdba74">cancels at period end</span>' : ''}</span><span style="color:var(--warm-mute);white-space:nowrap">${x.period_end ? 'until ' + esc(_godFmtDate(x.period_end)) : ''}</span></div>`;
-  const tourRow = (t) => `<div class="god-list-row god-row-click" onclick="_godOpenTour('${esc(t.id)}')"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name || 'Untitled')}${t.artist ? ` <span style="color:var(--warm-mute)">· ${esc(t.artist)}</span>` : ''}</span><span class="god-kick st-${t.relationship === 'invited' ? 'empty' : t.relationship === 'owner' ? 'live' : 'upcoming'}" style="white-space:nowrap">${esc(rel[t.relationship] || t.relationship)} · ${_godNum(t.date_count)} dates</span></div>`;
+  const tourRow = (t) => `<div class="god-list-row god-row-click" onclick="_godOpenTour('${esc(t.id)}')"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name || 'Untitled')}${t.artist ? ` <span style="color:var(--warm-mute)">· ${esc(t.artist)}</span>` : ''}${t.invited_by ? `<span style="display:block;color:var(--warm-mute);font-size:11px">Invited by ${esc(t.invited_by)}${t.invited_source === 'assumed' ? ' (tour owner)' : ''}</span>` : ''}</span><span class="god-kick st-${t.relationship === 'invited' ? 'empty' : t.relationship === 'owner' ? 'live' : 'upcoming'}" style="white-space:nowrap">${esc(rel[t.relationship] || t.relationship)} · ${_godNum(t.date_count)} dates</span></div>`;
   openModal({
     title: `◆ ${esc(u.email || 'Account')}`, size: 'xl', hideFooter: true,
     body: `
@@ -23929,6 +23940,7 @@ async function _godOpenUser(id) {
         <div class="god-card"><h4>Identity</h4>${_godKV([
           ['Name', esc(u.display_name || '')], ['Email', esc(u.email || '')], ['Role', esc((u.role || '—').toUpperCase())],
           ['Joined', esc(_godFmtDate(u.joined))], ['Last active', esc(u.last_active ? new Date(u.last_active).toLocaleString() : '—')],
+          ['Invited by', invitedByHTML],
           ['Profile row', u.has_profile_row ? 'yes' : '<span style="color:#fdba74">missing — role falls back to signup metadata</span>'],
           ['User id', `<span class="mono" style="font-size:11px">${esc(u.id || '')}</span>`],
         ])}</div>
@@ -29721,6 +29733,23 @@ function findCrewMatchesByEmail(email) {
 // Server is /api/crew-invite (Vercel serverless function → Resend). The
 // TM's name + email come from local state and are stitched in here so
 // replies route back to the right person.
+// Roster entries are the only record of an invite, so the first send stamps
+// who sent it. A resend keeps the original inviter.
+function _stampInvite(tourId, email) {
+  try {
+    const tour = (state.tours || {})[tourId] || (T() && T().id === tourId ? T() : null);
+    const addr = String(email || '').trim().toLowerCase();
+    if (!tour || !addr) return;
+    const c = (tour.crew || []).find(x => String(x.email || '').trim().toLowerCase() === addr);
+    if (!c || c.invitedBy) return;
+    const me = U();
+    c.invitedBy = (state && state.currentUserId) || '';
+    c.invitedByName = (me && (me.name || me.email)) || '';
+    c.invitedAt = Date.now();
+    saveState();
+  } catch (e) { /* never block the invite over bookkeeping */ }
+}
+
 async function sendCrewInvite(opts) {
   const o = opts || {};
   if (!o.crewEmail) return; // can't send without a recipient
@@ -29745,6 +29774,7 @@ async function sendCrewInvite(opts) {
       body: JSON.stringify(payload),
     });
     if (r.ok) {
+      _stampInvite(o.tourId, o.crewEmail);
       const firstName = (o.crewName || o.crewEmail).split(/[\s@]+/)[0];
       if (!o.silent) toast(o.coManager ? `${firstName} notified by email` : `Invite sent to ${firstName}`, 'good');
       return true;
