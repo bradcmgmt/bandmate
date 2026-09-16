@@ -578,7 +578,7 @@ input,select,textarea{font:inherit;color:inherit;
   border-color:transparent}
 
 /* ============ STAGE ============ */
-.stage{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:24px;padding:16px 22px 60px;max-width:1640px;margin:0 auto;min-width:0}
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:24px;padding:8px 22px 60px;max-width:1640px;margin:0 auto;min-width:0}
 
 /* ============ CONSOLE ============ */
 .console{
@@ -589,15 +589,30 @@ input,select,textarea{font:inherit;color:inherit;
 .console::before{content:"";position:absolute;inset:0;border-radius:14px;pointer-events:none;
   background:radial-gradient(800px 200px at 50% -50%,rgba(232,148,58,.1),transparent 60%)}
 .console > *{position:relative;z-index:1}
-.console-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line);
+.console-head{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:14px 18px;border-bottom:1px solid var(--line);
   background:linear-gradient(180deg,rgba(232,148,58,.04),transparent);position:relative}
 .console-head::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,var(--line-glow),transparent)}
-.console-head .title{display:flex;align-items:center;gap:10px;flex:none;font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--warm-mute)}
+.console-head .title{display:flex;align-items:center;gap:10px;flex:0 1 auto;min-width:0;overflow:hidden;font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.17em;text-transform:uppercase;color:var(--warm-mute)}
 .console-head .title .live{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px rgba(109,207,139,.18),0 0 10px rgba(109,207,139,.5)}
 .console-head .title b{color:var(--warm);font-weight:600}
+.console-head .title #consoleTitle{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.console-head .title #consoleTitle .mq-in{display:inline-block;white-space:nowrap}
+/* Only when the text genuinely doesn't fit: it rests, glides far enough to
+   show the end, rests, and glides back. Slow and eased, so it reads as the
+   line settling rather than something demanding attention. The right edge
+   fades instead of ending in a hard ellipsis while it moves. */
+#consoleTitle.mq-on{text-overflow:clip;
+  -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent);
+          mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent)}
+#consoleTitle.mq-on .mq-in{will-change:transform;animation:mq-shuttle var(--mq-dur,14s) ease-in-out infinite}
+@keyframes mq-shuttle{0%,18%{transform:translateX(0)}50%,68%{transform:translateX(var(--mq-shift,0px))}100%{transform:translateX(0)}}
+@media (prefers-reduced-motion: reduce){
+  #consoleTitle.mq-on{text-overflow:ellipsis;-webkit-mask-image:none;mask-image:none}
+  #consoleTitle.mq-on .mq-in{animation:none}
+}
 /* Date-review status, sitting between the date title and the buttons. */
-.console-head .ch-status{display:flex;align-items:center;gap:11px;min-width:0;max-width:46%;flex:0 1 auto;margin:0 auto;
-  padding:6px 13px;border:1px solid rgba(109,207,139,.34);border-radius:7px;
+.console-head .ch-status{display:flex;align-items:center;gap:0;min-width:0;max-width:min(52%,520px);flex:0 0 auto;margin:0 auto;
+  padding:0;overflow:hidden;border:1px solid rgba(109,207,139,.34);border-radius:7px;
   background:linear-gradient(180deg,rgba(109,207,139,.10),rgba(109,207,139,.025));
   box-shadow:0 0 16px rgba(109,207,139,.09),inset 0 1px 0 rgba(255,255,255,.04);
   font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:700;letter-spacing:.18em;
@@ -609,6 +624,7 @@ input,select,textarea{font:inherit;color:inherit;
   background:linear-gradient(180deg,rgba(138,169,216,.11),rgba(138,169,216,.03));
   box-shadow:0 0 16px rgba(138,169,216,.10),inset 0 1px 0 rgba(255,255,255,.04)}
 .ch-status:empty{display:none}
+.ch-status .chs-main{display:flex;align-items:center;gap:11px;min-width:0;padding:7px 15px}
 .ch-status .chs-dot{width:6px;height:6px;border-radius:50%;flex:none;background:var(--good);box-shadow:0 0 9px rgba(109,207,139,.55)}
 .ch-status.warn .chs-dot{background:#fdba74;box-shadow:0 0 9px rgba(253,186,116,.55)}
 .ch-status.info .chs-dot{background:#8aa9d8;box-shadow:0 0 9px rgba(138,169,216,.5)}
@@ -616,10 +632,14 @@ input,select,textarea{font:inherit;color:inherit;
 .ch-status .chs-t em{font-style:normal;color:var(--warm);margin-left:9px;padding-left:10px;border-left:1px solid currentColor;border-left-color:rgba(245,233,214,.22)}
 .ch-status.warn .chs-t em{color:#fdba74}
 .ch-status.info .chs-t em{color:#b1c8ee}
-.ch-status .chs-act{flex:none;background:none;border:0;border-bottom:1px solid rgba(232,148,58,.35);padding:0 0 2px;cursor:pointer;
-  font-family:inherit;font-size:9.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--hi);
-  transition:border-color .15s,text-shadow .15s}
-.ch-status .chs-act:hover{border-bottom-color:var(--hi);text-shadow:0 0 10px rgba(232,148,58,.45)}
+.ch-status .chs-act{flex:none;align-self:stretch;background:rgba(109,207,139,.07);border:0;border-left:1px solid rgba(109,207,139,.3);
+  padding:0 16px;cursor:pointer;font-family:inherit;font-size:9.5px;font-weight:700;letter-spacing:.18em;
+  text-transform:uppercase;color:#7adc97;transition:background .15s,color .15s,text-shadow .15s}
+.ch-status .chs-act:hover{background:rgba(109,207,139,.16);color:#a7ecbb;text-shadow:0 0 10px rgba(109,207,139,.45)}
+.ch-status.warn .chs-act{background:rgba(253,186,116,.08);border-left-color:rgba(253,186,116,.34);color:#fdba74}
+.ch-status.warn .chs-act:hover{background:rgba(253,186,116,.18);color:#ffd2a1;text-shadow:0 0 10px rgba(253,186,116,.45)}
+.ch-status.info .chs-act{background:rgba(138,169,216,.08);border-left-color:rgba(138,169,216,.34);color:#b1c8ee}
+.ch-status.info .chs-act:hover{background:rgba(138,169,216,.18);color:#d3e2fb;text-shadow:0 0 10px rgba(138,169,216,.45)}
 @media (max-width:1340px){.ch-status .chs-t em{display:none}}
 @media (max-width:1140px){.ch-status .chs-t{display:none}}
 body.mobile .console-head{flex-wrap:wrap}
@@ -1091,6 +1111,7 @@ body.mobile .god-search{min-width:0;width:100%}
 @media (max-width:760px){.bm-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .bm-card .card-h{display:flex;align-items:center;gap:8px;padding-bottom:9px;border-bottom:1px solid rgba(232,148,58,.08);position:relative;z-index:1}
 .bm-card .card-h .ic{color:var(--hi);font-family:'Bricolage Grotesque',monospace;font-size:12px}
+.bm-card .card-h .ic .bed-ic{width:14px;height:14px;display:inline-block;vertical-align:-3px}
 .bm-card .card-h .h{font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--warm-mute);font-weight:700;flex:1}
 .bm-card .card-h .count{font-family:'Bricolage Grotesque',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.1em}
 .bm-card .card-h .card-link{font-family:'Bricolage Grotesque',monospace;font-size:10px;color:var(--warm-mute);
@@ -1668,6 +1689,7 @@ body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app):n
 .phone .nav button:active,
 .phone .nav button:hover{outline:none!important;box-shadow:none!important;border:0!important}
 .phone .nav button .gly{font-size:16px;line-height:1}
+.phone .nav button .gly .bed-ic{width:17px;height:17px;display:block;margin:0 auto}
 .phone .nav button.on{color:var(--hi);text-shadow:0 0 8px rgba(232,148,58,.5)}
 .p-screen{display:none;flex:1;flex-direction:column;gap:12px;padding:14px 16px 18px;overflow-y:auto;min-height:0}
 .p-screen.on{display:flex}
@@ -3438,6 +3460,7 @@ body.travel-assistant-mode #travelAssistantArea{
   color:var(--warm-mute);background:transparent;border:0;border-bottom:2px solid transparent;cursor:pointer;
   display:flex;align-items:center;gap:8px}
 .ta-tab .ta-tab-icon{font-size:14px}
+.ta-tab .ta-tab-icon .bed-ic{width:15px;height:15px;display:inline-block;vertical-align:-3px}
 .ta-tab.on{color:#b1c8ee;border-bottom-color:#b1c8ee;text-shadow:0 0 10px rgba(138,169,216,.4)}
 .ta-tab:hover:not(.on){color:var(--warm)}
 
@@ -3486,7 +3509,8 @@ body.travel-assistant-mode #travelAssistantArea{
   box-shadow:inset 0 1px 0 rgba(138,169,216,.05);
 }
 .ta-hotel:hover{border-color:rgba(138,169,216,.4);box-shadow:0 0 20px rgba(138,169,216,.12),inset 0 1px 0 rgba(138,169,216,.1)}
-.ta-hotel .h-glyph{
+.ta-hotel .h-glyph .bed-ic{width:1em;height:1em;display:inline-block;vertical-align:-.12em}
+.h-glyph{
   width:62px;height:62px;border-radius:10px;
   background:linear-gradient(135deg,rgba(138,169,216,.14),rgba(138,169,216,.04));
   border:1px solid rgba(138,169,216,.3);
@@ -5663,7 +5687,7 @@ setTimeout(window._hideAppBoot,6000);
           <div class="nav">
             <button type="button" class="on" data-go="today"><span class="gly">◐</span><span>Today</span></button>
             <button type="button" data-go="schedule"><span class="gly">▦</span><span>Sched</span></button>
-            <button type="button" data-go="hotel"><span class="gly">⌂</span><span>Hotel</span></button>
+            <button type="button" data-go="hotel"><span class="gly"><svg class="bed-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v11m0-4h18m0 4v-8a2 2 0 0 0-2-2h-8v6"/><circle cx="7" cy="10" r="1.15"/></svg></span><span>Hotel</span></button>
             <button type="button" data-go="guests"><span class="gly">+</span><span>Guests</span></button>
             <button type="button" data-go="more"><span class="gly">⋯</span><span>More</span></button>
           </div>
@@ -9634,6 +9658,9 @@ function _telAct(kind) {
 // status is kept on the device for when there's no signal.
 const FLIGHT_LIVE_KEY = 'bandmate.flightLive.v1';
 const FLIGHT_POLL_MS = 5 * 60 * 1000;
+// Hotel: a bed. The slot used to hold a Unicode "observer eye" character,
+// which read as an eye, and the phone tab held a house.
+const _BED_SVG = '<svg class="bed-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v11m0-4h18m0 4v-8a2 2 0 0 0-2-2h-8v6"/><circle cx="7" cy="10" r="1.15"/></svg>';
 const _PLANE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path transform="rotate(90 12 12)" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>';
 let _flightLive = (() => { try { return JSON.parse(localStorage.getItem(FLIGHT_LIVE_KEY) || '{}') || {}; } catch (e) { return {}; } })();
 const _flightLiveInFlight = {};
@@ -14270,7 +14297,10 @@ function _tapeCrawlSetup() {
 }
 window.addEventListener('resize', () => {
   clearTimeout(_tapeResizeT);
-  _tapeResizeT = setTimeout(_tapeCrawlSetup, 250);
+  _tapeResizeT = setTimeout(() => {
+    _tapeCrawlSetup();
+    try { _marqueeOverflow(document.getElementById('consoleTitle')); } catch (e) {}
+  }, 250);
 });
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { try { _tapeCrawlSetup(); } catch (e) {} });
 
@@ -14396,12 +14426,37 @@ function renderDayStrip() {
   }
 }
 
+// Text that overflows its box shuttles gently instead of just ending in an
+// ellipsis. Nothing moves unless it actually overflows, so on most days the
+// header is completely still.
+const MQ_SPEED_PX_S = 23;   // travel speed
+const MQ_FADE_PX = 18;      // matches the mask, so the last word clears it
+function _marqueeOverflow(el) {
+  if (!el) return;
+  const inner = el.querySelector('.mq-in');
+  if (!inner) return;
+  el.classList.remove('mq-on');
+  inner.style.removeProperty('--mq-shift');
+  inner.style.removeProperty('--mq-dur');
+  const over = inner.scrollWidth - el.clientWidth;
+  if (over <= 2 || !el.clientWidth) return;
+  const shift = over + MQ_FADE_PX;
+  // The keyframes spend 32% of the cycle travelling each way; the rest is rest.
+  const dur = (shift / MQ_SPEED_PX_S) / 0.32;
+  inner.style.setProperty('--mq-shift', `-${Math.round(shift)}px`);
+  inner.style.setProperty('--mq-dur', `${dur.toFixed(1)}s`);
+  el.classList.add('mq-on');
+}
+
 function renderConsoleHead() {
   const ad = getActiveDate();
   const t = $('#consoleTitle');
-  if (ad) t.innerHTML = `<b>${esc(ad.city || 'New date')}</b> · ${fmtDate(ad.date)} · ${esc((ad.status || 'show').toUpperCase())}`;
-  else t.textContent = 'No active date';
+  const body = ad ? `<b>${esc(ad.city || 'New date')}</b> · ${fmtDate(ad.date)}` : 'No active date';
+  const next = `<span class="mq-in">${body}</span>`;
+  // Rewriting restarts the shuttle, so only touch it when the words change.
+  if (t.dataset.sig !== body) { t.dataset.sig = body; t.innerHTML = next; }
   renderConsoleStatus();
+  _marqueeOverflow(t);
 }
 
 // The date-review notice. It used to be a full-width banner sitting on top of
@@ -14430,8 +14485,8 @@ function renderConsoleStatus() {
     action = 'Fix now'; onclick = "openDateModal(getActiveDate()?.id)";
   } else if (others) {
     text = 'Date complete';
-    detail = `${others} date${others === 1 ? '' : 's'} need${others === 1 ? 's' : ''} attention`;
-    title = 'Other dates on this tour still have gaps.';
+    detail = `${others} to review`;
+    title = `${others} other date${others === 1 ? '' : 's'} on this tour still ${others === 1 ? 'has' : 'have'} gaps.`;
     action = 'Re-scan'; onclick = 'openTourScan()';
   } else {
     text = 'Tour complete';
@@ -14439,7 +14494,8 @@ function renderConsoleStatus() {
     action = 'Re-scan'; onclick = 'openTourScan()';
   }
   el.className = 'ch-status ' + kind;
-  el.innerHTML = `<span class="chs-dot"></span><span class="chs-t" title="${esc(title)}">${esc(text)}${detail ? `<em>${esc(detail)}</em>` : ''}</span>`
+  el.title = title;
+  el.innerHTML = `<span class="chs-main"><span class="chs-dot"></span><span class="chs-t">${esc(text)}${detail ? `<em>${esc(detail)}</em>` : ''}</span></span>`
     + `<button type="button" class="chs-act" onclick="${onclick}">${esc(action)}</button>`;
 }
 
@@ -14900,7 +14956,7 @@ function renderDashboard() {
         `}
 
         <div class="bm-card">
-          <div class="card-h"><span class="ic">⏿</span><span class="h">Hotel</span>${isOrGap('hotel or travel') ? `<span class="card-h-warn or" title="Needs either a hotel or a travel item logged">!</span>` : ''}<a class="card-link" onclick="_dashGoTab('hotels')">Edit →</a></div>
+          <div class="card-h"><span class="ic">${_BED_SVG}</span><span class="h">Hotel</span>${isOrGap('hotel or travel') ? `<span class="card-h-warn or" title="Needs either a hotel or a travel item logged">!</span>` : ''}<a class="card-link" onclick="_dashGoTab('hotels')">Edit →</a></div>
           <div class="card-body">${hotelCardHtml}</div>
         </div>
         <div class="bm-card">
@@ -25993,7 +26049,7 @@ function renderTravelAssistant(preserveResults) {
         <button class="ta-close" type="button" onclick="closeTravelAssistant()">✕ Close</button>
       </div>
       <div class="ta-tabs">
-        <button class="ta-tab ${taTab==='hotels'?'on':''}" type="button" onclick="setTaTab('hotels')"><span class="ta-tab-icon">🏨</span> Hotels</button>
+        <button class="ta-tab ${taTab==='hotels'?'on':''}" type="button" onclick="setTaTab('hotels')"><span class="ta-tab-icon">${_BED_SVG}</span> Hotels</button>
         <button class="ta-tab ${taTab==='flights'?'on':''}" type="button" onclick="setTaTab('flights')"><span class="ta-tab-icon">✈</span> Flights</button>
       </div>
       <div class="ta-disclaimer">
@@ -26106,7 +26162,7 @@ function renderHotelResults(payload) {
     <div class="ta-results-head"><span><b>${results.length}</b> match${results.length===1?'':'es'} in ${esc(city)} · ${rooms} room${rooms===1?'':'s'}</span><span>Sorted by price</span></div>
     ${results.map((h, i) => `
       <div class="ta-hotel">
-        <div class="h-glyph">🏨</div>
+        <div class="h-glyph">${_BED_SVG}</div>
         <div class="h-info">
           <div class="h-name">${esc(h.name)}</div>
           <div class="h-meta">
