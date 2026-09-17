@@ -13985,7 +13985,7 @@ function openCrewMemberModal(id) {
           crewEmail: email,
           crewName: name,
           crewRole: role,
-          alreadyHasAccount: !!(existingUser && existingUser.claimed),
+          alreadyHasAccount: !!(existingUser && existingUser.claimed) || _emailHasAccount(email),
         });
       }
       saveState();
@@ -13994,6 +13994,37 @@ function openCrewMemberModal(id) {
   });
   // Run match-check once on open in case we're editing a record with an email
   setTimeout(() => { try { checkCrewEmailMatch(); } catch(e) {} }, 50);
+}
+
+// findUserByEmail only sees accounts already loaded on this device — you, plus
+// crew from your own tours. Anyone else reads as "no account", including real
+// users, so the banner asks the database as well (patch-046). The function
+// answers yes/no plus a display name for an exact address and nothing else.
+const _emailAccountCache = {};
+const _emailLookupPending = {};
+let _emailLookupSeq = 0;
+let _emailLookupT = null;
+async function _lookupAccountByEmail(email) {
+  const key = String(email || '').trim().toLowerCase();
+  if (!key || !sb) return null;
+  if (Object.prototype.hasOwnProperty.call(_emailAccountCache, key)) return _emailAccountCache[key];
+  // One request per address at a time — the field re-checks on every
+  // keystroke, and the same answer shouldn't be asked for twice.
+  if (_emailLookupPending[key]) return _emailLookupPending[key];
+  _emailLookupPending[key] = (async () => {
+    try {
+      const { data, error } = await sb.rpc('account_exists_for_email', { p_email: key });
+      if (error || !data) return null;   // patch not installed yet: stay quiet
+      _emailAccountCache[key] = data;
+      return data;
+    } catch (e) { return null; }
+    finally { delete _emailLookupPending[key]; }
+  })();
+  return _emailLookupPending[key];
+}
+function _emailHasAccount(email) {
+  const hit = _emailAccountCache[String(email || '').trim().toLowerCase()];
+  return !!(hit && hit.exists);
 }
 
 // Live check while the TM types the email field on the Crew Add form.
@@ -14045,6 +14076,31 @@ function checkCrewEmailMatch() {
     `;
   }
   try { _renderCoManagerOption(email, slot); } catch (e) {}
+
+  // Nothing local matched — ask the database, and upgrade the banner if the
+  // address turns out to belong to a real account. Guarded so a slow answer
+  // for an old address can't overwrite a newer one.
+  if (!existing) {
+    const seq = ++_emailLookupSeq;
+    clearTimeout(_emailLookupT);
+    // Wait for a pause in typing before asking.
+    _emailLookupT = setTimeout(() => _lookupAccountByEmail(email).then(found => {
+      if (!found || !found.exists || seq !== _emailLookupSeq) return;
+      const live = document.getElementById('cm_email');
+      const slot2 = document.getElementById('cm_email_match');
+      if (!live || !slot2 || (live.value || '').trim().toLowerCase() !== email) return;
+      slot2.innerHTML = `
+        <div class="email-match good">
+          <span class="em-icon">✓</span>
+          <div class="em-body">
+            <div class="em-h">Existing Bandmate account found</div>
+            <div class="em-s"><b>${esc(found.name || email)}</b> already has a login. Adding them here gives them this tour on that account — they won't need to sign up again.</div>
+          </div>
+        </div>
+      `;
+      try { _renderCoManagerOption(email, slot2); } catch (e) {}
+    }), 320);
+  }
 }
 
 // ── Co-manager invite option ──────────────────────────────────────────
