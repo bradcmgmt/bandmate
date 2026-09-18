@@ -3544,6 +3544,44 @@ body.print-tourbook-mode #tourBookArea{display:block!important;position:fixed;in
 .pn-h-body{font-size:12.5px;color:var(--warm);line-height:1.4;margin-bottom:5px}
 .pn-h-sender{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;color:var(--warm-mute);letter-spacing:.06em;text-align:right}
 
+/* ============ CALENDAR DROPDOWN ============
+   One themed calendar for every date field on the desktop console. The
+   field stays a real date input (typing still works); the browser's own
+   picker button is swapped for a flat calendar glyph so there's one way in,
+   not two. The phone app is left alone — it keeps the OS date wheel. */
+body:not(.mobile) input[type="date"]{cursor:pointer;padding-right:34px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a08868' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;background-size:15px 15px}
+body:not(.mobile) input[type="date"]::-webkit-calendar-picker-indicator{display:none;-webkit-appearance:none}
+.bmcal{position:fixed;z-index:1090;width:292px;padding:12px 12px 10px;border:1px solid var(--line-2);border-radius:12px;
+  background:linear-gradient(180deg,#1c130b,#140d07);box-shadow:0 22px 50px -14px rgba(0,0,0,.8),0 0 0 1px rgba(232,148,58,.06);color:var(--warm);font-family:'Inter',sans-serif}
+.bmcal-head{display:flex;align-items:center;gap:2px;margin-bottom:8px}
+.bmcal-title{flex:1;text-align:center;font-family:'Bricolage Grotesque',monospace;font-size:14px;font-weight:800;letter-spacing:-.01em;color:var(--warm)}
+.bmcal-title span{color:var(--hi);font-weight:700}
+.bmcal-nav{width:28px;height:28px;border:1px solid transparent;border-radius:6px;background:none;color:var(--warm-mute);font-size:15px;line-height:1;cursor:pointer}
+.bmcal-nav:hover{border-color:var(--line-2);color:var(--hi-bright)}
+.bmcal-dow{display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:4px}
+.bmcal-dow span{text-align:center;font-family:'Bricolage Grotesque',monospace;font-size:9px;font-weight:700;letter-spacing:.18em;color:var(--warm-mute);padding:4px 0}
+.bmcal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.bmcal-d{position:relative;height:34px;border:1px solid transparent;border-radius:7px;background:none;color:var(--warm);font-family:'Bricolage Grotesque',monospace;font-size:12.5px;font-weight:600;cursor:pointer}
+.bmcal-d:hover{border-color:rgba(232,148,58,.5);background:rgba(232,148,58,.08)}
+.bmcal-d.out{color:rgba(160,136,104,.45)}
+.bmcal-d.today{border-color:rgba(232,148,58,.55)}
+.bmcal-d.sel,.bmcal-d.sel:hover{background:linear-gradient(135deg,var(--hi-bright),var(--hi));border-color:var(--hi);color:#140d07;font-weight:800}
+.bmcal-d:disabled{opacity:.28;cursor:not-allowed}
+.bmcal-d:disabled:hover{border-color:transparent;background:none}
+.bmcal-d i,.bmcal-key i{display:block;width:4px;height:4px;border-radius:50%;background:var(--line-2)}
+.bmcal-d i{position:absolute;left:50%;bottom:4px;margin-left:-2px;background:rgba(160,136,104,.8)}
+.bmcal-d i.show,.bmcal-key i.show{background:var(--hi)}
+.bmcal-d.sel i{background:#140d07}
+.bmcal-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.bmcal-link{background:none;border:0;padding:2px 0;color:var(--hi);font-family:'Bricolage Grotesque',monospace;font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;cursor:pointer}
+.bmcal-link:hover{color:var(--hi-bright)}
+.bmcal-link:disabled{opacity:.35;cursor:not-allowed}
+.bmcal-key{display:flex;align-items:center;gap:5px;font-family:'Bricolage Grotesque',monospace;font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--warm-mute)}
+.bmcal-key i{display:inline-block;margin-left:6px;background:rgba(160,136,104,.8)}
+.bmcal-key i:first-child{margin-left:0}
+
 /* ============ TRAVEL AGENT ============
    A tool opened for one thing and closed: day → what you need → a few
    questions → suggestions. One centred column, editorial, no chips. */
@@ -7905,6 +7943,128 @@ function applyPhoneScreenFromState() {
   document.querySelectorAll('.phone .nav button').forEach(b => b.classList.toggle('on', b.dataset.go === phoneScreen));
   document.querySelectorAll('.p-screen').forEach(s => s.classList.toggle('on', s.dataset.screen === phoneScreen));
 }
+
+/* ---------- calendar dropdown for every date field ---------- */
+// Every <input type="date"> on the desktop console gets a themed drop-down
+// calendar: click the field (or press Space / Alt+↓ in it) and pick a day.
+// It's attached by delegation, so modals that don't exist yet are covered
+// and a new date field anywhere picks it up with no wiring. Typing the date
+// still works — the field stays a real date input and the calendar follows
+// what's typed. Days already on the tour carry a dot, so a check-out date or
+// a task's due date can be chosen against the actual run.
+// The phone app keeps the OS date wheel, which is better on a touch screen.
+const BMCal = (() => {
+  let pop = null, input = null, view = null;
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const pad = n => String(n).padStart(2, '0');
+  const isoOf = dt => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+  const parse = v => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || ''); return m ? { y: +m[1], m: +m[2] - 1, d: +m[3] } : null; };
+  const skip = () => document.body.classList.contains('mobile') || (typeof _isPhoneApp === 'function' && _isPhoneApp());
+  function tourDays() {
+    const map = {};
+    try { (T().dates || []).forEach(d => { if (d && d.date) map[String(d.date).slice(0, 10)] = d; }); } catch (e) {}
+    return map;
+  }
+  function open(el) {
+    if (skip() || !el || el.disabled || el.readOnly) return;
+    if (pop && input === el) return;
+    close();
+    input = el;
+    const cur = parse(el.value) || parse(el.min) || (() => { const n = new Date(); return { y: n.getFullYear(), m: n.getMonth() }; })();
+    view = { y: cur.y, m: cur.m };
+    pop = document.createElement('div');
+    pop.className = 'bmcal';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', 'Choose a date');
+    // Keep focus in the field so typing keeps working while it's open.
+    pop.addEventListener('mousedown', e => e.preventDefault());
+    pop.addEventListener('click', onClick);
+    document.body.appendChild(pop);
+    draw(); place();
+  }
+  function close() { if (pop) pop.remove(); pop = null; input = null; view = null; }
+  function draw() {
+    if (!pop || !input) return;
+    const sel = input.value, today = isoOf(new Date()), marks = tourDays();
+    const min = input.min || '', max = input.max || '';
+    const startDow = new Date(view.y, view.m, 1).getDay();
+    let cells = '';
+    for (let i = 0; i < 42; i++) {
+      const dt = new Date(view.y, view.m, i - startDow + 1);
+      const iso = isoOf(dt), out = dt.getMonth() !== view.m;
+      const dis = (min && iso < min) || (max && iso > max);
+      const mk = marks[iso];
+      const show = mk && (!mk.status || mk.status === 'show');
+      const word = mk ? (show ? 'Show' : ({ off: 'Day off', travel: 'Travel day', press: 'Press day', rehearsal: 'Rehearsal' }[mk.status] || 'On the tour')) : '';
+      const title = mk ? `${word}${mk.city ? ' · ' + mk.city : ''}` : '';
+      cells += `<button type="button" class="bmcal-d${out ? ' out' : ''}${iso === sel ? ' sel' : ''}${iso === today ? ' today' : ''}" data-cal="day" data-iso="${iso}" ${dis ? 'disabled' : ''} aria-pressed="${iso === sel}" aria-label="${dt.toDateString()}${title ? ', ' + esc(title) : ''}"${title ? ` title="${esc(title)}"` : ''}>${dt.getDate()}${mk ? `<i class="${show ? 'show' : ''}"></i>` : ''}</button>`;
+    }
+    const todayDis = (min && today < min) || (max && today > max);
+    pop.innerHTML = `
+      <div class="bmcal-head">
+        <button type="button" class="bmcal-nav" data-cal="py" aria-label="Previous year">«</button>
+        <button type="button" class="bmcal-nav" data-cal="pm" aria-label="Previous month">‹</button>
+        <div class="bmcal-title">${MONTHS[view.m]} <span>${view.y}</span></div>
+        <button type="button" class="bmcal-nav" data-cal="nm" aria-label="Next month">›</button>
+        <button type="button" class="bmcal-nav" data-cal="ny" aria-label="Next year">»</button>
+      </div>
+      <div class="bmcal-dow">${['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => `<span>${d}</span>`).join('')}</div>
+      <div class="bmcal-grid">${cells}</div>
+      <div class="bmcal-foot">
+        <button type="button" class="bmcal-link" data-cal="today" ${todayDis ? 'disabled' : ''}>Today</button>
+        <span class="bmcal-key"><i class="show"></i>Show<i></i>Other tour day</span>
+        <button type="button" class="bmcal-link" data-cal="clear">Clear</button>
+      </div>`;
+  }
+  function place() {
+    if (!pop || !input) return;
+    if (!document.contains(input)) { close(); return; }
+    const r = input.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+    let top = r.bottom + 6;
+    if (top + h > innerHeight - 8 && r.top - 6 - h > 8) top = r.top - 6 - h;
+    const left = Math.max(8, Math.min(r.left, innerWidth - w - 8));
+    pop.style.top = Math.max(8, top) + 'px';
+    pop.style.left = left + 'px';
+  }
+  function setValue(v) {
+    const el = input;
+    if (!el) return;
+    el.value = v;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    close();
+  }
+  function onClick(e) {
+    const b = e.target.closest('[data-cal]');
+    if (!b || b.disabled) return;
+    const a = b.dataset.cal;
+    if (a === 'day') { setValue(b.dataset.iso); return; }
+    if (a === 'today') { setValue(isoOf(new Date())); return; }
+    if (a === 'clear') { setValue(''); return; }
+    const step = { pm: -1, nm: 1, py: -12, ny: 12 }[a] || 0;
+    const dt = new Date(view.y, view.m + step, 1);
+    view = { y: dt.getFullYear(), m: dt.getMonth() };
+    draw(); place();
+  }
+  const isDate = t => t && t.tagName === 'INPUT' && t.type === 'date';
+  document.addEventListener('click', e => { if (isDate(e.target)) open(e.target); });
+  document.addEventListener('keydown', e => {
+    if (pop && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); return; }
+    // Space / Alt+↓ would open the browser's own picker; open ours instead.
+    if (isDate(e.target) && !skip() && (e.key === ' ' || (e.altKey && e.key === 'ArrowDown'))) { e.preventDefault(); open(e.target); }
+  }, true);
+  document.addEventListener('mousedown', e => { if (pop && !pop.contains(e.target) && e.target !== input) close(); }, true);
+  document.addEventListener('focusin', e => { if (pop && e.target !== input && !pop.contains(e.target)) close(); });
+  document.addEventListener('input', e => {
+    if (!pop || e.target !== input) return;
+    const p = parse(input.value);
+    if (p) view = { y: p.y, m: p.m };
+    draw();
+  });
+  addEventListener('resize', place, { passive: true });
+  addEventListener('scroll', place, { passive: true, capture: true });
+  return { open, close };
+})();
 
 /* ---------- toast ---------- */
 function toast(msg, kind = '') {
