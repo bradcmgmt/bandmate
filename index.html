@@ -805,7 +805,7 @@ body.mobile .ch-status .chs-t em{display:none}
 /* Tools tab: the old top-bar button, now first in the rail. Cool ember —
    the same flames-in-glass as an active tab but in the tools blue, and it
    burns all the time, not only when selected. No number: it isn't a day view. */
-.tab.tab-tools,.tab.tab-tools:hover,.tab.tab-tools.active{color:#cfdef0;font-weight:700;padding-left:14px;padding-right:14px;justify-content:center;
+.tab.tab-tools,.tab.tab-tools:hover,.tab.tab-tools.active{color:#cfdef0;
   background:
     radial-gradient(circle at 25% 75%, rgba(138,169,216,.34), transparent 46%),
     radial-gradient(circle at 70% 30%, rgba(140,120,255,.24), transparent 42%),
@@ -813,12 +813,13 @@ body.mobile .ch-status .chs-t em{display:none}
   background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
   animation:tabFlame 8s ease-in-out infinite alternate}
 .tab.tab-tools:hover{color:#e2ecfa}
-.tab.tab-tools.active{color:#e2ecfa;text-shadow:0 0 10px rgba(138,169,216,.45)}
+.tab.tab-tools.active{color:#e2ecfa;font-weight:700;text-shadow:0 0 10px rgba(138,169,216,.45)}
 .tab.tab-tools.active::before{background:linear-gradient(180deg,transparent,#b1c8ee 30%,#b1c8ee 70%,transparent);box-shadow:0 0 12px rgba(138,169,216,.6)}
-/* Diamond pinned to the left edge, badge to the right; the label is the only
-   in-flow child, so justify-content centres it in the tab. */
-.tab.tab-tools .tt-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-family:'Bricolage Grotesque',monospace;font-size:12px;color:#b1c8ee}
-.tab.tab-tools .tt-badge{position:absolute;right:12px;top:50%;transform:translateY(-50%);padding:1px 6px;border-radius:4px;background:rgba(138,169,216,.16);border:1px solid rgba(138,169,216,.5);color:#b1c8ee;
+/* The diamond sits in the number slot (.num) so the label lines up with
+   "01 Dashboard" beneath it; only the colour differs. */
+.tab.tab-tools .num{color:#b1c8ee;font-size:11px}
+.tab.tab-tools.active .num{color:#e2ecfa}
+.tab.tab-tools .tt-badge{margin-left:auto;padding:1px 6px;border-radius:4px;background:rgba(138,169,216,.16);border:1px solid rgba(138,169,216,.5);color:#b1c8ee;
   font-family:'Bricolage Grotesque',monospace;font-size:8.5px;font-weight:800;letter-spacing:.14em;letter-spacing:.14em}
 @media (prefers-reduced-motion: reduce){.tab.tab-tools{animation:none}}
 /* The Tools panel: a grid of tiles, and whichever tool is open renders in
@@ -826,17 +827,19 @@ body.mobile .ch-status .chs-t em{display:none}
    have). */
 .tools-head{margin-bottom:18px}
 .tools-head h2{margin:4px 0 2px;font-family:'Bricolage Grotesque',monospace;font-size:22px;font-weight:800;letter-spacing:-.01em;color:var(--warm)}
-.tools-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
-.tool-tile{position:relative;text-align:left;padding:18px 18px 16px;border:1px solid rgba(138,169,216,.28);border-radius:12px;
-  background:linear-gradient(180deg,rgba(138,169,216,.05),transparent);color:var(--warm);cursor:pointer;display:flex;flex-direction:column;gap:8px;min-height:150px}
+.tools-grid{display:flex;flex-direction:column;gap:10px;max-width:820px}
+.tool-tile{text-align:left;padding:16px 18px;border:1px solid rgba(138,169,216,.28);border-radius:12px;
+  background:linear-gradient(180deg,rgba(138,169,216,.05),transparent);color:var(--warm);cursor:pointer;display:flex;align-items:center;gap:16px}
 .tool-tile:hover{border-color:rgba(138,169,216,.6);background:rgba(138,169,216,.08)}
-.tool-tile .tl-icon{width:30px;height:30px;border-radius:7px;background:rgba(138,169,216,.1);border:1px solid rgba(138,169,216,.35);color:#b1c8ee;
-  display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',monospace;font-size:14px;font-weight:700}
-.tool-tile .tl-name{font-family:'Bricolage Grotesque',monospace;font-size:17px;font-weight:800;letter-spacing:-.01em}
-.tool-tile .tl-desc{font-size:12.5px;line-height:1.5;color:var(--warm-mute);flex:1}
-.tool-tile .tl-go{font-family:'Bricolage Grotesque',monospace;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#b1c8ee}
-.tool-tile .tl-badge{position:absolute;top:14px;right:14px;padding:2px 7px;border-radius:4px;background:rgba(138,169,216,.16);border:1px solid rgba(138,169,216,.5);color:#b1c8ee;
+.tool-tile .tl-icon{flex:none;width:34px;height:34px;border-radius:8px;background:rgba(138,169,216,.1);border:1px solid rgba(138,169,216,.35);color:#b1c8ee;
+  display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',monospace;font-size:15px;font-weight:700}
+.tool-tile .tl-body{flex:1;min-width:0}
+.tool-tile .tl-name{font-family:'Bricolage Grotesque',monospace;font-size:17px;font-weight:800;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+.tool-tile .tl-desc{margin-top:3px;font-size:12.5px;line-height:1.5;color:var(--warm-mute)}
+.tool-tile .tl-go{flex:none;font-family:'Bricolage Grotesque',monospace;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#b1c8ee}
+.tool-tile .tl-badge{padding:2px 7px;border-radius:4px;background:rgba(138,169,216,.16);border:1px solid rgba(138,169,216,.5);color:#b1c8ee;
   font-family:'Bricolage Grotesque',monospace;font-size:8.5px;font-weight:800;letter-spacing:.18em}
+@media (max-width:640px){.tool-tile{flex-wrap:wrap}.tool-tile .tl-go{width:100%;padding-left:50px}}
 /* tour-level reference tabs (no per-day data) — kept in the same sidebar,
    visually grouped with a top separator since they live below the per-day
    tabs and refer to whole-tour data instead. */
@@ -3540,7 +3543,8 @@ body.print-tourbook-mode #tourBookArea{display:block!important;position:fixed;in
    the console stay where they are while the agent runs. */
 .ta-shell{display:flex;flex-direction:column}
 .ta-top{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:0 0 12px;border-bottom:1px solid var(--line)}
-.ta-top-l{min-width:0}
+.ta-top-l{min-width:0;display:flex;align-items:center;gap:16px}
+.ta-back{flex:none}
 .ta-crumbs{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
 .ta-crumb{background:none;border:0;padding:0;font-family:'Bricolage Grotesque',monospace;font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--warm-mute);cursor:pointer}
 .ta-crumb:hover{color:var(--warm)}
@@ -3573,7 +3577,7 @@ body.print-tourbook-mode #tourBookArea{display:block!important;position:fixed;in
 .rt-dot.open{border-color:#fdba74}
 .rt-dot.none{background:var(--line-2);border-color:var(--line-2)}
 /* step two · what you need */
-.ta-topics{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:10px}
+.ta-topics{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:22px;max-width:760px}
 .ta-topic{text-align:left;padding:18px 18px 16px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,.015),transparent);color:var(--warm);cursor:pointer;display:flex;flex-direction:column;gap:8px;min-height:150px}
 .ta-topic:hover{border-color:rgba(232,148,58,.55);background:rgba(232,148,58,.06)}
 .ta-topic-name{font-family:'Bricolage Grotesque',monospace;font-size:20px;font-weight:800;letter-spacing:-.01em}
@@ -5634,7 +5638,7 @@ setTimeout(window._hideAppBoot,6000);
 
       <div class="console-body">
         <nav class="tabs" id="tabs">
-          <button type="button" class="tab tab-tools" data-tab="tools"><span class="tt-icon">◇</span> Tools<span class="tt-badge" id="toolsTabUnread" hidden>0</span></button>
+          <button type="button" class="tab tab-tools" data-tab="tools"><span class="num tt-icon">◇</span> Tools<span class="tt-badge" id="toolsTabUnread" hidden>0</span></button>
           <button type="button" class="tab active" data-tab="dashboard"><span class="num">01</span> Dashboard</button>
           <button type="button" class="tab" data-tab="schedule"><span class="num">02</span> Schedule</button>
           <button type="button" class="tab" data-tab="notes"><span class="num">03</span> Day Notes</button>
@@ -26172,29 +26176,31 @@ function scoutNearVenue() {
 
 /* =====================================================================
    TRAVEL AGENT
-   A tool the tour manager opens for one thing and closes: pick a day, say
-   what you need (a hotel, a flight, the bus or van move), answer a few
-   plain questions — prefilled from last time — and get suggestions for
-   that one thing. Accept writes the real hotel stay or travel item onto
-   the date, so the gap system closes as they go.
+   A tool the tour manager opens for one thing and closes: say what you
+   need (a hotel, or the travel), pick the day, answer a few plain
+   questions — prefilled from last time — and get suggestions for that one
+   thing. Accept writes the real hotel stay or travel item onto the date, so
+   the gap system closes as they go. Back goes one step; the crumbs go
+   anywhere.
 
    Underneath is the routing engine: the hop between this date and the
    next (miles, drive time, the window from curfew + load-out to the next
    load-in), the mode decision (bus / van / fly), whether tonight is a bus
-   night or a hotel night, and a scored hotel shortlist near the venue.
+   night or a hotel night, and a scored hotel shortlist near the venue — or
+   near the airport the party is flying through, when that's the point.
 
    Geometry comes from the venue pin (venue_lat / venue_lng, patch-050) when
    the address lookup has placed the venue, else the built-in city map. Drive
-   times are real (Google Routes, via /api/routing) when that API is enabled
+   times are real (Google Routes, via /api/routing) when that API is allowed
    on the key, else the same road-ratio estimate the dashboard already shows.
-   Flight shortlists arrive in phase two; today the flight view gives the
+   Flight shortlists arrive in phase two; today the travel view gives the
    fly-or-drive call, the window, a Google Flights deep link, and the
    flight-by-number form (which already tracks live).
    ===================================================================== */
 
 const RT_MODES = { bus: 'Sleeper bus', van: 'Van & hotels', fly: 'Fly dates' };
 const RT_MODE_DRIVE = { bus: 10, van: 7, fly: 3 };    // hours: ceiling for a drive on that kind of run
-const RT_DEFAULTS = { mode: 'bus', maxDriveH: null, loadOutMin: 90, radiusMi: 5, ratingFloor: 0, budget: 0, chains: [], singles: ['Band'], homeCity: '', homeAirport: '' };
+const RT_DEFAULTS = { mode: 'bus', maxDriveH: null, loadOutMin: 90, radiusMi: 5, ratingFloor: 0, budget: 0, chains: [], singles: ['Band'], homeCity: '', homeAirport: '', anchor: 'venue' };
 const RT_CHAINS = {
   'Marriott':     ['marriott', 'courtyard', 'residence inn', 'springhill', 'fairfield', 'westin', 'sheraton', 'w hotel', 'w new york', 'aloft', 'moxy', 'renaissance', 'le méridien', 'le meridien', 'autograph', 'tribute portfolio', 'delta hotels', 'four points', 'element ', 'ac hotel', 'ritz-carlton', 'st. regis', 'edition', 'gaylord', 'luxury collection'],
   'Hilton':       ['hilton', 'hampton', 'doubletree', 'embassy suites', 'homewood', 'home2', 'tru by', 'canopy', 'curio', 'tapestry', 'waldorf', 'conrad', 'motto by', 'lxr', 'signia', 'tempo by'],
@@ -26204,12 +26210,52 @@ const RT_CHAINS = {
   'Wyndham':      ['wyndham', 'ramada', 'days inn', 'super 8', 'la quinta', 'microtel', 'baymont', 'wingate', 'travelodge', 'howard johnson', 'tryp', 'dolce'],
   'Best Western': ['best western', 'glo by', 'vib ', 'aiden by', 'sadie by'],
 };
+// Major airports: IATA → name, lat, lng. Used to (a) place an airport the
+// party is flying through so hotels can be searched around it, and (b) name
+// the nearest airports to a city when nothing has been logged yet.
+const RT_AIRPORTS = {
+  ATL:['Atlanta Hartsfield-Jackson',33.6407,-84.4277], BOS:['Boston Logan',42.3656,-71.0096], BNA:['Nashville Intl',36.1263,-86.6774], BWI:['Baltimore/Washington',39.1774,-76.6684],
+  CLT:['Charlotte Douglas',35.2140,-80.9431], DCA:['Washington Reagan',38.8512,-77.0402], IAD:['Washington Dulles',38.9531,-77.4565], DEN:['Denver Intl',39.8561,-104.6737],
+  DFW:['Dallas/Fort Worth',32.8998,-97.0403], DAL:['Dallas Love Field',32.8471,-96.8518], DTW:['Detroit Metro',42.2124,-83.3534], EWR:['Newark Liberty',40.6895,-74.1745],
+  JFK:['New York JFK',40.6413,-73.7781], LGA:['New York LaGuardia',40.7769,-73.8740], LAX:['Los Angeles Intl',33.9416,-118.4085], BUR:['Hollywood Burbank',34.2007,-118.3587],
+  SNA:['Orange County John Wayne',33.6762,-117.8675], LGB:['Long Beach',33.8177,-118.1516], ONT:['Ontario Intl',34.0560,-117.6012], SAN:['San Diego Intl',32.7338,-117.1933],
+  SFO:['San Francisco Intl',37.6213,-122.3790], OAK:['Oakland Intl',37.7126,-122.2197], SJC:['San Jose Mineta',37.3639,-121.9289], SMF:['Sacramento Intl',38.6954,-121.5908],
+  SEA:['Seattle-Tacoma',47.4502,-122.3088], PDX:['Portland Intl',45.5898,-122.5951], PHX:['Phoenix Sky Harbor',33.4373,-112.0078], TUS:['Tucson Intl',32.1161,-110.9410],
+  LAS:['Las Vegas Harry Reid',36.0840,-115.1537], RNO:['Reno-Tahoe',39.4991,-119.7681], SLC:['Salt Lake City Intl',40.7899,-111.9791], BOI:['Boise',43.5644,-116.2228],
+  MSP:['Minneapolis-St Paul',44.8848,-93.2223], ORD:["Chicago O'Hare",41.9742,-87.9073], MDW:['Chicago Midway',41.7868,-87.7522], MKE:['Milwaukee Mitchell',42.9472,-87.8966],
+  STL:['St. Louis Lambert',38.7500,-90.3700], MCI:['Kansas City Intl',39.2976,-94.7139], OMA:['Omaha Eppley',41.3032,-95.8941], DSM:['Des Moines',41.5340,-93.6631],
+  IND:['Indianapolis Intl',39.7173,-86.2944], CMH:['Columbus John Glenn',39.9980,-82.8919], CLE:['Cleveland Hopkins',41.4117,-81.8498], CVG:['Cincinnati/N. Kentucky',39.0489,-84.6678],
+  PIT:['Pittsburgh Intl',40.4915,-80.2329], PHL:['Philadelphia Intl',39.8744,-75.2424], BUF:['Buffalo Niagara',42.9405,-78.7322], ALB:['Albany Intl',42.7483,-73.8017],
+  BDL:['Hartford Bradley',41.9389,-72.6832], PVD:['Providence T. F. Green',41.7240,-71.4283], MHT:['Manchester-Boston',42.9326,-71.4357], PWM:['Portland Jetport',43.6462,-70.3093],
+  BTV:['Burlington Intl',44.4720,-73.1533], RIC:['Richmond Intl',37.5052,-77.3197], RDU:['Raleigh-Durham',35.8776,-78.7875], GSO:['Greensboro Piedmont Triad',36.0978,-79.9373],
+  CHS:['Charleston Intl',32.8986,-80.0405], SAV:['Savannah/Hilton Head',32.1276,-81.2021], JAX:['Jacksonville Intl',30.4941,-81.6879], MCO:['Orlando Intl',28.4312,-81.3081],
+  TPA:['Tampa Intl',27.9772,-82.5311], MIA:['Miami Intl',25.7959,-80.2871], FLL:['Fort Lauderdale-Hollywood',26.0742,-80.1506], RSW:['Fort Myers',26.5362,-81.7552],
+  BHM:['Birmingham-Shuttlesworth',33.5629,-86.7535], MEM:['Memphis Intl',35.0421,-89.9792], LIT:['Little Rock Clinton',34.7294,-92.2243], MSY:['New Orleans Armstrong',29.9934,-90.2580],
+  AUS:['Austin-Bergstrom',30.1975,-97.6664], SAT:['San Antonio Intl',29.5337,-98.4698], IAH:['Houston Bush',29.9902,-95.3368], HOU:['Houston Hobby',29.6454,-95.2789],
+  OKC:['Oklahoma City Will Rogers',35.3931,-97.6007], TUL:['Tulsa Intl',36.1984,-95.8881], ABQ:['Albuquerque Sunport',35.0402,-106.6091], ELP:['El Paso Intl',31.8072,-106.3781],
+  GEG:['Spokane Intl',47.6199,-117.5339], ANC:['Anchorage Ted Stevens',61.1743,-149.9962], HNL:['Honolulu Inouye',21.3187,-157.9224], SDF:['Louisville Muhammad Ali',38.1740,-85.7365],
+  YYZ:['Toronto Pearson',43.6777,-79.6248], YTZ:['Toronto Billy Bishop',43.6275,-79.3962], YUL:['Montréal-Trudeau',45.4706,-73.7408], YVR:['Vancouver Intl',49.1967,-123.1815],
+  YYC:['Calgary Intl',51.1215,-114.0076], YEG:['Edmonton Intl',53.3097,-113.5801], YOW:['Ottawa Macdonald-Cartier',45.3225,-75.6692], YWG:['Winnipeg Richardson',49.9100,-97.2399],
+  YHZ:['Halifax Stanfield',44.8808,-63.5086], YQB:['Québec City Jean Lesage',46.7911,-71.3933],
+  LHR:['London Heathrow',51.4700,-0.4543], LGW:['London Gatwick',51.1537,-0.1821], STN:['London Stansted',51.8860,0.2389], MAN:['Manchester',53.3537,-2.2750],
+  BHX:['Birmingham (UK)',52.4539,-1.7480], EDI:['Edinburgh',55.9508,-3.3615], GLA:['Glasgow',55.8719,-4.4331], DUB:['Dublin',53.4264,-6.2499],
+  AMS:['Amsterdam Schiphol',52.3105,4.7683], CDG:['Paris Charles de Gaulle',49.0097,2.5479], ORY:['Paris Orly',48.7262,2.3652], BRU:['Brussels',50.9010,4.4856],
+  BER:['Berlin Brandenburg',52.3667,13.5033], MUC:['Munich',48.3538,11.7861], FRA:['Frankfurt',50.0379,8.5622], HAM:['Hamburg',53.6304,9.9882], CGN:['Cologne Bonn',50.8659,7.1427],
+  MAD:['Madrid Barajas',40.4983,-3.5676], BCN:['Barcelona El Prat',41.2974,2.0833], LIS:['Lisbon',38.7756,-9.1354], FCO:['Rome Fiumicino',41.8003,12.2389], MXP:['Milan Malpensa',45.6306,8.7281],
+  VIE:['Vienna',48.1103,16.5697], ZRH:['Zürich',47.4647,8.5492], CPH:['Copenhagen',55.6180,12.6508], ARN:['Stockholm Arlanda',59.6498,17.9238], OSL:['Oslo Gardermoen',60.1976,11.1004],
+  HEL:['Helsinki-Vantaa',60.3183,24.9497], WAW:['Warsaw Chopin',52.1657,20.9671], PRG:['Prague Václav Havel',50.1008,14.2632],
+  SYD:['Sydney Kingsford Smith',-33.9399,151.1753], MEL:['Melbourne Tullamarine',-37.6690,144.8410], BNE:['Brisbane',-27.3842,153.1175], PER:['Perth',-31.9385,115.9672], AKL:['Auckland',-37.0082,174.7850],
+  NRT:['Tokyo Narita',35.7720,140.3929], HND:['Tokyo Haneda',35.5494,139.7798], KIX:['Osaka Kansai',34.4347,135.2440],
+  MEX:['Mexico City Benito Juárez',19.4363,-99.0721], MTY:['Monterrey',25.7785,-100.1069], GDL:['Guadalajara',20.5218,-103.3111], GRU:['São Paulo Guarulhos',-23.4356,-46.4731], GIG:['Rio de Janeiro Galeão',-22.8100,-43.2506],
+};
 
 // Engine state: plans for every hop, fetched shortlists, drive times, evidence.
 let _rt = { plans: [], hotels: {}, evidence: {}, drives: {}, loading: {}, routesOff: false, seq: 0 };
 let _rtApiConfigured = null;
 // Tool state: where the tour manager is in the flow.
-let _ta = { open: false, step: 'date', dateId: null, topic: '', ask: {}, more: {}, done: null };
+let _ta = { open: false, step: 'topic', dateId: null, topic: '', ask: {}, more: {}, done: null };
+const TA_STEPS = ['topic', 'date', 'ask', 'results'];
+const TA_TOPICS = { hotel: 'Hotel', travel: 'Travel' };
 
 function _rtProfile() {
   const p = (T().meta && T().meta.travelProfile) || {};
@@ -26243,6 +26289,20 @@ function _rtChainOf(name) {
 function _rtStatusWord(s) { return { off: 'Day off', travel: 'Travel day', press: 'Press day', rehearsal: 'Rehearsal' }[s] || ''; }
 function _rtSortedDates() { return (T().dates || []).filter(d => /^\d{4}-\d{2}-\d{2}/.test(d.date || '')).slice().sort((a, b) => a.date.localeCompare(b.date)); }
 function _rtDateById(id) { return (T().dates || []).find(d => d.id === id) || null; }
+function _rtAirport(iata) { const a = RT_AIRPORTS[String(iata || '').toUpperCase()]; return a ? { iata: String(iata).toUpperCase(), name: a[0], lat: a[1], lng: a[2] } : null; }
+function _rtNearestAirports(pt, n, maxMi) {
+  if (!pt) return [];
+  return Object.keys(RT_AIRPORTS)
+    .map(k => { const a = _rtAirport(k); return { ...a, mi: _haversineMiles([pt.lat, pt.lng], [a.lat, a.lng]) }; })
+    .filter(a => a.mi <= (maxMi || 60)).sort((a, b) => a.mi - b.mi).slice(0, n || 2);
+}
+// Any three-letter code the tour manager typed into a flight: "Denver (DEN)"
+// or a bare "DEN" — but only ones on our airport map, so "THE" never counts.
+function _rtIataFrom(s) {
+  const t = String(s || '');
+  const inParens = _iataIn(t); if (inParens && RT_AIRPORTS[inParens]) return inParens;
+  const m = t.match(/\b([A-Z]{3})\b/); return m && RT_AIRPORTS[m[1]] ? m[1] : '';
+}
 
 // ── the plan ─────────────────────────────────────────────────────────
 function _rtBuildPlans() {
@@ -26276,7 +26336,8 @@ function _rtPlanHop(a, b, p, i) {
     night: { needsHotel: true, city: cityA, dateId: a.id, why: '', nights: 1, coveredBy: null, checkOut: '' },
     hotelSet: '', noHotel: !!a.noHotel, travelSet: '', noTravel: !!a.noTravel, point: _rtPoint(a),
   };
-  const stays = _hotelsForDate(a);
+  // A stay that checks OUT this morning doesn't cover tonight.
+  const stays = _hotelsForDate(a).filter(st => st._role !== 'out');
   if (stays.length) plan.hotelSet = stays[0].name + (stays.length > 1 ? ` +${stays.length - 1}` : '');
   const moves = a.travel || [];
   if (moves.length) plan.travelSet = (moves[0].description || moves[0].type) + (moves.length > 1 ? ` +${moves.length - 1}` : '');
@@ -26459,10 +26520,12 @@ async function _rtEvidenceFor(city) {
   return ev;
 }
 
-function _rtScoreHotel(h, pl, p, ev) {
+// `h.anchorMi` is the distance from whatever the search is centred on — the
+// venue, the city centre, or the airport the party is flying through.
+function _rtScoreHotel(h, p, ev) {
   let s = 0; const why = [];
   const radius = p.radiusMi || 5;
-  s += 0.30 * Math.max(0, 1 - (h.venueMi / radius));
+  s += 0.30 * Math.max(0, 1 - (h.anchorMi / radius));
   s += 0.30 * ((h.rating || 0) / 5) * Math.min(1, Math.log10((h.reviews || 0) + 1) / 3);
   if (p.budget) { if (h.priceLevel == null) s += 0.07; else if (h.priceLevel <= p.budget) s += 0.15; else if (h.priceLevel === p.budget + 1) s += 0.05; }
   else s += 0.10;
@@ -26479,17 +26542,17 @@ function _rtScoreHotel(h, pl, p, ev) {
   return s;
 }
 
-async function _rtLoadHotels(pl, force) {
-  if (!pl || !pl.point) return;
+async function _rtLoadHotels(pt, city, force) {
+  if (!pt) return;
   const p = _rtProfile();
-  const key = _rtHotelKey(pl.point, p);
+  const key = _rtHotelKey(pt, p);
   if (_rt.hotels[key] && !force) return;
   if (_rt.loading[key]) return;
   _rt.loading[key] = true;
   _taRender();
   const [j, ev] = await Promise.all([
-    _rtApi({ action: 'hotels', lat: pl.point.lat, lng: pl.point.lng, radius: Math.round((p.radiusMi || 5) * 1609) }),
-    _rtEvidenceFor(pl.night.city || pl.from),
+    _rtApi({ action: 'hotels', lat: pt.lat, lng: pt.lng, radius: Math.round((p.radiusMi || 5) * 1609) }),
+    _rtEvidenceFor(city),
   ]);
   delete _rt.loading[key];
   if (!j) {
@@ -26499,29 +26562,56 @@ async function _rtLoadHotels(pl, force) {
     _taRender();
     return;
   }
-  const results = (j.results || []).map(h => ({ ...h, venueMi: _haversineMiles([pl.point.lat, pl.point.lng], [h.lat, h.lng]) }));
-  results.forEach(h => _rtScoreHotel(h, pl, p, ev));
+  const results = (j.results || []).map(h => ({ ...h, anchorMi: _haversineMiles([pt.lat, pt.lng], [h.lat, h.lng]) }));
+  results.forEach(h => _rtScoreHotel(h, p, ev));
   results.sort((a, b) => b.score - a.score);
   _rt.hotels[key] = { results, ranked: results, routes: !!j.routes, cached: !!j.cached };
   _taRender();
 }
 
-function _rtFlightsLink(pl) {
-  const q = `Flights from ${pl.from} to ${pl.to}${pl.nextDate ? ' on ' + pl.nextDate : ''}`;
+function _rtFlightsLink(from, to, date) {
+  const q = `Flights from ${from} to ${to}${date ? ' on ' + date : ''}`;
   return 'https://www.google.com/travel/flights?q=' + encodeURIComponent(q);
 }
-function _rtRatesLink(h, pl) {
-  return 'https://www.google.com/travel/hotels?q=' + encodeURIComponent(`${h.name} ${pl.night.city || ''}`.trim());
+function _rtRatesLink(h, city) {
+  return 'https://www.google.com/travel/hotels?q=' + encodeURIComponent(`${h.name} ${city || ''}`.trim());
+}
+
+// ── the airports this date touches ───────────────────────────────────
+// From the flights logged on this date and the next (live data first, then
+// the code the tour manager typed), else the nearest majors to the city.
+function _taAirportsFor(d, pl) {
+  const out = []; const seen = new Set();
+  const add = (iata, why) => { const a = _rtAirport(iata); if (!a || seen.has(a.iata)) return; seen.add(a.iata); out.push({ ...a, why }); };
+  const scan = (dd, side, why) => {
+    (dd && dd.travel || []).filter(t => t.type === 'flight').forEach(t => {
+      const live = _flightLiveFor(t, dd.date);
+      const code = live && live.leg && live.leg[side] && live.leg[side].iata;
+      const label = `${why} ${t.flightNumber ? 'on ' + t.flightNumber : ''}`.trim();
+      if (code) add(code, label);
+      else add(_rtIataFrom(side === 'arrival' ? t.toCity : t.fromCity) || _rtIataFrom(t.description), label);
+    });
+  };
+  scan(d, 'arrival', 'landing here');
+  if (pl && pl.bId) scan(_rtDateById(pl.bId), 'departure', 'flying out tomorrow');
+  scan(d, 'departure', 'flying out today');
+  if (!out.length && pl && pl.point) _rtNearestAirports(pl.point, 2, 60).forEach(a => add(a.iata, `nearest to ${d.city || 'the city'} · ${Math.round(a.mi)} mi`));
+  return out;
+}
+// Where this hotel search is centred.
+function _taAnchor(d, pl) {
+  const a = _ta.ask.anchor;
+  if (a && a.kind === 'airport') { const ap = _rtAirport(a.iata); if (ap) return { lat: ap.lat, lng: ap.lng, kind: 'airport', label: ap.iata, name: ap.name }; }
+  if (pl && pl.point) return { ...pl.point, label: pl.point.kind === 'venue' ? (d.venue || 'the venue') : (d.city || 'the city centre'), name: '' };
+  return null;
 }
 
 // ── the tool: open / close / steps ───────────────────────────────────
-const TA_TOPICS = { hotel: 'Hotel', flight: 'Flight', ground: 'Bus & van' };
-
-// The Tools tab. A grid of tiles, or the open tool in place of it.
+// The Tools tab. A list of tools, or the open tool in place of it.
 const TOOL_TILES = [
-  { id: 'chat',   icon: '✉', name: 'Messaging',          desc: 'Group and direct chats with band and crew.', go: 'openChatsModal()', badge: 'toolsChatUnread' },
-  { id: 'agent',  icon: '→', name: 'Travel Agent',       desc: 'A hotel, a flight, or the bus move for any date — suggested from the routing.', go: 'openTravelAgent()' },
   { id: 'push',   icon: '◆', name: 'Push notifications', desc: "A message to everyone's phone — now, or at a time you set.", go: 'openPushNotifications()' },
+  { id: 'agent',  icon: '→', name: 'Travel Agent',       desc: 'A hotel, or the travel, for any date — suggested from the routing.', go: 'openTravelAgent()' },
+  { id: 'chat',   icon: '✉', name: 'Messaging',          desc: 'Group and direct chats with band and crew.', go: 'openChatsModal()', badge: 'toolsChatUnread' },
   { id: 'pdf',    icon: '⌗', name: 'Day sheet · PDF',    desc: "Today's schedule, travel and hotel on one printable page.", go: 'openDaySheetPDF()' },
 ];
 function renderTools() {
@@ -26535,32 +26625,32 @@ function renderTools() {
       ${TOOL_TILES.map(t => `
         <button type="button" class="tool-tile" onclick="${t.go}">
           <div class="tl-icon">${t.icon}</div>
-          <div class="tl-name">${esc(t.name)}</div>
-          <div class="tl-desc">${esc(t.desc)}</div>
+          <div class="tl-body"><div class="tl-name">${esc(t.name)}${t.badge ? `<span class="tl-badge" id="${t.badge}" hidden>0</span>` : ''}</div><div class="tl-desc">${esc(t.desc)}</div></div>
           <div class="tl-go">Open →</div>
-          ${t.badge ? `<span class="tl-badge" id="${t.badge}" hidden>0</span>` : ''}
         </button>`).join('')}
     </div>`;
   try { _refreshChatBadges(); } catch (e) {}
 }
 function openTravelAgent() {
   if (!T() || T().id === '_empty') { toast('Open a tour first', 'error'); return; }
-  _ta.open = true; _ta.step = 'date'; _ta.topic = ''; _ta.ask = {}; _ta.done = null;
+  _ta.open = true; _ta.step = 'topic'; _ta.topic = ''; _ta.ask = {}; _ta.done = null;
   _rtBuildPlans();
   const ad = getActiveDate();
   _ta.dateId = ad ? ad.id : null;
   if (activeTab !== 'tools') { activeTab = 'tools'; applyTabFromState(); try { saveUIPrefs(); } catch (e) {} }
   _taRender();
 }
-function closeTravelAgent() {
-  _ta.open = false;
-  renderTools();
-}
+function closeTravelAgent() { _ta.open = false; renderTools(); }
 function _taPlan() { return _rt.plans.find(pl => pl.aId === _ta.dateId) || null; }
 function _taDate() { return _rtDateById(_ta.dateId); }
-function _taGo(step) { _ta.step = step; if (step !== 'results') _ta.done = null; _taRender(); if (step === 'results' || step === 'topic') _taWarm(); }
-function _taPickDate(id) { _ta.dateId = id; _ta.topic = ''; _ta.done = null; _rtBuildPlans(); _taGo('topic'); }
-function _taPickTopic(topic) { _ta.topic = topic; _ta.done = null; _taGo('ask'); }
+function _taGo(step) { _ta.step = step; if (step !== 'results') _ta.done = null; _taRender(); if (step === 'results' || step === 'ask') _taWarm(); }
+function _taBack() {
+  const i = TA_STEPS.indexOf(_ta.step);
+  if (i <= 0) { closeTravelAgent(); return; }
+  _taGo(TA_STEPS[i - 1]);
+}
+function _taPickTopic(topic) { _ta.topic = topic; _ta.done = null; _ta.ask = {}; _taGo('date'); }
+function _taPickDate(id) { _ta.dateId = id; _ta.done = null; _ta.ask = {}; _rtBuildPlans(); _taGo('ask'); }
 function _taMore(key) { _ta.more[key] = !_ta.more[key]; _taRender(); }
 function _taJump(tab) { const id = _ta.dateId; _ta.open = false; if (id) setActive(id); try { _dashGoTab(tab); saveUIPrefs(); } catch (e) {} }
 function _taOpenDate() { const id = _ta.dateId; _ta.open = false; if (id) setActive(id); try { _dashGoTab('dashboard'); saveUIPrefs(); } catch (e) {} setTimeout(() => openDateModal(id), 40); }
@@ -26578,7 +26668,7 @@ async function _taWarm() {
   let pl = _taPlan();
   if (pl && pl.bId && !pl.driveReal) { if (await _rtDriveFor(pl)) { _rtBuildPlans(); pl = _taPlan(); if (seq === _rt.seq) _taRender(); } }
   if (seq !== _rt.seq) return;
-  if (_ta.step === 'results' && _ta.topic === 'hotel' && pl && pl.point) await _rtLoadHotels(pl);
+  if (_ta.step === 'results' && _ta.topic === 'hotel' && pl) { const an = _taAnchor(d, pl); if (an) await _rtLoadHotels(an, pl.night.city || d.city); }
 }
 
 // ── the questions → profile ──────────────────────────────────────────
@@ -26590,14 +26680,17 @@ function _rtPick(groupId, btn, single) {
     const md = document.getElementById('ta_q_maxdrive');
     if (md && !md.dataset.touched) md.value = RT_MODE_DRIVE[btn.dataset.v] || 10;
   }
+  if (groupId === 'ta_q_anchor') {
+    const lbl = document.getElementById('ta_q_radius_lbl');
+    if (lbl) lbl.textContent = btn.dataset.v === 'venue' ? 'How close to the venue?' : `How close to ${btn.dataset.v}?`;
+  }
 }
 function _rtPicked(groupId) { return [...document.querySelectorAll('#' + groupId + ' .rt-toggle.on')].map(b => b.dataset.v); }
 
 function _taSubmitAsk() {
   const prev = (T().meta && T().meta.travelProfile) || {};
   const p = { ...prev };
-  const modeEl = document.getElementById('ta_q_mode');
-  if (modeEl) p.mode = _rtPicked('ta_q_mode')[0] || p.mode || 'bus';
+  if (document.getElementById('ta_q_mode')) p.mode = _rtPicked('ta_q_mode')[0] || p.mode || 'bus';
   const md = document.getElementById('ta_q_maxdrive');
   if (md) { const v = parseFloat(md.value); p.maxDriveH = isFinite(v) && v > 0 ? v : null; }
   const lo = document.getElementById('ta_q_loadout');
@@ -26607,13 +26700,16 @@ function _taSubmitAsk() {
   if (document.getElementById('ta_q_rating')) p.ratingFloor = parseFloat(_rtPicked('ta_q_rating')[0]) || 0;
   if (document.getElementById('ta_q_chains')) p.chains = _rtPicked('ta_q_chains');
   if (!RT_MODES[p.mode]) p.mode = 'bus';
-  T().meta.travelProfile = p;
   // Per-request answers that aren't preferences.
   const nights = parseInt(document.getElementById('ta_q_nights')?.value, 10);
+  const anchorV = document.getElementById('ta_q_anchor') ? (_rtPicked('ta_q_anchor')[0] || 'venue') : 'venue';
   _ta.ask = {
     nights: isFinite(nights) && nights > 0 ? nights : 1,
     who: (document.getElementById('ta_q_who') && _rtPicked('ta_q_who')[0]) || 'Everyone',
+    anchor: anchorV === 'venue' ? { kind: 'venue' } : { kind: 'airport', iata: anchorV },
   };
+  p.anchor = anchorV === 'venue' ? 'venue' : 'airport';    // remembered as a leaning, not a code
+  T().meta.travelProfile = p;
   saveState();
   _rt.hotels = {};                                   // scoring depends on the answers
   _rtBuildPlans();
@@ -26623,14 +26719,15 @@ function _taSubmitAsk() {
 // ── accept: turn a suggestion into the real thing ────────────────────
 function _taUseHotel(placeId) {
   const pl = _taPlan(); const a = _taDate();
-  if (!pl || !a || !pl.point) return;
+  if (!pl || !a) return;
+  const an = _taAnchor(a, pl); if (!an) return;
   const p = _rtProfile();
-  const bucket = _rt.hotels[_rtHotelKey(pl.point, p)];
+  const bucket = _rt.hotels[_rtHotelKey(an, p)];
   const h = bucket && bucket.results.find(x => x.placeId === placeId);
   if (!h) return;
   const nights = _ta.ask.nights || pl.night.nights || 1;
   const bits = [];
-  if (h.venueMi != null) bits.push(`${h.venueMi.toFixed(1)} mi from ${pl.point.kind === 'venue' ? 'the venue' : 'the city centre'}`);
+  if (h.anchorMi != null) bits.push(`${h.anchorMi.toFixed(1)} mi from ${an.kind === 'airport' ? an.label : (an.kind === 'venue' ? 'the venue' : 'the city centre')}`);
   if (h.driveMin != null) bits.push(`${_fmtDuration(h.driveMin)} drive`);
   if (h.rating) bits.push(`${h.rating.toFixed(1)} · ${(h.reviews || 0).toLocaleString()} reviews`);
   (h.why || []).forEach(w => bits.push(w));
@@ -26640,7 +26737,7 @@ function _taUseHotel(placeId) {
     notes: bits.join(' · ') + ' · picked by the Travel Agent', rooms: [],
   }, a.date));
   if (a.noHotel) _clearNoHotelOn(a);
-  _placeCacheSave('hotel', { name: h.name, city: pl.night.city, address: h.address, phone: h.phone, website: h.website, placeId: h.placeId });
+  _placeCacheSave('hotel', { name: h.name, city: pl.night.city || a.city, address: h.address, phone: h.phone, website: h.website, placeId: h.placeId });
   saveState();
   _ta.done = { kind: 'hotel', text: `${h.name} · ${nights} night${nights === 1 ? '' : 's'} · ${_ta.ask.who || 'Everyone'}` };
   _rtBuildPlans(); _taRender();
@@ -26663,7 +26760,7 @@ function _taMarkNoTravel() {
 function _taLogMove() {
   const pl = _taPlan(); const a = _taDate();
   if (!pl || !a || !pl.to) return;
-  const van = pl.mode === 'van';
+  const van = pl.mode === 'van' || (pl.mode === 'fly' && _rtProfile().mode === 'van');
   const eta = pl.driveMin != null ? _rtT(_rtHHMM(_rtMinutes(pl.busDepart) + pl.driveMin)) : '';
   const facts = [];
   if (pl.miles != null) facts.push(`${pl.miles.toLocaleString()} mi`);
@@ -26703,24 +26800,33 @@ function _taRender() {
   if (!root || !_ta.open) return;
   const tourName = (T().meta && T().meta.tourName) || T().name || 'Tour';
   const d = _taDate(); const pl = _taPlan();
-  const crumb = (label, step, on) => `<button type="button" class="ta-crumb ${on ? 'on' : ''}" onclick="_taGo('${step}')">${label}</button>`;
-  const crumbs = [];
-  crumbs.push(crumb(d ? `${esc(fmtMD(d.date))}${d.city ? ' · ' + esc(d.city) : ''}` : 'Which day', 'date', _ta.step === 'date'));
-  if (_ta.step !== 'date') crumbs.push(crumb(_ta.topic ? esc(TA_TOPICS[_ta.topic]) : 'What you need', 'topic', _ta.step === 'topic'));
-  if (_ta.step === 'ask' || _ta.step === 'results') crumbs.push(crumb('A few details', 'ask', _ta.step === 'ask'));
-  if (_ta.step === 'results') crumbs.push(crumb('Suggestions', 'results', true));
+  const stepIdx = TA_STEPS.indexOf(_ta.step);
+  const crumb = (label, step) => {
+    const i = TA_STEPS.indexOf(step);
+    if (i > stepIdx) return '';
+    return `<button type="button" class="ta-crumb ${i === stepIdx ? 'on' : ''}" onclick="_taGo('${step}')">${label}</button>`;
+  };
+  const crumbs = [
+    crumb(_ta.topic ? esc(TA_TOPICS[_ta.topic]) : 'What you need', 'topic'),
+    crumb(d && stepIdx >= 1 ? `${esc(fmtMD(d.date))}${d.city ? ' · ' + esc(d.city) : ''}` : 'Which day', 'date'),
+    crumb('A few details', 'ask'),
+    crumb('Suggestions', 'results'),
+  ].filter(Boolean);
   let body = '';
-  if (_ta.step === 'date') body = _taDateStep();
+  if (_ta.step === 'topic') body = _taTopicStep();
+  else if (_ta.step === 'date') body = _taDateStep();
   else if (!d) body = `<div class="rt-empty">That date is gone. <button type="button" class="rt-link" onclick="_taGo('date')">Pick another</button></div>`;
-  else if (_ta.step === 'topic') body = _taTopicStep(d, pl);
   else if (_ta.step === 'ask') body = _taAskStep(d, pl);
-  else body = _taResultsStep(d, pl);
+  else body = _ta.topic === 'hotel' ? _taHotelResults(d, pl) : _taTravelResults(d, pl);
   root.innerHTML = `
     <div class="ta-shell">
       <header class="ta-top">
         <div class="ta-top-l">
-          <div class="rt-kicker">Travel Agent · ${esc(tourName)}</div>
-          <nav class="ta-crumbs">${crumbs.join('<span class="ta-crumb-sep">›</span>')}</nav>
+          <button type="button" class="rt-btn ta-back" onclick="_taBack()">← ${stepIdx === 0 ? 'Tools' : 'Back'}</button>
+          <div>
+            <div class="rt-kicker">Travel Agent · ${esc(tourName)}</div>
+            <nav class="ta-crumbs">${crumbs.join('<span class="ta-crumb-sep">›</span>')}</nav>
+          </div>
         </div>
         <button type="button" class="rt-btn" onclick="closeTravelAgent()">Close</button>
       </header>
@@ -26730,24 +26836,56 @@ function _taRender() {
   if (on && on.scrollIntoView) { try { on.scrollIntoView({ block: 'center' }); } catch (e) {} }
 }
 
+function _taTopicStep() {
+  const opt = (topic, sub) => `
+    <button type="button" class="ta-topic" onclick="_taPickTopic('${topic}')">
+      <div class="ta-topic-name">${esc(TA_TOPICS[topic])}</div>
+      <div class="ta-topic-sub">${sub}</div>
+      <div class="ta-topic-go">Pick a day →</div>
+    </button>`;
+  return `
+    <div class="ta-head"><div class="rt-kicker">Step one</div><h1>What do you need?</h1><div class="rt-sub">One thing at a time. You'll pick the day next.</div></div>
+    <div class="ta-topics">
+      ${opt('hotel', 'A place to sleep near the venue — or near the airport you\'re flying through — scored on distance, rating, budget, chains and what other tours have used.')}
+      ${opt('travel', 'The move to the next city: bus or van with a time to roll, or a fly date with the window — and the flight-by-number form that tracks live.')}
+    </div>`;
+}
+
 function _taDateStep() {
   const dates = _rtSortedDates();
   const active = getActiveDate();
+  const hotel = _ta.topic === 'hotel';
   if (!dates.length) return `<div class="ta-head"><h1>Which day?</h1><div class="rt-sub">Add dates to the tour first.</div></div>`;
   return `
-    <div class="ta-head"><div class="rt-kicker">Step one</div><h1>Which day?</h1><div class="rt-sub">Pick the date you're sorting out. ${active ? `Today's tab is ${esc(fmtMD(active.date))}.` : ''}</div></div>
+    <div class="ta-head"><div class="rt-kicker">Step two · ${esc(TA_TOPICS[_ta.topic])}</div><h1>Which day?</h1><div class="rt-sub">${hotel ? 'The night you need a room for.' : 'The day the move happens.'} ${active ? `Today's tab is ${esc(fmtMD(active.date))}.` : ''}</div></div>
     <div class="ta-dates">
       ${dates.map(d => {
-        const pl = _rt.plans.find(x => x.aId === d.id) || {};
-        const h = pl.hotelSet ? 'set' : (pl.noHotel || (pl.night && !pl.night.needsHotel) || (pl.night && pl.night.coveredBy != null)) ? 'none' : 'open';
-        const t = pl.travelSet ? 'set' : (pl.noTravel || pl.mode === 'stay' || pl.mode === 'end' || pl.mode === 'unknown') ? 'none' : 'open';
+        const pl = _rt.plans.find(x => x.aId === d.id) || { night: {} };
         const word = _rtStatusWord(d.status);
+        let where, sub, dot;
+        if (hotel) {
+          where = esc(d.city || 'No city yet');
+          if (pl.hotelSet) { sub = `Set: ${esc(pl.hotelSet)}`; dot = 'set'; }
+          else if (pl.noHotel) { sub = 'Marked: no hotel required'; dot = 'none'; }
+          else if (pl.night.coveredBy != null) { const c = _rt.plans[pl.night.coveredBy]; sub = `Covered by the ${esc(fmtMD(c.date))} stay`; dot = 'none'; }
+          else if (pl.mode === 'bus' && !pl.night.needsHotel) { sub = 'Bus night — the bus is the hotel'; dot = 'none'; }
+          else if (!d.city) { sub = ''; dot = 'none'; }
+          else { sub = `${d.venue ? esc(d.venue) + ' · ' : ''}${pl.night.nights > 1 ? pl.night.nights + ' nights' : 'Hotel night'}`; dot = 'open'; }
+        } else {
+          where = `${esc(d.city || 'No city yet')}${pl.to && pl.mode !== 'stay' ? ` <span class="rt-arrow">→</span> ${esc(pl.to)}` : ''}`;
+          if (pl.travelSet) { sub = `Logged: ${esc(pl.travelSet)}`; dot = 'set'; }
+          else if (pl.noTravel) { sub = 'Marked: no travel required'; dot = 'none'; }
+          else if (pl.mode === 'stay') { sub = 'No move — same city tomorrow'; dot = 'none'; }
+          else if (pl.mode === 'end') { sub = 'Last date of the run'; dot = 'none'; }
+          else if (pl.mode === 'unknown' || !pl.mode) { sub = ''; dot = 'none'; }
+          else { sub = `${pl.mode === 'fly' ? 'Fly' : (pl.mode === 'van' ? 'Van' : 'Bus')}${pl.miles != null ? ` · ${pl.miles.toLocaleString()} mi · ${_fmtDuration(pl.driveMin)}` : ''}`; dot = 'open'; }
+        }
         return `
           <button type="button" class="ta-date ${d.id === _ta.dateId ? 'on' : ''}" onclick="_taPickDate('${d.id}')">
             <div class="ta-date-when">${esc(fmtMD(d.date))} · ${esc(dow(d.date))}${word ? ' · ' + esc(word) : ''}${active && active.id === d.id ? ' · <em>current</em>' : ''}</div>
-            <div class="ta-date-where">${esc(d.city || 'No city yet')}${pl.to && pl.mode !== 'stay' ? ` <span class="rt-arrow">→</span> ${esc(pl.to)}` : ''}</div>
-            <div class="ta-date-sub">${d.venue ? esc(d.venue) : ''}${pl.miles != null ? `${d.venue ? ' · ' : ''}${pl.miles.toLocaleString()} mi · ${_fmtDuration(pl.driveMin)}` : ''}</div>
-            <div class="rt-hop-dots"><span class="rt-dot ${h}" title="Hotel"></span><span class="rt-dot ${t}" title="Travel"></span></div>
+            <div class="ta-date-where">${where}</div>
+            <div class="ta-date-sub">${sub}</div>
+            <div class="rt-hop-dots"><span class="rt-dot ${dot}"></span></div>
           </button>`;
       }).join('')}
     </div>`;
@@ -26762,59 +26900,33 @@ function _taContext(d, pl) {
   return bits.join(' · ');
 }
 
-function _taTopicStep(d, pl) {
-  const word = _rtStatusWord(d.status);
-  const title = `${esc(d.city || 'No city')}${pl && pl.to && pl.mode !== 'stay' ? ` <span class="rt-arrow">→</span> ${esc(pl.to)}` : ''}`;
-  if (!d.city) return `
-    <div class="ta-head"><div class="rt-kicker">${esc(fmtMD(d.date))} · ${esc(dow(d.date))}</div><h1>This date needs a city first</h1>
-      <div class="rt-sub">The agent can't suggest anything for a place it doesn't know.</div></div>
-    <div class="rt-card-actions"><button type="button" class="rt-btn primary" onclick="_taOpenDate()">Open the date →</button></div>`;
-  // Subtitles that tell the truth about this date before they click.
-  let hotelSub, flightSub, groundSub;
-  if (pl.hotelSet) hotelSub = `Already set: ${esc(pl.hotelSet)}. Find another, or open it.`;
-  else if (pl.night.coveredBy != null) { const c = _rt.plans[pl.night.coveredBy]; hotelSub = `Covered by the ${esc(fmtMD(c.date))} stay (${c.night.nights} nights).`; }
-  else if (!pl.night.needsHotel && pl.mode === 'bus') hotelSub = `On this run tonight is a bus night — the bus is the hotel. You can still look.`;
-  else if (pl.mode === 'end' && !pl.night.needsHotel) hotelSub = `Last date — home after the show unless you say otherwise.`;
-  else hotelSub = `The night of ${esc(fmtMD(d.date))} in ${esc(d.city)}${pl.night.nights > 1 ? ` · ${pl.night.nights} nights` : ''}.`;
-  if (pl.mode === 'stay') flightSub = `No move — same city tomorrow.`;
-  else if (pl.mode === 'end') flightSub = `Last date. Flights home, if the run flies.`;
-  else if (pl.mode === 'unknown') flightSub = `The next date needs a city first.`;
-  else if (pl.mode === 'fly') flightSub = `${esc(d.city)} → ${esc(pl.to)} · ${pl.miles != null ? pl.miles.toLocaleString() + ' mi' : ''} · flying is the call.`;
-  else flightSub = `${esc(d.city)} → ${esc(pl.to)} · ${pl.driveMin != null ? _fmtDuration(pl.driveMin) + ' by road' : ''} — you don't need to fly this one, but you can look.`;
-  if (pl.travelSet) groundSub = `Logged: ${esc(pl.travelSet)}.`;
-  else if (pl.mode === 'stay') groundSub = `No move — same city tomorrow.`;
-  else if (pl.mode === 'end') groundSub = `Last date of the run.`;
-  else if (pl.mode === 'unknown') groundSub = `The next date needs a city first.`;
-  else if (pl.mode === 'bus' || pl.mode === 'van') groundSub = `${esc(pl.headline)} · roll at ${esc(_rtT(pl.busDepart))}.`;
-  else groundSub = `${pl.miles != null ? pl.miles.toLocaleString() + ' mi · ' : ''}${pl.driveMin != null ? _fmtDuration(pl.driveMin) : ''} — past the drive ceiling; flying is the call.`;
-  const opt = (topic, sub) => `
-    <button type="button" class="ta-topic" onclick="_taPickTopic('${topic}')">
-      <div class="ta-topic-name">${esc(TA_TOPICS[topic])}</div>
-      <div class="ta-topic-sub">${sub}</div>
-      <div class="ta-topic-go">Suggest →</div>
-    </button>`;
-  return `
-    <div class="ta-head"><div class="rt-kicker">${esc(fmtMD(d.date))} · ${esc(dow(d.date))}${word ? ' · ' + esc(word) : ''}</div><h1>${title}</h1><div class="rt-sub">${_taContext(d, pl)}</div></div>
-    <div class="rt-kicker" style="margin-top:22px">What do you need?</div>
-    <div class="ta-topics">${opt('hotel', hotelSub)}${opt('flight', flightSub)}${opt('ground', groundSub)}</div>`;
-}
-
 function _taAskStep(d, pl) {
   const p = _rtProfile();
   const first = !_rtProfileSet();
-  const tog = (id, opts, cur, single) => `<div class="rt-toggles" id="${id}">${opts.map(o => `<button type="button" class="rt-toggle ${(single ? String(cur) === String(o.v) : (cur || []).includes(o.v)) ? 'on' : ''}" data-v="${esc(String(o.v))}" onclick="_rtPick('${id}',this,${single ? 'true' : 'false'})">${esc(o.l)}</button>`).join('')}</div>`;
-  const q = (label, control, hint) => `<div class="ta-q"><label>${label}</label>${control}${hint ? `<div class="hint">${hint}</div>` : ''}</div>`;
-  // The tour question: asked in full the first time, then a one-liner with a
-  // way to change it.
+  const tog = (id, opts, cur, single) => `<div class="rt-toggles" id="${id}">${opts.map(o => `<button type="button" class="rt-toggle ${(single ? String(cur) === String(o.v) : (cur || []).includes(o.v)) ? 'on' : ''}" data-v="${esc(String(o.v))}" onclick="_rtPick('${id}',this,${single ? 'true' : 'false'})" ${o.title ? `title="${esc(o.title)}"` : ''}>${esc(o.l)}</button>`).join('')}</div>`;
+  const q = (label, control, hint, labelId) => `<div class="ta-q"><label ${labelId ? `id="${labelId}"` : ''}>${label}</label>${control}${hint ? `<div class="hint">${hint}</div>` : ''}</div>`;
   const modeQ = (first || _ta.ask._editMode)
     ? q('How does this tour move?', tog('ta_q_mode', [{ v: 'bus', l: 'Sleeper bus' }, { v: 'van', l: 'Van & hotels' }, { v: 'fly', l: 'Fly dates' }], p.mode, true), 'Bus: show nights on the bus, hotels on days off. Van: a hotel every night, drive by day. Fly: a hotel every night, flights between cities.')
     : `<div class="ta-q ta-q-line"><span class="rt-kicker">This tour</span><span>${esc(RT_MODES[p.mode])}</span><button type="button" class="rt-link" onclick="_ta.ask._editMode=true;_taRender()">Change</button></div>`;
   const groups = (T().meta && T().meta.groups) || ['Band', 'Crew'];
+  if (!d.city) {
+    return `
+      <div class="ta-head"><div class="rt-kicker">${esc(TA_TOPICS[_ta.topic])} · ${esc(fmtMD(d.date))}</div><h1>This date needs a city first</h1><div class="rt-sub">The agent can't suggest anything for a place it doesn't know.</div></div>
+      <div class="rt-card-actions"><button type="button" class="rt-btn primary" onclick="_taOpenDate()">Open the date →</button><button type="button" class="rt-btn" onclick="_taBack()">Back</button></div>`;
+  }
   let qs = '', cta = '';
   if (_ta.topic === 'hotel') {
+    const airports = _taAirportsFor(d, pl);
+    const cur = _ta.ask.anchor ? (_ta.ask.anchor.kind === 'airport' ? _ta.ask.anchor.iata : 'venue') : (p.anchor === 'airport' && airports.length ? airports[0].iata : 'venue');
+    const anchorOpts = [{ v: 'venue', l: pl && pl.point && pl.point.kind === 'venue' && d.venue ? `The venue · ${d.venue}` : `The city centre · ${d.city}` }]
+      .concat(airports.map(a => ({ v: a.iata, l: `${a.iata} · ${a.name}`, title: a.why })));
+    const anchorHint = airports.length
+      ? airports.map(a => `<b>${esc(a.iata)}</b> — ${esc(a.why)}`).join(' · ')
+      : 'No flights logged for this date yet, and no major airport within 60 miles on the map. Log a flight by number and the airport shows up here.';
     qs = [
       modeQ,
-      q('How close to the venue?', tog('ta_q_radius', [{ v: 3, l: 'Within 3 mi' }, { v: 5, l: 'Within 5 mi' }, { v: 10, l: 'Within 10 mi' }], p.radiusMi, true), pl && pl.point && pl.point.kind === 'venue' ? `Measured from ${esc(d.venue)}.` : 'Measured from the city centre until the venue is placed — pick it from the address lookup on the date and it will be.'),
+      q('Near what?', tog('ta_q_anchor', anchorOpts, cur, true), anchorHint),
+      q(cur === 'venue' ? 'How close to the venue?' : `How close to ${esc(cur)}?`, tog('ta_q_radius', [{ v: 3, l: 'Within 3 mi' }, { v: 5, l: 'Within 5 mi' }, { v: 10, l: 'Within 10 mi' }], p.radiusMi, true), pl && pl.point && pl.point.kind === 'venue' ? '' : 'The venue isn\'t placed yet, so "venue" means the city centre until you pick it from the address lookup on the date.', 'ta_q_radius_lbl'),
       q("What's the budget?", tog('ta_q_budget', [{ v: 0, l: 'Any' }, { v: 1, l: '$' }, { v: 2, l: '$$' }, { v: 3, l: '$$$' }, { v: 4, l: '$$$$' }], p.budget, true)),
       q('Guest rating', tog('ta_q_rating', [{ v: 0, l: 'Any' }, { v: 4, l: '4.0 and up' }, { v: 4.3, l: '4.3 and up' }], p.ratingFloor, true)),
       q("Chains you'd rather stay with", tog('ta_q_chains', Object.keys(RT_CHAINS).map(c => ({ v: c, l: c })), p.chains, false), 'Optional. Loyalty, billing, whatever the reason — these float up the list.'),
@@ -26824,70 +26936,61 @@ function _taAskStep(d, pl) {
       </div>`,
     ].join('');
     cta = 'Show me hotels';
-  } else if (_ta.topic === 'flight') {
-    qs = [
-      modeQ,
-      q("Longest drive you'd rather take than fly (hours)", `<input type="number" id="ta_q_maxdrive" min="1" max="24" step="0.5" value="${esc(String(_rtMaxDrive(p)))}" oninput="this.dataset.touched=1">`, 'Anything longer and the agent calls it a fly date.'),
-    ].join('');
-    cta = 'Find flights';
   } else {
     qs = [
       modeQ,
       q('Load-out after curfew (minutes)', `<input type="number" id="ta_q_loadout" min="0" max="360" step="15" value="${esc(String(p.loadOutMin))}">`, 'Bus call is curfew plus this.'),
-      q('Longest drive in one go (hours)', `<input type="number" id="ta_q_maxdrive" min="1" max="24" step="0.5" value="${esc(String(_rtMaxDrive(p)))}" oninput="this.dataset.touched=1">`),
+      q("Longest drive you'd take before flying (hours)", `<input type="number" id="ta_q_maxdrive" min="1" max="24" step="0.5" value="${esc(String(_rtMaxDrive(p)))}" oninput="this.dataset.touched=1">`, 'Anything longer and the agent calls it a fly date.'),
     ].join('');
     cta = 'Plan the move';
   }
   return `
     <div class="ta-head"><div class="rt-kicker">${esc(TA_TOPICS[_ta.topic])} · ${esc(fmtMD(d.date))} · ${esc(d.city)}</div><h1>A few details</h1><div class="rt-sub">${first ? 'First time on this tour — these are remembered for next time.' : 'Prefilled from last time. Change what you like.'}</div></div>
     <div class="ta-form">${qs}</div>
-    <div class="rt-card-actions" style="margin-top:26px"><button type="button" class="rt-btn primary" onclick="_taSubmitAsk()">${cta}</button><button type="button" class="rt-btn" onclick="_taGo('topic')">Back</button></div>`;
-}
-
-function _taResultsStep(d, pl) {
-  if (_ta.topic === 'hotel') return _taHotelResults(d, pl);
-  if (_ta.topic === 'flight') return _taFlightResults(d, pl);
-  return _taGroundResults(d, pl);
+    <div class="rt-card-actions" style="margin-top:26px"><button type="button" class="rt-btn primary" onclick="_taSubmitAsk()">${cta}</button><button type="button" class="rt-btn" onclick="_taBack()">Back</button></div>`;
 }
 
 function _taDoneHTML(actions) {
   if (!_ta.done) return '';
-  return `<section class="rt-card ta-done"><div class="rt-kicker">Done</div><h3>${esc(_ta.done.text)}</h3><div class="rt-card-actions">${actions}<button type="button" class="rt-btn" onclick="closeTravelAgent()">Close</button></div></section>`;
+  return `<section class="rt-card ta-done"><div class="rt-kicker">Done</div><h3>${esc(_ta.done.text)}</h3><div class="rt-card-actions">${actions}<button type="button" class="rt-btn" onclick="_taGo('topic')">Something else</button><button type="button" class="rt-btn" onclick="closeTravelAgent()">Close</button></div></section>`;
 }
 
 function _taHotelResults(d, pl) {
   const p = _rtProfile();
-  const nights = _ta.ask.nights || pl.night.nights || 1;
+  const an = _taAnchor(d, pl);
+  const nights = _ta.ask.nights || (pl && pl.night.nights) || 1;
+  const nearLabel = an ? (an.kind === 'airport' ? `${an.label} · ${an.name}` : an.label) : d.city;
   const head = `
     <div class="ta-head"><div class="rt-kicker">Hotel · the night of ${esc(fmtMD(d.date))}${nights > 1 ? ` · ${nights} nights` : ''} · ${esc(_ta.ask.who || 'Everyone')}</div>
-      <h1>Near ${esc(pl.point && pl.point.kind === 'venue' && d.venue ? d.venue : d.city)}</h1><div class="rt-sub">${_taContext(d, pl)}</div></div>`;
+      <h1>Near ${esc(nearLabel)}</h1><div class="rt-sub">${_taContext(d, pl)}</div></div>`;
   if (_ta.done) return head + _taDoneHTML(`<button type="button" class="rt-btn primary" onclick="_taJump('hotels')">Assign rooms →</button>`);
   let nudge = '';
-  if (pl.hotelSet) nudge = `<div class="ta-nudge"><span>Already on this date: <b>${esc(pl.hotelSet)}</b>.</span><button type="button" class="rt-link" onclick="_taJump('hotels')">Open it →</button></div>`;
-  else if (!pl.night.needsHotel && pl.mode === 'bus' && !pl.noHotel) nudge = `<div class="ta-nudge"><span>On a sleeper-bus run this is a bus night — the bus is the hotel. Mark it, or keep looking below.</span><button type="button" class="rt-btn" onclick="_taMarkNoHotel()">Mark: no hotel required</button></div>`;
-  else if (pl.noHotel) nudge = `<div class="ta-nudge"><span>This date is marked <b>no hotel required</b> — picking one below clears that.</span></div>`;
-  if (!pl.point) return head + nudge + `<div class="rt-empty small">No pin for this date yet — pick the venue from the address lookup on the date, or use a city the agent knows.</div><div class="rt-card-actions"><button type="button" class="rt-btn" onclick="_taOpenDate()">Open the date →</button></div>`;
-  const key = _rtHotelKey(pl.point, p);
+  if (pl && pl.hotelSet) nudge = `<div class="ta-nudge"><span>Already on this date: <b>${esc(pl.hotelSet)}</b>.</span><button type="button" class="rt-link" onclick="_taJump('hotels')">Open it →</button></div>`;
+  else if (pl && !pl.night.needsHotel && pl.mode === 'bus' && !pl.noHotel) nudge = `<div class="ta-nudge"><span>On a sleeper-bus run this is a bus night — the bus is the hotel. Mark it, or keep looking below.</span><button type="button" class="rt-btn" onclick="_taMarkNoHotel()">Mark: no hotel required</button></div>`;
+  else if (pl && pl.noHotel) nudge = `<div class="ta-nudge"><span>This date is marked <b>no hotel required</b> — picking one below clears that.</span></div>`;
+  if (!an) return head + nudge + `<div class="rt-empty small">No pin for this date yet — pick the venue from the address lookup on the date, or use a city the agent knows.</div><div class="rt-card-actions"><button type="button" class="rt-btn" onclick="_taOpenDate()">Open the date →</button><button type="button" class="rt-btn" onclick="_taBack()">Back</button></div>`;
+  const key = _rtHotelKey(an, p);
   const bucket = _rt.hotels[key];
-  const radiusLine = `<div class="rt-radius"><span class="rt-kicker">Within ${p.radiusMi} mi of the ${pl.point.kind === 'venue' ? 'venue' : 'city centre'}</span>${p.budget ? `<span class="rt-kicker">· ${'$'.repeat(p.budget)}</span>` : ''}${p.chains.length ? `<span class="rt-kicker">· ${esc(p.chains.join(', '))}</span>` : ''}<button type="button" class="rt-link" onclick="_taGo('ask')">Change</button>${bucket ? `<button type="button" class="rt-link" onclick="_rtLoadHotels(_taPlan(), true)">Refresh</button>` : ''}</div>`;
+  const city = (pl && pl.night.city) || d.city;
+  const radiusLine = `<div class="rt-radius"><span class="rt-kicker">Within ${p.radiusMi} mi of ${an.kind === 'airport' ? esc(an.label) : (an.kind === 'venue' ? 'the venue' : 'the city centre')}</span>${p.budget ? `<span class="rt-kicker">· ${'$'.repeat(p.budget)}</span>` : ''}${p.chains.length ? `<span class="rt-kicker">· ${esc(p.chains.join(', '))}</span>` : ''}<button type="button" class="rt-link" onclick="_taGo('ask')">Change</button>${bucket ? `<button type="button" class="rt-link" onclick="_rtLoadHotels(_taAnchor(_taDate(),_taPlan()),'${esc(city)}',true)">Refresh</button>` : ''}</div>`;
   let list = '';
   if (!bucket) {
     if (_rtApiConfigured === false) list = `<div class="rt-empty small">Hotel search isn't set up on the server yet — GOOGLE_PLACES_KEY is missing.</div>`;
-    else list = `<div class="rt-empty small">${_rt.loading[key] ? 'Searching hotels near the venue…' : `<button type="button" class="rt-btn" onclick="_rtLoadHotels(_taPlan())">Find hotels</button>`}</div>`;
-  } else if (bucket.failed) list = `<div class="rt-empty small">The hotel search didn't answer. <button type="button" class="rt-link" onclick="_rtLoadHotels(_taPlan(), true)">Try again</button></div>`;
+    else list = `<div class="rt-empty small">${_rt.loading[key] ? 'Searching hotels…' : `<button type="button" class="rt-btn" onclick="_rtLoadHotels(_taAnchor(_taDate(),_taPlan()),'${esc(city)}')">Find hotels</button>`}</div>`;
+  } else if (bucket.failed) list = `<div class="rt-empty small">The hotel search didn't answer. <button type="button" class="rt-link" onclick="_rtLoadHotels(_taAnchor(_taDate(),_taPlan()),'${esc(city)}',true)">Try again</button></div>`;
   else if (!bucket.ranked.length) list = `<div class="rt-empty small">Nothing within ${p.radiusMi} mi. <button type="button" class="rt-link" onclick="_taGo('ask')">Widen the radius</button></div>`;
   else {
     const showN = _ta.more[key] ? 10 : 5;
-    list = `<div class="rt-hotels">${bucket.ranked.slice(0, showN).map(h => _rtHotelCard(h, pl)).join('')}</div>
+    list = `<div class="rt-hotels">${bucket.ranked.slice(0, showN).map(h => _rtHotelCard(h, an, city)).join('')}</div>
       ${bucket.ranked.length > 5 ? `<div style="margin-top:10px"><button type="button" class="rt-link" onclick="_taMore('${key}')">${_ta.more[key] ? 'Show fewer' : `Show ${Math.min(5, bucket.ranked.length - 5)} more`}</button></div>` : ''}
-      ${bucket.routes === false ? `<div class="rt-note">Distances are straight-line — enable the Google Routes API on the Places key and these become drive times.</div>` : ''}`;
+      ${bucket.routes === false ? `<div class="rt-note">Distances are straight-line — allow the Google Routes API on the Places key and these become drive times.</div>` : ''}`;
   }
   return head + nudge + radiusLine + list;
 }
 
-function _rtHotelCard(h, pl) {
-  const where = pl.point.kind === 'venue' ? 'the venue' : 'the centre';
-  const dist = h.driveMin != null ? `${(h.driveMi != null ? h.driveMi : h.venueMi).toFixed(1)} mi · ${_fmtDuration(h.driveMin)} drive` : `${h.venueMi.toFixed(1)} mi from ${where}`;
+function _rtHotelCard(h, an, city) {
+  const where = an.kind === 'airport' ? an.label : (an.kind === 'venue' ? 'the venue' : 'the centre');
+  const dist = h.driveMin != null ? `${(h.driveMi != null ? h.driveMi : h.anchorMi).toFixed(1)} mi · ${_fmtDuration(h.driveMin)} drive` : `${h.anchorMi.toFixed(1)} mi from ${where}`;
   const rate = h.rating ? `${h.rating.toFixed(1)} · ${(h.reviews || 0).toLocaleString()} reviews` : 'No rating yet';
   const price = h.priceLevel ? '$'.repeat(h.priceLevel) : '';
   return `
@@ -26899,7 +27002,7 @@ function _rtHotelCard(h, pl) {
         <div class="rt-hotel-links">
           ${h.website ? `<a href="${esc(h.website)}" target="_blank" rel="noopener">Site</a>` : ''}
           ${h.mapsUrl ? `<a href="${esc(h.mapsUrl)}" target="_blank" rel="noopener">Maps</a>` : ''}
-          <a href="${_rtRatesLink(h, pl)}" target="_blank" rel="noopener">Rates</a>
+          <a href="${_rtRatesLink(h, city)}" target="_blank" rel="noopener">Rates</a>
           ${h.phone ? `<a href="tel:${esc(h.phone.replace(/\s+/g, ''))}">${esc(h.phone)}</a>` : ''}
         </div>
       </div>
@@ -26915,45 +27018,36 @@ function _taFacts(pl) {
   return facts.length ? `<div class="rt-facts">${facts.join('<span class="rt-sep">·</span>')}</div>` : '';
 }
 
-function _taFlightResults(d, pl) {
-  const head = `<div class="ta-head"><div class="rt-kicker">Flight · ${esc(fmtMD(d.date))}</div><h1>${esc(d.city)}${pl.to && pl.mode !== 'stay' ? ` <span class="rt-arrow">→</span> ${esc(pl.to)}` : ''}</h1><div class="rt-sub">${_taContext(d, pl)}</div></div>`;
-  if (pl.mode === 'stay' || pl.mode === 'end' || pl.mode === 'unknown') {
-    return head + `<section class="rt-card"><div class="rt-kicker">The call</div><h3>${esc(pl.headline)}</h3><ul class="rt-reasons">${pl.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>
-      <div class="rt-card-actions">${pl.mode === 'unknown' ? `<button type="button" class="rt-btn primary" onclick="_taOpenDate()">Open the date →</button>` : `<button type="button" class="rt-btn" onclick="_taLogFlight()">Log a flight by number anyway</button>`}</div></section>`;
-  }
-  const flights = (d.travel || []).filter(t => t.type === 'flight');
-  const logged = flights.length ? `<div class="ta-nudge"><span>Already logged: ${flights.map(t => `<b>${esc(t.description || t.flightNumber || 'Flight')}</b>${t.time ? ' · ' + esc(_rtT(t.time)) : ''}`).join(', ')}.</span><button type="button" class="rt-link" onclick="_taJump('travel')">Open in Travel →</button></div>` : '';
-  const call = pl.mode === 'fly'
-    ? `<h3>${esc(pl.headline)}</h3>`
-    : `<h3>You don't need to fly this one</h3>`;
-  return head + logged + `
-    <section class="rt-card"><div class="rt-kicker">The call</div>${call}${_taFacts(pl)}
-      ${pl.windowFrom ? `<div class="rt-window">${esc(pl.windowFrom)} → ${esc(pl.windowTo)}</div>` : ''}
-      <ul class="rt-reasons">${pl.reasons.map(r => `<li>${esc(r)}</li>`).join('')}${pl.mode === 'fly' ? `<li>Land at least three hours before ${esc(pl.windowTo)}; a flight after the show needs to clear ${esc(pl.windowFrom)}.</li>` : ''}</ul>
-      <div class="rt-card-actions">
-        <a class="rt-btn primary" target="_blank" rel="noopener" href="${_rtFlightsLink(pl)}">See flights on Google ↗</a>
-        <button type="button" class="rt-btn" onclick="_taLogFlight()">Log a flight by number</button>
-        ${pl.mode !== 'fly' && !pl.travelSet ? `<button type="button" class="rt-btn" onclick="_ta.topic='ground';_taGo('results')">Plan the ${pl.mode === 'van' ? 'van' : 'bus'} instead</button>` : ''}
-      </div>
-      <div class="rt-note">Flight shortlists with times and carriers arrive with phase two. A flight logged by number today already tracks live on every crew phone.</div>
-    </section>`;
-}
-
-function _taGroundResults(d, pl) {
-  const head = `<div class="ta-head"><div class="rt-kicker">Bus & van · ${esc(fmtMD(d.date))}</div><h1>${esc(d.city)}${pl.to && pl.mode !== 'stay' ? ` <span class="rt-arrow">→</span> ${esc(pl.to)}` : ''}</h1><div class="rt-sub">${_taContext(d, pl)}</div></div>`;
+// One answer for the move: the call (bus / van / fly / stay), the numbers
+// behind it, and every way to act on it.
+function _taTravelResults(d, pl) {
+  const p = _rtProfile();
+  const head = `<div class="ta-head"><div class="rt-kicker">Travel · ${esc(fmtMD(d.date))}</div><h1>${esc(d.city)}${pl.to && pl.mode !== 'stay' ? ` <span class="rt-arrow">→</span> ${esc(pl.to)}` : ''}</h1><div class="rt-sub">${_taContext(d, pl)}</div></div>`;
   if (_ta.done) return head + _taDoneHTML(`<button type="button" class="rt-btn primary" onclick="_taJump('travel')">Open in Travel →</button>`);
-  let action = '';
-  if (pl.travelSet) action = `<div class="rt-set">Logged: ${esc(pl.travelSet)}</div><button type="button" class="rt-btn" onclick="_taJump('travel')">Open in Travel →</button>`;
-  else if (pl.mode === 'bus' || pl.mode === 'van') action = `<button type="button" class="rt-btn primary" onclick="_taLogMove()">Log the ${pl.mode} move · ${esc(_rtT(pl.busDepart))}</button>`;
-  else if (pl.mode === 'fly') action = `<button type="button" class="rt-btn primary" onclick="_ta.topic='flight';_taGo('results')">Look at flights instead →</button>`;
-  else if (pl.mode === 'stay') action = pl.noTravel ? `<div class="rt-set">Marked: no travel required</div>` : `<button type="button" class="rt-btn primary" onclick="_taMarkNoTravel()">Mark: no travel required</button>`;
-  else if (pl.mode === 'unknown') action = `<button type="button" class="rt-btn primary" onclick="_taOpenDate()">Open the date →</button>`;
-  const nightLine = pl.mode === 'bus' || pl.mode === 'van' ? `<div class="rt-note">${esc(pl.night.why)}${pl.mode === 'bus' && !pl.night.needsHotel && !pl.noHotel && !pl.hotelSet ? ` <button type="button" class="rt-link" onclick="_taMarkNoHotel()">Mark: no hotel required</button>` : ''}</div>` : '';
-  return head + `
-    <section class="rt-card"><div class="rt-kicker">The move</div><h3>${esc(pl.headline)}</h3>${_taFacts(pl)}
+  const logged = pl.travelSet ? `<div class="ta-nudge"><span>Already logged: <b>${esc(pl.travelSet)}</b>.</span><button type="button" class="rt-link" onclick="_taJump('travel')">Open in Travel →</button></div>` : '';
+  const flightsBtn = pl.to ? `<a class="rt-btn ${pl.mode === 'fly' ? 'primary' : ''}" target="_blank" rel="noopener" href="${_rtFlightsLink(d.city, pl.to, pl.nextDate)}">See flights on Google ↗</a>` : '';
+  const logFlightBtn = `<button type="button" class="rt-btn" onclick="_taLogFlight()">Log a flight by number</button>`;
+  let actions = '', note = '';
+  if (pl.mode === 'bus' || pl.mode === 'van') {
+    actions = `<button type="button" class="rt-btn primary" onclick="_taLogMove()">Log the ${pl.mode} move · ${esc(_rtT(pl.busDepart))}</button>${flightsBtn}${logFlightBtn}`;
+    if (pl.mode === 'bus' && !pl.night.needsHotel && !pl.noHotel && !pl.hotelSet) note = `<div class="rt-note">${esc(pl.night.why)} <button type="button" class="rt-link" onclick="_taMarkNoHotel()">Mark: no hotel required</button></div>`;
+  } else if (pl.mode === 'fly') {
+    actions = `${flightsBtn}${logFlightBtn}<button type="button" class="rt-btn" onclick="_taLogMove()">Drive it anyway · ${esc(_rtT(pl.busDepart))}</button>`;
+    note = `<div class="rt-note">Land at least three hours before ${esc(pl.windowTo)}; a flight after the show has to clear ${esc(pl.windowFrom)}. Flight shortlists with times and carriers arrive with phase two — a flight logged by number today already tracks live on every crew phone.</div>`;
+  } else if (pl.mode === 'stay') {
+    actions = pl.noTravel ? `<div class="rt-set">Marked: no travel required</div>` : `<button type="button" class="rt-btn primary" onclick="_taMarkNoTravel()">Mark: no travel required</button>`;
+  } else if (pl.mode === 'end') {
+    const home = p.homeAirport || p.homeCity;
+    actions = `${home ? `<a class="rt-btn primary" target="_blank" rel="noopener" href="${_rtFlightsLink(d.city, home, addDaysISO(d.date, 1))}">Flights home to ${esc(home)} ↗</a>` : ''}${logFlightBtn}`;
+    note = home ? '' : `<div class="rt-note">Set a home city or airport in the tour question above and this becomes a flights-home link.</div>`;
+  } else {
+    actions = `<button type="button" class="rt-btn primary" onclick="_taOpenDate()">Open the date →</button>`;
+  }
+  return head + logged + `
+    <section class="rt-card"><div class="rt-kicker">The call</div><h3>${esc(pl.headline)}</h3>${_taFacts(pl)}
       ${pl.windowFrom && pl.mode !== 'stay' && pl.mode !== 'end' && pl.mode !== 'unknown' ? `<div class="rt-window">${esc(pl.windowFrom)} → ${esc(pl.windowTo)}</div>` : ''}
       <ul class="rt-reasons">${pl.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>
-      <div class="rt-card-actions">${action}</div>${nightLine}
+      <div class="rt-card-actions">${actions}</div>${note}
     </section>`;
 }
 
@@ -34487,7 +34581,7 @@ Object.assign(window, {
   tourStartDate, tourEndDate, addDaysISO, fillDateGapsWithOffDays, _padTourEdgesWithTravelDays,
   toggleExportMenu, closeExportMenu, downloadTourBookPDF, downloadTourBookFromHere, downloadDaySheetPDF, closeTourBook,
   scoutNearVenue,
-  renderTools, openTravelAgent, closeTravelAgent, _taGo, _taPickDate, _taPickTopic, _taSubmitAsk, _taUseHotel, _taMarkNoHotel, _taMarkNoTravel, _taLogMove, _taLogFlight, _taJump, _taOpenDate, _taMore, _taRender, _taPlan, _rtPick, _rtLoadHotels,
+  renderTools, openTravelAgent, closeTravelAgent, _taGo, _taBack, _taAnchor, _taDate, _taPickDate, _taPickTopic, _taSubmitAsk, _taUseHotel, _taMarkNoHotel, _taMarkNoTravel, _taLogMove, _taLogFlight, _taJump, _taOpenDate, _taMore, _taRender, _taPlan, _rtPick, _rtLoadHotels,
   toggleTourSwitcher, closeTourSwitcher, switchToTour, switchToTourFromPhone, newTourFlow, newTourManualFlow, newTourImportFlow, renameCurrentTour, deleteCurrentTour,
   toggleUniMenu, closeUniMenu, renderUniMenu, _uniToggleExport,
   openAccountSettingsModal, _acctSaveName, _acctSendReset,
