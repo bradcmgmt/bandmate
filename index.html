@@ -593,7 +593,16 @@ input,select,textarea{font:inherit;color:inherit;
   background:linear-gradient(180deg,rgba(232,148,58,.04),transparent);position:relative}
 .console-head::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,var(--line-glow),transparent)}
 .console-head .title{display:flex;align-items:center;gap:10px;flex:0 1 auto;min-width:0;font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.17em;text-transform:uppercase;color:var(--warm-mute)}
-.console-head .title .live{flex:none;width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px rgba(109,207,139,.18),0 0 10px rgba(109,207,139,.5)}
+.console-head .title .live{position:relative;flex:none;width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px rgba(109,207,139,.18),0 0 10px rgba(109,207,139,.5)}
+/* Slow breath on a halo behind the dot, not on the dot itself — the dot stays
+   the same crisp 8px circle, and only a soft ring fades in and out. Long cycle
+   and low peak opacity so it reads as alive in peripheral vision without
+   asking for attention. */
+.console-head .title .live::after{content:"";position:absolute;inset:-3px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,rgba(109,207,139,.5),rgba(109,207,139,0) 70%);
+  animation:livePulse 4.5s ease-in-out infinite}
+@keyframes livePulse{0%,100%{transform:scale(.9);opacity:.2}50%{transform:scale(1.3);opacity:.55}}
+@media (prefers-reduced-motion: reduce){.console-head .title .live::after{animation:none;opacity:.3}}
 .console-head .title b{color:var(--warm);font-weight:600}
 .console-head .title #consoleTitle{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .console-head .title #consoleTitle .mq-in{display:inline-block;white-space:nowrap}
@@ -2411,6 +2420,10 @@ body.god-account #app[hidden]{display:block!important}
   border:1px solid var(--line-2);display:grid;place-items:center;font-weight:800;font-size:12px;color:var(--hi)}
 .profile-tile .pt-name{font-weight:700;font-size:14px;color:var(--warm)}
 .profile-tile .pt-name span{display:block;font-family:'Bricolage Grotesque',monospace;font-size:10.5px;color:var(--warm-mute)}
+.profile-tile .pt-push{font-family:'Bricolage Grotesque',monospace;font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--warm-mute);margin:-2px 0 8px}
+.profile-tile .pt-push.on{color:#7adc97}
+.push-cell{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:700;letter-spacing:.14em;color:var(--warm-mute)}
+.push-cell.on{color:#7adc97}
 .profile-tile .pt-stat{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;padding:3px 8px;border-radius:4px;margin-left:auto}
 .profile-tile.submitted .pt-stat{color:var(--good);background:rgba(109,207,139,.08);border:1px solid rgba(109,207,139,.3)}
 .profile-tile.pending .pt-stat{color:var(--hi);background:rgba(232,148,58,.08);border:1px solid rgba(232,148,58,.3)}
@@ -5720,7 +5733,7 @@ setTimeout(window._hideAppBoot,6000);
   </main>
 
   <div class="footnote">
-    BANDMATE · <span class="b">PROTOTYPE</span> · DATA STORED LOCALLY IN YOUR BROWSER · <span class="b">EXPORT</span> TO BACK UP
+    © <span id="footYear">2026</span> <span class="b">Bandmate Touring LLC</span> · All rights reserved
   </div>
 </div>
 
@@ -14381,6 +14394,7 @@ window.addEventListener('resize', () => {
   }, 250);
 });
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { try { _tapeCrawlSetup(); } catch (e) {} });
+try { const _fy = document.getElementById('footYear'); if (_fy) _fy.textContent = String(new Date().getFullYear()); } catch (e) {}
 
 function renderDayStamp() {
   const ad = getActiveDate();
@@ -24103,8 +24117,39 @@ async function _loadGodStats(force) {
   if (activeTab === 'admin') renderAdminPanel();
 }
 
+// Whether each crew member can actually receive a push. device_tokens is
+// private to its owner, so this comes from tour_push_status (patch-047),
+// which reports registration only — never a token. Cached per tour for a
+// minute; silent if the patch isn't installed yet.
+const _pushStatus = { tourId: '', at: 0, map: {}, loading: false, ok: false };
+function _loadPushStatus(tourId) {
+  if (!sb || !tourId || tourId === '_empty') return;
+  const fresh = _pushStatus.tourId === tourId && Date.now() - _pushStatus.at < 60000;
+  if (fresh || _pushStatus.loading) return;
+  _pushStatus.loading = true;
+  sb.rpc('tour_push_status', { p_tour_id: tourId }).then(({ data, error }) => {
+    _pushStatus.loading = false;
+    if (error || !Array.isArray(data)) return;   // not installed / not allowed: stay quiet
+    const map = {};
+    data.forEach(row => { if (row && row.user_id) map[row.user_id] = row; });
+    _pushStatus.tourId = tourId; _pushStatus.at = Date.now(); _pushStatus.map = map; _pushStatus.ok = true;
+    try { renderCrewProfiles(); } catch (e) {}
+  }).catch(() => { _pushStatus.loading = false; });
+}
+const _PUSH_PLATFORM = { ios: 'iPhone', android: 'Android' };
+// '' when we can't know yet: no answer from the server, or this person hasn't
+// accepted the invite, so there's no account to register a device against.
+function _pushStateFor(c) {
+  if (!_pushStatus.ok || !c || !c.userId) return null;
+  const hit = _pushStatus.map[c.userId];
+  if (!hit) return { on: false, label: 'Push off — app not installed' };
+  const names = (hit.platforms || []).map(x => _PUSH_PLATFORM[x] || x).filter(Boolean);
+  return { on: true, label: 'Push on' + (names.length ? ' · ' + names.join(', ') : '') };
+}
+
 function renderCrewProfiles() {
   const root = document.getElementById('p-profiles');
+  _loadPushStatus(T() && T().id);
   // Co-managers live in crew[] (flagged isManager) for display + revoke, but
   // they're managers, not crew filling out profiles — keep them out of the grid.
   const roster = T().crew.filter(c => !c.isManager);
@@ -24170,6 +24215,7 @@ function renderCrewProfiles() {
               <span class="pt-stat">${stat}</span>
             </div>
             <div class="muted mono" style="font-size:10.5px;margin-bottom:6px">${esc(subText)}</div>
+            ${(() => { const ps = _pushStateFor(c); return ps ? `<div class="pt-push${ps.on ? ' on' : ''}">${esc(ps.label)}</div>` : ''; })()}
             ${sub ? `
               <div class="pt-row"><span class="pl">Cell</span><span class="pv">${esc(p.cell || '—')}</span></div>
               <div class="pt-row"><span class="pl">Email</span><span class="pv">${esc(p.email || '—')}</span></div>
@@ -24201,7 +24247,7 @@ function renderCrewProfiles() {
 
 function renderCrewListTable() {
   // Build wide table with all profile fields visible at once
-  const headers = ['Name','Role','Type','Groups','Status','Cell','Email','Address','DOB','Driver Lic','Emergency','EC Phone','EC Relation','EC Email','Vaccinated','Height','Blood','Allergies','Diet','Medical','Prescriptions','Smoking','Hilton','Marriott','IHG','Airline','Airport','Seat','TSA/GE','American','Delta','United','JetBlue','Southwest','Alaska','Passport 1 #','P1 Country','P1 Exp','Passport 2 #','P2 Country','P2 Exp','Visas','Arrest','Border Trouble','Rider Fav','Rider Frequent','T-shirt','Jacket','Pants','Shoe'];
+  const headers = ['Name','Role','Type','Groups','Push','Status','Cell','Email','Address','DOB','Driver Lic','Emergency','EC Phone','EC Relation','EC Email','Vaccinated','Height','Blood','Allergies','Diet','Medical','Prescriptions','Smoking','Hilton','Marriott','IHG','Airline','Airport','Seat','TSA/GE','American','Delta','United','JetBlue','Southwest','Alaska','Passport 1 #','P1 Country','P1 Exp','Passport 2 #','P2 Country','P2 Exp','Visas','Arrest','Border Trouble','Rider Fav','Rider Frequent','T-shirt','Jacket','Pants','Shoe'];
   return `
     <div class="crew-list-wrap" style="max-height:580px;overflow:auto">
       <table class="crew-list-table">
@@ -24215,6 +24261,7 @@ function renderCrewListTable() {
               esc(c.role || ''),
               esc(c.type || ''),
               (c.groups || []).map(g => `<span class="group-chip">${esc(g)}</span>`).join('') || '<span class="muted mono">none</span>',
+              (() => { const ps = _pushStateFor(c); return ps ? `<span class="push-cell${ps.on ? ' on' : ''}">${esc(ps.on ? 'ON' : 'OFF')}</span>` : '<span class="muted mono">—</span>'; })(),
               `<span class="stat-cell ${submitted?'sub':(crewAwaitingInvite(c)?'wait':'pend')}">${submitted ? '✓ DONE' : crewAwaitingInvite(c) ? '○ NOT ACCEPTED' : '⧖ PEND'}</span>`,
               esc(p.cell || ''),
               esc(p.email || ''),
