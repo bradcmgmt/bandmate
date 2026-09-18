@@ -2558,6 +2558,15 @@ body.god-account #app[hidden]{display:block!important}
   animation:tabwarn 2s ease-in-out infinite;line-height:1}
 .card-h-warn.or{color:#8aa9d8;text-shadow:0 0 6px rgba(138,169,216,.7);font-weight:900;
   font-family:'Bricolage Grotesque',monospace;font-size:12px}
+.empty.nh-panel{margin-top:14px;border-style:dashed;border-color:rgba(138,169,216,.28)}
+.empty.nh-panel h3{color:#b1c8ee}
+.empty.nh-done{border-color:rgba(109,207,139,.35)}
+.empty.nh-done h3{color:var(--good)}
+.empty .nh-btn{background:transparent;border:1px solid var(--line-2);color:var(--warm-mute);
+  font-family:'Bricolage Grotesque',monospace;font-size:10.5px;font-weight:700;letter-spacing:.16em;
+  text-transform:uppercase;padding:9px 16px;border-radius:7px;cursor:pointer;transition:border-color .15s,color .15s}
+.empty .nh-btn:hover{border-color:#b1c8ee;color:#b1c8ee}
+.empty.nh-done .nh-btn:hover{border-color:var(--hi);color:var(--hi)}
 .rescan-nudge{margin:14px 0;padding:10px 14px;background:linear-gradient(135deg,rgba(109,207,139,.1),rgba(109,207,139,.04));
   border:1px solid rgba(109,207,139,.35);border-radius:9px;color:var(--good);font-size:12.5px;
   display:flex;align-items:center;gap:10px;font-family:'Bricolage Grotesque',monospace;letter-spacing:.04em}
@@ -10998,6 +11007,34 @@ function _hotelsForDate(d) {
 
 // Does ANY stay cover this date? (cheap check for gap analysis / flags)
 function _dateHasHotel(d) { return _hotelsForDate(d).length > 0; }
+// "No hotel required" is a real answer to where everyone sleeps, not a way to
+// dismiss the warning: it's recorded on the date with who said so, it shows on
+// the dashboard and the crew's phone, and it clears itself the moment a hotel
+// is actually added.
+function _clearNoHotelOn(d) {
+  if (!d || !d.noHotel) return false;
+  delete d.noHotel; delete d.noHotelAt; delete d.noHotelBy;
+  return true;
+}
+function markNoHotel() {
+  const ad = getActiveDate();
+  if (!ad) return;
+  const u = U();
+  ad.noHotel = true;
+  ad.noHotelAt = Date.now();
+  ad.noHotelBy = (u && (u.name || u.email)) || '';
+  saveState();
+  renderAll();
+  toast('Marked — no hotel needed for this date', 'good');
+}
+function clearNoHotel() {
+  const ad = getActiveDate();
+  if (!ad) return;
+  _clearNoHotelOn(ad);
+  saveState();
+  renderAll();
+  toast('This date needs a hotel again', 'good');
+}
 
 // Locate the live stay object (and its host date) for editing — regardless
 // of which date it's stored on. Returns {stay, date} or null.
@@ -14763,7 +14800,7 @@ function renderDashboard() {
   const _dayHotels = _hotelsForDate(ad);
   const hotelMeta = _dayHotels.length
     ? `${esc(_dayHotels[0].name)}${_dayHotels[0].checkOut ? ' · check-out ' + esc(_dayHotels[0].checkOut) : ''}${_dayHotels.length > 1 ? ` · +${_dayHotels.length - 1} more` : ''}`
-    : 'Not added yet';
+    : (ad.noHotel ? 'No hotel required' : 'Not added yet');
   const promoter = ad.promoter || 'Not set';
   const nextDate = T().dates[T().dates.findIndex(d => d.id === ad.id) + 1];
   // City-to-city mileage estimate (Haversine on a built-in city lookup —
@@ -15802,12 +15839,32 @@ function renderHotels() {
       <button type="button" class="add-btn" onclick="openHotelModal()">+ Add hotel</button>
     </div>`;
 
+  // A hotel was added after the date was marked — the mark is moot, drop it.
+  if (stays.length && _clearNoHotelOn(ad)) saveState();
+
+  if (!stays.length && ad.noHotel) {
+    const who = ad.noHotelBy ? ` by ${esc(ad.noHotelBy)}` : '';
+    const when = ad.noHotelAt ? ` on ${esc(fmtDate(new Date(ad.noHotelAt).toISOString().slice(0, 10)))}` : '';
+    root.innerHTML = header + `
+      <div class="empty nh-done">
+        <h3>No hotel required</h3>
+        <p>Marked${who}${when}. This date no longer counts as missing a hotel, and the crew's phone says there's no hotel tonight. Adding a hotel clears this on its own.</p>
+        <button type="button" class="nh-btn" onclick="clearNoHotel()">Undo — this date needs a hotel</button>
+      </div>`;
+    return;
+  }
+
   if (!stays.length) {
     root.innerHTML = header + `
       <div class="empty">
         <h3>No hotel set for ${esc(ad.city)}</h3>
         <p>Add a hotel with its check-in and check-out dates — it appears automatically on every day of the stay. Stack more than one per day for a split party (band / crew / talent) or a same-day check-out + check-in after travel.${(T().hotelTemplates||[]).length ? ' Or apply a saved hotel template above.' : ''}</p>
         <button type="button" onclick="openHotelModal()">+ Add hotel</button>
+      </div>
+      <div class="empty nh-panel">
+        <h3>No hotel required?</h3>
+        <p>Overnight drive, flying out after the show, or everyone's sleeping at home. Mark it and this date stops asking for a hotel.</p>
+        <button type="button" class="nh-btn" onclick="markNoHotel()">Mark: no hotel required</button>
       </div>`;
     return;
   }
@@ -19125,7 +19182,7 @@ function renderPhone() {
         ${h.phone ? `<div><div class="lbl">PHONE</div><div class="mono" style="font-size:12px;color:var(--warm)">${_telLinkHTML(h.phone)}</div></div>` : ''}
       </div>
     </div>`;
-  }).join('') : `<div class="p-card"><div class="lbl">HOTEL</div><div class="sub">Not added yet for this date.</div></div>`;
+  }).join('') : `<div class="p-card"><div class="lbl">HOTEL</div><div class="sub">${ad.noHotel ? 'No hotel tonight — none needed for this date.' : 'Not added yet for this date.'}</div></div>`;
 
   // GUESTS
   // TM + Mgmt see EVERY guest on this date with inline approve/deny
@@ -31124,7 +31181,7 @@ function calcLiveDateGaps(d) {
   if (status === 'off') {
     const hasHotel = _dateHasHotel(d);
     const hasTravel = !!(d.travel && d.travel.length);
-    if (!hasHotel && !hasTravel) missing.push('hotel or travel');
+    if (!hasHotel && !hasTravel && !d.noHotel) missing.push('hotel or travel');
     return missing;
   }
   if (!d.city || cityU === 'OFF') missing.push('city');
@@ -31140,7 +31197,7 @@ function calcLiveDateGaps(d) {
     if (!d.venue) missing.push('venue');
     const hasHotel = _dateHasHotel(d);
     const hasTravel = !!(d.travel && d.travel.length);
-    if (!hasHotel && !hasTravel) missing.push('hotel or travel');
+    if (!hasHotel && !hasTravel && !d.noHotel) missing.push('hotel or travel');
     if (!d.schedule || !d.schedule.length) missing.push('schedule');
     return missing;
   }
@@ -31163,7 +31220,9 @@ function calcLiveDateGaps(d) {
   // day pill will still get the red ⚠ from those, just not from hotel/travel.
   const hasHotel = _dateHasHotel(d);
   const hasTravel = !!(d.travel && d.travel.length);
-  if (!hasHotel && !hasTravel) missing.push('hotel or travel');
+  // A date can also answer this by saying nobody needs a room tonight —
+  // overnight drive, flying out after the show, everyone sleeping at home.
+  if (!hasHotel && !hasTravel && !d.noHotel) missing.push('hotel or travel');
   // Room assignments are optional — once a hotel property is logged for the
   // night, the Hotels tab is considered complete. TMs add room blocks as a
   // convenience, not a requirement, so it shouldn't drive a gap warning.
