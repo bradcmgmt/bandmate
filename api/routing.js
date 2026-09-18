@@ -47,6 +47,13 @@ const PRICE = {
   PRICE_LEVEL_EXPENSIVE: 3, PRICE_LEVEL_VERY_EXPENSIVE: 4,
 };
 
+// Why the most recent Routes call didn't answer, e.g. '403 · Routes API has
+// not been used in project … before or it is disabled'. Surfaced as
+// `routesError` on responses where routes is false, so enabling the API can
+// be verified from the app instead of from the Vercel logs. Never includes
+// the key: Google's error text doesn't carry it, and we cap the length.
+let lastRoutesError = '';
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -109,7 +116,7 @@ async function hotels(ctx, body, res) {
         await cachePut(ctx, 'hotels', key, payload);
       }
     }
-    res.status(200).json({ configured: true, cached: true, fetchedAt: cached.fetched_at, routes: !!payload.routes, results: payload.results });
+    res.status(200).json({ configured: true, cached: true, fetchedAt: cached.fetched_at, routes: !!payload.routes, routesError: payload.routes ? undefined : lastRoutesError, results: payload.results });
     return;
   }
 
@@ -142,7 +149,7 @@ async function hotels(ctx, body, res) {
 
   const payload = { routes, results };
   await cachePut(ctx, 'hotels', key, payload);
-  res.status(200).json({ configured: true, cached: false, fetchedAt: new Date().toISOString(), routes, results });
+  res.status(200).json({ configured: true, cached: false, fetchedAt: new Date().toISOString(), routes, routesError: routes ? undefined : lastRoutesError, results });
 }
 
 // ── drive ─────────────────────────────────────────────────────────────
@@ -158,7 +165,7 @@ async function drive(ctx, body, res) {
   }
   const matrix = await routeMatrix(ctx, from, [to]);
   if (!matrix || !matrix[0] || matrix[0].minutes == null) {
-    res.status(200).json({ configured: true, cached: false, routes: false });
+    res.status(200).json({ configured: true, cached: false, routes: false, routesError: lastRoutesError || (matrix ? 'no route between those points' : '') });
     return;
   }
   const payload = { routes: true, minutes: matrix[0].minutes, miles: matrix[0].miles };
@@ -191,15 +198,19 @@ async function routeMatrix(ctx, origin, dests) {
     });
     if (!r.ok) {
       const text = await r.text().catch(() => '');
+      let msg = '';
+      try { msg = JSON.parse(text)?.error?.message || ''; } catch (e) {}
+      lastRoutesError = `${r.status} · ${(msg || text || 'no detail').replace(/\s+/g, ' ').slice(0, 220)}`;
       if (r.status === 403 || /PERMISSION_DENIED|not been used|is disabled|API_KEY_SERVICE_BLOCKED/i.test(text)) {
-        console.warn('[routing] Routes API not enabled for this key');
+        console.warn('[routing] Routes API not enabled for this key:', lastRoutesError);
       } else {
-        console.error('[routing] routes error:', r.status, text.slice(0, 300));
+        console.error('[routing] routes error:', lastRoutesError);
       }
       return null;
     }
     const rows = await r.json().catch(() => null);
-    if (!Array.isArray(rows)) return null;
+    if (!Array.isArray(rows)) { lastRoutesError = 'unexpected response shape'; return null; }
+    lastRoutesError = '';
     const out = dests.map(() => ({ minutes: null, miles: null }));
     rows.forEach(el => {
       const i = el.destinationIndex;
@@ -211,6 +222,7 @@ async function routeMatrix(ctx, origin, dests) {
     });
     return out;
   } catch (e) {
+    lastRoutesError = 'threw · ' + String(e && e.message || e).slice(0, 200);
     console.error('[routing] routes threw:', e);
     return null;
   }
