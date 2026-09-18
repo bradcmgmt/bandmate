@@ -133,6 +133,14 @@ body.bg-logo-hidden #bgLogoCanvas{opacity:0}
 /* On the public surfaces the particle rabbit IS the background: it drops from
    its watermark z-index down behind the overlays and runs at full strength
    instead of 8%. Elsewhere it stays the faint watermark it has always been. */
+/* The landing's own backdrop steps aside for the rabbit, so the page itself
+   carries the warm ground instead. It sits BEHIND the canvas, which means the
+   edges stop reading as a hard black frame around the particle field without
+   costing the particles any brightness. */
+body.bg-mark-on{background:
+  radial-gradient(900px 520px at 50% 0%,rgba(232,148,58,.16),transparent 64%),
+  radial-gradient(760px 460px at 50% 100%,rgba(232,148,58,.10),transparent 60%),
+  linear-gradient(180deg,#0a0705 0%,#130d08 55%,#0a0705 100%)}
 body.bg-mark-on #bgLogoCanvas{z-index:0}
 body.bg-mark-on #bgLogoCanvas.ready{opacity:1}
 
@@ -142,6 +150,22 @@ body.bg-mark-on #bgLogoCanvas.ready{opacity:1}
    fully legible — copper headlines, mono eyebrows, sub copy. */
 body.bg-mark-on .landing-overlay{
   background:rgba(10,7,5,.32)}
+/* Off centre: the copy and the two actions hold the left, the particle mark
+   owns the right (it is pushed there in the render loop). Nothing sits on top
+   of it any more, so the headline can run bigger than it could when it had to
+   leave a hole in the middle. */
+body.bg-mark-on .landing-overlay{justify-content:flex-start;padding-left:clamp(20px,6vw,92px);padding-right:clamp(20px,4vw,48px)}
+body.bg-mark-on .landing-content{max-width:660px;width:auto;text-align:left;margin:0}
+body.bg-mark-on .landing-headline{margin-bottom:30px;font-size:clamp(46px,7vw,92px);line-height:.94}
+body.bg-mark-on .landing-cta{justify-content:flex-start;flex-wrap:wrap}
+body.bg-mark-on .landing-pitch{margin-left:0;margin-right:0;max-width:44ch}
+body.bg-mark-on .landing-wordmark{margin-top:14px}
+@media (max-width:900px){
+  body.bg-mark-on .landing-overlay{justify-content:center;padding-right:clamp(20px,6vw,92px)}
+  body.bg-mark-on .landing-content{text-align:center;max-width:620px;margin:0 auto}
+  body.bg-mark-on .landing-cta{justify-content:center}
+  body.bg-mark-on .landing-pitch{margin-left:auto;margin-right:auto}
+}
 body.bg-mark-on .landing-overlay .landing-bg{
   display:none}
 body.bg-mark-on .login-overlay{
@@ -5270,17 +5294,13 @@ setTimeout(window._hideAppBoot,6000);
     </h1>
 
     <div class="landing-cta">
-      <button type="button" class="landing-btn" onclick="landingChoose('tm')">
-        <span class="lcta-eyebrow">FOR TOUR MANAGERS</span>
+      <button type="button" class="landing-btn primary" onclick="landingChoose('')">
+        <span class="lcta-eyebrow">RETURNING</span>
         <span class="lcta-label">Sign in →</span>
       </button>
-      <button type="button" class="landing-btn" onclick="landingChoose('crew')">
-        <span class="lcta-eyebrow">FOR BAND &amp; CREW</span>
-        <span class="lcta-label">Sign in →</span>
-      </button>
-      <button type="button" class="landing-btn primary" onclick="showPricingScreen()">
+      <button type="button" class="landing-btn" onclick="showPricingScreen()">
         <span class="lcta-eyebrow">NEW TO BANDMATE</span>
-        <span class="lcta-label">Sign up →</span>
+        <span class="lcta-label">Create an account →</span>
       </button>
     </div>
 
@@ -27717,11 +27737,14 @@ function showLandingScreen() {
     showLoginScreen({ intent: 'signin' });
     return;
   }
-  document.getElementById('app').hidden = true;
-  document.getElementById('onboarding').classList.add('hidden');
-  document.getElementById('loginScreen').hidden = true;
-  const pricing = document.getElementById('pricingScreen');
-  if (pricing) pricing.hidden = true;
+  // The landing used to be an opaque panel, so a surface left open behind it
+  // was invisible. It's translucent now — the rabbit shows through — which
+  // means anything still on screen shows through too. Close them all, by id,
+  // rather than trusting whichever path got us here.
+  ['app', 'loginScreen', 'pricingScreen', 'adminScreen', 'welcomeScreen', 'getStartedScreen', 'crewBlockScreen']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.hidden = true; });
+  const _ob = document.getElementById('onboarding');
+  if (_ob) _ob.classList.add('hidden');
   document.getElementById('landingScreen').hidden = false;
   // The homepage background IS the particle rabbit now. bg-mark-on drops the
   // canvas behind the overlay at full strength; clearing bg-logo-hidden is what
@@ -29586,9 +29609,11 @@ function landingChoose(role) {
   // here. Pass intent: 'signin' so showLoginScreen honors it even when
   // no users are claimed locally (which would otherwise default to
   // showing the signup form for fresh-browser visitors / teammates).
-  showLoginScreen({ intent: 'signin', role });
-  // Pre-fill the role on the signup form so if the user toggles over
-  // to "New here? Sign up →" they don't have to pick again.
+  showLoginScreen({ intent: 'signin', role: role || undefined });
+  // Only pre-fill the signup role when the caller actually knew one. The
+  // landing no longer asks — the account already carries its own role, so
+  // choosing on the way IN was a decision with no consequence.
+  if (!role) return;
   setTimeout(() => {
     const sel = document.getElementById('su_role');
     if (sel) sel.value = role === 'crew' ? 'crew' : 'tm';
@@ -34707,6 +34732,26 @@ window.bandmateInstallPrompt = async function() {
       // Slow self-rotation + swipe momentum + a gentle lean toward the cursor.
       group.rotation.y = Math.sin(t*0.13)*0.45 + dragRY + mx*0.12;
       group.rotation.x = Math.sin(t*0.09)*0.10 + dragRX + -my*0.06;
+
+      // On the public surfaces the mark is the hero, not a watermark: it sits
+      // right of centre so the copy has the left to itself, and it runs large
+      // enough that when the erosion breath throws the particles outward they
+      // still carry past every edge of the screen instead of stopping short
+      // and leaving a dark frame. Measured from the camera each frame, so it
+      // holds at any window size. Eased, so switching surfaces glides.
+      const _heroMark = document.body.classList.contains('bg-mark-on');
+      const _halfW = Math.tan((camera.fov * Math.PI / 180) / 2) * camera.position.z * camera.aspect;
+      // 0.46 puts the mark's centre at roughly three quarters across, clear of
+      // the copy. The scale is set so the silhouette is taller than the
+      // viewport — it bleeds off the top and bottom rather than floating with
+      // dead space around it, and the erosion breath then throws particles
+      // past the right edge too.
+      const _wantX = _heroMark ? _halfW * 0.46 : 0;
+      const _wantS = _heroMark ? Math.max(1.35, (_halfW / 2.0)) : 1;
+      const _ease = Math.min(1, dt * 3.2);
+      group.position.x += (_wantX - group.position.x) * _ease;
+      const _s = group.scale.x + (_wantS - group.scale.x) * _ease;
+      group.scale.set(_s, _s, _s);
 
       // Cursor velocity decays each frame; whatever's left this frame is
       // handed to nearby particles below as a drag impulse.
