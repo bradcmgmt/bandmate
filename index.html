@@ -138,9 +138,15 @@ body.bg-logo-hidden #bgLogoCanvas{opacity:0}
    edges stop reading as a hard black frame around the particle field without
    costing the particles any brightness. */
 body.bg-mark-on{background:
-  radial-gradient(900px 520px at 50% 0%,rgba(232,148,58,.16),transparent 64%),
-  radial-gradient(760px 460px at 50% 100%,rgba(232,148,58,.10),transparent 60%),
-  linear-gradient(180deg,#0a0705 0%,#130d08 55%,#0a0705 100%)}
+  radial-gradient(160% 150% at 72% 48%,rgba(232,148,58,.13),rgba(232,148,58,.045) 58%,rgba(232,148,58,.02) 82%,transparent 100%),
+  radial-gradient(120% 110% at 8% 4%,rgba(232,148,58,.05),transparent 70%),
+  #120d09}
+/* The ground is deliberately FLAT under those two washes — no top-to-bottom
+   ramp. A vertical gradient put its darkest tone at the top and bottom edges,
+   which read as a black bar framing the page, and because the particle field
+   breathes on a 16s cycle the gap between the field and that dark edge looked
+   like a margin growing and shrinking. An even ground has no edge to notice. */
+html:has(body.bg-mark-on){background:#120d09}
 body.bg-mark-on #bgLogoCanvas{z-index:0}
 body.bg-mark-on #bgLogoCanvas.ready{opacity:1}
 
@@ -34513,6 +34519,10 @@ window.bandmateInstallPrompt = async function() {
     let N = 0, pos, home, vel, alpha, baseA, col, size, erodeKey, boost, seed;
     let dragVX, dragVY;                  // per-particle cursor-drag momentum
     let points, worms = [], headPts, balls = [], ballPts, bbox;
+    // The silhouette's own size in world units, measured once from the built
+    // geometry. The hero layout scales against this so the rabbit fits the
+    // viewport exactly, whatever the source image's proportions are.
+    let markW = 0, markH = 0;
     const THICK = 0.26;
 
     function build(img){
@@ -34623,6 +34633,8 @@ window.bandmateInstallPrompt = async function() {
 
       // ---------- bouncing light balls ----------
       bbox = new THREE.Box3().setFromBufferAttribute(geo.attributes.position);
+      markW = bbox.max.x - bbox.min.x;
+      markH = bbox.max.y - bbox.min.y;
       bbox.expandByScalar(-0.12);
       const NB = 3;
       const bGeo = new THREE.BufferGeometry();
@@ -34734,20 +34746,29 @@ window.bandmateInstallPrompt = async function() {
       group.rotation.x = Math.sin(t*0.09)*0.10 + dragRX + -my*0.06;
 
       // On the public surfaces the mark is the hero, not a watermark: it sits
-      // right of centre so the copy has the left to itself, and it runs large
-      // enough that when the erosion breath throws the particles outward they
-      // still carry past every edge of the screen instead of stopping short
-      // and leaving a dark frame. Measured from the camera each frame, so it
-      // holds at any window size. Eased, so switching surfaces glides.
+      // right of centre so the copy has the left to itself, and it is sized to
+      // the viewport so the whole silhouette is visible rather than cropped.
+      // Measured from the camera each frame, so it holds at any window size.
+      // Eased, so switching surfaces glides.
       const _heroMark = document.body.classList.contains('bg-mark-on');
-      const _halfW = Math.tan((camera.fov * Math.PI / 180) / 2) * camera.position.z * camera.aspect;
+      // Half the world-space extent the camera can see at z=0, derived from the
+      // lens each frame so it stays right through any resize.
+      const _visH = Math.tan((camera.fov * Math.PI / 180) / 2) * camera.position.z;
+      const _halfW = _visH * camera.aspect;
+      // Fit the WHOLE silhouette on screen — ears to feet — with a margin, so
+      // nothing is cropped at rest. 0.82 of the viewport height is the target;
+      // the width test only bites on narrow windows, where the layout has
+      // already centred the copy and the mark has the full width to itself.
+      // The erosion breath still throws particles well past every edge, which
+      // is what keeps the field from reading as a framed box.
+      const _fitH = markH > 0 ? (_visH  * 2 * 0.82) / markH : 1.2;
+      const _fitW = markW > 0 ? (_halfW * 2 * 0.86) / markW : 1.2;
+      const _wantS = _heroMark ? Math.max(0.7, Math.min(1.8, Math.min(_fitH, _fitW))) : 1;
       // 0.46 puts the mark's centre at roughly three quarters across, clear of
-      // the copy. The scale is set so the silhouette is taller than the
-      // viewport — it bleeds off the top and bottom rather than floating with
-      // dead space around it, and the erosion breath then throws particles
-      // past the right edge too.
-      const _wantX = _heroMark ? _halfW * 0.46 : 0;
-      const _wantS = _heroMark ? Math.max(1.35, (_halfW / 2.0)) : 1;
+      // the copy — but never so far right that the silhouette runs off the
+      // edge it was just sized to fit inside.
+      const _roomX = _halfW - (markW * _wantS) / 2 - _visH * 0.05;
+      const _wantX = _heroMark ? Math.max(0, Math.min(_halfW * 0.46, _roomX)) : 0;
       const _ease = Math.min(1, dt * 3.2);
       group.position.x += (_wantX - group.position.x) * _ease;
       const _s = group.scale.x + (_wantS - group.scale.x) * _ease;
