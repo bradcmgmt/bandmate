@@ -837,6 +837,13 @@ body.mobile .ch-status .chs-t em{display:none}
 .tool-tile .tl-name{font-family:'Bricolage Grotesque',monospace;font-size:17px;font-weight:800;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
 .tool-tile .tl-desc{margin-top:3px;font-size:12.5px;line-height:1.5;color:var(--warm-mute)}
 .tool-tile .tl-go{flex:none;font-family:'Bricolage Grotesque',monospace;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#b1c8ee}
+/* A tool still in beta: greyed, inert, stickered. */
+.tool-tile.locked{opacity:.5;cursor:not-allowed;filter:saturate(.35)}
+.tool-tile.locked:hover{border-color:rgba(138,169,216,.28);background:linear-gradient(180deg,rgba(138,169,216,.05),transparent)}
+.tool-tile .tl-sticker{flex:none;display:inline-flex;align-items:baseline;gap:7px;padding:6px 11px;border:1px solid #fdba74;color:#fdba74;border-radius:3px;
+  transform:rotate(-4deg);font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;
+  box-shadow:0 0 0 3px rgba(10,7,5,.8),0 6px 18px -8px rgba(253,186,116,.5)}
+.tool-tile .tl-sticker span{padding-right:7px;border-right:1px solid rgba(253,186,116,.5)}
 .tool-tile .tl-badge{padding:2px 7px;border-radius:4px;background:rgba(138,169,216,.16);border:1px solid rgba(138,169,216,.5);color:#b1c8ee;
   font-family:'Bricolage Grotesque',monospace;font-size:8.5px;font-weight:800;letter-spacing:.18em}
 @media (max-width:640px){.tool-tile{flex-wrap:wrap}.tool-tile .tl-go{width:100%;padding-left:50px}}
@@ -26720,7 +26727,10 @@ function _toolClose() { _toolOpen = ''; renderTools(); }
 // The Tools tab. A list of tools, or the open tool in place of it.
 const TOOL_TILES = [
   { id: 'push',   icon: '◆', name: 'Push notifications', desc: "A message to everyone's phone — now, or at a time you set.", go: 'openPushNotifications()' },
-  { id: 'agent',  icon: '→', name: 'Travel Agent',       desc: 'A hotel, or the travel, for any date — suggested from the routing.', go: 'openTravelAgent()' },
+  // Beta: only the god account can open it until it's dialled in. Everyone
+  // else sees it greyed with the sticker. The gate is enforced in
+  // openTravelAgent() too, not just by hiding the click.
+  { id: 'agent',  icon: '→', name: 'Travel Agent',       desc: 'A hotel, or the travel, for any date — suggested from the routing.', go: 'openTravelAgent()', beta: true },
   { id: 'chat',   icon: '✉', name: 'Messaging',          desc: 'Group and direct chats with band and crew.', go: 'openChatsModal()', badge: 'toolsChatUnread' },
   { id: 'pdf',    icon: '⌗', name: 'Day sheet · PDF',    desc: "Today's schedule, travel and hotel on one printable page.", go: 'openDaySheetPDF()' },
 ];
@@ -26736,16 +26746,19 @@ function renderTools() {
   root.innerHTML = `
     <div class="tools-head"><div class="rt-kicker">Tools</div><h2>Reach for one</h2></div>
     <div class="tools-grid">
-      ${TOOL_TILES.map(t => `
-        <button type="button" class="tool-tile" onclick="${t.go}">
+      ${TOOL_TILES.map(t => {
+        const locked = !!t.beta && !_isGodAccount();
+        return `
+        <button type="button" class="tool-tile ${locked ? 'locked' : ''}" ${locked ? 'disabled aria-disabled="true"' : `onclick="${t.go}"`}>
           <div class="tl-icon">${t.icon}</div>
           <div class="tl-body"><div class="tl-name">${esc(t.name)}${t.badge ? `<span class="tl-badge" id="${t.badge}" hidden>0</span>` : ''}</div><div class="tl-desc">${esc(t.desc)}</div></div>
-          <div class="tl-go">Open →</div>
-        </button>`).join('')}
+          ${locked ? `<div class="tl-sticker"><span>Beta</span>Coming soon</div>` : `<div class="tl-go">Open →</div>`}
+        </button>`; }).join('')}
     </div>`;
   try { _refreshChatBadges(); } catch (e) {}
 }
 function openTravelAgent() {
+  if (!_isGodAccount()) { toast('The Travel Agent is in beta — coming soon', 'error'); return; }
   if (!T() || T().id === '_empty') { toast('Open a tour first', 'error'); return; }
   _ta.open = true; _ta.step = 'topic'; _ta.topic = ''; _ta.ask = {}; _ta.done = null;
   _rtBuildPlans();
