@@ -3544,135 +3544,94 @@ body.print-tourbook-mode #tourBookArea{display:block!important;position:fixed;in
 .pn-h-body{font-size:12.5px;color:var(--warm);line-height:1.4;margin-bottom:5px}
 .pn-h-sender{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;color:var(--warm-mute);letter-spacing:.06em;text-align:right}
 
-#travelAssistantArea{display:none}
-body.travel-assistant-mode{overflow:hidden}
-body.travel-assistant-mode > *:not(#travelAssistantArea):not(.toast-container){display:none!important}
-body.travel-assistant-mode #travelAssistantArea{
-  display:block!important;position:fixed;inset:0;z-index:1500;overflow-y:auto;
-  background:radial-gradient(900px 500px at 50% 0%,rgba(138,169,216,.08),transparent 60%),var(--ink);
+/* ============ ROUTING ============
+   The advance desk. Full-screen surface (body.routing-mode) with the route
+   down the left and the selected hop's plan on the right. Editorial, not
+   chip-y: kickers, hairlines, one accent. */
+#routingArea{display:none}
+body.routing-mode{overflow:hidden}
+body.routing-mode > *:not(#routingArea):not(.toast-container):not(#modalRoot){display:none!important}
+body.routing-mode #routingArea{display:block!important;position:fixed;inset:0;z-index:1500;overflow:hidden;background:var(--ink)}
+.rt-shell{height:100%;display:flex;flex-direction:column}
+.rt-top{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;padding:18px 26px 14px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#0c0806,#0a0705)}
+.rt-kicker{font-family:'Bricolage Grotesque',monospace;font-size:10px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--hi)}
+.rt-title h2{margin:4px 0 2px;font-family:'Bricolage Grotesque',monospace;font-size:22px;font-weight:800;letter-spacing:-.01em;color:var(--warm)}
+.rt-sub{font-size:12px;color:var(--warm-mute);font-family:'Bricolage Grotesque',monospace;letter-spacing:.06em}
+.rt-sub em{font-style:normal;color:#fdba74}
+.rt-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.rt-busy{font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--warm-mute)}
+.rt-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border:1px solid var(--line-2);border-radius:6px;background:rgba(232,148,58,.05);color:var(--warm);font-family:'Bricolage Grotesque',monospace;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;text-decoration:none;white-space:nowrap}
+.rt-btn:hover{border-color:var(--hi);color:var(--hi-bright)}
+.rt-btn.primary{background:linear-gradient(135deg,rgba(232,148,58,.22),rgba(232,148,58,.06));border-color:rgba(232,148,58,.6);color:var(--hi-bright)}
+.rt-btn:disabled{opacity:.45;cursor:default}
+.rt-link{background:none;border:0;padding:0;color:var(--hi);font-family:'Bricolage Grotesque',monospace;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
+.rt-link:hover{color:var(--hi-bright)}
+.rt-body{flex:1;min-height:0;display:grid;grid-template-columns:320px minmax(0,1fr)}
+.rt-rail{overflow-y:auto;border-right:1px solid var(--line);padding:6px 0 40px}
+.rt-hop{display:block;width:100%;text-align:left;padding:11px 18px 11px 22px;border:0;border-left:2px solid transparent;border-bottom:1px solid var(--line);background:none;color:var(--warm);cursor:pointer}
+.rt-hop:hover{background:rgba(232,148,58,.04)}
+.rt-hop.on{border-left-color:var(--hi);background:rgba(232,148,58,.07)}
+.rt-hop.warn .rt-hop-route{color:#fdba74}
+.rt-hop-date{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--warm-mute)}
+.rt-hop-route{font-size:13.5px;font-weight:600;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rt-arrow{color:var(--hi);font-weight:400}
+.rt-hop-meta{display:flex;gap:10px;margin-top:4px;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.08em;color:var(--warm-mute)}
+.rt-hop-meta .rt-mode{margin-left:auto;color:var(--hi);letter-spacing:.18em;text-transform:uppercase}
+.rt-hop-dots{display:flex;gap:6px;margin-top:6px}
+.rt-dot{width:7px;height:7px;border-radius:50%;background:transparent;border:1px solid var(--line-2)}
+.rt-dot.set{background:#4ade80;border-color:#4ade80}
+.rt-dot.open{border-color:#fdba74}
+.rt-dot.none{background:var(--line-2);border-color:var(--line-2)}
+.rt-main{overflow-y:auto;padding:26px 34px 80px}
+.rt-hop-head h1{margin:6px 0 4px;font-family:'Bricolage Grotesque',monospace;font-size:34px;font-weight:800;letter-spacing:-.015em;line-height:1.05;color:var(--warm)}
+.rt-card{margin-top:22px;padding:18px 20px 20px;border:1px solid var(--line);border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.015),transparent)}
+.rt-card h3{margin:6px 0 8px;font-size:19px;font-weight:700;color:var(--warm);letter-spacing:-.01em}
+.rt-facts{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;font-size:13px;color:var(--warm-mute)}
+.rt-facts b{font-family:'Bricolage Grotesque',monospace;font-size:16px;font-weight:800;color:var(--warm)}
+.rt-facts i{font-style:normal;font-family:'Bricolage Grotesque',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--warm-mute)}
+.rt-sep{color:var(--line-2);margin:0 2px}
+.rt-window{margin-top:6px;font-family:'Bricolage Grotesque',monospace;font-size:10.5px;letter-spacing:.08em;color:var(--warm-mute)}
+.rt-reasons{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.55;color:var(--warm-mute)}
+.rt-reasons li{margin:2px 0}
+.rt-card-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}
+.rt-card-actions:empty{display:none}
+.rt-set{font-family:'Bricolage Grotesque',monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#4ade80}
+.rt-note{margin-top:8px;font-size:12.5px;line-height:1.5;color:var(--warm-mute)}
+.rt-note em{font-style:normal;color:#fdba74}
+.rt-empty{padding:22px;color:var(--warm-mute);font-size:13px}
+.rt-empty.small{padding:14px 0 0}
+.rt-radius{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
+.rt-toggle{padding:6px 10px;border:1px solid var(--line-2);border-radius:4px;background:none;color:var(--warm-mute);font-family:'Bricolage Grotesque',monospace;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
+.rt-toggle.on{border-color:var(--hi);color:var(--hi-bright);background:rgba(232,148,58,.1)}
+.rt-hotels{display:flex;flex-direction:column;gap:8px}
+.rt-hotel{display:flex;gap:16px;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:8px}
+.rt-hotel:hover{border-color:var(--line-2)}
+.rt-hotel-main{flex:1;min-width:0}
+.rt-hotel-name{font-size:14.5px;font-weight:700;color:var(--warm);display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.rt-chain{font-family:'Bricolage Grotesque',monospace;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--hi)}
+.rt-hotel-meta{margin-top:3px;font-size:12px;color:var(--warm-mute)}
+.rt-hotel-why{margin-top:4px;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.08em;color:#4ade80}
+.rt-hotel-links{display:flex;gap:14px;margin-top:6px;flex-wrap:wrap;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase}
+.rt-hotel-links a{color:var(--hi);text-decoration:none}
+.rt-hotel-links a:hover{color:var(--hi-bright)}
+.rt-hotel-act{flex:none}
+.rt-profile{max-width:760px}
+.rt-prow{margin-top:18px}
+.rt-prow label{display:block;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm-mute);margin-bottom:8px}
+.rt-toggles{display:flex;flex-wrap:wrap;gap:6px}
+.rt-prow input[type=text],.rt-prow input[type=number]{width:100%;max-width:280px;padding:9px 11px;border:1px solid var(--line-2);border-radius:6px;background:rgba(255,255,255,.02);color:var(--warm);font:inherit}
+.rt-prow input:focus{outline:none;border-color:var(--hi)}
+.rt-prow .hint{margin-top:6px;font-size:12px;color:var(--warm-mute);line-height:1.5}
+.rt-pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 24px}
+@media (max-width:900px){
+  .rt-body{grid-template-columns:1fr;overflow-y:auto;display:block}
+  .rt-rail{max-height:38vh;border-right:0;border-bottom:1px solid var(--line)}
+  .rt-main{padding:18px 16px 60px;overflow:visible}
+  .rt-top{padding:14px 16px 12px;align-items:flex-start;flex-direction:column}
+  .rt-actions{justify-content:flex-start}
+  .rt-hop-head h1{font-size:26px}
+  .rt-hotel{flex-direction:column;align-items:stretch}
 }
-
-.ta-shell{max-width:1280px;margin:0 auto;padding:0 22px 60px}
-.ta-topbar{
-  position:sticky;top:0;z-index:5;
-  background:linear-gradient(180deg,#0a0705,#0c0805);
-  border-bottom:1px solid var(--line);padding:14px 0;
-  display:flex;align-items:center;gap:14px;
-}
-.ta-topbar::after{content:"";position:absolute;left:-22px;right:-22px;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,rgba(138,169,216,.5),transparent)}
-.ta-title{display:flex;align-items:baseline;gap:10px;flex:1}
-.ta-title h2{margin:0;font-size:22px;font-weight:900;letter-spacing:.02em;
-  background:linear-gradient(180deg,#fff5e0,#b1c8ee);-webkit-background-clip:text;background-clip:text;color:transparent}
-.ta-title .ta-sub{font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--warm-mute)}
-.ta-close{padding:8px 14px;border-radius:7px;border:1px solid var(--line-2);background:rgba(232,148,58,.04);color:var(--warm-mute);font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;cursor:pointer}
-.ta-close:hover{color:var(--red);border-color:var(--red)}
-
-.ta-tabs{display:flex;gap:0;margin-top:14px;border-bottom:1px solid var(--line)}
-.ta-tab{padding:13px 20px;font-family:'Inter',sans-serif;font-weight:700;font-size:14px;letter-spacing:.04em;
-  color:var(--warm-mute);background:transparent;border:0;border-bottom:2px solid transparent;cursor:pointer;
-  display:flex;align-items:center;gap:8px}
-.ta-tab .ta-tab-icon{font-size:14px}
-.ta-tab .ta-tab-icon .bed-ic{width:15px;height:15px;display:inline-block;vertical-align:-3px}
-.ta-tab.on{color:#b1c8ee;border-bottom-color:#b1c8ee;text-shadow:0 0 10px rgba(138,169,216,.4)}
-.ta-tab:hover:not(.on){color:var(--warm)}
-
-.ta-disclaimer{padding:10px 14px;margin:14px 0 0;border-radius:8px;
-  background:rgba(138,169,216,.06);border:1px dashed rgba(138,169,216,.3);
-  font-family:'Bricolage Grotesque',monospace;font-size:11px;color:var(--warm-mute);letter-spacing:.04em;line-height:1.5}
-.ta-disclaimer b{color:#b1c8ee}
-
-.ta-search{display:grid;gap:14px;margin-top:18px;padding:18px;
-  background:linear-gradient(180deg,rgba(24,17,11,.9),rgba(17,12,8,.9));
-  border:1px solid var(--line);border-radius:12px}
-.ta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
-.ta-grid.tight{gap:10px}
-.ta-field{display:flex;flex-direction:column;gap:6px}
-.ta-field label{font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--hi)}
-.ta-field input,.ta-field select{
-  background:rgba(0,0,0,.3);border:1px solid var(--line-2);color:var(--warm);
-  border-radius:7px;padding:10px 12px;font:inherit;font-size:13px;
-}
-.ta-field input:focus,.ta-field select:focus{outline:none;border-color:#b1c8ee;box-shadow:0 0 0 3px rgba(138,169,216,.15)}
-
-.ta-chips{display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:rgba(0,0,0,.3);border:1px solid var(--line-2);border-radius:7px}
-.ta-chip{padding:6px 12px;border-radius:999px;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
-  background:rgba(232,148,58,.04);color:var(--warm-mute);border:1px solid var(--line-2);cursor:pointer;font-weight:600}
-.ta-chip.on{background:linear-gradient(135deg,rgba(138,169,216,.22),rgba(138,169,216,.06));color:#cfdef0;border-color:#b1c8ee;box-shadow:0 0 10px rgba(138,169,216,.25)}
-.ta-chip:hover:not(.on){color:var(--warm);border-color:var(--line-glow)}
-
-.ta-search-bar{display:flex;justify-content:space-between;align-items:center;padding-top:6px;gap:10px}
-.ta-search-btn{padding:11px 22px;border-radius:8px;font-family:'Bricolage Grotesque',monospace;font-size:12px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;cursor:pointer;
-  background:linear-gradient(135deg,#b1c8ee,#7aa9ff);color:#0a0705;border:1px solid #b1c8ee;
-  box-shadow:0 0 18px rgba(138,169,216,.4)}
-.ta-search-btn:hover{box-shadow:0 0 28px rgba(138,169,216,.55)}
-.ta-reset{padding:9px 14px;border-radius:7px;border:1px solid var(--line-2);background:transparent;color:var(--warm-mute);font-family:'Bricolage Grotesque',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
-
-.ta-results{margin-top:18px;display:flex;flex-direction:column;gap:14px}
-.ta-results-head{font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--warm-mute);padding-bottom:8px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
-.ta-results-head b{color:#b1c8ee}
-.ta-empty{padding:40px 24px;text-align:center;color:var(--warm-mute);border:1px dashed var(--line-2);border-radius:10px}
-.ta-empty h3{margin:0 0 6px;color:var(--warm);font-size:16px}
-
-/* hotel result card */
-.ta-hotel{
-  display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;
-  background:linear-gradient(180deg,rgba(24,17,11,.9),rgba(17,12,8,.9));
-  border:1px solid var(--line);border-radius:12px;padding:16px 18px;
-  box-shadow:inset 0 1px 0 rgba(138,169,216,.05);
-}
-.ta-hotel:hover{border-color:rgba(138,169,216,.4);box-shadow:0 0 20px rgba(138,169,216,.12),inset 0 1px 0 rgba(138,169,216,.1)}
-.ta-hotel .h-glyph .bed-ic{width:1em;height:1em;display:inline-block;vertical-align:-.12em}
-.h-glyph{
-  width:62px;height:62px;border-radius:10px;
-  background:linear-gradient(135deg,rgba(138,169,216,.14),rgba(138,169,216,.04));
-  border:1px solid rgba(138,169,216,.3);
-  display:grid;place-items:center;font-size:22px;color:#b1c8ee;flex:none;
-}
-.ta-hotel .h-info{min-width:0}
-.ta-hotel .h-name{font-weight:800;font-size:16px;color:var(--warm);line-height:1.2}
-.ta-hotel .h-meta{font-family:'Bricolage Grotesque',monospace;font-size:11px;color:var(--warm-mute);letter-spacing:.06em;margin-top:4px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.ta-hotel .h-meta .h-stars{color:var(--hi);letter-spacing:.04em}
-.ta-hotel .h-amen{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
-.ta-hotel .h-amen span{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
-  border:1px solid var(--line-2);background:rgba(232,148,58,.04);padding:3px 7px;border-radius:4px;color:var(--warm-mute)}
-.ta-hotel .h-amen span.loyalty{background:rgba(138,169,216,.1);color:#b1c8ee;border-color:rgba(138,169,216,.3)}
-.ta-hotel .h-price{text-align:right;flex:none}
-.ta-hotel .h-price .h-num{font-family:'Bricolage Grotesque',monospace;font-weight:800;font-size:22px;color:#b1c8ee;line-height:1}
-.ta-hotel .h-price .h-per{font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--warm-mute);margin-top:3px}
-.ta-hotel .h-actions{display:flex;flex-direction:column;gap:5px;margin-top:8px}
-.ta-hotel .h-actions button{padding:6px 12px;border-radius:6px;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;border:1px solid var(--line-2);background:rgba(138,169,216,.06);color:var(--warm-mute);cursor:pointer;font-weight:600}
-.ta-hotel .h-actions button:hover{color:#b1c8ee;border-color:#b1c8ee}
-.ta-hotel .h-actions button.primary{background:linear-gradient(135deg,#b1c8ee,#7aa9ff);color:#0a0705;border-color:#b1c8ee;box-shadow:0 0 10px rgba(138,169,216,.3)}
-
-/* flight result */
-.ta-flight{
-  display:grid;grid-template-columns:60px 1.5fr 1fr 1fr auto;gap:18px;align-items:center;
-  background:linear-gradient(180deg,rgba(24,17,11,.9),rgba(17,12,8,.9));
-  border:1px solid var(--line);border-radius:12px;padding:16px 18px;
-}
-.ta-flight:hover{border-color:rgba(138,169,216,.4)}
-.ta-flight .f-airline{
-  width:50px;height:50px;border-radius:10px;
-  background:linear-gradient(135deg,rgba(138,169,216,.14),rgba(138,169,216,.04));
-  border:1px solid rgba(138,169,216,.3);
-  display:grid;place-items:center;font-family:'Bricolage Grotesque',monospace;font-size:13px;font-weight:800;color:#b1c8ee
-}
-.ta-flight .f-route{display:flex;align-items:center;gap:14px}
-.ta-flight .f-route .f-leg{display:flex;flex-direction:column}
-.ta-flight .f-route .f-time{font-family:'Bricolage Grotesque',monospace;font-weight:800;font-size:18px;color:var(--warm);line-height:1}
-.ta-flight .f-route .f-air{font-family:'Bricolage Grotesque',monospace;font-size:10.5px;letter-spacing:.14em;color:var(--warm-mute);margin-top:4px}
-.ta-flight .f-route .f-arrow{color:#b1c8ee;font-size:14px}
-.ta-flight .f-stops{font-family:'Bricolage Grotesque',monospace;font-size:11px;color:var(--warm-mute);letter-spacing:.06em}
-.ta-flight .f-stops b{color:var(--warm);font-weight:700}
-.ta-flight .f-dur{font-family:'Bricolage Grotesque',monospace;font-size:11px;color:var(--warm-mute);letter-spacing:.06em}
-.ta-flight .f-dur b{color:var(--warm);font-weight:700;font-size:13px}
-.ta-flight .f-price{text-align:right}
-.ta-flight .f-price .f-num{font-family:'Bricolage Grotesque',monospace;font-weight:800;font-size:20px;color:#b1c8ee}
-.ta-flight .f-price .f-cabin{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--warm-mute);margin-top:3px}
-.ta-flight .f-actions{display:flex;flex-direction:column;gap:5px;margin-top:6px}
-.ta-flight .f-actions button{padding:6px 12px;border-radius:6px;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;border:1px solid var(--line-2);background:rgba(138,169,216,.06);color:var(--warm-mute);cursor:pointer;font-weight:600}
-.ta-flight .f-actions button:hover{color:#b1c8ee;border-color:#b1c8ee}
-.ta-flight .f-actions button.primary{background:linear-gradient(135deg,#b1c8ee,#7aa9ff);color:#0a0705;border-color:#b1c8ee}
 
 
 /* ============ TOUR SWITCHER (TM) ============ */
@@ -5376,7 +5335,7 @@ setTimeout(window._hideAppBoot,6000);
           <li>Unlimited tours</li>
           <li>Unlimited band &amp; crew invites</li>
           <li>Full dashboard, push notifications, day sheets</li>
-          <li>Travel Assistant + import wizard</li>
+          <li>Routing + import wizard</li>
           <li>All tour data stays yours</li>
         </ul>
         <button type="button" class="pc-cta primary" onclick="_pricingSubscribe()">Subscribe →</button>
@@ -5792,8 +5751,8 @@ setTimeout(window._hideAppBoot,6000);
   </div>
 </div>
 
-<!-- ============ TRAVEL ASSISTANT ============ -->
-<div id="travelAssistantArea"></div>
+<!-- ============ ROUTING ============ -->
+<div id="routingArea"></div>
 
 <!-- ============ TOUR BOOK PRINT AREA ============ -->
 <div id="tourBookArea"></div>
@@ -5987,6 +5946,9 @@ const dbMap = {
       travel_templates: t.travelTemplates || [],
       setlist_templates: t.setListTemplates || [],
       hotel_templates: t.hotelTemplates || [],
+      // How the tour moves (patch-050): bus / van / fly, drive ceiling, hotel
+      // radius, chains, budget. Routing drafts every hop from it.
+      travel_profile: (t.meta && t.meta.travelProfile) || {},
       artist_logo: t.artistLogo || null,
     };
   },
@@ -6001,6 +5963,8 @@ const dbMap = {
         currency: row.currency || 'USD',
         defaultAllotments: row.default_allotments || { Guest:30, AAA:10, Media:6, 'M&G':12, Working:8, Aftershow:15, GA:0 },
         createdAt: row.created_at ? Date.parse(row.created_at) : Date.now(),
+        // null (not {}) when unset, so Routing knows to ask for it first.
+        travelProfile: (row.travel_profile && Object.keys(row.travel_profile).length) ? row.travel_profile : null,
       },
       dates: dates || [],
       crew: row.crew || [],
@@ -6032,6 +5996,12 @@ const dbMap = {
       city: d.city || '',
       venue: d.venue || '',
       venue_address: d.venueAddress || '',
+      // Venue pin (patch-050). Routing's hotel search and drive times need a
+      // point, not a city name. Set by the address lookup, backfilled lazily
+      // the first time Routing opens the tour.
+      venue_lat:      (typeof d.venueLat === 'number' && isFinite(d.venueLat)) ? d.venueLat : null,
+      venue_lng:      (typeof d.venueLng === 'number' && isFinite(d.venueLng)) ? d.venueLng : null,
+      venue_place_id: d.venuePlaceId || '',
       state: d.state || '',
       country: d.country || '',
       status: d.status || 'show',
@@ -6079,6 +6049,9 @@ const dbMap = {
       city: row.city || '',
       venue: row.venue || '',
       venueAddress: row.venue_address || '',
+      venueLat: row.venue_lat != null && isFinite(Number(row.venue_lat)) ? Number(row.venue_lat) : null,
+      venueLng: row.venue_lng != null && isFinite(Number(row.venue_lng)) ? Number(row.venue_lng) : null,
+      venuePlaceId: row.venue_place_id || '',
       state: row.state || '',
       country: row.country || '',
       status: row.status || 'show',
@@ -9016,6 +8989,18 @@ function openDateModal(id) {
         // field that no longer exists in the modal.
         notes: editing ? (editing.notes || '') : '',
       };
+      // Venue pin (patch-050). Keep the coordinates the address lookup handed
+      // us for THIS venue name; keep the stored ones when the venue didn't
+      // change; drop them when a different venue was typed by hand (Routing
+      // places it again on its next draft).
+      {
+        const vEl = $('#d_venue');
+        const picked = !!(vEl && vEl.dataset.pid && vEl.dataset.pickedName === data.venue && data.venue);
+        const unchanged = !!(editing && (editing.venue || '') === (data.venue || ''));
+        data.venuePlaceId = picked ? vEl.dataset.pid : (unchanged ? (editing.venuePlaceId || '') : '');
+        data.venueLat = picked ? +vEl.dataset.lat : (unchanged && typeof editing.venueLat === 'number' ? editing.venueLat : null);
+        data.venueLng = picked ? +vEl.dataset.lng : (unchanged && typeof editing.venueLng === 'number' ? editing.venueLng : null);
+      }
       // Date is always required; city is required for surfaces that
       // actually need a place (show / press / rehearsal). Off days and
       // travel days can be saved without a city — they're still useful
@@ -14027,6 +14012,7 @@ function openCrewMemberModal(id) {
         <div class="field"><label>Email * <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(used to send invite)</span></label><input id="cm_email" type="email" value="${esc(v.email)}" placeholder="member@band.com" oninput="checkCrewEmailMatch()" onblur="checkCrewEmailMatch()"></div>
         <div class="field"><label>Phone</label><input id="cm_phone" value="${esc(v.phone)}"></div>
         <div class="field full"><div id="cm_email_match" style="margin:0"></div></div>
+        <div class="field"><label>Home airport <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional — fly dates)</span></label><input id="cm_airport" value="${esc(v.homeAirport || '')}" placeholder="e.g. LAX" maxlength="4" style="text-transform:uppercase"></div>
         <div class="field full"><label>Permissions</label>
           <select id="cm_perms">
             <option value="all" ${v.permissions==='all'?'selected':''}>Full access (Admin)</option>
@@ -14053,6 +14039,7 @@ function openCrewMemberModal(id) {
         // column still read sensibly. All real logic runs off `groups`.
         type: groups[0] || 'Crew',
         email, phone: $('#cm_phone').value.trim(),
+        homeAirport: ($('#cm_airport')?.value || '').trim().toUpperCase(),
         permissions: $('#cm_perms').value,
         groups
       };
@@ -17331,6 +17318,7 @@ function _acApplyPick(input, pick) {
   if (d.placeId) {
     _placeApiDetails(d.placeId).then(full => {
       if (!full) { _placeCacheSave(kind, { ...d, name: pick.value, city }); return; }
+      _acRememberPin(input, pick.value, full, d.placeId);
       if (addrEl && !addrEl.value) fill(addrEl, full.address);
       if (phoneEl && !phoneEl.value) fill(phoneEl, full.phone);
       _placeCacheSave(kind, {
@@ -17361,6 +17349,7 @@ function _acApplyPick(input, pick) {
       done();
       if (!hit.placeId) { _placeCacheSave(kind, { name: pick.value, city, address: hit.address }); return; }
       _placeApiDetails(hit.placeId).then(full => {
+        _acRememberPin(input, pick.value, full, hit.placeId);
         if (full && phoneEl && !phoneEl.value) fill(phoneEl, full.phone);
         _placeCacheSave(kind, {
           name: pick.value, city: (full && full.city) || city,
@@ -17371,6 +17360,19 @@ function _acApplyPick(input, pick) {
       });
     }).catch(() => done());
   }
+}
+
+// The venue input carries the pin Google handed back for the name that was
+// picked, so the date modal can store it (patch-050). Keyed to the picked
+// name: if the tour manager then types a different venue by hand, the modal
+// sees the mismatch and drops the stale pin rather than mis-placing it.
+function _acRememberPin(input, pickedName, full, placeId) {
+  if (!input || input.id !== 'd_venue' || !full) return;
+  if (typeof full.lat !== 'number' || typeof full.lng !== 'number') return;
+  input.dataset.lat = String(full.lat);
+  input.dataset.lng = String(full.lng);
+  input.dataset.pid = full.placeId || placeId || '';
+  input.dataset.pickedName = pickedName || '';
 }
 
 // Debounced tier-2 + tier-3 search. Merges into whatever local results are
@@ -26183,509 +26185,719 @@ function scoutNearVenue() {
 
 
 /* =====================================================================
-   TRAVEL ASSISTANT — Hotels + Flights search
+   ROUTING — the advance desk
+   Reads the tour's route (cities, dates, show times) and drafts the move
+   and the night for every hop: bus, van or fly; hotel or no hotel; with a
+   scored hotel shortlist near the venue. Every suggestion is one click from
+   becoming the real hotel stay or travel item on that date, so the gap
+   system closes as the tour manager accepts.
+
+   Phase one: profile, route rail, mode decision, hotel shortlist, accept.
+   Phase two adds the flight shortlist; today a fly hop deep-links to Google
+   Flights and to the flight-by-number form, which already tracks live.
+
+   Geometry comes from the venue pin (venue_lat / venue_lng, patch-050) when
+   the address lookup has placed the venue, else the built-in city map. Drive
+   times are real (Google Routes, via /api/routing) when that API is enabled
+   on the key, else the same road-ratio estimate the dashboard already shows.
    ===================================================================== */
 
-let taTab = 'hotels';
-let taLastResults = { hotels: null, flights: null };
-
-const HOTEL_DB = {
-  brooklyn: [
-    { name:'The William Vale', stars:5, price:340, dist:0.6, amen:['Wifi','Pool','Gym','Bar'], loyalty:'' },
-    { name:'Wythe Hotel', stars:5, price:395, dist:0.4, amen:['Wifi','Bar','Restaurant','Pet-friendly'], loyalty:'' },
-    { name:'Hotel Indigo Williamsburg', stars:4, price:230, dist:0.8, amen:['Wifi','Gym','Restaurant'], loyalty:'IHG' },
-    { name:'Box House Hotel', stars:4, price:215, dist:1.1, amen:['Wifi','Bar','Pet-friendly'], loyalty:'' },
-    { name:'Pod Brooklyn', stars:3, price:160, dist:1.4, amen:['Wifi','Gym'], loyalty:'' },
-    { name:'Hilton Brooklyn New York', stars:4, price:285, dist:2.2, amen:['Wifi','Gym','Restaurant','Parking'], loyalty:'Hilton' },
-    { name:'Aloft New York Brooklyn', stars:4, price:240, dist:2.6, amen:['Wifi','Gym','Bar'], loyalty:'Marriott' },
-    { name:'Sheraton Brooklyn New York', stars:4, price:265, dist:2.8, amen:['Wifi','Gym','Restaurant'], loyalty:'Marriott' },
-  ],
-  boston: [
-    { name:'The Liberty, A Marriott Luxury', stars:5, price:425, dist:1.2, amen:['Wifi','Pool','Gym','Spa','Bar'], loyalty:'Marriott' },
-    { name:'Boston Park Plaza', stars:4, price:265, dist:0.4, amen:['Wifi','Gym','Restaurant'], loyalty:'' },
-    { name:'Revere Hotel Boston Common', stars:4, price:295, dist:0.5, amen:['Wifi','Pool','Gym'], loyalty:'' },
-    { name:'Kimpton Onyx Hotel', stars:4, price:255, dist:1.3, amen:['Wifi','Bar','Pet-friendly'], loyalty:'IHG' },
-    { name:'Hyatt Centric Faneuil Hall', stars:4, price:280, dist:1.5, amen:['Wifi','Gym','Bar'], loyalty:'Hyatt' },
-    { name:'Hampton Inn Boston-Logan', stars:3, price:175, dist:4.5, amen:['Wifi','Breakfast','Gym'], loyalty:'Hilton' },
-    { name:'Courtyard Boston Downtown', stars:3, price:195, dist:0.9, amen:['Wifi','Gym','Restaurant'], loyalty:'Marriott' },
-  ],
-  philadelphia: [
-    { name:'The Logan Philadelphia', stars:5, price:295, dist:1.4, amen:['Wifi','Pool','Gym','Spa'], loyalty:'Hilton' },
-    { name:'Kimpton Hotel Monaco', stars:4, price:245, dist:0.8, amen:['Wifi','Pet-friendly','Bar'], loyalty:'IHG' },
-    { name:'The Notary Hotel', stars:4, price:225, dist:0.5, amen:['Wifi','Gym','Bar'], loyalty:'Marriott' },
-    { name:'Renaissance Philadelphia', stars:4, price:235, dist:0.4, amen:['Wifi','Gym','Restaurant'], loyalty:'Marriott' },
-    { name:'Hilton Philadelphia at Penn\'s Landing', stars:4, price:215, dist:1.7, amen:['Wifi','Pool','Gym','Parking'], loyalty:'Hilton' },
-    { name:'Hampton Inn Philadelphia Center City', stars:3, price:165, dist:0.7, amen:['Wifi','Breakfast','Gym'], loyalty:'Hilton' },
-  ],
-  washington: [
-    { name:'The Watergate Hotel', stars:5, price:420, dist:1.5, amen:['Wifi','Pool','Spa','Gym','Bar'], loyalty:'' },
-    { name:'Conrad Washington DC', stars:5, price:445, dist:1.1, amen:['Wifi','Gym','Spa','Restaurant'], loyalty:'Hilton' },
-    { name:'Kimpton Hotel Madera', stars:4, price:260, dist:2.2, amen:['Wifi','Pet-friendly','Bar'], loyalty:'IHG' },
-    { name:'Yotel Washington DC', stars:4, price:215, dist:0.9, amen:['Wifi','Gym','Bar'], loyalty:'' },
-    { name:'Hyatt Place Washington DC', stars:4, price:225, dist:0.6, amen:['Wifi','Breakfast','Gym'], loyalty:'Hyatt' },
-    { name:'Holiday Inn Washington Capitol', stars:3, price:170, dist:1.4, amen:['Wifi','Pool','Gym','Parking'], loyalty:'IHG' },
-  ],
-  toronto: [
-    { name:'The Hazelton Hotel', stars:5, price:495, dist:3.2, amen:['Wifi','Pool','Spa','Gym','Restaurant'], loyalty:'' },
-    { name:'1 Hotel Toronto', stars:5, price:395, dist:1.8, amen:['Wifi','Pool','Gym','Spa'], loyalty:'' },
-    { name:'Drake Hotel', stars:4, price:285, dist:2.3, amen:['Wifi','Bar','Restaurant','Pet-friendly'], loyalty:'' },
-    { name:'Gladstone House', stars:4, price:265, dist:2.5, amen:['Wifi','Bar','Pet-friendly'], loyalty:'' },
-    { name:'Hyatt Regency Toronto', stars:4, price:245, dist:1.1, amen:['Wifi','Pool','Gym','Restaurant'], loyalty:'Hyatt' },
-    { name:'Hilton Toronto', stars:4, price:225, dist:1.4, amen:['Wifi','Pool','Gym'], loyalty:'Hilton' },
-    { name:'Hampton Inn Toronto Downtown', stars:3, price:175, dist:1.9, amen:['Wifi','Breakfast','Gym'], loyalty:'Hilton' },
-  ],
-  detroit: [
-    { name:'The Foundation Hotel', stars:5, price:295, dist:0.5, amen:['Wifi','Gym','Restaurant','Pet-friendly'], loyalty:'' },
-    { name:'Shinola Hotel', stars:5, price:325, dist:0.8, amen:['Wifi','Bar','Restaurant'], loyalty:'' },
-    { name:'Westin Book Cadillac Detroit', stars:4, price:235, dist:0.4, amen:['Wifi','Pool','Gym','Spa'], loyalty:'Marriott' },
-    { name:'Aloft Detroit at The David Whitney', stars:4, price:195, dist:0.6, amen:['Wifi','Gym','Bar'], loyalty:'Marriott' },
-    { name:'MGM Grand Detroit', stars:5, price:285, dist:1.3, amen:['Wifi','Pool','Gym','Spa','Casino'], loyalty:'MGM Rewards' },
-    { name:'Holiday Inn Express Detroit Downtown', stars:3, price:155, dist:1.1, amen:['Wifi','Breakfast','Gym'], loyalty:'IHG' },
-  ],
-  chicago: [
-    { name:'Soho House Chicago', stars:5, price:380, dist:0.4, amen:['Wifi','Pool','Gym','Bar','Restaurant'], loyalty:'Members' },
-    { name:'Thompson Chicago', stars:5, price:340, dist:1.4, amen:['Wifi','Pool','Gym','Spa'], loyalty:'Hyatt' },
-    { name:'Hotel Lincoln, JdV by Hyatt', stars:4, price:225, dist:1.1, amen:['Wifi','Pet-friendly','Restaurant'], loyalty:'Hyatt' },
-    { name:'Ace Hotel Chicago', stars:4, price:255, dist:0.7, amen:['Wifi','Bar','Gym'], loyalty:'' },
-    { name:'Loews Chicago Hotel', stars:4, price:265, dist:1.8, amen:['Wifi','Pool','Pet-friendly'], loyalty:'Loews YouFirst' },
-    { name:'Hyatt Centric The Loop Chicago', stars:4, price:285, dist:2.3, amen:['Wifi','Gym','Bar'], loyalty:'Hyatt' },
-    { name:'Hampton Inn Chicago Downtown', stars:3, price:175, dist:2.7, amen:['Wifi','Breakfast','Gym'], loyalty:'Hilton' },
-    { name:'Marriott Marquis Chicago', stars:4, price:305, dist:3.1, amen:['Wifi','Pool','Gym','Restaurant'], loyalty:'Marriott' },
-  ],
-  minneapolis: [
-    { name:'The Hewing Hotel', stars:5, price:285, dist:0.7, amen:['Wifi','Spa','Gym','Bar','Restaurant'], loyalty:'' },
-    { name:'Loews Minneapolis Hotel', stars:4, price:225, dist:0.3, amen:['Wifi','Pool','Gym','Pet-friendly'], loyalty:'Loews YouFirst' },
-    { name:'W Minneapolis - The Foshay', stars:4, price:265, dist:0.9, amen:['Wifi','Gym','Bar'], loyalty:'Marriott' },
-    { name:'Hyatt Regency Minneapolis', stars:4, price:215, dist:1.2, amen:['Wifi','Pool','Gym'], loyalty:'Hyatt' },
-    { name:'Hilton Minneapolis', stars:4, price:235, dist:1.4, amen:['Wifi','Pool','Gym','Restaurant'], loyalty:'Hilton' },
-    { name:'Hampton Inn Minneapolis Downtown', stars:3, price:155, dist:1.6, amen:['Wifi','Breakfast','Gym'], loyalty:'Hilton' },
-  ],
-  denver: [
-    { name:'The Crawford Hotel', stars:5, price:355, dist:1.5, amen:['Wifi','Gym','Restaurant','Bar'], loyalty:'' },
-    { name:'Hotel Born', stars:5, price:325, dist:1.7, amen:['Wifi','Gym','Pet-friendly'], loyalty:'Marriott' },
-    { name:'Ramble Hotel', stars:4, price:265, dist:2.4, amen:['Wifi','Bar','Pet-friendly'], loyalty:'' },
-    { name:'Kimpton Hotel Born', stars:4, price:245, dist:1.7, amen:['Wifi','Gym','Bar'], loyalty:'IHG' },
-    { name:'Sheraton Denver Downtown', stars:4, price:215, dist:2.1, amen:['Wifi','Pool','Gym'], loyalty:'Marriott' },
-    { name:'Hampton Inn Denver Downtown', stars:3, price:165, dist:2.3, amen:['Wifi','Breakfast','Gym'], loyalty:'Hilton' },
-  ],
-  saltlakecity: [
-    { name:'Grand America Hotel', stars:5, price:295, dist:1.2, amen:['Wifi','Pool','Spa','Gym','Restaurant'], loyalty:'' },
-    { name:'Kimpton Hotel Monaco SLC', stars:4, price:215, dist:0.4, amen:['Wifi','Pet-friendly','Bar'], loyalty:'IHG' },
-    { name:'Hyatt Regency Salt Lake City', stars:4, price:225, dist:0.6, amen:['Wifi','Pool','Gym'], loyalty:'Hyatt' },
-    { name:'Hilton Salt Lake City Center', stars:4, price:195, dist:0.5, amen:['Wifi','Pool','Gym','Restaurant'], loyalty:'Hilton' },
-    { name:'Hampton Inn SLC Downtown', stars:3, price:145, dist:1.1, amen:['Wifi','Breakfast','Gym'], loyalty:'Hilton' },
-  ],
-  portland: [
-    { name:'The Nines, A Luxury Collection', stars:5, price:325, dist:1.4, amen:['Wifi','Gym','Restaurant','Bar'], loyalty:'Marriott' },
-    { name:'Hotel deLuxe', stars:4, price:255, dist:1.7, amen:['Wifi','Pet-friendly','Restaurant'], loyalty:'' },
-    { name:'Ace Hotel Portland', stars:4, price:235, dist:1.2, amen:['Wifi','Bar','Pet-friendly'], loyalty:'' },
-    { name:'Kimpton Hotel Vintage Portland', stars:4, price:265, dist:1.5, amen:['Wifi','Bar','Pet-friendly'], loyalty:'IHG' },
-    { name:'Hilton Portland Downtown', stars:4, price:215, dist:1.3, amen:['Wifi','Pool','Gym'], loyalty:'Hilton' },
-  ],
-  seattle: [
-    { name:'Fairmont Olympic Seattle', stars:5, price:425, dist:0.8, amen:['Wifi','Pool','Spa','Gym','Restaurant'], loyalty:'Marriott' },
-    { name:'The Edgewater Hotel', stars:5, price:345, dist:1.4, amen:['Wifi','Gym','Restaurant','Pet-friendly'], loyalty:'' },
-    { name:'Kimpton Palladian Hotel', stars:4, price:275, dist:1.6, amen:['Wifi','Pet-friendly','Bar'], loyalty:'IHG' },
-    { name:'Hyatt at Olive 8', stars:4, price:265, dist:1.0, amen:['Wifi','Pool','Gym','Spa'], loyalty:'Hyatt' },
-    { name:'Hilton Seattle', stars:4, price:235, dist:0.7, amen:['Wifi','Gym','Restaurant'], loyalty:'Hilton' },
-    { name:'Hampton Inn & Suites Seattle Downtown', stars:3, price:175, dist:1.2, amen:['Wifi','Breakfast','Gym'], loyalty:'Hilton' },
-  ],
-  sanfrancisco: [
-    { name:'The Battery', stars:5, price:485, dist:1.8, amen:['Wifi','Spa','Gym','Restaurant','Bar'], loyalty:'Members' },
-    { name:'1 Hotel San Francisco', stars:5, price:445, dist:2.2, amen:['Wifi','Pool','Gym','Restaurant'], loyalty:'' },
-    { name:'Hotel Drisco', stars:5, price:355, dist:3.5, amen:['Wifi','Gym','Breakfast'], loyalty:'' },
-    { name:'Kimpton Buchanan Hotel', stars:4, price:265, dist:0.4, amen:['Wifi','Pet-friendly','Bar'], loyalty:'IHG' },
-    { name:'Hyatt Centric Fisherman\'s Wharf', stars:4, price:295, dist:2.8, amen:['Wifi','Gym','Restaurant'], loyalty:'Hyatt' },
-    { name:'Hilton San Francisco Union Square', stars:4, price:265, dist:1.5, amen:['Wifi','Pool','Gym'], loyalty:'Hilton' },
-    { name:'Hampton Inn San Francisco Downtown', stars:3, price:185, dist:1.7, amen:['Wifi','Breakfast','Gym'], loyalty:'Hilton' },
-  ],
-  losangeles: [
-    { name:'The Hoxton Downtown LA', stars:5, price:325, dist:3.2, amen:['Wifi','Pool','Bar','Restaurant'], loyalty:'' },
-    { name:'Hotel Per La', stars:5, price:355, dist:3.6, amen:['Wifi','Pool','Gym','Restaurant','Pet-friendly'], loyalty:'' },
-    { name:'Ace Hotel Downtown LA', stars:4, price:285, dist:3.4, amen:['Wifi','Pool','Bar','Pet-friendly'], loyalty:'' },
-    { name:'Kimpton Everly Hotel', stars:4, price:295, dist:0.6, amen:['Wifi','Pool','Gym','Pet-friendly'], loyalty:'IHG' },
-    { name:'Hyatt Regency Los Angeles', stars:4, price:245, dist:2.4, amen:['Wifi','Pool','Gym'], loyalty:'Hyatt' },
-    { name:'Hilton Los Angeles Hollywood', stars:4, price:215, dist:0.4, amen:['Wifi','Pool','Gym','Restaurant'], loyalty:'Hilton' },
-    { name:'Hampton Inn Hollywood', stars:3, price:155, dist:1.1, amen:['Wifi','Breakfast','Gym','Pool'], loyalty:'Hilton' },
-  ],
+const RT_MODES = { bus: 'Sleeper bus', van: 'Van & hotels', fly: 'Fly dates' };
+const RT_MODE_DRIVE = { bus: 10, van: 7, fly: 3 };    // hours: ceiling for a drive on that kind of run
+const RT_DEFAULTS = { mode: 'bus', maxDriveH: null, loadOutMin: 90, radiusMi: 5, ratingFloor: 0, budget: 0, chains: [], singles: ['Band'], homeCity: '', homeAirport: '' };
+const RT_CHAINS = {
+  'Marriott':     ['marriott', 'courtyard', 'residence inn', 'springhill', 'fairfield', 'westin', 'sheraton', 'w hotel', 'w new york', 'aloft', 'moxy', 'renaissance', 'le méridien', 'le meridien', 'autograph', 'tribute portfolio', 'delta hotels', 'four points', 'element ', 'ac hotel', 'ritz-carlton', 'st. regis', 'edition', 'gaylord', 'luxury collection'],
+  'Hilton':       ['hilton', 'hampton', 'doubletree', 'embassy suites', 'homewood', 'home2', 'tru by', 'canopy', 'curio', 'tapestry', 'waldorf', 'conrad', 'motto by', 'lxr', 'signia', 'tempo by'],
+  'Hyatt':        ['hyatt', 'thompson', 'andaz', 'caption by', 'jdv by', 'destination by', 'alila', 'miraval', 'the standard'],
+  'IHG':          ['intercontinental', 'kimpton', 'holiday inn', 'crowne plaza', 'hotel indigo', 'staybridge', 'candlewood', 'even hotel', 'avid hotel', 'voco', 'regent', 'six senses', 'vignette'],
+  'Choice':       ['comfort inn', 'comfort suites', 'quality inn', 'sleep inn', 'clarion', 'cambria', 'ascend', 'econo lodge', 'rodeway'],
+  'Wyndham':      ['wyndham', 'ramada', 'days inn', 'super 8', 'la quinta', 'microtel', 'baymont', 'wingate', 'travelodge', 'howard johnson', 'tryp', 'dolce'],
+  'Best Western': ['best western', 'glo by', 'vib ', 'aiden by', 'sadie by'],
 };
 
-const AIRLINES = [
-  { code:'AA', name:'American Airlines' },
-  { code:'DL', name:'Delta Air Lines' },
-  { code:'UA', name:'United Airlines' },
-  { code:'B6', name:'JetBlue' },
-  { code:'WN', name:'Southwest' },
-  { code:'AS', name:'Alaska' },
-  { code:'NK', name:'Spirit' },
-  { code:'F9', name:'Frontier' },
-];
+let _rt = { open: false, view: 'hop', hopIdx: 0, plans: [], hotels: {}, evidence: {}, drives: {}, loading: {}, more: {}, force: {}, busy: '', routesOff: false, seq: 0 };
+let _rtApiConfigured = null;
 
-const AIRPORTS = {
-  brooklyn: 'JFK', newyork:'JFK', boston:'BOS', philadelphia:'PHL', washington:'DCA',
-  toronto:'YYZ', detroit:'DTW', chicago:'ORD', minneapolis:'MSP', denver:'DEN',
-  saltlakecity:'SLC', portland:'PDX', seattle:'SEA', sanfrancisco:'SFO', losangeles:'LAX',
-  miami:'MIA', atlanta:'ATL', austin:'AUS', nashville:'BNA', dallas:'DFW',
-  houston:'IAH', phoenix:'PHX', sandiego:'SAN', vancouver:'YVR', montreal:'YUL',
-};
-
-function _hotelCity(city) { return (city||'').toLowerCase().replace(/[.\s'\-,]+/g,''); }
-
-function openTravelAssistant() {
-  document.body.classList.add('travel-assistant-mode');
-  taTab = 'hotels';
-  renderTravelAssistant();
+function _rtProfile() {
+  const p = (T().meta && T().meta.travelProfile) || {};
+  const out = { ...RT_DEFAULTS, ...p };
+  if (!RT_MODES[out.mode]) out.mode = 'bus';
+  out.chains = Array.isArray(p.chains) ? p.chains : [];
+  out.singles = Array.isArray(p.singles) ? p.singles : RT_DEFAULTS.singles;
+  return out;
 }
-function closeTravelAssistant() {
-  document.body.classList.remove('travel-assistant-mode');
-  document.getElementById('travelAssistantArea').innerHTML = '';
+function _rtMaxDrive(p) { const h = parseFloat(p.maxDriveH); return isFinite(h) && h > 0 ? h : RT_MODE_DRIVE[p.mode] || 10; }
+
+// ── geometry ─────────────────────────────────────────────────────────
+function _rtPoint(d) {
+  if (!d) return null;
+  if (typeof d.venueLat === 'number' && typeof d.venueLng === 'number' && isFinite(d.venueLat) && isFinite(d.venueLng)) return { lat: d.venueLat, lng: d.venueLng, kind: 'venue' };
+  const c = _coordsFor(d.city, d.state);
+  return c ? { lat: c[0], lng: c[1], kind: 'city' } : null;
 }
-
-function setTaTab(t) { taTab = t; renderTravelAssistant(true); }
-
-function renderTravelAssistant(preserveResults) {
-  const ad = getActiveDate();
-  const root = document.getElementById('travelAssistantArea');
-  root.innerHTML = `
-    <div class="ta-shell">
-      <div class="ta-topbar">
-        <div class="ta-title">
-          <h2>Travel Assistant ✈</h2>
-          <span class="ta-sub">Hotels · Flights</span>
-        </div>
-        <button class="ta-close" type="button" onclick="closeTravelAssistant()">✕ Close</button>
-      </div>
-      <div class="ta-tabs">
-        <button class="ta-tab ${taTab==='hotels'?'on':''}" type="button" onclick="setTaTab('hotels')"><span class="ta-tab-icon">${_BED_SVG}</span> Hotels</button>
-        <button class="ta-tab ${taTab==='flights'?'on':''}" type="button" onclick="setTaTab('flights')"><span class="ta-tab-icon">✈</span> Flights</button>
-      </div>
-      <div class="ta-disclaimer">
-        <b>Prototype.</b> Results below are curated mock data drawn from a built-in database of major touring cities.
-        In production this would call live APIs (Booking.com, Hotels.com, Skyscanner, Amadeus) anchored to your venue's coordinates.
-      </div>
-      ${taTab === 'hotels' ? renderHotelsTab(ad, preserveResults) : renderFlightsTab(ad, preserveResults)}
-    </div>
-  `;
+function _rtMinutes(hhmm) { const m = /^(\d{1,2}):(\d{2})/.exec(hhmm || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; }
+function _rtHHMM(min) { min = ((Math.round(min) % 1440) + 1440) % 1440; return String(Math.floor(min / 60)).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0'); }
+function _rtT(hhmm) { return _fmt12Safe(hhmm); }
+function _rtDriveKey(pa, pb) { return `${pa.lat.toFixed(3)},${pa.lng.toFixed(3)}>${pb.lat.toFixed(3)},${pb.lng.toFixed(3)}`; }
+function _rtHotelKey(pt, p) { return `${pt.lat.toFixed(3)},${pt.lng.toFixed(3)},${Math.round((p.radiusMi || 5) * 1609)}`; }
+function _rtNameKey(s) { return String(s || '').toLowerCase().replace(/\b(the|hotel|inn|suites?|&|and)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim(); }
+function _rtChainOf(name) {
+  const n = ' ' + String(name || '').toLowerCase() + ' ';
+  for (const [chain, keys] of Object.entries(RT_CHAINS)) if (keys.some(k => n.includes(k))) return chain;
+  return '';
 }
+function _rtStatusWord(s) { return { off: 'Day off', travel: 'Travel day', press: 'Press day', rehearsal: 'Rehearsal' }[s] || ''; }
+function _rtSortedDates() { return (T().dates || []).filter(d => /^\d{4}-\d{2}-\d{2}/.test(d.date || '')).slice().sort((a, b) => a.date.localeCompare(b.date)); }
+function _rtDateById(id) { return (T().dates || []).find(d => d.id === id) || null; }
 
-function renderHotelsTab(ad, preserveResults) {
-  const defaultCity = ad?.city || '';
-  const defaultIn = ad?.date || '';
-  const checkOutDefault = (() => {
-    if (!ad?.date) return '';
-    const d = new Date(ad.date);
-    d.setDate(d.getDate()+1);
-    return d.toISOString().slice(0,10);
-  })();
-  const lastResults = preserveResults ? taLastResults.hotels : null;
-
-  return `
-    <div class="ta-search">
-      <div class="ta-grid">
-        <div class="ta-field"><label>City</label><input id="ta_h_city" data-ac="city" autocomplete="off" placeholder="e.g. Chicago" value="${esc(defaultCity)}"></div>
-        <div class="ta-field"><label>Check-in</label><input type="date" id="ta_h_in" value="${esc(defaultIn)}"></div>
-        <div class="ta-field"><label>Check-out</label><input type="date" id="ta_h_out" value="${esc(checkOutDefault)}"></div>
-        <div class="ta-field"><label>Rooms needed</label><input type="number" id="ta_h_rooms" value="${T().crew.length || 1}" min="1" max="50"></div>
-      </div>
-      <div class="ta-grid tight">
-        <div class="ta-field"><label>Star rating</label>
-          <div class="ta-chips" id="ta_h_stars">
-            ${[3,4,5].map(s => `<button type="button" class="ta-chip" data-v="${s}" onclick="this.classList.toggle('on')">${'★'.repeat(s)}+</button>`).join('')}
-          </div>
-        </div>
-        <div class="ta-field"><label>Loyalty program</label>
-          <div class="ta-chips" id="ta_h_loyalty">
-            ${['Hilton','Marriott','Hyatt','IHG'].map(l => `<button type="button" class="ta-chip" data-v="${l}" onclick="this.classList.toggle('on')">${l}</button>`).join('')}
-          </div>
-        </div>
-        <div class="ta-field"><label>Price ceiling (per night, ${T().meta.currency})</label>
-          <select id="ta_h_max">
-            <option value="0">No limit</option>
-            <option value="200">Under $200</option>
-            <option value="300" selected>Under $300</option>
-            <option value="400">Under $400</option>
-            <option value="600">Under $600</option>
-          </select>
-        </div>
-      </div>
-      <div class="ta-field"><label>Amenities</label>
-        <div class="ta-chips" id="ta_h_amen">
-          ${['Wifi','Breakfast','Gym','Pool','Pet-friendly','Parking','Bar','Restaurant','Spa'].map(a => `<button type="button" class="ta-chip" data-v="${a}" onclick="this.classList.toggle('on')">${a}</button>`).join('')}
-        </div>
-      </div>
-      <div class="ta-search-bar">
-        <button class="ta-reset" type="button" onclick="resetHotelFilters()">Reset filters</button>
-        <button class="ta-search-btn" type="button" onclick="searchHotels()">⌕ Search hotels</button>
-      </div>
-    </div>
-    <div id="ta_h_results" class="ta-results">${lastResults ? renderHotelResults(lastResults) : ''}</div>
-  `;
+// ── the plan ─────────────────────────────────────────────────────────
+function _rtBuildPlans() {
+  const p = _rtProfile(), dates = _rtSortedDates(), plans = [];
+  for (let i = 0; i < dates.length; i++) plans.push(_rtPlanHop(dates[i], dates[i + 1] || null, p, i));
+  // Consecutive nights in one city are one booking. The first night carries
+  // the count; the rest point back at it.
+  for (let i = 0; i < plans.length; i++) {
+    const a = plans[i];
+    if (!a.night.needsHotel || a.night.coveredBy != null || !a.night.city) continue;
+    let n = 1;
+    for (let j = i + 1; j < plans.length; j++) {
+      const b = plans[j];
+      if (!b.night.needsHotel || b.hotelSet || _busCityKey(b.night.city) !== _busCityKey(a.night.city)) break;
+      if (plans[j - 1].mode !== 'stay') break;          // only when nobody moved in between
+      b.night.coveredBy = i; n++;
+    }
+    a.night.nights = n;
+    a.night.checkOut = dates[Math.min(dates.length - 1, i + n)] ? dates[Math.min(dates.length - 1, i + n)].date : addDaysISO(a.date, n);
+    if (n > 1 && a.hotelSet) { /* already booked — leave the count for the label */ }
+  }
+  _rt.plans = plans;
+  if (_rt.hopIdx >= plans.length) _rt.hopIdx = Math.max(0, plans.length - 1);
 }
 
-function _readChips(id) {
-  return [...document.querySelectorAll('#'+id+' .ta-chip.on')].map(b => b.dataset.v);
-}
-function resetHotelFilters() {
-  document.querySelectorAll('#ta_h_stars .ta-chip, #ta_h_loyalty .ta-chip, #ta_h_amen .ta-chip').forEach(c => c.classList.remove('on'));
-  document.getElementById('ta_h_max').value = '0';
+function _rtPlanHop(a, b, p, i) {
+  const cityA = _realTravelCity(a), cityB = b ? _realTravelCity(b) : '';
+  const plan = {
+    idx: i, aId: a.id, bId: b ? b.id : null, date: a.date, nextDate: b ? b.date : null,
+    from: cityA, to: cityB, status: a.status || 'show',
+    mode: '', headline: '', reasons: [], miles: null, driveMin: null, driveReal: false,
+    windowMin: null, windowFrom: '', windowTo: '', busDepart: '',
+    night: { needsHotel: true, city: cityA, dateId: a.id, why: '', nights: 1, coveredBy: null, checkOut: '' },
+    hotelSet: '', noHotel: !!a.noHotel, travelSet: '', noTravel: !!a.noTravel, point: _rtPoint(a),
+  };
+  const stays = _hotelsForDate(a);
+  if (stays.length) plan.hotelSet = stays[0].name + (stays.length > 1 ? ` +${stays.length - 1}` : '');
+  const moves = a.travel || [];
+  if (moves.length) plan.travelSet = (moves[0].description || moves[0].type) + (moves.length > 1 ? ` +${moves.length - 1}` : '');
+  const isShowA = !a.status || a.status === 'show';
+
+  if (!b) {
+    plan.mode = 'end'; plan.headline = 'Last date of the run';
+    plan.reasons.push('Nobody moves on to another city from here.');
+    plan.night.needsHotel = !isShowA;
+    plan.night.why = isShowA ? 'Home after the show unless you say otherwise.' : 'Non-show day — a room in town.';
+    if (_rt.force[a.id]) { plan.night.needsHotel = true; plan.night.why = 'A room in town after the last show.'; }
+    return plan;
+  }
+  if (!cityA || !cityB) {
+    plan.mode = 'unknown';
+    plan.headline = !cityA ? 'This date needs a city' : 'The next date needs a city';
+    plan.reasons.push("Routing can't judge a hop without both ends. Open the date and add the city; the venue pin follows from the address lookup.");
+    plan.night.needsHotel = !!cityA && !isShowA;
+    plan.night.why = cityA ? 'Non-show day — a room in town.' : '';
+    return plan;
+  }
+  if (_busCityKey(cityA) === _busCityKey(cityB)) {
+    plan.mode = 'stay'; plan.headline = `Staying in ${cityA}`;
+    plan.reasons.push('Same city tomorrow — no move.');
+    plan.night.why = `Another night in ${cityA}.`;
+    return plan;
+  }
+
+  // Distance: real road time when Routes has answered, else the same
+  // road-ratio estimate the dashboard uses.
+  const pa = plan.point, pb = _rtPoint(b);
+  if (pa && pb) {
+    const air = _haversineMiles([pa.lat, pa.lng], [pb.lat, pb.lng]);
+    plan.miles = Math.round(air * 1.18);
+    const real = _rt.drives[_rtDriveKey(pa, pb)];
+    if (real && real.minutes) { plan.driveMin = real.minutes; if (real.miles) plan.miles = Math.round(real.miles); plan.driveReal = true; }
+    else plan.driveMin = Math.round((air * 1.18 / 62) * 60 * 1.22);
+  }
+
+  // The window: from when this city lets go to when the next one needs you.
+  const isShowB = !b.status || b.status === 'show';
+  let start;
+  if (isShowA) {
+    const cur = _rtMinutes(a.curfew) ?? (_rtMinutes(a.setTime) != null ? _rtMinutes(a.setTime) + 120 : 23 * 60);
+    start = cur + (parseInt(p.loadOutMin, 10) || 90);
+    plan.windowFrom = `${_rtT(_rtHHMM(cur))} ${a.curfew ? 'curfew' : (a.setTime ? 'after the set' : 'end of night')} + ${parseInt(p.loadOutMin, 10) || 90}m load-out`;
+  } else { start = 9 * 60; plan.windowFrom = '9:00 AM'; }
+  let end;
+  if (isShowB) { end = 1440 + (_rtMinutes(b.loadIn) ?? 12 * 60); plan.windowTo = `${_rtT(_rtHHMM(end - 1440))} ${b.loadIn ? 'load-in' : 'load-in (not set — assumed noon)'}`; }
+  else { end = 1440 + 18 * 60; plan.windowTo = '6:00 PM (no show tomorrow)'; }
+  // A sleeper bus leaving a day off rolls in the evening and arrives early,
+  // the same rhythm as a show night — not a 9 AM start with a day-long
+  // window. Leave by the latest time that still lands with slack, never
+  // later than 9 PM, never before 9 AM.
+  if (!isShowA && p.mode === 'bus' && plan.driveMin != null) {
+    const latest = end - plan.driveMin - 90;
+    start = Math.max(9 * 60, Math.min(21 * 60, latest));
+    plan.windowFrom = `${_rtT(_rtHHMM(start))} bus call`;
+  }
+  plan.windowMin = end - start;
+  plan.busDepart = _rtHHMM(start);
+
+  const maxH = _rtMaxDrive(p), maxDrive = maxH * 60;
+  const known = plan.driveMin != null;
+  const fits = known && plan.driveMin <= plan.windowMin;
+  const shortEnough = known && plan.driveMin <= maxDrive;
+  const est = plan.driveReal ? '' : ' (est)';
+  const dur = known ? _fmtDuration(plan.driveMin) : '';
+
+  if (!known) {
+    plan.mode = p.mode === 'fly' ? 'fly' : (p.mode === 'van' ? 'van' : 'bus');
+    plan.headline = `${RT_MODES[p.mode]} to ${cityB}`;
+    plan.reasons.push(`Can't measure this hop yet — ${!pa ? cityA : cityB} isn't on the city map. Pick the venue from the address lookup and Routing will place it.`);
+  } else if (p.mode === 'fly') {
+    if (plan.driveMin <= 150) {
+      plan.mode = 'van'; plan.headline = `Drive it — ${dur}`;
+      plan.reasons.push(`${plan.miles} mi. Nobody flies this; a van or runner beats airport time.`);
+    } else {
+      plan.mode = 'fly'; plan.headline = `Fly ${cityA} → ${cityB}`;
+      plan.reasons.push(`${plan.miles.toLocaleString()} mi by road, about ${dur}${est} — a fly date on this run.`);
+    }
+  } else if (p.mode === 'van') {
+    if (shortEnough) {
+      plan.mode = 'van'; plan.headline = `Van to ${cityB}`;
+      plan.reasons.push(`${plan.miles.toLocaleString()} mi · about ${dur}${est} — inside your ${maxH}h day-drive ceiling. Sleep here, leave in the morning.`);
+      const morning = 1440 + (_rtMinutes(b.loadIn) ?? 12 * 60) - plan.driveMin;
+      plan.busDepart = _rtHHMM(Math.min(morning - 1440, 11 * 60));
+      if (morning - 1440 < 6 * 60) plan.reasons.push(`Tight: to make ${plan.windowTo} you'd roll by ${_rtT(_rtHHMM(morning - 1440))}. Consider leaving after the show or pushing load-in.`);
+    } else {
+      plan.mode = 'fly'; plan.headline = `Fly ${cityA} → ${cityB}`;
+      plan.reasons.push(`${dur}${est} is past your ${maxH}h van ceiling.`);
+    }
+  } else {
+    if (shortEnough && fits) {
+      plan.mode = 'bus'; plan.headline = isShowA ? `Overnight on the bus to ${cityB}` : `Bus to ${cityB}`;
+      plan.reasons.push(`${plan.miles.toLocaleString()} mi · about ${dur}${est}. Roll at ${_rtT(plan.busDepart)}; ${_fmtDuration(plan.windowMin)} until ${plan.windowTo}.`);
+      if (plan.windowMin - plan.driveMin < 120) plan.reasons.push('Under two hours of slack — a fuel stop or traffic eats it. Worth an early bus call.');
+    } else if (shortEnough && !fits) {
+      plan.mode = 'fly'; plan.headline = "Fly — the bus won't make load-in";
+      plan.reasons.push(`${dur}${est} of driving into a ${_fmtDuration(plan.windowMin)} window (${plan.windowFrom} → ${plan.windowTo}). Fly the party, or push load-in, or move a day off between.`);
+    } else {
+      plan.mode = 'fly'; plan.headline = `Fly ${cityA} → ${cityB}`;
+      plan.reasons.push(`${dur}${est} is past your ${maxH}h bus ceiling — a fly date, or break it with a day off between.`);
+    }
+  }
+
+  // The night: where does everyone sleep tonight?
+  if (plan.mode === 'bus' && isShowA) { plan.night.needsHotel = false; plan.night.why = 'The bus is the hotel tonight.'; }
+  else if (plan.mode === 'bus') { plan.night.needsHotel = true; plan.night.why = `${_rtStatusWord(a.status) || 'Non-show day'} — a room in ${cityA} before the bus rolls in the morning.`; }
+  else if (plan.mode === 'van') { plan.night.needsHotel = true; plan.night.why = `Sleep in ${cityA}, drive in the morning.`; }
+  else if (plan.mode === 'fly') { plan.night.needsHotel = true; plan.night.why = `Sleep in ${cityA}, fly tomorrow.`; }
+  if (_rt.force[a.id]) { plan.night.needsHotel = true; plan.night.why = plan.night.why.replace('The bus is the hotel tonight.', 'A room in town instead of the bus.'); }
+  return plan;
 }
 
-function searchHotels() {
-  const city = document.getElementById('ta_h_city').value.trim();
-  if (!city) { toast('Enter a city', 'error'); return; }
-  const stars = _readChips('ta_h_stars').map(Number);
-  const loyalty = _readChips('ta_h_loyalty');
-  const amen = _readChips('ta_h_amen');
-  const maxPrice = parseInt(document.getElementById('ta_h_max').value) || 0;
-  const rooms = parseInt(document.getElementById('ta_h_rooms').value) || 1;
+// ── server calls ─────────────────────────────────────────────────────
+async function _rtApi(payload) {
+  if (!sb || _rtApiConfigured === false) return null;
+  const token = await _placeAuthToken();
+  if (!token) return null;
+  try {
+    const r = await fetch('/api/routing', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, supabaseAccessToken: token }),
+    });
+    const j = await r.json().catch(() => null);
+    if (j && j.configured === false) { _rtApiConfigured = false; return null; }
+    if (!r.ok) return null;
+    _rtApiConfigured = true;
+    return j;
+  } catch (e) { return null; }
+}
 
-  const cityKey = _hotelCity(city);
-  const pool = HOTEL_DB[cityKey] || [];
-  if (!pool.length) {
-    document.getElementById('ta_h_results').innerHTML = `
-      <div class="ta-empty"><h3>No data for ${esc(city)}</h3><p>Try one of: Brooklyn, Boston, Philadelphia, Washington, Toronto, Detroit, Chicago, Minneapolis, Denver, Salt Lake City, Portland, Seattle, San Francisco, Los Angeles.</p></div>
-    `;
+// Place a date's venue from Google once, store the pin on the date.
+async function _rtGeocodeDate(d) {
+  if (!d || !d.venue || !d.city || _placeApiConfigured === false) return false;
+  try {
+    let pid = d.venuePlaceId || '';
+    if (!pid) {
+      const rows = await _placeApiSearch('venue', d.venue, d.city);
+      const hit = (rows || []).find(r => r.placeId);
+      pid = hit ? hit.placeId : '';
+    }
+    if (!pid) return false;
+    const full = await _placeApiDetails(pid);
+    if (!full || typeof full.lat !== 'number' || typeof full.lng !== 'number') return false;
+    d.venueLat = full.lat; d.venueLng = full.lng; d.venuePlaceId = full.placeId || pid;
+    if (!d.venueAddress && full.address) d.venueAddress = full.address;
+    return true;
+  } catch (e) { return false; }
+}
+
+async function _rtDriveFor(pl) {
+  if (_rt.routesOff || !pl || !pl.point || !pl.bId || pl.driveReal) return false;
+  const pb = _rtPoint(_rtDateById(pl.bId));
+  if (!pb) return false;
+  const key = _rtDriveKey(pl.point, pb);
+  if (_rt.drives[key]) return true;
+  const j = await _rtApi({ action: 'drive', from: { lat: pl.point.lat, lng: pl.point.lng }, to: { lat: pb.lat, lng: pb.lng } });
+  if (!j) return false;
+  if (j.routes === false) { _rt.routesOff = true; return false; }
+  _rt.drives[key] = { minutes: j.minutes, miles: j.miles };
+  return true;
+}
+
+// Everything Bandmate already knows about hotels in this city: the shared
+// place cache (with its bus-parking notes), the curated bus-parking list,
+// and this tour's own stays and templates.
+async function _rtEvidenceFor(city) {
+  const k = _busCityKey(city);
+  if (_rt.evidence[k]) return _rt.evidence[k];
+  const ev = { byPid: new Map(), byName: new Map(), bus: _busHotelsForCity(city), tourNames: new Set(), tplNames: new Set() };
+  (T().dates || []).forEach(d => (d.hotels || []).forEach(s => { if (s.name) ev.tourNames.add(_rtNameKey(s.name)); }));
+  (T().hotelTemplates || []).forEach(t => { const n = t.hotel && t.hotel.name; if (n) ev.tplNames.add(_rtNameKey(n)); });
+  if (sb && k) {
+    try {
+      const { data } = await sb.from('place_cache').select('name,city,place_id,bus_parking').eq('kind', 'hotel').ilike('city', '%' + k.split(' ')[0] + '%').limit(300);
+      (data || []).forEach(r => { if (r.place_id) ev.byPid.set(r.place_id, r); if (r.name) ev.byName.set(_rtNameKey(r.name), r); });
+    } catch (e) { /* evidence is a bonus */ }
+  }
+  _rt.evidence[k] = ev;
+  return ev;
+}
+
+function _rtScoreHotel(h, pl, p, ev) {
+  let s = 0; const why = [];
+  const radius = p.radiusMi || 5;
+  s += 0.30 * Math.max(0, 1 - (h.venueMi / radius));
+  s += 0.30 * ((h.rating || 0) / 5) * Math.min(1, Math.log10((h.reviews || 0) + 1) / 3);
+  if (p.budget) { if (h.priceLevel == null) s += 0.07; else if (h.priceLevel <= p.budget) s += 0.15; else if (h.priceLevel === p.budget + 1) s += 0.05; }
+  else s += 0.10;
+  if (p.ratingFloor && h.rating && h.rating < p.ratingFloor) s -= 0.20;
+  h.chain = _rtChainOf(h.name);
+  if (h.chain && p.chains.includes(h.chain)) { s += 0.15; why.push(`${h.chain} — on your list`); }
+  const pc = ev.byPid.get(h.placeId) || ev.byName.get(_rtNameKey(h.name));
+  if (pc) { s += 0.08; if (pc.bus_parking) { if (p.mode === 'bus') s += 0.10; why.push('Bus parking: ' + pc.bus_parking); } else why.push('Used by Bandmate tours before'); }
+  const bp = ev.bus.find(x => _rtNameKey(x.name) === _rtNameKey(h.name));
+  if (bp) { if (p.mode === 'bus') s += 0.10; why.push(bp.busNote); }
+  if (ev.tourNames.has(_rtNameKey(h.name))) { s += 0.12; why.push('Stayed here on this tour'); }
+  else if (ev.tplNames.has(_rtNameKey(h.name))) { s += 0.10; why.push('One of your hotel templates'); }
+  h.score = s; h.why = why;
+  return s;
+}
+
+async function _rtLoadHotels(idx, quiet, force) {
+  const pl = _rt.plans[idx];
+  if (!pl || !pl.point) return;
+  const p = _rtProfile();
+  const key = _rtHotelKey(pl.point, p);
+  if (_rt.hotels[key] && !force) return;
+  if (_rt.loading[key]) return;
+  _rt.loading[key] = true;
+  if (!quiet) _rtRender();
+  const [j, ev] = await Promise.all([
+    _rtApi({ action: 'hotels', lat: pl.point.lat, lng: pl.point.lng, radius: Math.round((p.radiusMi || 5) * 1609) }),
+    _rtEvidenceFor(pl.night.city || pl.from),
+  ]);
+  delete _rt.loading[key];
+  if (!j) {
+    // No answer. Keep a shortlist that's already on screen rather than
+    // replacing it with an error; only an empty slot shows the retry.
+    if (!_rt.hotels[key] && _rtApiConfigured !== false) _rt.hotels[key] = { results: [], ranked: [], failed: true };
+    if (!quiet) _rtRender();
     return;
   }
-
-  let results = pool.slice();
-  if (stars.length) results = results.filter(h => stars.some(s => h.stars >= s));
-  if (loyalty.length) results = results.filter(h => loyalty.includes(h.loyalty));
-  if (amen.length) results = results.filter(h => amen.every(a => h.amen.includes(a)));
-  if (maxPrice) results = results.filter(h => h.price <= maxPrice);
-
-  results.sort((a,b) => a.price - b.price);
-  taLastResults.hotels = { city, rooms, results };
-  document.getElementById('ta_h_results').innerHTML = renderHotelResults(taLastResults.hotels);
-  toast(`${results.length} hotel${results.length===1?'':'s'} matched`, results.length ? 'good' : '');
+  const results = (j.results || []).map(h => ({ ...h, venueMi: _haversineMiles([pl.point.lat, pl.point.lng], [h.lat, h.lng]) }));
+  results.forEach(h => _rtScoreHotel(h, pl, p, ev));
+  results.sort((a, b) => b.score - a.score);
+  _rt.hotels[key] = { results, ranked: results, routes: !!j.routes, cached: !!j.cached };
+  if (!quiet || _rt.plans[_rt.hopIdx] === pl) _rtRender();
 }
 
-function renderHotelResults(payload) {
-  const { city, rooms, results } = payload;
-  if (!results.length) {
-    return `<div class="ta-empty"><h3>No matches</h3><p>Try widening filters — drop a star tier or loosen amenities.</p></div>`;
+// ── open / close / navigate ──────────────────────────────────────────
+function openRouting() {
+  if (!T() || T().id === '_empty') { toast('Open a tour first', 'error'); return; }
+  _rt.open = true;
+  _rt.view = (T().meta && T().meta.travelProfile) ? 'hop' : 'profile';
+  document.body.classList.add('routing-mode');
+  _rtBuildPlans();
+  const ad = getActiveDate();
+  const i = _rt.plans.findIndex(pl => pl.aId === (ad && ad.id));
+  _rt.hopIdx = i >= 0 ? i : 0;
+  _rtRender();
+  _rtWarm();
+}
+function closeRouting() {
+  _rt.open = false; _rt.busy = '';
+  document.body.classList.remove('routing-mode');
+  const r = document.getElementById('routingArea');
+  if (r) r.innerHTML = '';
+  try { renderAll(); } catch (e) {}
+}
+function _rtSelectHop(i) { _rt.hopIdx = i; _rt.view = 'hop'; _rtRender(); _rtWarm(); }
+function _rtShowProfile(on) { _rt.view = on ? 'profile' : 'hop'; _rtRender(); }
+function _rtJump(dateId, tab) { setActive(dateId); closeRouting(); try { _dashGoTab(tab); } catch (e) {} }
+function _rtJumpDate(dateId) { setActive(dateId); closeRouting(); setTimeout(() => openDateModal(dateId), 40); }
+function _rtMore(key) { _rt.more[key] = !_rt.more[key]; _rtRender(); }
+function _rtRadius(mi) {
+  const p = _rtProfile(); p.radiusMi = mi;
+  T().meta.travelProfile = { ...(T().meta.travelProfile || {}), radiusMi: mi };
+  saveState(); _rtRender(); _rtWarm();
+}
+function _rtRefreshHotels(idx) { _rtLoadHotels(idx, false, true); }
+function _rtForceHotel(idx) { const pl = _rt.plans[idx]; if (!pl) return; _rt.force[pl.aId] = true; _rtBuildPlans(); _rtRender(); _rtWarm(); }
+
+// Quietly get the selected hop ready: place its venue, ask for a real drive
+// time, and pull the shortlist if the night needs one.
+async function _rtWarm() {
+  const seq = ++_rt.seq;
+  let pl = _rt.plans[_rt.hopIdx];
+  if (!pl || _rt.view !== 'hop') return;
+  const a = _rtDateById(pl.aId);
+  let changed = false;
+  if (a && a.venue && a.city && typeof a.venueLat !== 'number') { if (await _rtGeocodeDate(a)) { changed = true; } }
+  if (seq !== _rt.seq) return;
+  if (changed) { saveState(); _rtBuildPlans(); pl = _rt.plans[_rt.hopIdx]; _rtRender(); }
+  if (pl && pl.bId && !pl.driveReal) { if (await _rtDriveFor(pl)) { _rtBuildPlans(); pl = _rt.plans[_rt.hopIdx]; if (seq === _rt.seq) _rtRender(); } }
+  if (seq !== _rt.seq) return;
+  if (pl && pl.night.needsHotel && !pl.hotelSet && pl.night.coveredBy == null && pl.point) await _rtLoadHotels(pl.idx, true);
+}
+
+// Draft the whole tour: place every venue, measure every hop, pull the
+// shortlist for every night that needs a hotel. Sequential on purpose —
+// the cache makes repeats free and the quota stays predictable.
+async function _rtDraftAll() {
+  if (_rt.busy) return;
+  const seq = ++_rt.seq;
+  _rt.view = 'hop';
+  const setBusy = (t) => { _rt.busy = t; const el = document.getElementById('rtBusy'); if (el) el.textContent = t; };
+  setBusy('Drafting…'); _rtRender();
+  try {
+    const toPlace = _rtSortedDates().filter(d => d.venue && d.city && typeof d.venueLat !== 'number');
+    let placed = 0;
+    for (let i = 0; i < toPlace.length; i++) { setBusy(`Placing venues ${i + 1}/${toPlace.length}`); if (await _rtGeocodeDate(toPlace[i])) placed++; }
+    if (placed) saveState();
+    _rtBuildPlans();
+    const hops = _rt.plans.filter(pl => pl.bId && pl.point && !pl.driveReal && pl.mode !== 'stay');
+    for (let i = 0; i < hops.length && !_rt.routesOff; i++) { setBusy(`Measuring drives ${i + 1}/${hops.length}`); await _rtDriveFor(hops[i]); }
+    _rtBuildPlans();
+    const nights = _rt.plans.filter(pl => pl.night.needsHotel && !pl.hotelSet && pl.night.coveredBy == null && pl.point);
+    for (let i = 0; i < nights.length; i++) { setBusy(`Hotels near venues ${i + 1}/${nights.length}`); await _rtLoadHotels(nights[i].idx, true); }
+    _rt.busy = '';
+    _rtBuildPlans(); _rtRender();
+    const bus = _rt.plans.filter(pl => pl.mode === 'bus' && !pl.night.needsHotel).length;
+    const hotel = _rtHotelNights(_rt.plans);
+    const fly = _rt.plans.filter(pl => pl.mode === 'fly').length;
+    toast(`Drafted ${_rt.plans.length} dates — ${bus} bus night${bus === 1 ? '' : 's'}, ${hotel} hotel night${hotel === 1 ? '' : 's'}, ${fly} fly hop${fly === 1 ? '' : 's'}`, 'good');
+  } catch (e) {
+    console.warn('[routing] draft failed', e);
+    _rt.busy = ''; _rtRender();
+    toast('Drafting stopped part way — try again', 'error');
   }
-  return `
-    <div class="ta-results-head"><span><b>${results.length}</b> match${results.length===1?'':'es'} in ${esc(city)} · ${rooms} room${rooms===1?'':'s'}</span><span>Sorted by price</span></div>
-    ${results.map((h, i) => `
-      <div class="ta-hotel">
-        <div class="h-glyph">${_BED_SVG}</div>
-        <div class="h-info">
-          <div class="h-name">${esc(h.name)}</div>
-          <div class="h-meta">
-            <span class="h-stars">${'★'.repeat(h.stars)}${'☆'.repeat(5-h.stars)}</span>
-            <span>· ${h.dist} mi from venue</span>
-          </div>
-          <div class="h-amen">
-            ${h.amen.map(a => `<span>${esc(a)}</span>`).join('')}
-            ${h.loyalty ? `<span class="loyalty">${esc(h.loyalty)}</span>` : ''}
-          </div>
-        </div>
-        <div class="h-price">
-          <div class="h-num">${T().meta.currency} ${h.price}</div>
-          <div class="h-per">/ night</div>
-          <div class="h-actions">
-            <button type="button" class="primary" onclick="bookHotelToActiveDate(${i})">Save to tour</button>
-            <button type="button" onclick="toast('Rate held for 24h (mock)','good')">Hold rate</button>
-          </div>
-        </div>
-      </div>
-    `).join('')}
-  `;
 }
 
-function bookHotelToActiveDate(idx) {
-  const ad = getActiveDate();
-  if (!ad) { toast('Switch to a tour date first', 'error'); return; }
-  const h = taLastResults.hotels?.results[idx];
-  if (!h) return;
-  (ad.hotels = ad.hotels || []).push(_normStay({
-    name: h.name,
-    notes: `★${h.stars} · ${h.dist} mi from venue · $${h.price}/night${h.loyalty?' · '+h.loyalty:''}`,
-    checkInDate: ad.date, checkOutDate: ad.date, rooms: [],
-  }, ad.date));
+// ── accept: turn a suggestion into the real thing ────────────────────
+function _rtUseHotel(idx, placeId) {
+  const pl = _rt.plans[idx]; if (!pl) return;
+  const p = _rtProfile();
+  const bucket = pl.point ? _rt.hotels[_rtHotelKey(pl.point, p)] : null;
+  const h = bucket && bucket.results.find(x => x.placeId === placeId);
+  const a = _rtDateById(pl.aId);
+  if (!h || !a) return;
+  const bits = [];
+  if (h.venueMi != null) bits.push(`${h.venueMi.toFixed(1)} mi from ${pl.point.kind === 'venue' ? 'the venue' : 'the city centre'}`);
+  if (h.driveMin != null) bits.push(`${_fmtDuration(h.driveMin)} drive`);
+  if (h.rating) bits.push(`${h.rating.toFixed(1)} · ${(h.reviews || 0).toLocaleString()} reviews`);
+  (h.why || []).forEach(w => bits.push(w));
+  (a.hotels = a.hotels || []).push(_normStay({
+    name: h.name, address: h.address || '', phone: h.phone || '',
+    checkInDate: a.date, checkOutDate: pl.night.checkOut || a.date, who: 'Everyone',
+    notes: bits.join(' · ') + ' · picked in Routing', rooms: [],
+  }, a.date));
+  if (a.noHotel) _clearNoHotelOn(a);
+  _placeCacheSave('hotel', { name: h.name, city: pl.night.city, address: h.address, phone: h.phone, website: h.website, placeId: h.placeId });
   saveState();
-  toast(`Added ${h.name} to ${ad.city}'s hotels — set dates + rooms in the Hotels tab`, 'good');
+  _rtBuildPlans(); _rtRender();
+  toast(`${h.name} set for ${fmtMD(a.date)}${pl.night.nights > 1 ? ` · ${pl.night.nights} nights` : ''} — rooms in the Hotels tab`, 'good');
+}
+function _rtMarkNoHotel(dateId) {
+  const d = _rtDateById(dateId); if (!d) return;
+  const u = U();
+  d.noHotel = true; d.noHotelAt = Date.now(); d.noHotelBy = (u && (u.name || u.email)) || '';
+  saveState(); _rtBuildPlans(); _rtRender();
+  toast(`Marked — no hotel for ${fmtMD(d.date)}`, 'good');
+}
+function _rtMarkNoTravel(dateId) {
+  const d = _rtDateById(dateId); if (!d) return;
+  const u = U();
+  d.noTravel = true; d.noTravelAt = Date.now(); d.noTravelBy = (u && (u.name || u.email)) || '';
+  saveState(); _rtBuildPlans(); _rtRender();
+  toast(`Marked — nobody travels on ${fmtMD(d.date)}`, 'good');
+}
+function _rtAddBusMove(idx) {
+  const pl = _rt.plans[idx]; const a = pl && _rtDateById(pl.aId);
+  if (!pl || !a || !pl.to) return;
+  const van = pl.mode === 'van';
+  const eta = pl.driveMin != null ? _rtT(_rtHHMM(_rtMinutes(pl.busDepart) + pl.driveMin)) : '';
+  const facts = [];
+  if (pl.miles != null) facts.push(`${pl.miles.toLocaleString()} mi`);
+  if (pl.driveMin != null) facts.push(`about ${_fmtDuration(pl.driveMin)}${pl.driveReal ? '' : ' (est)'}`);
+  if (eta) facts.push(`ETA ~${eta}`);
+  const isShowA = !a.status || a.status === 'show';
+  const item = {
+    id: uid('tv'), type: van ? 'van' : 'bus',
+    description: van ? `Van → ${pl.to}` : (isShowA ? `Sleeper bus → ${pl.to}` : `Bus → ${pl.to}`),
+    time: pl.busDepart || '', arriveTime: '', allDay: false, conf: '', person: '',
+    notes: (facts.length ? 'Routing: ' + facts.join(' · ') : 'Routing'),
+    groups: ['All'], individuals: [], flightNumber: '', fromCity: '', toCity: '', tripId: '',
+  };
+  (a.travel = a.travel || []).push(item);
+  a.travel.sort((x, y) => { if (x.allDay && !y.allDay) return -1; if (y.allDay && !x.allDay) return 1; return (x.time || 'zz').localeCompare(y.time || 'zz'); });
+  _clearNoTravelOn(a);
+  saveState(); _rtBuildPlans(); _rtRender();
+  toast(`${item.description} logged for ${fmtMD(a.date)} at ${_rtT(item.time)}`, 'good');
+}
+function _rtLogFlight(idx) {
+  const pl = _rt.plans[idx]; if (!pl) return;
+  setActive(pl.aId); closeRouting();
+  try { _dashGoTab('travel'); } catch (e) {}
+  setTimeout(() => {
+    openTravelModal();
+    const sel = document.getElementById('tv_type');
+    if (sel) { sel.value = 'flight'; try { _travelModalApplyType(); } catch (e) {} }
+  }, 60);
+}
+function _rtFlightsLink(pl) {
+  const q = `Flights from ${pl.from} to ${pl.to}${pl.nextDate ? ' on ' + pl.nextDate : ''}`;
+  return 'https://www.google.com/travel/flights?q=' + encodeURIComponent(q);
+}
+function _rtRatesLink(h, pl) {
+  return 'https://www.google.com/travel/hotels?q=' + encodeURIComponent(`${h.name} ${pl.night.city || ''}`.trim());
 }
 
-/* ---------- Flights ---------- */
-function renderFlightsTab(ad, preserveResults) {
-  const lastResults = preserveResults ? taLastResults.flights : null;
-  const fromCity = ad?.city || '';
-  const dateDefault = ad?.date || '';
+// ── profile ──────────────────────────────────────────────────────────
+function _rtPick(groupId, btn, single) {
+  const wrap = document.getElementById(groupId); if (!wrap) return;
+  if (single) wrap.querySelectorAll('.rt-toggle').forEach(b => b.classList.toggle('on', b === btn));
+  else btn.classList.toggle('on');
+  if (groupId === 'rt_p_mode') {
+    const md = document.getElementById('rt_p_maxdrive');
+    if (md && !md.dataset.touched) md.value = RT_MODE_DRIVE[btn.dataset.v] || 10;
+  }
+}
+function _rtPicked(groupId) { return [...document.querySelectorAll('#' + groupId + ' .rt-toggle.on')].map(b => b.dataset.v); }
+function _rtSaveProfile() {
+  const mode = _rtPicked('rt_p_mode')[0] || 'bus';
+  const md = parseFloat(document.getElementById('rt_p_maxdrive')?.value);
+  const lo = parseInt(document.getElementById('rt_p_loadout')?.value, 10);
+  const prof = {
+    mode,
+    maxDriveH: isFinite(md) && md > 0 ? md : null,
+    loadOutMin: isFinite(lo) && lo >= 0 ? lo : 90,
+    radiusMi: parseFloat(_rtPicked('rt_p_radius')[0]) || 5,
+    ratingFloor: parseFloat(_rtPicked('rt_p_rating')[0]) || 0,
+    budget: parseInt(_rtPicked('rt_p_budget')[0], 10) || 0,
+    chains: _rtPicked('rt_p_chains'),
+    singles: _rtPicked('rt_p_singles'),
+    homeCity: (document.getElementById('rt_p_home')?.value || '').trim(),
+    homeAirport: (document.getElementById('rt_p_airport')?.value || '').trim().toUpperCase(),
+  };
+  T().meta.travelProfile = prof;
+  saveState();
+  _rt.hotels = {}; _rt.view = 'hop';
+  _rtBuildPlans(); _rtRender(); _rtWarm();
+  toast('Travel profile saved — the route is drafted from it', 'good');
+}
+function _rtProfileHTML(p) {
+  const tog = (id, opts, cur, single) => `<div class="rt-toggles" id="${id}">${opts.map(o => `<button type="button" class="rt-toggle ${(single ? String(cur) === String(o.v) : (cur || []).includes(o.v)) ? 'on' : ''}" data-v="${esc(String(o.v))}" onclick="_rtPick('${id}',this,${single ? 'true' : 'false'})">${esc(o.l)}</button>`).join('')}</div>`;
+  const groups = (T().meta && T().meta.groups) || ['Band', 'Crew', 'Production', 'Mgmt', 'Driver', 'Support'];
+  const first = !(T().meta && T().meta.travelProfile);
   return `
-    <div class="ta-search">
-      <div class="ta-grid">
-        <div class="ta-field"><label>From</label><input id="ta_f_from" placeholder="e.g. Detroit, DTW" value="${esc(fromCity)}"></div>
-        <div class="ta-field"><label>To</label><input id="ta_f_to" placeholder="e.g. Chicago, ORD"></div>
-        <div class="ta-field"><label>Date</label><input type="date" id="ta_f_date" value="${esc(dateDefault)}"></div>
-        <div class="ta-field"><label>Passengers</label><input type="number" id="ta_f_pax" value="1" min="1" max="20"></div>
+    <div class="rt-profile">
+      <div class="rt-hop-head"><div class="rt-kicker">Travel profile</div><h1>How this tour moves</h1>
+        <div class="rt-sub">${first ? 'Set once — thirty seconds — and Routing drafts every hop from it.' : 'Change anything and the route redrafts.'}</div></div>
+      <div class="rt-prow"><label>The run</label>${tog('rt_p_mode', [{ v: 'bus', l: 'Sleeper bus' }, { v: 'van', l: 'Van & hotels' }, { v: 'fly', l: 'Fly dates' }], p.mode, true)}
+        <div class="hint">Bus: show nights on the bus, hotels on days off. Van: a hotel every night, drive by day. Fly: a hotel every night, flights between cities.</div></div>
+      <div class="rt-pgrid">
+        <div class="rt-prow"><label>Longest drive you'll take (hours)</label><input type="number" id="rt_p_maxdrive" min="1" max="24" step="0.5" value="${esc(String(_rtMaxDrive(p)))}" oninput="this.dataset.touched=1"></div>
+        <div class="rt-prow"><label>Load-out after curfew (minutes)</label><input type="number" id="rt_p_loadout" min="0" max="360" step="15" value="${esc(String(p.loadOutMin))}"><div class="hint">Bus call is curfew plus this.</div></div>
       </div>
-      <div class="ta-grid tight">
-        <div class="ta-field"><label>Cabin</label>
-          <select id="ta_f_cabin">
-            <option>Economy</option><option>Premium Economy</option><option>Business</option><option>First</option>
-          </select>
+      <div class="rt-prow"><label>Hotels within</label>${tog('rt_p_radius', [{ v: 3, l: '3 mi' }, { v: 5, l: '5 mi' }, { v: 10, l: '10 mi' }], p.radiusMi, true)}<div class="hint">Of the venue when it's been placed, else the city centre.</div></div>
+      <div class="rt-pgrid">
+        <div class="rt-prow"><label>Guest rating floor</label>${tog('rt_p_rating', [{ v: 0, l: 'Any' }, { v: 4, l: '4.0 +' }, { v: 4.3, l: '4.3 +' }], p.ratingFloor, true)}</div>
+        <div class="rt-prow"><label>Budget</label>${tog('rt_p_budget', [{ v: 0, l: 'Any' }, { v: 1, l: '$' }, { v: 2, l: '$$' }, { v: 3, l: '$$$' }, { v: 4, l: '$$$$' }], p.budget, true)}</div>
+      </div>
+      <div class="rt-prow"><label>Chains you'd rather stay with</label>${tog('rt_p_chains', Object.keys(RT_CHAINS).map(c => ({ v: c, l: c })), p.chains, false)}<div class="hint">Loyalty, billing, whatever the reason — these float up the shortlist.</div></div>
+      <div class="rt-prow"><label>Singles for</label>${tog('rt_p_singles', groups.map(g => ({ v: g, l: g })), p.singles, false)}<div class="hint">Everyone else shares. Used for the room count in phase two.</div></div>
+      <div class="rt-pgrid">
+        <div class="rt-prow"><label>Home city</label><input type="text" id="rt_p_home" value="${esc(p.homeCity)}" placeholder="e.g. Nashville, TN"></div>
+        <div class="rt-prow"><label>Home airport</label><input type="text" id="rt_p_airport" value="${esc(p.homeAirport)}" placeholder="e.g. BNA" maxlength="4" style="text-transform:uppercase"><div class="hint">First and last flights, when phase two lands.</div></div>
+      </div>
+      <div class="rt-card-actions" style="margin-top:26px"><button type="button" class="rt-btn primary" onclick="_rtSaveProfile()">Save and draft the route</button>${first ? '' : `<button type="button" class="rt-btn" onclick="_rtShowProfile(false)">Cancel</button>`}</div>
+    </div>`;
+}
+
+// Nights in a hotel, counted as nights: a two-night stay is two whether it's
+// still a suggestion (one plan carrying nights=2) or already booked (two
+// plans each covered by the stay).
+function _rtHotelNights(plans) {
+  return plans.reduce((n, pl) => n + (pl.night.needsHotel && pl.night.coveredBy == null ? (pl.night.nights || 1) : 0), 0);
+}
+
+// ── render ───────────────────────────────────────────────────────────
+function _rtRender() {
+  const root = document.getElementById('routingArea');
+  if (!root || !_rt.open) return;
+  const p = _rtProfile(), plans = _rt.plans;
+  const tourName = (T().meta && T().meta.tourName) || T().name || 'Tour';
+  const bus = plans.filter(pl => pl.mode === 'bus' && !pl.night.needsHotel).length;
+  const hotel = _rtHotelNights(plans);
+  const fly = plans.filter(pl => pl.mode === 'fly').length;
+  const profileView = _rt.view === 'profile';
+  root.innerHTML = `
+    <div class="rt-shell">
+      <div class="rt-top">
+        <div class="rt-title">
+          <div class="rt-kicker">Routing · ${esc(tourName)}</div>
+          <h2>${plans.length} date${plans.length === 1 ? '' : 's'} · ${esc(RT_MODES[p.mode])}</h2>
+          <div class="rt-sub">${bus} bus night${bus === 1 ? '' : 's'} · ${hotel} hotel night${hotel === 1 ? '' : 's'} · ${fly} fly hop${fly === 1 ? '' : 's'}${_rt.routesOff ? ' · drive times estimated' : ''}</div>
         </div>
-        <div class="ta-field"><label>Stops</label>
-          <div class="ta-chips" id="ta_f_stops">
-            ${['Nonstop','1 stop','2+ stops'].map(s => `<button type="button" class="ta-chip ${s==='Nonstop'?'on':''}" data-v="${s}" onclick="this.classList.toggle('on')">${s}</button>`).join('')}
-          </div>
-        </div>
-        <div class="ta-field"><label>Time of day</label>
-          <div class="ta-chips" id="ta_f_time">
-            ${['Morning','Afternoon','Evening','Red-eye'].map(t => `<button type="button" class="ta-chip" data-v="${t}" onclick="this.classList.toggle('on')">${t}</button>`).join('')}
-          </div>
+        <div class="rt-actions">
+          <span class="rt-busy" id="rtBusy">${esc(_rt.busy || '')}</span>
+          <button type="button" class="rt-btn" onclick="_rtShowProfile(${profileView ? 'false' : 'true'})">${profileView ? 'Back to the route' : 'Travel profile'}</button>
+          <button type="button" class="rt-btn primary" onclick="_rtDraftAll()" ${_rt.busy ? 'disabled' : ''}>Draft the whole tour</button>
+          <button type="button" class="rt-btn" onclick="closeRouting()">Close</button>
         </div>
       </div>
-      <div class="ta-field"><label>Preferred airlines</label>
-        <div class="ta-chips" id="ta_f_air">
-          ${AIRLINES.map(a => `<button type="button" class="ta-chip" data-v="${a.code}" onclick="this.classList.toggle('on')">${esc(a.code)} · ${esc(a.name)}</button>`).join('')}
-        </div>
+      <div class="rt-body">
+        <aside class="rt-rail">${plans.length ? plans.map(_rtRailRow).join('') : '<div class="rt-empty">No dates on this tour yet.</div>'}</aside>
+        <main class="rt-main" id="rtMain">${profileView ? _rtProfileHTML(p) : _rtHopHTML(plans[_rt.hopIdx], p)}</main>
       </div>
-      <div class="ta-search-bar">
-        <button class="ta-reset" type="button" onclick="resetFlightFilters()">Reset filters</button>
-        <button class="ta-search-btn" type="button" onclick="searchFlights()">⌕ Search flights</button>
-      </div>
+    </div>`;
+  const on = root.querySelector('.rt-hop.on');
+  if (on && on.scrollIntoView) { try { on.scrollIntoView({ block: 'nearest' }); } catch (e) {} }
+}
+
+function _rtRailRow(pl) {
+  const on = pl.idx === _rt.hopIdx && _rt.view === 'hop';
+  const modeWord = { bus: 'Bus', van: 'Van', fly: 'Fly', stay: 'Stay', end: 'End', unknown: '?' }[pl.mode] || '';
+  const h = pl.hotelSet ? 'set' : (pl.noHotel || !pl.night.needsHotel || pl.night.coveredBy != null) ? 'none' : 'open';
+  const t = pl.travelSet ? 'set' : (pl.noTravel || pl.mode === 'stay' || pl.mode === 'end' || pl.mode === 'unknown') ? 'none' : 'open';
+  return `
+    <button type="button" class="rt-hop ${on ? 'on' : ''} ${pl.mode === 'unknown' ? 'warn' : ''}" onclick="_rtSelectHop(${pl.idx})">
+      <div class="rt-hop-date">${esc(fmtMD(pl.date))} · ${esc(dow(pl.date))}${pl.status !== 'show' && _rtStatusWord(pl.status) ? ' · ' + esc(_rtStatusWord(pl.status)) : ''}</div>
+      <div class="rt-hop-route">${esc(pl.from || 'No city')}${pl.to && pl.mode !== 'stay' ? ` <span class="rt-arrow">→</span> ${esc(pl.to)}` : ''}</div>
+      <div class="rt-hop-meta"><span>${pl.miles != null ? pl.miles.toLocaleString() + ' mi' : ''}</span><span>${pl.driveMin != null ? _fmtDuration(pl.driveMin) : ''}</span><span class="rt-mode">${modeWord}</span></div>
+      <div class="rt-hop-dots"><span class="rt-dot ${h}" title="Hotel: ${h}"></span><span class="rt-dot ${t}" title="Travel: ${t}"></span></div>
+    </button>`;
+}
+
+function _rtHopHTML(pl, p) {
+  if (!pl) return '<div class="rt-empty">Add dates to the tour and Routing will draft them.</div>';
+  const a = _rtDateById(pl.aId);
+  const venueLine = a && a.venue ? `${esc(a.venue)}${a.loadIn ? ' · load-in ' + esc(_rtT(a.loadIn)) : ''}${a.curfew ? ' · curfew ' + esc(_rtT(a.curfew)) : ''}${pl.point && pl.point.kind === 'venue' ? '' : ' · <em>venue not placed yet</em>'}` : (a && a.city ? `No venue on this date${pl.point ? '' : ' · city not on the map'}` : '');
+  return `
+    <div class="rt-hop-head">
+      <div class="rt-kicker">${esc(fmtDate(pl.date).toUpperCase())}${pl.nextDate && pl.mode !== 'stay' && pl.mode !== 'end' ? ' → ' + esc(fmtDate(pl.nextDate).toUpperCase()) : ''}</div>
+      <h1>${esc(pl.from || 'No city')}${pl.to && pl.mode !== 'stay' ? ` <span class="rt-arrow">→</span> ${esc(pl.to)}` : ''}</h1>
+      ${venueLine ? `<div class="rt-sub">${venueLine}</div>` : ''}
     </div>
-    <div id="ta_f_results" class="ta-results">${lastResults ? renderFlightResults(lastResults) : ''}</div>
-  `;
+    ${_rtMoveCard(pl, p, a)}
+    ${_rtNightCard(pl, p, a)}`;
 }
 
-function resetFlightFilters() {
-  document.querySelectorAll('#ta_f_stops .ta-chip, #ta_f_time .ta-chip, #ta_f_air .ta-chip').forEach(c => c.classList.remove('on'));
-  document.getElementById('ta_f_cabin').value = 'Economy';
-}
-
-function _airportFor(text) {
-  const k = (text||'').toLowerCase().replace(/[.\s'\-,]+/g,'');
-  if (AIRPORTS[k]) return AIRPORTS[k];
-  // also accept text containing IATA in caps
-  const m = (text||'').match(/\b([A-Z]{3})\b/);
-  return m ? m[1] : null;
-}
-
-function searchFlights() {
-  const fromText = document.getElementById('ta_f_from').value.trim();
-  const toText = document.getElementById('ta_f_to').value.trim();
-  if (!fromText || !toText) { toast('Enter both From and To cities', 'error'); return; }
-  const from = _airportFor(fromText) || fromText.toUpperCase().slice(0,3);
-  const to = _airportFor(toText) || toText.toUpperCase().slice(0,3);
-  const date = document.getElementById('ta_f_date').value;
-  const pax = parseInt(document.getElementById('ta_f_pax').value) || 1;
-  const cabin = document.getElementById('ta_f_cabin').value;
-  const stops = _readChips('ta_f_stops');
-  const tod = _readChips('ta_f_time');
-  const airs = _readChips('ta_f_air');
-
-  // Generate 6-10 mock flights deterministically based on the inputs
-  const seed = (from + to + date + cabin).split('').reduce((n,c)=>(n*31 + c.charCodeAt(0)) >>> 0, 0);
-  const rand = (() => {
-    let s = seed || 1;
-    return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 0x100000000; };
-  })();
-
-  const candidates = AIRLINES.flatMap(a => [
-    { air: a, depHour: 6  + Math.floor(rand()*3),  dur: 90 + Math.floor(rand()*70),  stops: 0 },
-    { air: a, depHour: 11 + Math.floor(rand()*4),  dur: 100 + Math.floor(rand()*120), stops: rand() < 0.4 ? 1 : 0 },
-    { air: a, depHour: 17 + Math.floor(rand()*4),  dur: 95  + Math.floor(rand()*80),  stops: 0 },
-    { air: a, depHour: 22 + Math.floor(rand()*2),  dur: 105 + Math.floor(rand()*60),  stops: 0 },
-  ]);
-
-  const cabinMult = { 'Economy':1, 'Premium Economy':1.7, 'Business':3.4, 'First':5.5 }[cabin] || 1;
-
-  let flights = candidates.map((c, i) => {
-    const basePrice = 90 + Math.floor(rand()*340);
-    const stopsLabel = c.stops === 0 ? 'Nonstop' : c.stops === 1 ? '1 stop' : '2+ stops';
-    const dep = `${String(c.depHour).padStart(2,'0')}:${['00','15','30','45'][i%4]}`;
-    const arrMin = c.depHour*60 + parseInt(dep.split(':')[1]) + c.dur;
-    const arrH = Math.floor(arrMin/60) % 24;
-    const arr = `${String(arrH).padStart(2,'0')}:${String(arrMin%60).padStart(2,'0')}`;
-    const todBucket = c.depHour < 12 ? 'Morning' : c.depHour < 17 ? 'Afternoon' : c.depHour < 22 ? 'Evening' : 'Red-eye';
-    return {
-      id: 'f'+i,
-      airline: c.air,
-      from, to,
-      dep, arr,
-      durMin: c.dur,
-      stops: c.stops,
-      stopsLabel,
-      tod: todBucket,
-      price: Math.round(basePrice * cabinMult * (c.stops ? 0.8 : 1)),
-      cabin,
-    };
-  });
-
-  if (stops.length) flights = flights.filter(f => stops.includes(f.stopsLabel));
-  if (tod.length) flights = flights.filter(f => tod.includes(f.tod));
-  if (airs.length) flights = flights.filter(f => airs.includes(f.airline.code));
-
-  flights.sort((a,b) => a.price - b.price);
-  flights = flights.slice(0, 10);
-  taLastResults.flights = { from, to, date, pax, cabin, results: flights };
-  document.getElementById('ta_f_results').innerHTML = renderFlightResults(taLastResults.flights);
-  toast(`${flights.length} flight${flights.length===1?'':'s'} matched`, flights.length ? 'good' : '');
-}
-
-function renderFlightResults(payload) {
-  const { from, to, date, pax, cabin, results } = payload;
-  if (!results.length) return `<div class="ta-empty"><h3>No matches</h3><p>Try widening filters — relax stops or remove airline preferences.</p></div>`;
+function _rtMoveCard(pl, p, a) {
+  const facts = [];
+  if (pl.miles != null) facts.push(`<b>${pl.miles.toLocaleString()}</b> mi`);
+  if (pl.driveMin != null) facts.push(`<b>${_fmtDuration(pl.driveMin)}</b> drive${pl.driveReal ? '' : ' <i>est</i>'}`);
+  if (pl.windowMin != null && pl.mode !== 'stay' && pl.mode !== 'end') facts.push(`<b>${_fmtDuration(pl.windowMin)}</b> window`);
+  let action = '';
+  if (pl.travelSet) action = `<div class="rt-set">Logged: ${esc(pl.travelSet)}</div><button type="button" class="rt-btn" onclick="_rtJump('${pl.aId}','travel')">Open in Travel →</button>`;
+  else if (pl.mode === 'bus' || pl.mode === 'van') action = `<button type="button" class="rt-btn primary" onclick="_rtAddBusMove(${pl.idx})">Log the ${pl.mode} move · ${esc(_rtT(pl.busDepart))}</button>`;
+  else if (pl.mode === 'fly') action = `<a class="rt-btn" target="_blank" rel="noopener" href="${_rtFlightsLink(pl)}">Open Google Flights ↗</a><button type="button" class="rt-btn" onclick="_rtLogFlight(${pl.idx})">Log a flight by number</button>`;
+  else if (pl.mode === 'stay') action = pl.noTravel ? `<div class="rt-set">Marked: no travel required</div>` : `<button type="button" class="rt-btn" onclick="_rtMarkNoTravel('${pl.aId}')">Mark: no travel required</button>`;
+  else if (pl.mode === 'unknown') action = `<button type="button" class="rt-btn primary" onclick="_rtJumpDate('${pl.aId}')">Open the date →</button>`;
+  const flyNote = pl.mode === 'fly' && !pl.travelSet ? `<div class="rt-note">Flight shortlists arrive with phase two. A flight logged by number today already tracks live on every crew phone.</div>` : '';
   return `
-    <div class="ta-results-head"><span><b>${results.length}</b> match${results.length===1?'':'es'} · ${esc(from)} → ${esc(to)} · ${esc(date || 'any date')} · ${pax} pax · ${esc(cabin)}</span><span>Sorted by price</span></div>
-    ${results.map((f, i) => {
-      const hh = Math.floor(f.durMin/60), mm = f.durMin%60;
-      return `
-        <div class="ta-flight">
-          <div class="f-airline">${esc(f.airline.code)}</div>
-          <div class="f-route">
-            <div class="f-leg">
-              <div class="f-time">${esc(f.dep)}</div>
-              <div class="f-air">${esc(f.from)}</div>
-            </div>
-            <span class="f-arrow">→</span>
-            <div class="f-leg">
-              <div class="f-time">${esc(f.arr)}</div>
-              <div class="f-air">${esc(f.to)}</div>
-            </div>
-          </div>
-          <div class="f-stops"><b>${f.stopsLabel}</b><br>${esc(f.airline.name)}</div>
-          <div class="f-dur"><b>${hh}h ${mm}m</b><br>${esc(f.tod)}</div>
-          <div class="f-price">
-            <div class="f-num">${T().meta.currency} ${f.price}</div>
-            <div class="f-cabin">${esc(f.cabin)}</div>
-            <div class="f-actions">
-              <button type="button" class="primary" onclick="addFlightToTravel(${i})">Save to travel</button>
-              <button type="button" onclick="toast('Held for 24h (mock)','good')">Hold</button>
-            </div>
-          </div>
+    <section class="rt-card">
+      <div class="rt-kicker">The move</div>
+      <h3>${esc(pl.headline)}</h3>
+      ${facts.length ? `<div class="rt-facts">${facts.join('<span class="rt-sep">·</span>')}</div>` : ''}
+      ${pl.windowFrom && pl.mode !== 'stay' && pl.mode !== 'end' && pl.mode !== 'unknown' ? `<div class="rt-window">${esc(pl.windowFrom)} → ${esc(pl.windowTo)}</div>` : ''}
+      ${pl.reasons.length ? `<ul class="rt-reasons">${pl.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
+      <div class="rt-card-actions">${action}</div>${flyNote}
+    </section>`;
+}
+
+function _rtNightCard(pl, p, a) {
+  const kicker = `The night of ${esc(fmtMD(pl.date))}${pl.night.city ? ' · ' + esc(pl.night.city) : ''}`;
+  if (pl.hotelSet) return `
+    <section class="rt-card"><div class="rt-kicker">${kicker}</div><h3>${esc(pl.hotelSet)}</h3><div class="rt-note">Already on the date.</div>
+      <div class="rt-card-actions"><button type="button" class="rt-btn" onclick="_rtJump('${pl.aId}','hotels')">Rooms and details →</button></div></section>`;
+  if (pl.night.coveredBy != null) {
+    const c = _rt.plans[pl.night.coveredBy];
+    return `
+    <section class="rt-card"><div class="rt-kicker">${kicker}</div><h3>Covered by the ${esc(fmtMD(c.date))} stay</h3>
+      <div class="rt-note">${c.night.nights} nights in ${esc(c.night.city)} — one booking, not ${c.night.nights}.</div>
+      <div class="rt-card-actions"><button type="button" class="rt-btn" onclick="_rtSelectHop(${c.idx})">Go to ${esc(fmtMD(c.date))} →</button></div></section>`;
+  }
+  if (!pl.night.needsHotel) return `
+    <section class="rt-card"><div class="rt-kicker">${kicker}</div><h3>${pl.mode === 'bus' ? 'No hotel — the bus is the hotel' : 'No hotel'}</h3>
+      <div class="rt-note">${esc(pl.night.why)}</div>
+      <div class="rt-card-actions">${pl.noHotel ? `<div class="rt-set">Marked: no hotel required</div>` : `<button type="button" class="rt-btn primary" onclick="_rtMarkNoHotel('${pl.aId}')">Mark: no hotel required</button>`}${pl.mode !== 'unknown' ? `<button type="button" class="rt-btn" onclick="_rtForceHotel(${pl.idx})">Actually, find a hotel</button>` : ''}</div></section>`;
+  return `
+    <section class="rt-card">
+      <div class="rt-kicker">${kicker}${pl.night.nights > 1 ? ` · ${pl.night.nights} nights` : ''}</div>
+      <h3>Hotel near ${esc(a && a.venue && pl.point && pl.point.kind === 'venue' ? a.venue : (pl.night.city || 'the venue'))}</h3>
+      <div class="rt-note">${esc(pl.night.why)}${pl.noHotel ? ' <em>This date is marked “no hotel required” — picking one clears that.</em>' : ''}</div>
+      ${_rtShortlistHTML(pl, p, a)}
+    </section>`;
+}
+
+function _rtShortlistHTML(pl, p, a) {
+  if (!pl.point) return `<div class="rt-empty small">No pin for this date yet — pick the venue from the address lookup, or use a city Routing knows, then draft again.</div>`;
+  const key = _rtHotelKey(pl.point, p);
+  const bucket = _rt.hotels[key];
+  const radiusRow = `
+    <div class="rt-radius"><span class="rt-kicker">Within</span>${[3, 5, 10].map(r => `<button type="button" class="rt-toggle ${p.radiusMi === r ? 'on' : ''}" onclick="_rtRadius(${r})">${r} mi</button>`).join('')}<span class="rt-kicker">of the ${pl.point.kind === 'venue' ? 'venue' : 'city centre'}</span>${bucket ? `<button type="button" class="rt-link" onclick="_rtRefreshHotels(${pl.idx})">Refresh</button>` : ''}</div>`;
+  if (!bucket) {
+    if (_rtApiConfigured === false) return radiusRow + `<div class="rt-empty small">Hotel search isn't set up on the server yet — GOOGLE_PLACES_KEY is missing.</div>`;
+    return radiusRow + `<div class="rt-empty small">${_rt.loading[key] ? 'Searching hotels near the venue…' : `<button type="button" class="rt-btn" onclick="_rtLoadHotels(${pl.idx})">Find hotels</button>`}</div>`;
+  }
+  if (bucket.failed) return radiusRow + `<div class="rt-empty small">The hotel search didn't answer. <button type="button" class="rt-link" onclick="_rtRefreshHotels(${pl.idx})">Try again</button></div>`;
+  const list = bucket.ranked || [];
+  if (!list.length) return radiusRow + `<div class="rt-empty small">Nothing within ${p.radiusMi} mi. Widen the radius.</div>`;
+  const showN = _rt.more[key] ? 10 : 5;
+  return radiusRow + `
+    <div class="rt-hotels">${list.slice(0, showN).map(h => _rtHotelCard(h, pl, p)).join('')}</div>
+    ${list.length > 5 ? `<div style="margin-top:10px"><button type="button" class="rt-link" onclick="_rtMore('${key}')">${_rt.more[key] ? 'Show fewer' : `Show ${Math.min(5, list.length - 5)} more`}</button></div>` : ''}
+    ${bucket.routes === false ? `<div class="rt-note">Distances are straight-line — enable the Google Routes API on the Places key and these become drive times.</div>` : ''}`;
+}
+
+function _rtHotelCard(h, pl, p) {
+  const where = pl.point.kind === 'venue' ? 'the venue' : 'the centre';
+  const dist = h.driveMin != null ? `${(h.driveMi != null ? h.driveMi : h.venueMi).toFixed(1)} mi · ${_fmtDuration(h.driveMin)} drive` : `${h.venueMi.toFixed(1)} mi from ${where}`;
+  const rate = h.rating ? `${h.rating.toFixed(1)} · ${(h.reviews || 0).toLocaleString()} reviews` : 'No rating yet';
+  const price = h.priceLevel ? '$'.repeat(h.priceLevel) : '';
+  return `
+    <article class="rt-hotel">
+      <div class="rt-hotel-main">
+        <div class="rt-hotel-name">${esc(h.name)}${h.chain ? `<span class="rt-chain">${esc(h.chain)}</span>` : ''}</div>
+        <div class="rt-hotel-meta">${esc(dist)}<span class="rt-sep">·</span>${esc(rate)}${price ? `<span class="rt-sep">·</span>${price}` : ''}</div>
+        ${h.why && h.why.length ? `<div class="rt-hotel-why">${h.why.map(esc).join(' · ')}</div>` : ''}
+        <div class="rt-hotel-links">
+          ${h.website ? `<a href="${esc(h.website)}" target="_blank" rel="noopener">Site</a>` : ''}
+          ${h.mapsUrl ? `<a href="${esc(h.mapsUrl)}" target="_blank" rel="noopener">Maps</a>` : ''}
+          <a href="${_rtRatesLink(h, pl)}" target="_blank" rel="noopener">Rates</a>
+          ${h.phone ? `<a href="tel:${esc(h.phone.replace(/\s+/g, ''))}">${esc(h.phone)}</a>` : ''}
         </div>
-      `;
-    }).join('')}
-  `;
+      </div>
+      <div class="rt-hotel-act"><button type="button" class="rt-btn primary" onclick="_rtUseHotel(${pl.idx},'${esc(h.placeId)}')">Use this hotel</button></div>
+    </article>`;
 }
-
-function addFlightToTravel(idx) {
-  const ad = getActiveDate();
-  if (!ad) { toast('Switch to a tour date first', 'error'); return; }
-  const f = taLastResults.flights?.results[idx];
-  if (!f) return;
-  if (!ad.travel) ad.travel = [];
-  ad.travel.push({
-    id: uid('tv'),
-    type: 'flight',
-    description: `${f.airline.code} · ${f.from} → ${f.to}`,
-    time: f.dep,
-    conf: '',
-    person: '',
-    notes: `${f.stopsLabel} · ${f.cabin} · ${T().meta.currency} ${f.price}`,
-  });
-  saveState();
-  toast(`Added flight ${f.airline.code} to ${ad.city} travel`, 'good');
-}
-
-
-
-
 
 function switchToTourFromPhone(tourId) {
   const target = state.tours[tourId];
@@ -27753,6 +27965,9 @@ function showLandingScreen() {
   // rather than trusting whichever path got us here.
   ['app', 'loginScreen', 'pricingScreen', 'adminScreen', 'welcomeScreen', 'getStartedScreen', 'crewBlockScreen']
     .forEach(id => { const el = document.getElementById(id); if (el) el.hidden = true; });
+  // Routing is a full-screen mode, not a surface with an id — drop it too or
+  // it would blank the landing (its body class hides every sibling).
+  if (document.body.classList.contains('routing-mode')) { try { closeRouting(); } catch (e) { document.body.classList.remove('routing-mode'); } }
   const _ob = document.getElementById('onboarding');
   if (_ob) _ob.classList.add('hidden');
   document.getElementById('landingScreen').hidden = false;
@@ -31911,10 +32126,9 @@ function toggleToolsMenu() {
         <span class="ti-name">Messaging</span>
         <span class="ti-badge" id="toolsChatUnread" hidden>0</span>
       </button>
-      <button type="button" class="tools-item disabled" disabled aria-disabled="true" title="Coming soon">
+      <button type="button" class="tools-item" onclick="closeToolsMenu();openRouting()">
         <span class="ti-icon">→</span>
-        <span class="ti-name">Travel Assistant</span>
-        <span class="ti-badge soon">Coming soon</span>
+        <span class="ti-name">Routing</span>
       </button>
       <button type="button" class="tools-item" onclick="closeToolsMenu();openPushNotifications()">
         <span class="ti-icon">◆</span>
@@ -34265,7 +34479,7 @@ Object.assign(window, {
   tourStartDate, tourEndDate, addDaysISO, fillDateGapsWithOffDays, _padTourEdgesWithTravelDays,
   toggleExportMenu, closeExportMenu, downloadTourBookPDF, downloadTourBookFromHere, downloadDaySheetPDF, closeTourBook,
   scoutNearVenue,
-  openTravelAssistant, closeTravelAssistant, setTaTab, searchHotels, resetHotelFilters, bookHotelToActiveDate, searchFlights, resetFlightFilters, addFlightToTravel,
+  openRouting, closeRouting, _rtSelectHop, _rtShowProfile, _rtDraftAll, _rtUseHotel, _rtMarkNoHotel, _rtMarkNoTravel, _rtAddBusMove, _rtLogFlight, _rtSaveProfile, _rtPick, _rtRadius, _rtMore, _rtRefreshHotels, _rtLoadHotels, _rtForceHotel, _rtJump, _rtJumpDate,
   toggleTourSwitcher, closeTourSwitcher, switchToTour, switchToTourFromPhone, newTourFlow, newTourManualFlow, newTourImportFlow, renameCurrentTour, deleteCurrentTour,
   toggleUniMenu, closeUniMenu, renderUniMenu, _uniToggleExport,
   openAccountSettingsModal, _acctSaveName, _acctSendReset,
