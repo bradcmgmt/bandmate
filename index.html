@@ -123,32 +123,32 @@ body.bg-logo-hidden #bgLogoCanvas{opacity:0}
             surfaces (landing/login) via body.bg-logo-hidden. */
 
 /* ============ HOMEPAGE BACKGROUND VIDEO ============
-   `bg-video-on` body class controls visibility — added by
+   `bg-mark-on` body class controls visibility — added by
    showLandingScreen + showLoginScreen, removed everywhere else.
    object-fit:cover keeps the video filling the viewport at any
    aspect ratio so resizing the window never produces letterbox
    bars. z-index sits above body bg + scanlines but below every
    overlay, which is why we ALSO soften the overlays' backgrounds
    to a translucent dark scrim when the video is on. */
-.bg-video{position:fixed;inset:0;width:100vw;height:100vh;
-  object-fit:cover;z-index:0;pointer-events:none;
-  opacity:0;transition:opacity 600ms ease-out}
-body.bg-video-on .bg-video{opacity:1}
-@media (prefers-reduced-motion:reduce){.bg-video{display:none}}
+/* On the public surfaces the particle rabbit IS the background: it drops from
+   its watermark z-index down behind the overlays and runs at full strength
+   instead of 8%. Elsewhere it stays the faint watermark it has always been. */
+body.bg-mark-on #bgLogoCanvas{z-index:0}
+body.bg-mark-on #bgLogoCanvas.ready{opacity:1}
 
 /* When the video is on, swap the landing + login overlays' solid
    backgrounds for translucent dark scrims so the video bleeds
    through. The scrim is dark enough that all overlay text stays
    fully legible — copper headlines, mono eyebrows, sub copy. */
-body.bg-video-on .landing-overlay{
-  background:rgba(10,7,5,.58)}
-body.bg-video-on .landing-overlay .landing-bg{
-  opacity:.55}
-body.bg-video-on .login-overlay{
+body.bg-mark-on .landing-overlay{
+  background:rgba(10,7,5,.32)}
+body.bg-mark-on .landing-overlay .landing-bg{
+  display:none}
+body.bg-mark-on .login-overlay{
   background:radial-gradient(800px 500px at 50% 30%,rgba(232,148,58,.08),transparent 60%),rgba(10,7,5,.66)}
-body.bg-video-on .pricing-overlay{
+body.bg-mark-on .pricing-overlay{
   background:rgba(10,7,5,.66)}
-body.bg-video-on .pricing-overlay .landing-bg{
+body.bg-mark-on .pricing-overlay .landing-bg{
   opacity:.4}
 
 a{color:inherit;text-decoration:none}
@@ -5246,20 +5246,6 @@ setTimeout(window._hideAppBoot,6000);
      Engine adapted from the Privatus build. -->
 <canvas id="bgLogoCanvas" aria-hidden="true"></canvas>
 
-<!-- ============ HOMEPAGE BACKGROUND VIDEO ============
-     Looping muted video that plays behind the landing + login overlays.
-     Lives at body level (not inside any overlay) so it persists when
-     the user transitions from "landing" to "Sign in" / "Sign up" — the
-     video keeps playing without restart. Visibility is controlled by
-     the `body.bg-video-on` class; CSS softens the landing/login
-     backgrounds to a translucent dark scrim when the video is showing
-     so text stays legible over the moving footage.
-     File path: bg-loop.mp4 (sits next to index.html). If the file is
-     missing, the <video> element silently does nothing — the page
-     gracefully falls back to its solid backgrounds. -->
-<video id="bgVideo" class="bg-video" autoplay loop muted playsinline preload="auto" aria-hidden="true">
-  <source src="bg-loop.mp4" type="video/mp4">
-</video>
 
 <!-- ============ LANDING PAGE ============ -->
 <!-- Public-facing first impression. Anyone arriving from search or a fresh
@@ -5268,10 +5254,6 @@ setTimeout(window._hideAppBoot,6000);
 <div class="landing-overlay" id="landingScreen" hidden>
   <div class="landing-bg"></div>
   <div class="landing-content">
-    <div class="landing-mark">
-      <div class="bunny3d-stage" id="bunny3dStage" aria-hidden="true"></div>
-      <img src="avatar.png" class="landing-avatar" alt="Bandmate" />
-    </div>
 
     <h1 class="landing-headline">
       Finally,<br><em>something&nbsp;better.</em>
@@ -6022,6 +6004,12 @@ const dbMap = {
       promoter: d.promoter || '',
       notes: d.notes || '',
       position: position || 0,
+      // "No hotel required" is a real answer to the hotel-or-travel gap, so it
+      // has to travel with the date. Without these it lived only in the
+      // browser that clicked it (patch-048).
+      no_hotel:    !!d.noHotel,
+      no_hotel_by: d.noHotelBy || null,
+      no_hotel_at: d.noHotelAt ? new Date(d.noHotelAt).toISOString() : null,
       // Nested arrays stored as JSONB on the date row (slice 3). Attachments
       // are intentionally excluded here — their dataUrl binary stays local
       // until slice 4 moves binaries to Supabase Storage.
@@ -6059,6 +6047,9 @@ const dbMap = {
       capacity: row.capacity || '',
       promoter: row.promoter || '',
       notes: row.notes || '',
+      noHotel: !!row.no_hotel,
+      noHotelBy: row.no_hotel_by || '',
+      noHotelAt: row.no_hotel_at ? Date.parse(row.no_hotel_at) : 0,
       schedule: row.schedule || [],
       travel:   row.travel   || [],
       guests:   row.guests   || [],
@@ -17134,7 +17125,7 @@ function _acDedupeKeys(name, address) {
    the proxy replies { configured:false } and we quietly stop asking — the
    app keeps working on tiers 1+2, so this can ship before the key exists.
    ───────────────────────────────────────────────────────────────────── */
-const _PLACE_MIN_REMOTE_Q = 3;   // don't spend an API call on 1–2 chars
+const _PLACE_MIN_REMOTE_Q = 2;   // autocomplete predicts well from two characters
 let _placeApiConfigured = null;   // null = unknown, false = no key → stop trying
 
 async function _placeAuthToken() {
@@ -27278,43 +27269,6 @@ let amOpen = false;
 // Landing page — shown to anyone arriving without an active session. Has two
 // role-keyed CTAs (Tour Manager / Band & Crew) that route into the existing
 // login overlay with the right signup-form default.
-// The homepage background video (bg-loop.mp4) relies on autoplay, which iOS
-// WKWebView frequently refuses to honor on its own — and even once it's
-// playing, iOS pauses it whenever the app is backgrounded and won't resume by
-// itself. So we explicitly kick playback whenever an auth surface is shown and
-// whenever the app returns to the foreground. muted + loop + playsInline are
-// re-asserted because iOS only auto-plays muted inline video. A rejected play
-// promise (e.g. Low-Power Mode, which blocks autoplay outright) is swallowed —
-// there's nothing more we can do in that case.
-function _ensureBgVideoPlaying() {
-  try {
-    const v = document.getElementById('bgVideo');
-    if (!v || !document.body.classList.contains('bg-video-on')) return;
-    v.muted = true; v.loop = true; v.playsInline = true;
-    const p = v.play();
-    if (p && typeof p.catch === 'function') p.catch(() => {});
-  } catch (e) {}
-}
-try {
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) _ensureBgVideoPlaying(); });
-  window.addEventListener('focus', _ensureBgVideoPlaying);
-  window.addEventListener('pageshow', _ensureBgVideoPlaying);
-  // In-app browsers (Instagram, Facebook, etc.) are gesture-gated WKWebViews
-  // that frequently refuse autoplay until the user has touched the page once.
-  // Kick the muted loop off on the first tap/scroll, then stop listening once
-  // it's actually rolling. (OS-level Low-Power Mode still blocks it outright —
-  // there's nothing we can do about that case.)
-  const _bgVideoKick = () => {
-    _ensureBgVideoPlaying();
-    const v = document.getElementById('bgVideo');
-    if (v && !v.paused) {
-      document.removeEventListener('pointerdown', _bgVideoKick);
-      document.removeEventListener('touchstart', _bgVideoKick);
-    }
-  };
-  document.addEventListener('pointerdown', _bgVideoKick, { passive: true });
-  document.addEventListener('touchstart', _bgVideoKick, { passive: true });
-} catch (e) {}
 
 // ── Interactive 3D landing bunny ─────────────────────────────────────
 // Ported from "Bunny Logo 3D.html": the logo silhouette extruded in
@@ -27701,13 +27655,12 @@ function showLandingScreen() {
   const pricing = document.getElementById('pricingScreen');
   if (pricing) pricing.hidden = true;
   document.getElementById('landingScreen').hidden = false;
-  // Suppress the ambient particle watermark on the public-facing landing
-  // page — that surface already leads with a hero rabbit, so a second
-  // drifting rabbit behind the buttons would compete.
-  document.body.classList.add('bg-logo-hidden');
-  // Show the looping homepage background video.
-  document.body.classList.add('bg-video-on');
-  _ensureBgVideoPlaying();
+  // The homepage background IS the particle rabbit now. bg-mark-on drops the
+  // canvas behind the overlay at full strength; clearing bg-logo-hidden is what
+  // actually keeps it alive, because the render loop stops whenever that class
+  // is on the body.
+  document.body.classList.remove('bg-logo-hidden');
+  document.body.classList.add('bg-mark-on');
   // Swap the flat logo for the interactive 3D bunny (lazy; safe fallback).
   initLandingBunny3D();
 }
@@ -28617,10 +28570,10 @@ function showPricingScreen() {
   // currently signed in.
   const isPreAuth = !state || !state.currentUserId;
   if (isPreAuth) {
-    document.body.classList.add('bg-logo-hidden');
-    document.body.classList.add('bg-video-on');
+    document.body.classList.remove('bg-logo-hidden');
+    document.body.classList.add('bg-mark-on');
   } else {
-    document.body.classList.remove('bg-video-on');
+    document.body.classList.remove('bg-mark-on');
     // Auto-recovery: only fire ONCE per session. Without the guard,
     // renderAll → showPricingScreen → recover → hydrate → saveState
     // → realtime echo → renderAll → showPricingScreen loops forever.
@@ -28645,7 +28598,7 @@ function _showInstalledAppBillingNotice() {
   ['app','landingScreen','loginScreen'].forEach(id => { const el = document.getElementById(id); if (el) el.hidden = true; });
   const ob = document.getElementById('onboarding'); if (ob) ob.classList.add('hidden');
   const pricing = document.getElementById('pricingScreen'); if (pricing) pricing.hidden = true;
-  document.body.classList.remove('bg-video-on');
+  document.body.classList.remove('bg-mark-on');
 
   let notice = document.getElementById('installedBillingNotice');
   if (!notice) {
@@ -29048,7 +29001,7 @@ function showOnboardingOverlay() {
     if (ob) ob.classList.add('hidden');
     if (app) app.hidden = false;
     document.body.classList.remove('bg-logo-hidden');
-    document.body.classList.remove('bg-video-on');
+    document.body.classList.remove('bg-mark-on');
     try { renderAll(); } catch (e) { console.warn('[god] renderAll:', e); }
     try { applyTabFromState(); } catch (e) {}
     try { syncPhoneScreenFromTab(); } catch (e) {}
@@ -29075,7 +29028,7 @@ function showWelcomeScreen() {
   // they finish signup and hit the dashboard. Also kill the homepage
   // video here so the celebratory moment has a clean dark backdrop.
   document.body.classList.add('bg-logo-hidden');
-  document.body.classList.remove('bg-video-on');
+  document.body.classList.remove('bg-mark-on');
 
   // Single subscription tier now — show the brand name only.
   document.getElementById('welcomePlanName').textContent = 'Bandmate';
@@ -29166,7 +29119,7 @@ function showCrewBlockScreen() {
   // the hero already provides the brand presence we need; a second
   // drifting rabbit behind it would compete.
   document.body.classList.add('bg-logo-hidden');
-  document.body.classList.remove('bg-video-on');
+  document.body.classList.remove('bg-mark-on');
   // Reframe this screen as a SUCCESS when the user has actually joined a
   // tour (e.g. they just accepted an invite). Instead of a "mobile-only
   // wall," it confirms what they joined and points them to the app — so
@@ -29591,14 +29544,10 @@ function showLoginScreen(opts) {
   // Started screen's own Back button is separate and still works.
   const _lback = screen.querySelector('.login-back');
   if (_lback) _lback.style.display = (typeof _isPhoneApp === 'function' && _isPhoneApp()) ? 'none' : '';
-  // Suppress the ambient particle watermark on auth surfaces. The rule
-  // is "no watermark until you're logged in" — landing, login, signup
-  // all hide it; onboarding, dashboard, admin all show it.
-  document.body.classList.add('bg-logo-hidden');
-  // Keep the homepage background video playing on the login surface
-  // too so the transition from landing → sign-in feels continuous.
-  document.body.classList.add('bg-video-on');
-  _ensureBgVideoPlaying();
+  // The rabbit carries straight through from the landing to sign-in, so the
+  // transition has no seam. It runs behind the form rather than over it.
+  document.body.classList.remove('bg-logo-hidden');
+  document.body.classList.add('bg-mark-on');
   renderLoginAccounts();
   // Band & crew are mobile-only, so when someone arrives via the landing
   // page's "Band & Crew · Sign in" path, surface the app-store badges right
@@ -29648,9 +29597,8 @@ function showGetStartedScreen() {
   ['landingScreen','loginScreen','pricingScreen'].forEach(id => { const el = document.getElementById(id); if (el) el.hidden = true; });
   const gs = document.getElementById('getStartedScreen');
   if (gs) gs.hidden = false;
-  document.body.classList.add('bg-logo-hidden');
-  document.body.classList.add('bg-video-on');
-  _ensureBgVideoPlaying();
+  document.body.classList.remove('bg-logo-hidden');
+  document.body.classList.add('bg-mark-on');
   const info = document.getElementById('gsTMInfo'); if (info) info.hidden = true; // reset
 }
 function hideGetStarted() {
@@ -30336,7 +30284,7 @@ function postLoginRouting() {
   // is suppressed. Also stop the homepage background video — they're
   // past the public-facing surface now.
   document.body.classList.remove('bg-logo-hidden');
-  document.body.classList.remove('bg-video-on');
+  document.body.classList.remove('bg-mark-on');
 
   // Band / crew users are mobile-only by design. The split:
   //   • In the native/installed PHONE APP → this IS their app. Let them
@@ -33095,7 +33043,7 @@ function init() {
       // No homepage video either — admin is private, not a marketing
       // surface.
       document.body.classList.remove('bg-logo-hidden');
-      document.body.classList.remove('bg-video-on');
+      document.body.classList.remove('bg-mark-on');
       showAdminScreen();
       return;
     }
@@ -33172,13 +33120,13 @@ function init() {
     } else if (!state.onboarded && !_isGodAccount()) {
       showOnboardingOverlay();
       document.body.classList.remove('bg-logo-hidden');
-      document.body.classList.remove('bg-video-on');
+      document.body.classList.remove('bg-mark-on');
     } else {
       renderAll();
       try { applyTabFromState(); } catch (e) { console.error('applyTabFromState:', e); }
       try { syncPhoneScreenFromTab(); } catch (e) { console.error('syncPhoneScreenFromTab:', e); }
       document.body.classList.remove('bg-logo-hidden');
-      document.body.classList.remove('bg-video-on');
+      document.body.classList.remove('bg-mark-on');
     }
   } catch (e) {
     console.error('init render:', e);
