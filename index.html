@@ -827,7 +827,7 @@ body.mobile .ch-status .chs-t em{display:none}
    have). */
 .tools-head{margin-bottom:18px}
 .tools-head h2{margin:4px 0 2px;font-family:'Bricolage Grotesque',monospace;font-size:22px;font-weight:800;letter-spacing:-.01em;color:var(--warm)}
-.tools-grid{display:flex;flex-direction:column;gap:10px;max-width:820px}
+.tools-grid{display:flex;flex-direction:column;gap:10px}
 .tool-tile{text-align:left;padding:16px 18px;border:1px solid rgba(138,169,216,.28);border-radius:12px;
   background:linear-gradient(180deg,rgba(138,169,216,.05),transparent);color:var(--warm);cursor:pointer;display:flex;align-items:center;gap:16px}
 .tool-tile:hover{border-color:rgba(138,169,216,.6);background:rgba(138,169,216,.08)}
@@ -2591,6 +2591,7 @@ body.god-account #app[hidden]{display:block!important}
    Submitted value is converted back to 24-hour HH:MM at save time
    so all downstream sorting, gap analysis, and dashboard rendering
    stays the same. */
+.time-12 .t12-24{font-family:'Bricolage Grotesque',monospace;font-size:9px;letter-spacing:.14em;color:var(--warm-mute);padding-left:4px;align-self:center}
 .time-12{flex:1 1 auto;display:flex;align-items:center;gap:6px;min-width:0}
 .time-12 .t12-hh,.time-12 .t12-mm{
   width:56px;text-align:center;padding:0 8px;height:38px;
@@ -3545,6 +3546,30 @@ body.print-tourbook-mode #tourBookArea{display:block!important;position:fixed;in
 .ta-top{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:0 0 12px;border-bottom:1px solid var(--line)}
 .ta-top-l{min-width:0;display:flex;align-items:center;gap:16px}
 .ta-back{flex:none}
+/* The Crew Roster button's label turns over every 3.5s — "Crew Roster" and
+   "Invite Crew" share one grid cell, so the box never changes size; only
+   the text flips. */
+.btn-flip .flip-stage{display:inline-grid;perspective:520px;vertical-align:top}
+.btn-flip .flip-a,.btn-flip .flip-b{grid-area:1/1;display:block;white-space:nowrap;backface-visibility:hidden;transform-origin:50% 50%}
+.btn-flip .flip-a{animation:flipA 7s ease-in-out infinite}
+.btn-flip .flip-b{animation:flipB 7s ease-in-out infinite}
+@keyframes flipA{0%,46%{transform:rotateX(0);opacity:1}50%{transform:rotateX(-90deg);opacity:0}50.01%,96%{transform:rotateX(90deg);opacity:0}100%{transform:rotateX(0);opacity:1}}
+@keyframes flipB{0%,46%{transform:rotateX(90deg);opacity:0}50%,96%{transform:rotateX(0);opacity:1}100%{transform:rotateX(-90deg);opacity:0}}
+@media (prefers-reduced-motion:reduce){.btn-flip .flip-a,.btn-flip .flip-b{animation:none}.btn-flip .flip-b{display:none}}
+/* Any tool hosted in the Tools tab */
+.tool-shell{display:flex;flex-direction:column}
+.tool-title{margin:4px 0 0;font-family:'Bricolage Grotesque',monospace;font-size:22px;font-weight:800;letter-spacing:-.01em;color:var(--warm)}
+.tool-body{padding-top:20px}
+/* Push notifications, in the tab: the composer and the history as one
+   framed piece instead of a modal's bare columns. */
+.tool-body .pn-grid{margin-top:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,rgba(255,255,255,.015),transparent)}
+.tool-body .pn-compose{padding:22px 24px}
+.tool-body .pn-history{padding:22px 24px;background:rgba(0,0,0,.22)}
+.tool-body .pn-history-list{max-height:none}
+/* Messaging, in the tab: fill the panel's height instead of a modal's. */
+.tool-body .chat-modal{width:auto;max-height:none}
+.tool-body .chat-layout{max-height:none;height:calc(100vh - 340px);min-height:520px}
+@media (max-width:900px){.tool-body .pn-compose,.tool-body .pn-history{padding:18px 16px}}
 .ta-crumbs{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
 .ta-crumb{background:none;border:0;padding:0;font-family:'Bricolage Grotesque',monospace;font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--warm-mute);cursor:pointer}
 .ta-crumb:hover{color:var(--warm)}
@@ -5631,7 +5656,7 @@ setTimeout(window._hideAppBoot,6000);
         <div class="ch-status" id="consoleStatus"></div>
         <div class="actions">
           <button type="button" class="btn" onclick="printDay()">Print Day</button>
-          <button type="button" class="btn" onclick="openCrewModal()">Crew Roster</button>
+          <button type="button" class="btn btn-flip" onclick="openCrewModal()" aria-label="Crew Roster"><span class="flip-stage" aria-hidden="true"><span class="flip-a">Crew Roster</span><span class="flip-b">Invite Crew</span></span></button>
           <button type="button" class="btn primary" onclick="openDateModal(getActiveDate()?.id)">Edit Date</button>
         </div>
       </div>
@@ -8914,6 +8939,7 @@ function openDateModal(id) {
   const _gapCls = f => _gaps.includes(f) ? ' gap-field' : '';
   const _gapMark = () => '';   // the marker is drawn in CSS so relabelling can't wipe it
   const d = editing || { date: '', city: '', state: '', country: '', venue: '', capacity: '', status: 'show', doors: '', setTime: '', loadIn: '', soundcheck: '', promoter: '', notes: '' };
+  _dateModalCountry = (editing && editing.country) || '';
   openModal({
     title: editing ? `Edit ${d.city || 'date'} · ${fmtDate(d.date)}` : 'Add tour date',
     size: 'lg',
@@ -8932,16 +8958,16 @@ function openDateModal(id) {
             <option value="rehearsal" ${d.status==='rehearsal'?'selected':''}>Rehearsal day</option>
           </select>
         </div>
-        <div class="field${_gapCls('city')}"><label>City *${_gapMark('city')}</label><input id="d_city" data-ac="city" data-ac-state-to="#d_state" autocomplete="off" value="${esc(d.city)}"></div>
-        <div class="field"><label>State / Region</label><input id="d_state" value="${esc(d.state)}" placeholder="e.g. Colorado, Ontario"></div>
+        <div class="field${_gapCls('city')}"><label>City *${_gapMark('city')}</label><input id="d_city" data-ac="city" data-ac-state-to="#d_state" autocomplete="off" value="${esc(d.city)}" onchange="_dateModalClockSync()"></div>
+        <div class="field"><label>State / Region</label><input id="d_state" value="${esc(d.state)}" placeholder="e.g. Colorado, Ontario" onchange="_dateModalClockSync()"></div>
         <div class="field full${_gapCls('venue')}" data-show-day data-press-day><label id="d_venue_lbl">Venue${_gapMark('venue')}</label><input id="d_venue" data-ac="venue" data-ac-city-from="#d_city" data-ac-addr-to="#d_vaddr" autocomplete="off" value="${esc(d.venue)}"></div>
         <div class="field full" data-show-day data-press-day><label>Venue address</label><input id="d_vaddr" autocomplete="off" value="${esc(d.venueAddress || '')}" placeholder="e.g. 2420 Larimer St, Denver, CO 80205"></div>
         <div class="field${_gapCls('capacity')}" data-show-day><label>Capacity${_gapMark('capacity')}</label><input type="number" id="d_cap" value="${esc(d.capacity)}"></div>
         <div class="field" data-show-day><label>Promoter</label><input id="d_prom" value="${esc(d.promoter)}"></div>
-        <div class="field" data-show-day><label>Doors</label>${renderTime12Picker('d_doors', d.doors)}</div>
-        <div class="field" data-show-day><label>Set time</label>${renderTime12Picker('d_set', d.setTime)}</div>
-        <div class="field" data-show-day><label>Load-in</label>${renderTime12Picker('d_load', d.loadIn)}</div>
-        <div class="field" data-show-day><label>Soundcheck</label>${renderTime12Picker('d_sc', d.soundcheck)}</div>
+        <div class="field" data-show-day><label>Doors</label>${renderTime12Picker('d_doors', d.doors, { h24: _dateIs24h(d) })}</div>
+        <div class="field" data-show-day><label>Set time</label>${renderTime12Picker('d_set', d.setTime, { h24: _dateIs24h(d) })}</div>
+        <div class="field" data-show-day><label>Load-in</label>${renderTime12Picker('d_load', d.loadIn, { h24: _dateIs24h(d) })}</div>
+        <div class="field" data-show-day><label>Soundcheck</label>${renderTime12Picker('d_sc', d.soundcheck, { h24: _dateIs24h(d) })}</div>
         ${editing ? _dateModalTemplatesHTML(editing) : ''}
       </div>
     `,
@@ -9535,21 +9561,13 @@ function openScheduleModal(itemId) {
       <div class="form-grid">
         <div class="field"><label>Start time ${i.allDay ? '' : '*'}</label>
           <div class="time-row">
-            <div class="time-12" id="s_time_12" ${i.allDay ? 'style="opacity:.5"' : ''}>
-              <input type="number" min="1" max="12" id="s_time_hh" value="${esc(t12.hh)}" placeholder="HH" ${i.allDay ? 'disabled' : ''} class="t12-hh">
-              <span class="t12-sep">:</span>
-              <input type="number" min="0" max="59" id="s_time_mm" value="${esc(t12.mm)}" placeholder="MM" ${i.allDay ? 'disabled' : ''} class="t12-mm">
-              <select id="s_time_ampm" ${i.allDay ? 'disabled' : ''} class="t12-ampm">
-                <option value="AM" ${t12.ampm === 'AM' ? 'selected' : ''}>AM</option>
-                <option value="PM" ${t12.ampm === 'PM' ? 'selected' : ''}>PM</option>
-              </select>
-            </div>
+            ${renderTime12Picker('s_time', i.time, { disabled: !!i.allDay, h24: _dateIs24h(getActiveDate()) })}
             <button type="button" id="s_allday_btn" class="allday-btn ${i.allDay ? 'on' : ''}" onclick="_schedToggleAllDay()">All day</button>
           </div>
         </div>
         <div class="field">
           <label>End time <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional)</span></label>
-          ${renderTime12Picker('s_end', i.endTime || '', { disabled: !!i.allDay })}
+          ${renderTime12Picker('s_end', i.endTime || '', { disabled: !!i.allDay, h24: _dateIs24h(getActiveDate()) })}
         </div>
         <div class="field full">
           <label>Day <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(toggle if this time happens after midnight on the next date)</span></label>
@@ -9577,10 +9595,7 @@ function openScheduleModal(itemId) {
       // Read the structured 12-hour inputs and convert back to the
       // canonical 24-hour HH:MM that we store. _to24h returns '' if
       // either field is empty/invalid — we treat that as "no time".
-      const hh = $('#s_time_hh')?.value || '';
-      const mm = $('#s_time_mm')?.value || '';
-      const ampm = $('#s_time_ampm')?.value || 'AM';
-      const time = allDay ? '' : _to24h(hh, mm, ampm);
+      const time = allDay ? '' : readTime12Picker('s_time');
       // End time is optional and only meaningful for timed items.
       // Validate that it falls AFTER the start so a soundcheck can't
       // be saved as 4:30 PM → 3:00 PM. We compare 24-hour strings
@@ -9761,7 +9776,7 @@ function _phoneViewOn() {
   const rig = document.querySelector('.phone-rig');
   return !!rig && rig.getClientRects().length > 0;
 }
-function _fmt12Safe(v) { return /^\d{1,2}:\d{2}$/.test(v || '') ? _tvFmt12(v) : (v || ''); }
+function _fmt12Safe(v, d) { return /^\d{1,2}:\d{2}$/.test(v || '') ? fmtClock(v, d || _clockCtx()) : (v || ''); }
 
 function _flightCode(num) {
   const c = String(num || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -10028,8 +10043,8 @@ function _flightLiveSheetHTML(t, ad) {
     inner = `
       ${note ? `<div class="pfl-hint">${esc(note)}</div>` : ''}
       ${t.fromCity || t.toCity ? row('Route', esc([t.fromCity || '—', t.toCity || '—'].join(' → '))) : ''}
-      ${!t.allDay && t.time ? row('Departs', esc(_fmt12Safe(t.time))) : ''}
-      ${t.arriveTime ? row('Lands', esc(_fmt12Safe(t.arriveTime)), true) : ''}`;
+      ${!t.allDay && t.time ? row('Departs', esc(_fmt12Safe(t.time, ad))) : ''}
+      ${t.arriveTime ? row('Lands', esc(_fmt12Safe(t.arriveTime, ad)), true) : ''}`;
   }
   return `<div id="pflSheet" data-key="${esc(key)}" data-item="${esc(t.id)}" data-date="${esc(ad.id)}">${inner}</div>`;
 }
@@ -10046,7 +10061,7 @@ function _flightTripSheetHTML(t, ad) {
       <button type="button" class="ptl-row${cur ? ' cur' : ''}" ${cur ? '' : `onclick="closeModal();setTimeout(()=>_phoneShowTravel('${esc(l.item.id)}','${esc(l.date.id)}'),50)"`}>
         <span class="ptl-n">${n + 1}</span>
         <span class="ptl-main"><b>${esc(l.item.flightNumber || 'Flight')}</b>${esc(route)}${live ? `<span class="phf-status ${live.info.tone}">${esc(live.info.label)}</span>` : ''}</span>
-        <span class="ptl-t">${esc(l.item.time ? _fmt12Safe(l.item.time) : '—')}</span>
+        <span class="ptl-t">${esc(l.item.time ? _fmt12Safe(l.item.time, l.date) : '—')}</span>
       </button>
       ${lay ? `<div class="ptl-lay ${lay.tone}">${esc(lay.text)}</div>` : ''}`;
   }).join('');
@@ -10291,6 +10306,41 @@ function _tvFmt12(value24) {
   const t = _to12h(value24 || '');
   return t.hh ? `${t.hh}:${t.mm} ${t.ampm}` : '—';
 }
+
+// ── 12-hour or 24-hour, by where the date is ─────────────────────────
+// North America reads a clock as 7:00 PM; everywhere else reads 19:00.
+// The date's country decides when it's filled in; otherwise the state or
+// province (code or full name), then the city map's suffix. Blank all the
+// way down → North America, which is where most runs in here happen.
+// Times are STORED as 24-hour HH:MM regardless; this only changes what's
+// shown and what the pickers ask for.
+const NA_COUNTRIES = new Set(['us', 'usa', 'united states', 'united states of america', 'america', 'ca', 'can', 'canada', 'mx', 'mex', 'mexico', 'méxico']);
+const US_STATES = new Set(('al|ak|az|ar|ca|co|ct|de|fl|ga|hi|id|il|in|ia|ks|ky|la|me|md|ma|mi|mn|ms|mo|mt|ne|nv|nh|nj|nm|ny|nc|nd|oh|ok|or|pa|ri|sc|sd|tn|tx|ut|vt|va|wa|wv|wi|wy|dc|pr|'
+  + 'alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming|district of columbia|washington dc|puerto rico').split('|'));
+const CA_PROVINCES = new Set('ab|bc|mb|nb|nl|ns|nt|nu|on|pe|pei|qc|sk|yt|alberta|british columbia|manitoba|new brunswick|newfoundland|newfoundland and labrador|nova scotia|northwest territories|nunavut|ontario|prince edward island|quebec|québec|saskatchewan|yukon'.split('|'));
+const MX_HINTS = new Set('mx|cdmx|mexico city|ciudad de méxico|ciudad de mexico|jalisco|nuevo león|nuevo leon|baja california|quintana roo|yucatán|yucatan|guanajuato|puebla'.split('|'));
+function _dateIs24h(d) {
+  if (!d) return false;
+  const norm = v => String(v || '').trim().toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ');
+  const c = norm(d.country);
+  if (c) return !NA_COUNTRIES.has(c);
+  const st = norm(d.state);
+  if (st) return !(US_STATES.has(st) || CA_PROVINCES.has(st) || MX_HINTS.has(st));
+  const city = norm(d.city);
+  if (city) {
+    const hits = Object.keys(CITY_COORDS).filter(k => k.split(',')[0] === city);
+    if (hits.length === 1) { const suf = hits[0].split(',')[1]; return !(US_STATES.has(suf) || CA_PROVINCES.has(suf) || suf === 'mx'); }
+  }
+  return false;
+}
+function _fmt24(t) { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? String(+m[1]).padStart(2, '0') + ':' + m[2] : (t || ''); }
+// The one formatter every surface should use: a stored HH:MM plus the date
+// it belongs to. Anything that isn't a clock time passes through untouched.
+function fmtClock(t, d) {
+  if (!/^\d{1,2}:\d{2}/.test(t || '')) return t || '';
+  return _dateIs24h(d) ? _fmt24(t) : _tvFmt12(t);
+}
+function _clockCtx() { try { return getActiveDate(); } catch (e) { return null; } }
 function _tvLookupStatus(html, kind) {
   const el = document.getElementById('tv_lookup_status');
   if (!el) return;
@@ -10565,7 +10615,7 @@ function _tvTripPanelHTML(i, item, ad) {
       <div class="tv-leg-row${cur ? ' cur' : ''}">
         <span class="tv-leg-n">${n + 1}</span>
         <span class="tv-leg-main"><b>${esc(l.item.flightNumber || 'Flight')}</b>${esc(route)}</span>
-        <span class="tv-leg-t">${esc(l.item.time ? _fmt12Safe(l.item.time) : '—')}${l.date.id !== ad.id ? ' · ' + esc(fmtMD(l.date.date)) : ''}</span>
+        <span class="tv-leg-t">${esc(l.item.time ? _fmt12Safe(l.item.time, l.date) : '—')}${l.date.id !== ad.id ? ' · ' + esc(fmtMD(l.date.date)) : ''}</span>
         ${cur ? '<span class="tv-leg-here">editing</span>'
           : `<button type="button" class="tv-leg-edit" onclick="_tvOpenLeg('${esc(l.date.id)}','${esc(l.item.id)}')">Open</button>`}
         <button type="button" class="tv-leg-edit tv-leg-unlink" title="Remove this flight from the journey" onclick="_tvUnlinkLeg('${esc(l.date.id)}','${esc(l.item.id)}')">Unlink</button>
@@ -10629,12 +10679,12 @@ function openTravelModal(itemId, opts) {
         </div>
         <div class="field"><label id="tv_time_lbl">${isFlight ? 'Departs' : 'Time'} ${i.allDay ? '' : '*'}</label>
           <div class="time-row">
-            ${renderTime12Picker('tv_time', i.time, { disabled: !!i.allDay })}
+            ${renderTime12Picker('tv_time', i.time, { disabled: !!i.allDay, h24: _dateIs24h(ad) })}
             <button type="button" id="tv_allday_btn" class="allday-btn ${i.allDay ? 'on' : ''}" onclick="_travelToggleAllDay()" ${isFlight ? 'hidden' : ''}>All day</button>
           </div>
         </div>
         <div class="field" data-flight-only ${isFlight ? '' : 'hidden'}><label>Lands <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional)</span></label>
-          <div class="time-row">${renderTime12Picker('tv_arrive', i.arriveTime || '')}</div>
+          <div class="time-row">${renderTime12Picker('tv_arrive', i.arriveTime || '', { h24: _dateIs24h(ad) })}</div>
         </div>
         <div class="field" data-flight-only ${isFlight ? '' : 'hidden'}>
           <label>Departure city <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(auto — edit if different)</span></label>
@@ -10922,9 +10972,23 @@ function _to24h(hh, mm, ampm) {
 // prefix so multiple pickers can live in one modal.
 function renderTime12Picker(prefix, value24, opts) {
   const o = opts || {};
-  const t12 = _to12h(value24 || '');
   const dis = o.disabled ? 'disabled' : '';
   const op = o.disabled ? ' style="opacity:.5"' : '';
+  // Outside North America the same picker asks for HH:MM on a 24-hour
+  // clock — no AM/PM. readTime12Picker sees data-h24 and reads it back.
+  if (o.h24) {
+    const m = /^(\d{1,2}):(\d{2})/.exec(value24 || '');
+    const hh = m ? String(+m[1]).padStart(2, '0') : '', mm = m ? m[2] : '';
+    return `
+    <div class="time-12 h24" id="${prefix}_12" data-h24="1"${op}>
+      <input type="number" min="0" max="23" id="${prefix}_hh" value="${esc(hh)}" placeholder="HH" ${dis} class="t12-hh">
+      <span class="t12-sep">:</span>
+      <input type="number" min="0" max="59" id="${prefix}_mm" value="${esc(mm)}" placeholder="MM" ${dis} class="t12-mm">
+      <span class="t12-24">24h</span>
+    </div>
+  `;
+  }
+  const t12 = _to12h(value24 || '');
   return `
     <div class="time-12" id="${prefix}_12"${op}>
       <input type="number" min="1" max="12" id="${prefix}_hh" value="${esc(t12.hh)}" placeholder="HH" ${dis} class="t12-hh">
@@ -10944,8 +11008,26 @@ function renderTime12Picker(prefix, value24, opts) {
 function readTime12Picker(prefix) {
   const hh = document.getElementById(`${prefix}_hh`)?.value || '';
   const mm = document.getElementById(`${prefix}_mm`)?.value || '';
+  const wrap = document.getElementById(`${prefix}_12`);
+  if (wrap && wrap.dataset.h24) {
+    const h = parseInt(hh, 10), m = parseInt(mm, 10);
+    if (isNaN(h) || h < 0 || h > 23 || isNaN(m) || m < 0 || m > 59) return '';
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  }
   const ampm = document.getElementById(`${prefix}_ampm`)?.value || 'AM';
   return _to24h(hh, mm, ampm);
+}
+// The date modal: the clock follows the city / state as they're typed, so a
+// London date asks for 19:00 the moment "London" goes in.
+let _dateModalCountry = '';
+function _dateModalClockSync() {
+  const h24 = _dateIs24h({ city: document.getElementById('d_city')?.value || '', state: document.getElementById('d_state')?.value || '', country: _dateModalCountry });
+  ['d_doors', 'd_set', 'd_load', 'd_sc'].forEach(pfx => {
+    const wrap = document.getElementById(pfx + '_12');
+    if (!wrap || !!wrap.dataset.h24 === h24) return;
+    const val = readTime12Picker(pfx);
+    wrap.outerHTML = renderTime12Picker(pfx, val, { h24 });
+  });
 }
 
 /* =====================================================================
@@ -14531,7 +14613,7 @@ function renderDayStamp() {
     ad.venue ? `<span class="sep">·</span><span>${esc(ad.venue.toUpperCase())}</span>` : '',
     `<span class="sep">·</span><span>${fmtDate(ad.date).toUpperCase()}</span>`,
     `<span class="sep">·</span><span>${status}</span>`,
-    ad.doors ? `<span class="sep">·</span><span>DOORS ${esc(ad.doors)}</span>` : ''
+    ad.doors ? `<span class="sep">·</span><span>DOORS ${esc(fmtClock(ad.doors, ad))}</span>` : ''
   ];
   paint(parts.filter(Boolean).join(' '));
 }
@@ -14841,7 +14923,7 @@ function renderDashboard() {
   const scheduleHtml = ad.schedule.length
     ? ad.schedule.map(s => `
         <div class="row">
-          <span class="t">${s.allDay ? 'ALL DAY' : esc(s.time)}</span>
+          <span class="t">${s.allDay ? 'ALL DAY' : esc(fmtClock(s.time, ad))}</span>
           <span class="what">${esc(s.what)}</span>
           ${(() => { const a = _scheduleAudience(s);
             return a.kind === 'tag' ? `<span class="who">${esc(a.text)}</span>`
@@ -14878,8 +14960,8 @@ function renderDashboard() {
     if (nextDate.venue) subBits.push(esc(nextDate.venue));
     if (nextDate.capacity) subBits.push(`Cap ${esc(String(nextDate.capacity))}`);
     const timeBits = [];
-    if (nextDate.doors) timeBits.push(`Doors ${esc(nextDate.doors)}`);
-    if (nextDate.setTime) timeBits.push(`Set ${esc(nextDate.setTime)}`);
+    if (nextDate.doors) timeBits.push(`Doors ${esc(fmtClock(nextDate.doors, nextDate))}`);
+    if (nextDate.setTime) timeBits.push(`Set ${esc(fmtClock(nextDate.setTime, nextDate))}`);
     const nextStatus = (nextDate.status || 'show').toLowerCase();
     const statusLabel = nextStatus === 'off' ? 'Day off'
       : nextStatus === 'travel' ? 'Travel day'
@@ -14946,7 +15028,7 @@ function renderDashboard() {
   const schedCardHtml = sched.length
     ? sched.map(s => `
         <div class="bm-sched-row">
-          <div class="time">${s.allDay ? 'ALL DAY' : esc(_scheduleTimeDisplay(s))}</div>
+          <div class="time">${s.allDay ? 'ALL DAY' : esc(_scheduleTimeDisplay(s, ad))}</div>
           <div>
             <div class="what">${esc(s.what)}</div>
             ${(() => { const a = _scheduleAudience(s); return a.text ? `<div class="who">${esc(a.text)}</div>` : ''; })()}
@@ -14963,10 +15045,10 @@ function renderDashboard() {
       ${(ad.city || ad.state || ad.country) ? `<div class="line">${esc([ad.city, ad.state, ad.country].filter(Boolean).join(', '))}</div>` : ''}
       <div style="margin-top:8px">
         ${ad.capacity ? `<div class="pair"><span class="lbl">Capacity</span><span class="val">${esc(ad.capacity)}</span></div>` : (isMissing('capacity') ? '<div class="pair"><span class="lbl">Capacity</span><span class="val warn">Not set ⚠</span></div>' : '')}
-        ${ad.doors ? `<div class="pair"><span class="lbl">Doors</span><span class="val">${esc(ad.doors)}</span></div>` : ''}
-        ${ad.setTime ? `<div class="pair"><span class="lbl">Set time</span><span class="val">${esc(ad.setTime)}</span></div>` : ''}
+        ${ad.doors ? `<div class="pair"><span class="lbl">Doors</span><span class="val">${esc(fmtClock(ad.doors, ad))}</span></div>` : ''}
+        ${ad.setTime ? `<div class="pair"><span class="lbl">Set time</span><span class="val">${esc(fmtClock(ad.setTime, ad))}</span></div>` : ''}
         ${ad.promoter ? `<div class="pair"><span class="lbl">Promoter</span><span class="val">${esc(ad.promoter)}</span></div>` : ''}
-        ${ad.curfew ? `<div class="pair"><span class="lbl">Curfew</span><span class="val">${esc(ad.curfew)}</span></div>` : ''}
+        ${ad.curfew ? `<div class="pair"><span class="lbl">Curfew</span><span class="val">${esc(fmtClock(ad.curfew, ad))}</span></div>` : ''}
       </div>
     </div>
   ` : `<div class="card-empty">No venue set. <a onclick="openDateModal('${ad.id}')">Edit date →</a></div>`;
@@ -14983,8 +15065,8 @@ function renderDashboard() {
       ${hotel.city ? `<div class="line">${esc([hotel.city, hotel.state, hotel.zip].filter(Boolean).join(', '))}</div>` : ''}
       <div style="margin-top:8px">
         ${hotel.phone ? `<div class="pair"><span class="lbl">Phone</span><span class="val">${esc(hotel.phone)}</span></div>` : ''}
-        ${hotel.checkIn ? `<div class="pair"><span class="lbl">Check-in</span><span class="val">${esc(hotel.checkIn)}</span></div>` : ''}
-        ${hotel.checkOut ? `<div class="pair"><span class="lbl">Check-out</span><span class="val">${esc(hotel.checkOut)}</span></div>` : ''}
+        ${hotel.checkIn ? `<div class="pair"><span class="lbl">Check-in</span><span class="val">${esc(fmtClock(hotel.checkIn, ad))}</span></div>` : ''}
+        ${hotel.checkOut ? `<div class="pair"><span class="lbl">Check-out</span><span class="val">${esc(fmtClock(hotel.checkOut, ad))}</span></div>` : ''}
         ${(hotel.rooms && hotel.rooms.length) ? `<div class="pair"><span class="lbl">Rooms</span><span class="val">${hotel.rooms.length}</span></div>` : ''}
       </div>
     </div>`;
@@ -15093,8 +15175,8 @@ function renderDashboard() {
     ${(effectiveStatus === 'show' || effectiveStatus === 'press') ? `
       <div class="bm-hero-tile">
         <div class="lbl">Doors</div>
-        <div class="val mono">${ad.doors ? esc(ad.doors) : '—'}</div>
-        ${ad.setTime ? `<div class="sub">Set ${esc(ad.setTime)}</div>` : ''}
+        <div class="val mono">${ad.doors ? esc(fmtClock(ad.doors, ad)) : '—'}</div>
+        ${ad.setTime ? `<div class="sub">Set ${esc(fmtClock(ad.setTime, ad))}</div>` : ''}
       </div>
       <div class="bm-hero-tile">
         <div class="lbl">Capacity</div>
@@ -15312,14 +15394,11 @@ function renderTodayFlags(ad) {
 // start and end, render "7:00 PM – 8:30 PM"; when only start,
 // render "7:00 PM"; when allDay, "ALL DAY". 24-hour values are
 // flipped to 12-hour for display since that's what's on stage.
-function _scheduleTimeDisplay(item) {
+function _scheduleTimeDisplay(item, d) {
   if (!item) return '';
   if (item.allDay) return 'ALL DAY';
-  const to12 = (t) => {
-    const c = _to12h(t || '');
-    if (!c.hh) return '';
-    return `${c.hh}:${c.mm} ${c.ampm}`;
-  };
+  const dd = d || _clockCtx();
+  const to12 = (t) => (/^\d{1,2}:\d{2}/.test(t || '') ? fmtClock(t, dd) : '');
   const start = to12(item.time);
   const end = to12(item.endTime);
   if (start && end) return `${start} – ${end}`;
@@ -15585,7 +15664,7 @@ function renderSchedule() {
             : '';
           return `
           <div class="item-row" style="grid-template-columns:minmax(110px,140px) minmax(160px,1fr) minmax(140px,220px) auto;align-items:flex-start">
-            <span class="t" style="padding-top:8px">${esc(_scheduleTimeDisplay(s))}</span>
+            <span class="t" style="padding-top:8px">${esc(_scheduleTimeDisplay(s, ad))}</span>
             <span class="what" style="padding-top:6px;min-width:0">${esc(s.what)}${travelBadge}${nextDayBadge}${carryoverBadge}${s.notes ? `<span class="note">${esc(s.notes)}</span>` : ''}</span>
             ${isTravel ? '<span></span>' : renderVizPicker(s)}
             <div class="tbl-actions" style="padding-top:6px"><button type="button" onclick="${editFn}">Edit</button></div>
@@ -16317,7 +16396,7 @@ function renderSetList() {
         <h3>${esc((T().meta.artist || 'BAND').toUpperCase())} · ${esc(ad.city.toUpperCase())} · ${fmtMD(ad.date)}</h3>
         <div class="head-line">
           <div class="v">${esc(ad.venue || ad.city)}</div>
-          <div class="d">${ad.setTime ? 'SET ' + esc(ad.setTime) : 'SET TIME TBD'}${ad.doors ? ' · DOORS ' + esc(ad.doors) : ''}</div>
+          <div class="d">${ad.setTime ? 'SET ' + esc(fmtClock(ad.setTime, ad)) : 'SET TIME TBD'}${ad.doors ? ' · DOORS ' + esc(fmtClock(ad.doors, ad)) : ''}</div>
         </div>
         ${list.length === 0 ? `
           <div style="padding:30px 0;text-align:center;color:var(--warm-mute);font-size:13px;position:relative;z-index:1">
@@ -17723,11 +17802,11 @@ function _advanceHandsSetRowHTML(set, idx) {
       </div>
       <div class="advance-field">
         <label>${idx === 0 ? 'In time' : '<span style="opacity:.7">In</span>'}</label>
-        ${renderTime12Picker('adv_in_' + idx, set.inTime || '', { disabled: allDay })}
+        ${renderTime12Picker('adv_in_' + idx, set.inTime || '', { disabled: allDay, h24: _dateIs24h(getActiveDate()) })}
       </div>
       <div class="advance-field">
         <label>${idx === 0 ? 'Out time' : '<span style="opacity:.7">Out</span>'}</label>
-        ${renderTime12Picker('adv_out_' + idx, set.outTime || '', { disabled: allDay })}
+        ${renderTime12Picker('adv_out_' + idx, set.outTime || '', { disabled: allDay, h24: _dateIs24h(getActiveDate()) })}
       </div>
       <div class="advance-field">
         <label>&nbsp;</label>
@@ -19008,7 +19087,7 @@ function renderPhone() {
     : `${status}${ad.venue ? ' · ' + esc(ad.venue.toUpperCase()) : ''}`;
   const _heroHeadline = _showVenue ? `<div class="h ph-venue">${esc(ad.venue)}</div>` : `<div class="h">${_heroTitle}</div>`;
   const _heroDoorsSet = ad.status === 'show'
-    ? [ad.doors ? 'Doors ' + esc(ad.doors) : '', ad.setTime ? 'Set ' + esc(ad.setTime) : ''].filter(Boolean).join(' · ')
+    ? [ad.doors ? 'Doors ' + esc(fmtClock(ad.doors, ad)) : '', ad.setTime ? 'Set ' + esc(fmtClock(ad.setTime, ad)) : ''].filter(Boolean).join(' · ')
     : ad.status === 'travel' ? 'Travel day'
     : ad.status === 'off' ? 'Day off'
     : ad.status === 'rehearsal' ? 'Rehearsal day'
@@ -19234,7 +19313,7 @@ function renderPhone() {
               <div class="mono" style="${d.id===ad.id?'color:var(--hot)':''};font-weight:700;font-size:13px">${fmtMD(d.date)}</div>
               <div>
                 <div style="font-weight:700;font-size:13px;color:var(--warm)">${titleLine}</div>
-                <div class="mono" style="font-size:10.5px;color:var(--warm-mute)">${d.doors ? 'Doors ' + esc(d.doors) : ''} ${d.setTime ? '· Set ' + esc(d.setTime) : ''}${isTravelDay ? `${(d.travel||[]).length} ${(d.travel||[]).length === 1 ? 'move' : 'moves'} · tap for details` : ''}</div>
+                <div class="mono" style="font-size:10.5px;color:var(--warm-mute)">${d.doors ? 'Doors ' + esc(fmtClock(d.doors, d)) : ''} ${d.setTime ? '· Set ' + esc(fmtClock(d.setTime, d)) : ''}${isTravelDay ? `${(d.travel||[]).length} ${(d.travel||[]).length === 1 ? 'move' : 'moves'} · tap for details` : ''}</div>
               </div>
               <div class="mono" style="font-size:10.5px;color:${d.status==='show'?'var(--good)':d.status==='travel'?'var(--cool)':'var(--warm-mute)'}">${esc((d.status||'').toUpperCase())}</div>
             </div>
@@ -19257,8 +19336,8 @@ function renderPhone() {
       <div class="sub">${esc(h.address || '')}</div>
       <div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(232,148,58,.1);display:grid;grid-template-columns:1fr 1fr;gap:10px">
         ${myR ? `<div><div class="lbl">YOUR ROOM</div><div class="mono" style="font-size:22px;font-weight:800;color:var(--hi);text-shadow:0 0 12px rgba(232,148,58,.4)">${esc(myR.roomNum || '—')}</div></div>` : ''}
-        ${h.checkIn ? `<div><div class="lbl">CHECK-IN</div><div class="mono" style="font-size:14px;font-weight:700;color:var(--warm)">${esc(h.checkIn)}</div></div>` : ''}
-        ${h.checkOut ? `<div><div class="lbl">CHECK-OUT</div><div class="mono" style="font-size:14px;font-weight:700;color:var(--warm)">${esc(h.checkOut)}</div></div>` : ''}
+        ${h.checkIn ? `<div><div class="lbl">CHECK-IN</div><div class="mono" style="font-size:14px;font-weight:700;color:var(--warm)">${esc(fmtClock(h.checkIn, ad))}</div></div>` : ''}
+        ${h.checkOut ? `<div><div class="lbl">CHECK-OUT</div><div class="mono" style="font-size:14px;font-weight:700;color:var(--warm)">${esc(fmtClock(h.checkOut, ad))}</div></div>` : ''}
         ${h.conf ? `<div><div class="lbl">CONF</div><div class="mono" style="font-size:11px;color:var(--warm)">${esc(h.conf)}</div></div>` : ''}
         ${h.phone ? `<div><div class="lbl">PHONE</div><div class="mono" style="font-size:12px;color:var(--warm)">${_telLinkHTML(h.phone)}</div></div>` : ''}
       </div>
@@ -23143,8 +23222,8 @@ function renderImportReview() {
                       <span class="rsec">${esc(d.venue || '')}${!d.venue ? '<span class="gap-tag r">no venue</span>' : ''}</span>
                     </span>
                     <span class="rmono">
-                      ${d.doors ? 'D '+esc(d.doors) : '<span class="gap-tag">no doors</span>'}
-                      ${d.setTime ? ' · S '+esc(d.setTime) : ''}
+                      ${d.doors ? 'D '+esc(fmtClock(d.doors, d)) : '<span class="gap-tag">no doors</span>'}
+                      ${d.setTime ? ' · S '+esc(fmtClock(d.setTime, d)) : ''}
                     </span>
                     <span class="rmono">
                       ${d.capacity ? 'cap '+esc(d.capacity) : '<span class="gap-tag">no cap</span>'}
@@ -24226,7 +24305,7 @@ async function _godOpenTour(id) {
     <div class="tbl">
       <div class="contact-row" style="grid-template-columns:minmax(140px,1.4fr) minmax(90px,1fr) minmax(150px,1.5fr) 96px 92px;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#c9b3ff;background:rgba(140,120,255,.06)"><div>Name</div><div>Role</div><div>Email</div><div>Invite</div><div>Profile</div></div>
       ${crewRows.map(c => `<div class="contact-row" style="grid-template-columns:minmax(140px,1.4fr) minmax(90px,1fr) minmax(150px,1.5fr) 96px 92px">
-        <div class="nm">${esc(c.name || '—')}</div><div class="role">${esc(c.role || '—')}</div>
+        <div class="nm">${esc(c.name || '—')}</div><div class="role" style="white-space:normal;overflow-wrap:anywhere;line-height:1.4">${esc(c.role || '—').replace(/\s*\/\s*/g, ' / ')}</div>
         <div class="role" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.email || '—')}</div>
         <div class="role">${c.accepted ? '<span class="god-kick st-live">ACCEPTED</span>' : (c.email ? (c.has_account ? '<span class="god-kick st-empty">NOT ACCEPTED</span>' : '<span class="god-kick st-ended">NO ACCOUNT</span>') : '<span class="god-kick st-ended">NO EMAIL</span>')}</div>
         <div class="role">${c.profile_submitted ? '<span class="god-kick st-live">FILED</span>' : (c.accepted ? '<span class="god-kick st-empty">MISSING</span>' : '<span class="god-kick st-ended">—</span>')}</div>
@@ -24906,7 +24985,7 @@ function _phoneShowDayTravel(dateId) {
               return `
                 <button type="button" class="ph-travel-row" onclick="closeModal();setTimeout(()=>_phoneShowTravel('${esc(t.id)}','${esc(d.id)}'),50)">
                   <span class="ptr-type">${esc(typeLabel)}</span>
-                  <span class="ptr-time">${t.allDay ? 'ALL' : esc(_fmt12Safe(t.time) || '—')}${t.arriveTime ? `<span class="ptr-arr">↓ ${esc(_fmt12Safe(t.arriveTime))}</span>` : ''}</span>
+                  <span class="ptr-time">${t.allDay ? 'ALL' : esc(_fmt12Safe(t.time, d) || '—')}${t.arriveTime ? `<span class="ptr-arr">↓ ${esc(_fmt12Safe(t.arriveTime, d))}</span>` : ''}</span>
                   <span class="ptr-desc">${esc(_travelShortDesc(t) || t.description || '—')}${(() => {
                     const li = t.type === 'flight' ? _legInfo(t) : null;
                     const lv = t.type === 'flight' ? _flightLiveFor(t, d.date) : null;
@@ -24943,7 +25022,7 @@ function _phoneShowTravel(itemId, dateId) {
   if (!t) return;
   if (t.type === 'flight') _flightLiveEnsure([t], ad.date);
   const typeLabel = ({bus:'Bus / Coach', flight:'Flight', van:'Van / Sprinter', car:'Car / Runner', train:'Train'})[t.type] || (t.type || 'Travel');
-  const timeLabel = t.allDay ? 'All day' : (t.time ? _fmt12Safe(t.time) : '—');
+  const timeLabel = t.allDay ? 'All day' : (t.time ? _fmt12Safe(t.time, ad) : '—');
   const detailRow = (label, value, mono = false, color = '') => `
     <div style="padding:9px 0;border-bottom:1px dashed rgba(232,148,58,.08)">
       <div style="font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.18em;color:var(--warm-mute);text-transform:uppercase;margin-bottom:3px;font-weight:700">${esc(label)}</div>
@@ -24991,7 +25070,7 @@ function _phoneShowSetList() {
     body: `
       <div style="display:flex;flex-direction:column;gap:0">
         <div style="font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.14em;color:var(--warm-mute);text-transform:uppercase;margin-bottom:10px;line-height:1.5">
-          ${esc(T().meta.artist || 'Band')} · ${esc(ad.venue || ad.city)} · ${fmtMD(ad.date)}${ad.setTime ? ' · SET ' + esc(ad.setTime) : ''}
+          ${esc(T().meta.artist || 'Band')} · ${esc(ad.venue || ad.city)} · ${fmtMD(ad.date)}${ad.setTime ? ' · SET ' + esc(fmtClock(ad.setTime, ad)) : ''}
         </div>
         ${list.length === 0 ? `
           <div class="muted" style="padding:24px 0;text-align:center;font-size:13px;color:var(--warm-mute);font-style:italic">No set list for this day yet.</div>
@@ -25203,7 +25282,7 @@ async function printStageCopy() {
         ${artistLogoUrl
           ? `<img class="sp-artist-logo" src="${esc(artistLogoUrl)}" alt="${esc(T().meta.artist || 'Artist')}" style="max-height:70px;max-width:340px;object-fit:contain;display:block;margin:0 auto 6px">`
           : `<div class="sp-artist">${esc((T().meta.artist || 'BAND').toUpperCase())}</div>`}
-        <div class="sp-meta">${esc((ad.venue || ad.city).toUpperCase())} · ${fmtMD(ad.date)}${ad.setTime ? ' · ' + esc(ad.setTime) : ''}</div>
+        <div class="sp-meta">${esc((ad.venue || ad.city).toUpperCase())} · ${fmtMD(ad.date)}${ad.setTime ? ' · ' + esc(fmtClock(ad.setTime, ad)) : ''}</div>
       </header>
       <ol class="stage-print-list">
         ${setList.map(s => {
@@ -25348,7 +25427,7 @@ async function printGuestList() {
           ? `<img class="gp-artist-logo" src="${esc(artistLogoUrl)}" alt="${esc(T().meta.artist || 'Artist')}" style="max-height:64px;max-width:320px;object-fit:contain;display:block;margin:0 auto 4px">`
           : `<div class="gp-artist">${esc((T().meta.artist || T().meta.tourName || 'BAND').toUpperCase())}</div>`}
         <div class="gp-meta">
-          ${esc((ad.venue || ad.city).toUpperCase())} · ${fmtMD(ad.date)}${ad.doors ? ' · DOORS ' + esc(ad.doors) : ''}${ad.setTime ? ' · SET ' + esc(ad.setTime) : ''}
+          ${esc((ad.venue || ad.city).toUpperCase())} · ${fmtMD(ad.date)}${ad.doors ? ' · DOORS ' + esc(fmtClock(ad.doors, ad)) : ''}${ad.setTime ? ' · SET ' + esc(fmtClock(ad.setTime, ad)) : ''}
         </div>
         <div class="gp-summary">
           ${totalApprovedHeads} APPROVED · ${approved.length} REQUEST${approved.length===1?'':'S'}${totalPendingHeads ? ` · ${totalPendingHeads} PENDING` : ''}${Object.keys(passUsage).length ? ' · ' + Object.entries(passUsage).map(([p,c]) => `${esc(p)}: ${c}`).join(' · ') : ''}
@@ -25929,7 +26008,7 @@ function renderTourBook(opts) {
               const groupLabel = _scheduleItemDisplayLabel(s);
               return `
                 <div class="tb-sched-row">
-                  <span class="tb-t">${esc(s.time)}</span>
+                  <span class="tb-t">${esc(s.allDay ? 'ALL DAY' : fmtClock(s.time, d))}</span>
                   <span class="tb-w">${esc(s.what)}${s.notes ? `<span class="tb-note">${esc(s.notes)}</span>` : ''}</span>
                   <span class="tb-grp">${esc(groupLabel)}</span>
                 </div>
@@ -26607,6 +26686,37 @@ function _taAnchor(d, pl) {
 }
 
 // ── the tool: open / close / steps ───────────────────────────────────
+// A tool opened from a tile renders in place of the list, with the same
+// chrome as the Travel Agent. Push and Messaging are hosted this way on the
+// desktop console; on the crew phone (no console) they stay modals.
+let _toolOpen = '';
+function _toolInlineOK() {
+  return !!document.getElementById('p-tools')
+    && !(typeof _isPhoneApp === 'function' && _isPhoneApp())
+    && !document.body.classList.contains('crew-mobile-only')
+    && !document.body.classList.contains('tm-crew-tour');
+}
+function _toolMount(id, title, bodyHTML) {
+  const root = document.getElementById('p-tools');
+  if (!root) return false;
+  if (activeTab !== 'tools') { activeTab = 'tools'; applyTabFromState(); try { saveUIPrefs(); } catch (e) {} }
+  _toolOpen = id; _ta.open = false;
+  const tourName = (T().meta && T().meta.tourName) || T().name || 'Tour';
+  root.innerHTML = `
+    <div class="tool-shell">
+      <header class="ta-top">
+        <div class="ta-top-l">
+          <button type="button" class="rt-btn ta-back" onclick="_toolClose()">← Tools</button>
+          <div><div class="rt-kicker">Tools · ${esc(tourName)}</div><h2 class="tool-title">${esc(title)}</h2></div>
+        </div>
+        <button type="button" class="rt-btn" onclick="_toolClose()">Close</button>
+      </header>
+      <div class="tool-body">${bodyHTML}</div>
+    </div>`;
+  return true;
+}
+function _toolClose() { _toolOpen = ''; renderTools(); }
+
 // The Tools tab. A list of tools, or the open tool in place of it.
 const TOOL_TILES = [
   { id: 'push',   icon: '◆', name: 'Push notifications', desc: "A message to everyone's phone — now, or at a time you set.", go: 'openPushNotifications()' },
@@ -26619,6 +26729,10 @@ function renderTools() {
   if (!root) return;
   if (_ta.open && T() && T().id !== '_empty') { _rtBuildPlans(); _taRender(); return; }
   _ta.open = false;
+  // An open tool keeps its DOM across the app's re-renders (a draft being
+  // typed must survive a realtime event); it's only rebuilt when missing.
+  if (_toolOpen === 'push') { if (!root.querySelector('.pn-wrap')) _renderPushNotificationsModal(); return; }
+  if (_toolOpen === 'chat') { if (!root.querySelector('#chatModalRoot')) _chatMountInline(); return; }
   root.innerHTML = `
     <div class="tools-head"><div class="rt-kicker">Tools</div><h2>Reach for one</h2></div>
     <div class="tools-grid">
@@ -32320,11 +32434,7 @@ function _renderPushNotificationsModal() {
   // surface a one-click reminder send.
   const suggest = _pnSmartSuggest(ad);
 
-  openModal({
-    title: 'Push notifications',
-    size: 'xl',
-    hideFooter: true,
-    body: `
+  const body = `
       <div class="pn-wrap">
         <div class="pn-grid">
           <div class="pn-compose">
@@ -32413,7 +32523,7 @@ function _renderPushNotificationsModal() {
             </div>
 
             <div class="pn-actions">
-              <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+              <button type="button" class="btn" onclick="_pnClose()">Cancel</button>
               <button type="button" class="btn primary pn-send-btn" onclick="_pnSend()">Send${audience?` to ~${audience} people`:''} →</button>
             </div>
           </div>
@@ -32434,8 +32544,9 @@ function _renderPushNotificationsModal() {
           </div>
         </div>
       </div>
-    `,
-  });
+    `;
+  if (_toolInlineOK()) _toolMount('push', 'Push notifications', body);
+  else openModal({ title: 'Push notifications', size: 'xl', hideFooter: true, body });
   // Wire up textarea so typing updates draft in real time.
   setTimeout(() => {
     const ta = document.getElementById('pn_body');
@@ -32446,6 +32557,7 @@ function _renderPushNotificationsModal() {
   }, 30);
 }
 
+function _pnClose() { if (_toolOpen === 'push') _toolClose(); else closeModal(); }
 function _pnHistoryRow(n) {
   const opt = PN_PRIORITY_OPTIONS.find(p => p.id === n.priority) || PN_PRIORITY_OPTIONS[0];
   const when = n.sentAt ? new Date(n.sentAt) : null;
@@ -32748,8 +32860,8 @@ async function downloadDaySheetPDF() {
     ${hotel.address ? `<div class="b-line">${esc(hotel.address)}</div>` : ''}
     ${hotel.city ? `<div class="b-line">${esc([hotel.city, hotel.state, hotel.zip].filter(Boolean).join(', '))}</div>` : ''}
     ${hotel.phone ? `<div class="b-line"><span class="b-lbl">Main Number:</span> ${esc(hotel.phone)}</div>` : ''}
-    ${hotel.checkIn ? `<div class="b-line"><span class="b-lbl">Check-in:</span> ${esc(hotel.checkIn)}</div>` : ''}
-    ${hotel.checkOut ? `<div class="b-line"><span class="b-lbl">Check-out:</span> ${esc(hotel.checkOut)}</div>` : ''}
+    ${hotel.checkIn ? `<div class="b-line"><span class="b-lbl">Check-in:</span> ${esc(fmtClock(hotel.checkIn, ad))}</div>` : ''}
+    ${hotel.checkOut ? `<div class="b-line"><span class="b-lbl">Check-out:</span> ${esc(fmtClock(hotel.checkOut, ad))}</div>` : ''}
   `;
   }).join('') : '<div class="b-empty">No hotel set</div>';
 
@@ -32779,7 +32891,7 @@ async function downloadDaySheetPDF() {
   const schedRowsHtml = sched.length ? sched.map((s, i) => `
     <tr class="${i % 2 ? 'alt' : ''}">
       <td class="s-what">${esc(s.what || '')}</td>
-      <td class="s-time">${esc(s.allDay ? 'All Day' : (s.endTime ? `${fmt12(s.time)} - ${fmt12(s.endTime)}` : fmt12(s.time)))}</td>
+      <td class="s-time">${esc(s.allDay ? 'All Day' : (s.endTime ? `${fmtClock(s.time, ad)} - ${fmtClock(s.endTime, ad)}` : fmtClock(s.time, ad)))}</td>
     </tr>
   `).join('') : `<tr><td colspan="2" class="s-empty">No schedule items</td></tr>`;
 
@@ -32830,7 +32942,7 @@ async function downloadDaySheetPDF() {
   const travelItems = ad.travel || [];
   const travelHtml = travelItems.length ? `
     <ul class="n-list">
-      ${travelItems.map(t => `<li>${esc(((t.type || 'Travel').toUpperCase()))}: ${esc(t.description || '')} ${t.time ? '· ' + fmt12(t.time) : ''} ${t.person ? '· ' + t.person : ''}</li>`).join('')}
+      ${travelItems.map(t => `<li>${esc(((t.type || 'Travel').toUpperCase()))}: ${esc(t.description || '')} ${t.time ? '· ' + fmtClock(t.time, ad) : ''} ${t.person ? '· ' + t.person : ''}</li>`).join('')}
     </ul>
   ` : '';
 
@@ -33810,13 +33922,12 @@ async function _reconcilePendingChatPicks(tour) {
 async function openChatsModal() {
   if (!T() || T().id === '_empty') { toast('Open a tour first', 'error'); return; }
   if (!sb) { toast('Chat requires a cloud connection — sign in to use messaging', 'error'); return; }
-  // Render skeleton, then populate async
-  openModal({
-    title: 'Messaging',
-    size: 'xl',
-    hideFooter: true,
-    body: `<div id="chatModalRoot" class="chat-modal"><div class="chat-thread-empty"><div class="cte-icon">✉</div><div class="cte-title">Loading messages…</div></div></div>`,
-  });
+  // Render skeleton, then populate async. Everything below renders into
+  // #chatModalRoot by id, so it doesn't care whether that lives in a modal
+  // (crew phone) or inside the Tools tab (desktop console).
+  const shell = `<div id="chatModalRoot" class="chat-modal"><div class="chat-thread-empty"><div class="cte-icon">✉</div><div class="cte-title">Loading messages…</div></div></div>`;
+  if (_toolInlineOK()) _toolMount('chat', 'Messaging', shell);
+  else openModal({ title: 'Messaging', size: 'xl', hideFooter: true, body: shell });
   // Auto-seed if first time
   await db.chatAutoSeed(T().id);
   // Drain any deferred picks for crew that signed up since the last
@@ -33840,6 +33951,11 @@ async function openChatsModal() {
   _renderChatModalContents();
 }
 
+// Re-host the chat after something else repainted the Tools panel.
+function _chatMountInline() {
+  _toolMount('chat', 'Messaging', `<div id="chatModalRoot" class="chat-modal"></div>`);
+  _renderChatModalContents();
+}
 function _renderChatModalContents() {
   const root = document.getElementById('chatModalRoot');
   if (!root) return;
@@ -34581,7 +34697,7 @@ Object.assign(window, {
   tourStartDate, tourEndDate, addDaysISO, fillDateGapsWithOffDays, _padTourEdgesWithTravelDays,
   toggleExportMenu, closeExportMenu, downloadTourBookPDF, downloadTourBookFromHere, downloadDaySheetPDF, closeTourBook,
   scoutNearVenue,
-  renderTools, openTravelAgent, closeTravelAgent, _taGo, _taBack, _taAnchor, _taDate, _taPickDate, _taPickTopic, _taSubmitAsk, _taUseHotel, _taMarkNoHotel, _taMarkNoTravel, _taLogMove, _taLogFlight, _taJump, _taOpenDate, _taMore, _taRender, _taPlan, _rtPick, _rtLoadHotels,
+  renderTools, _toolClose, _pnClose, _dateModalClockSync, fmtClock, openTravelAgent, closeTravelAgent, _taGo, _taBack, _taAnchor, _taDate, _taPickDate, _taPickTopic, _taSubmitAsk, _taUseHotel, _taMarkNoHotel, _taMarkNoTravel, _taLogMove, _taLogFlight, _taJump, _taOpenDate, _taMore, _taRender, _taPlan, _rtPick, _rtLoadHotels,
   toggleTourSwitcher, closeTourSwitcher, switchToTour, switchToTourFromPhone, newTourFlow, newTourManualFlow, newTourImportFlow, renameCurrentTour, deleteCurrentTour,
   toggleUniMenu, closeUniMenu, renderUniMenu, _uniToggleExport,
   openAccountSettingsModal, _acctSaveName, _acctSendReset,
