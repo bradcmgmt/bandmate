@@ -207,7 +207,6 @@ input,select,textarea{font:inherit;color:inherit;
     radial-gradient(circle at 70% 30%, rgba(255,80,25,.14), transparent 42%),
     linear-gradient(135deg,#1a1209,#110c08);
   background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
-  animation:tabFlame 6.7s ease-in-out infinite alternate;
   border:1px solid var(--line-2);border-radius:8px;position:relative;
   box-shadow:inset 0 0 0 1px rgba(232,148,58,.08),0 0 24px rgba(232,148,58,.12);
   clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);
@@ -234,6 +233,31 @@ input,select,textarea{font:inherit;color:inherit;
   --tx:0deg;--ty:0deg;--sx:150%;--ralpha:0;
   transform:perspective(600px) rotateX(var(--tx)) rotateY(var(--ty));
   transition:transform .15s ease-out;will-change:transform}
+/* The mark's own heat. The burn treatment is painted behind the wordmark and
+   masked to logo.png, so the embers drift INSIDE the letterforms — dots
+   included — instead of on the case behind them. The case keeps its warm
+   gradients but stops drifting, so only one thing in the corner moves.
+   Masking is guarded: where it isn't supported the layer never paints and the
+   flat logo shows through untouched. */
+.bm-molten{display:none}
+@supports ((-webkit-mask-image:url(logo.png)) or (mask-image:url(logo.png))){
+  .bm-molten{display:block;position:absolute;inset:0;z-index:1;pointer-events:none;
+    -webkit-mask-image:url(logo.png);mask-image:url(logo.png);
+    -webkit-mask-size:contain;mask-size:contain;
+    -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+    -webkit-mask-position:center;mask-position:center;
+    background:
+      radial-gradient(circle at 25% 75%,#ffc477,transparent 45%),
+      radial-gradient(circle at 70% 30%,#ff7a1f,transparent 42%),
+      linear-gradient(135deg,var(--hi),#c97a2c);
+    background-size:240% 240%,210% 210%,100% 100%;background-repeat:no-repeat;
+    animation:bmMolten 8s ease-in-out infinite alternate}
+}
+@keyframes bmMolten{
+  from{background-position:0% 100%,100% 0%,0 0}
+  to{background-position:100% 40%,0% 60%,0 0}
+}
+@media (prefers-reduced-motion:reduce){.bm-molten{animation:none}}
 .bm-shine{position:absolute;inset:0;pointer-events:none;z-index:2;
   background:linear-gradient(115deg,
     transparent 34%,
@@ -5567,7 +5591,7 @@ setTimeout(window._hideAppBoot,6000);
     <div class="laminate-wrap">
       <div class="laminate">
         <div class="brand">
-          <span class="bm-shine-wrap"><img src="logo.png" class="brand-logo" alt="Bandmate" /><span class="bm-shine"></span></span>
+          <span class="bm-shine-wrap"><img src="logo.png" class="brand-logo" alt="Bandmate" /><span class="bm-molten" aria-hidden="true"></span><span class="bm-shine"></span></span>
           <span class="tag">v1.0</span>
         </div>
       </div>
