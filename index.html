@@ -805,7 +805,7 @@ body.mobile .ch-status .chs-t em{display:none}
 /* Tools tab: the old top-bar button, now first in the rail. Cool ember —
    the same flames-in-glass as an active tab but in the tools blue, and it
    burns all the time, not only when selected. No number: it isn't a day view. */
-.tab.tab-tools,.tab.tab-tools:hover,.tab.tab-tools.active{color:#cfdef0;font-weight:700;padding-left:14px;
+.tab.tab-tools,.tab.tab-tools:hover,.tab.tab-tools.active{color:#cfdef0;font-weight:700;padding-left:14px;padding-right:14px;justify-content:center;
   background:
     radial-gradient(circle at 25% 75%, rgba(138,169,216,.34), transparent 46%),
     radial-gradient(circle at 70% 30%, rgba(140,120,255,.24), transparent 42%),
@@ -813,10 +813,12 @@ body.mobile .ch-status .chs-t em{display:none}
   background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
   animation:tabFlame 8s ease-in-out infinite alternate}
 .tab.tab-tools:hover{color:#e2ecfa}
-.tab.tab-tools.active{color:#e2ecfa;text-shadow:0 0 10px rgba(138,169,216,.45);padding-left:18px}
+.tab.tab-tools.active{color:#e2ecfa;text-shadow:0 0 10px rgba(138,169,216,.45)}
 .tab.tab-tools.active::before{background:linear-gradient(180deg,transparent,#b1c8ee 30%,#b1c8ee 70%,transparent);box-shadow:0 0 12px rgba(138,169,216,.6)}
-.tab.tab-tools .tt-icon{font-family:'Bricolage Grotesque',monospace;font-size:12px;color:#b1c8ee;flex:none}
-.tab.tab-tools .tt-badge{margin-left:auto;padding:1px 6px;border-radius:4px;background:rgba(138,169,216,.16);border:1px solid rgba(138,169,216,.5);color:#b1c8ee;
+/* Diamond pinned to the left edge, badge to the right; the label is the only
+   in-flow child, so justify-content centres it in the tab. */
+.tab.tab-tools .tt-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-family:'Bricolage Grotesque',monospace;font-size:12px;color:#b1c8ee}
+.tab.tab-tools .tt-badge{position:absolute;right:12px;top:50%;transform:translateY(-50%);padding:1px 6px;border-radius:4px;background:rgba(138,169,216,.16);border:1px solid rgba(138,169,216,.5);color:#b1c8ee;
   font-family:'Bricolage Grotesque',monospace;font-size:8.5px;font-weight:800;letter-spacing:.14em;letter-spacing:.14em}
 @media (prefers-reduced-motion: reduce){.tab.tab-tools{animation:none}}
 /* The Tools panel: a grid of tiles, and whichever tool is open renders in
