@@ -137,16 +137,19 @@ body.bg-logo-hidden #bgLogoCanvas{opacity:0}
    carries the warm ground instead. It sits BEHIND the canvas, which means the
    edges stop reading as a hard black frame around the particle field without
    costing the particles any brightness. */
-body.bg-mark-on{background:
-  radial-gradient(160% 150% at 72% 48%,rgba(232,148,58,.13),rgba(232,148,58,.045) 58%,rgba(232,148,58,.02) 82%,transparent 100%),
-  radial-gradient(120% 110% at 8% 4%,rgba(232,148,58,.05),transparent 70%),
-  #120d09}
-/* The ground is deliberately FLAT under those two washes — no top-to-bottom
-   ramp. A vertical gradient put its darkest tone at the top and bottom edges,
-   which read as a black bar framing the page, and because the particle field
-   breathes on a 16s cycle the gap between the field and that dark edge looked
-   like a margin growing and shrinking. An even ground has no edge to notice. */
-html:has(body.bg-mark-on){background:#120d09}
+/* ONE FLAT COLOUR — no gradient of any kind. This is not a style preference,
+   it's the fix for a real rendering bug. A wide, very low-contrast gradient on
+   a near-black ground only has a handful of 8-bit steps to cross, so the steps
+   land tens of pixels apart and paint visible contour lines: as horizontal
+   stripes from a linear ramp (the "black bar around the border"), or as big
+   ellipse arcs from a radial one (the "overlapping boxes" in the corners).
+   Measured on the previous ground: ~17 levels of red across the screen with
+   band edges every 38-63px horizontally and 14-20px vertically. The particle
+   mark supplies all the warmth and light this page needs; the ground behind it
+   stays flat, so there is nothing left to band. Don't reintroduce a gradient
+   here without a dither. */
+body.bg-mark-on{background:#0a0807}
+html:has(body.bg-mark-on){background:#0a0807}
 body.bg-mark-on #bgLogoCanvas{z-index:0}
 body.bg-mark-on #bgLogoCanvas.ready{opacity:1}
 
@@ -174,8 +177,9 @@ body.bg-mark-on .landing-wordmark{margin-top:14px}
 }
 body.bg-mark-on .landing-overlay .landing-bg{
   display:none}
-body.bg-mark-on .login-overlay{
-  background:radial-gradient(800px 500px at 50% 30%,rgba(232,148,58,.08),transparent 60%),rgba(10,7,5,.66)}
+/* Flat for the same reason as the ground above — the soft radial that used to
+   sit here banded into arcs behind the sign-in card. */
+body.bg-mark-on .login-overlay{background:rgba(10,7,5,.62)}
 body.bg-mark-on .pricing-overlay{
   background:rgba(10,7,5,.66)}
 body.bg-mark-on .pricing-overlay .landing-bg{
@@ -34519,10 +34523,10 @@ window.bandmateInstallPrompt = async function() {
     let N = 0, pos, home, vel, alpha, baseA, col, size, erodeKey, boost, seed;
     let dragVX, dragVY;                  // per-particle cursor-drag momentum
     let points, worms = [], headPts, balls = [], ballPts, bbox;
-    // The silhouette's own size in world units, measured once from the built
-    // geometry. The hero layout scales against this so the rabbit fits the
-    // viewport exactly, whatever the source image's proportions are.
-    let markW = 0, markH = 0;
+    // The silhouette's own height in world units, measured once from the built
+    // geometry, so the hero layout can cap its scale against the real mark
+    // rather than a hard-coded guess.
+    let markH = 0;
     const THICK = 0.26;
 
     function build(img){
@@ -34633,7 +34637,6 @@ window.bandmateInstallPrompt = async function() {
 
       // ---------- bouncing light balls ----------
       bbox = new THREE.Box3().setFromBufferAttribute(geo.attributes.position);
-      markW = bbox.max.x - bbox.min.x;
       markH = bbox.max.y - bbox.min.y;
       bbox.expandByScalar(-0.12);
       const NB = 3;
@@ -34755,20 +34758,17 @@ window.bandmateInstallPrompt = async function() {
       // lens each frame so it stays right through any resize.
       const _visH = Math.tan((camera.fov * Math.PI / 180) / 2) * camera.position.z;
       const _halfW = _visH * camera.aspect;
-      // Fit the WHOLE silhouette on screen — ears to feet — with a margin, so
-      // nothing is cropped at rest. 0.82 of the viewport height is the target;
-      // the width test only bites on narrow windows, where the layout has
-      // already centred the copy and the mark has the full width to itself.
-      // The erosion breath still throws particles well past every edge, which
-      // is what keeps the field from reading as a framed box.
-      const _fitH = markH > 0 ? (_visH  * 2 * 0.82) / markH : 1.2;
-      const _fitW = markW > 0 ? (_halfW * 2 * 0.86) / markW : 1.2;
-      const _wantS = _heroMark ? Math.max(0.7, Math.min(1.8, Math.min(_fitH, _fitW))) : 1;
+      // Size is width-derived, which is what read best: the mark runs taller
+      // than the viewport and bleeds off the top and bottom rather than
+      // floating with dead space around it, and the erosion breath then throws
+      // particles past every edge. 0.92 trims it slightly from the first pass.
+      // markH caps it so an ultrawide window can't scale it away to nothing but
+      // fur, and the 1.30 floor keeps it present on a phone.
+      const _capS  = markH > 0 ? (_visH * 2 * 1.45) / markH : 99;
+      const _wantS = _heroMark ? Math.min(_capS, Math.max(1.30, (_halfW / 2.0) * 0.92)) : 1;
       // 0.46 puts the mark's centre at roughly three quarters across, clear of
-      // the copy — but never so far right that the silhouette runs off the
-      // edge it was just sized to fit inside.
-      const _roomX = _halfW - (markW * _wantS) / 2 - _visH * 0.05;
-      const _wantX = _heroMark ? Math.max(0, Math.min(_halfW * 0.46, _roomX)) : 0;
+      // the copy.
+      const _wantX = _heroMark ? _halfW * 0.46 : 0;
       const _ease = Math.min(1, dt * 3.2);
       group.position.x += (_wantX - group.position.x) * _ease;
       const _s = group.scale.x + (_wantS - group.scale.x) * _ease;
