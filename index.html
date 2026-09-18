@@ -30829,7 +30829,7 @@ function applyRoleMode() {
     if (tour && tour.id !== '_empty' && !managesActive) {
       document.body.classList.add('tm-crew-tour');
       const banner = document.getElementById('crewModeBanner');
-      if (banner) banner.innerHTML = "📱 <b>Crew view</b> — you're on this tour as crew, so the full dashboard is hidden. Use the <b>tour switcher</b> above to open a tour you own or co-manage.";
+      if (banner) banner.innerHTML = "<b>Crew view</b> — you're on this tour as crew, so the full dashboard is hidden. Open the <b>menu at the top right</b> to switch to a tour you own or co-manage.";
       // Pin the preview to their own crew record so they see the crew view
       // (their targeted schedule/hotel/etc.), not the full TM view.
       const meCrew = (tour.crew || []).find(c => c.userId === u.id || (c.email && c.email.toLowerCase() === (u.email||'').toLowerCase()));
