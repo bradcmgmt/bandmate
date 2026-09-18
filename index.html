@@ -2558,6 +2558,16 @@ body.god-account #app[hidden]{display:block!important}
   animation:tabwarn 2s ease-in-out infinite;line-height:1}
 .card-h-warn.or{color:#8aa9d8;text-shadow:0 0 6px rgba(138,169,216,.7);font-weight:900;
   font-family:'Bricolage Grotesque',monospace;font-size:12px}
+/* A field the date is still missing: the input keeps the same red pulse the
+   crew profile form uses for required cards, with a marker on its label. */
+.field.gap-field input,.field.gap-field select{border-color:rgba(232,69,69,.55)!important;animation:pulseRequired 2.2s ease-in-out infinite}
+.field.gap-field label{color:#f0a39d}
+.field.gap-field label::after{content:"!";display:inline-block;width:14px;height:14px;line-height:13px;text-align:center;
+  border-radius:50%;background:rgba(232,69,69,.18);border:1px solid rgba(232,69,69,.7);color:#f0a39d;
+  font-family:'Bricolage Grotesque',monospace;font-size:9px;font-weight:800;vertical-align:1px;margin-left:6px;
+  animation:pulseRequired 2.2s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.field.gap-field label::after{animation:none}}
+@media (prefers-reduced-motion:reduce){.field.gap-field input,.field.gap-field select{animation:none}}
 .empty.nh-panel{margin-top:14px;border-style:dashed;border-color:rgba(138,169,216,.28)}
 .empty.nh-panel h3{color:#b1c8ee}
 .empty.nh-done{border-color:rgba(109,207,139,.35)}
@@ -6010,6 +6020,9 @@ const dbMap = {
       no_hotel:    !!d.noHotel,
       no_hotel_by: d.noHotelBy || null,
       no_hotel_at: d.noHotelAt ? new Date(d.noHotelAt).toISOString() : null,
+      no_travel:    !!d.noTravel,
+      no_travel_by: d.noTravelBy || null,
+      no_travel_at: d.noTravelAt ? new Date(d.noTravelAt).toISOString() : null,
       // Nested arrays stored as JSONB on the date row (slice 3). Attachments
       // are intentionally excluded here — their dataUrl binary stays local
       // until slice 4 moves binaries to Supabase Storage.
@@ -6050,6 +6063,9 @@ const dbMap = {
       noHotel: !!row.no_hotel,
       noHotelBy: row.no_hotel_by || '',
       noHotelAt: row.no_hotel_at ? Date.parse(row.no_hotel_at) : 0,
+      noTravel: !!row.no_travel,
+      noTravelBy: row.no_travel_by || '',
+      noTravelAt: row.no_travel_at ? Date.parse(row.no_travel_at) : 0,
       schedule: row.schedule || [],
       travel:   row.travel   || [],
       guests:   row.guests   || [],
@@ -8899,6 +8915,11 @@ function _commitDateRange(startDate, endDate) {
 
 function openDateModal(id) {
   const editing = id ? T().dates.find(d => d.id === id) : null;
+  // Fields this date is still missing, so the form can point at them instead
+  // of leaving the tour manager to guess which box the warning meant.
+  const _gaps = editing ? calcLiveDateGaps(editing) : [];
+  const _gapCls = f => _gaps.includes(f) ? ' gap-field' : '';
+  const _gapMark = () => '';   // the marker is drawn in CSS so relabelling can't wipe it
   const d = editing || { date: '', city: '', state: '', country: '', venue: '', capacity: '', status: 'show', doors: '', setTime: '', loadIn: '', soundcheck: '', promoter: '', notes: '' };
   openModal({
     title: editing ? `Edit ${d.city || 'date'} · ${fmtDate(d.date)}` : 'Add tour date',
@@ -8918,11 +8939,11 @@ function openDateModal(id) {
             <option value="rehearsal" ${d.status==='rehearsal'?'selected':''}>Rehearsal day</option>
           </select>
         </div>
-        <div class="field"><label>City *</label><input id="d_city" data-ac="city" data-ac-state-to="#d_state" autocomplete="off" value="${esc(d.city)}"></div>
+        <div class="field${_gapCls('city')}"><label>City *${_gapMark('city')}</label><input id="d_city" data-ac="city" data-ac-state-to="#d_state" autocomplete="off" value="${esc(d.city)}"></div>
         <div class="field"><label>State / Region</label><input id="d_state" value="${esc(d.state)}" placeholder="e.g. Colorado, Ontario"></div>
-        <div class="field full" data-show-day data-press-day><label id="d_venue_lbl">Venue</label><input id="d_venue" data-ac="venue" data-ac-city-from="#d_city" data-ac-addr-to="#d_vaddr" autocomplete="off" value="${esc(d.venue)}"></div>
+        <div class="field full${_gapCls('venue')}" data-show-day data-press-day><label id="d_venue_lbl">Venue${_gapMark('venue')}</label><input id="d_venue" data-ac="venue" data-ac-city-from="#d_city" data-ac-addr-to="#d_vaddr" autocomplete="off" value="${esc(d.venue)}"></div>
         <div class="field full" data-show-day data-press-day><label>Venue address</label><input id="d_vaddr" autocomplete="off" value="${esc(d.venueAddress || '')}" placeholder="e.g. 2420 Larimer St, Denver, CO 80205"></div>
-        <div class="field" data-show-day><label>Capacity</label><input type="number" id="d_cap" value="${esc(d.capacity)}"></div>
+        <div class="field${_gapCls('capacity')}" data-show-day><label>Capacity${_gapMark('capacity')}</label><input type="number" id="d_cap" value="${esc(d.capacity)}"></div>
         <div class="field" data-show-day><label>Promoter</label><input id="d_prom" value="${esc(d.promoter)}"></div>
         <div class="field" data-show-day><label>Doors</label>${renderTime12Picker('d_doors', d.doors)}</div>
         <div class="field" data-show-day><label>Set time</label>${renderTime12Picker('d_set', d.setTime)}</div>
@@ -11017,6 +11038,30 @@ function markNoHotel() {
   saveState();
   renderAll();
   toast('Marked — no hotel needed for this date', 'good');
+}
+function _clearNoTravelOn(d) {
+  if (!d || !d.noTravel) return false;
+  delete d.noTravel; delete d.noTravelBy; delete d.noTravelAt;
+  return true;
+}
+function markNoTravel() {
+  const ad = getActiveDate();
+  if (!ad) return;
+  const u = U();
+  ad.noTravel = true;
+  ad.noTravelAt = Date.now();
+  ad.noTravelBy = (u && (u.name || u.email)) || '';
+  saveState();
+  renderAll();
+  toast('Marked — nobody is travelling on this date', 'good');
+}
+function clearNoTravel() {
+  const ad = getActiveDate();
+  if (!ad) return;
+  _clearNoTravelOn(ad);
+  saveState();
+  renderAll();
+  toast('This date needs travel again', 'good');
 }
 function clearNoHotel() {
   const ad = getActiveDate();
@@ -14618,15 +14663,25 @@ function renderConsoleStatus() {
   if (onlyOr) {
     kind = 'info';
     text = 'Needs a hotel or a travel item';
-    title = 'Off days need either a hotel or a travel item logged — whichever applies.';
-    action = 'Edit date'; onclick = "openDateModal(getActiveDate()?.id)";
+    title = 'This date needs a hotel, a travel item, or a mark saying neither is needed.';
+    action = 'Fix now'; onclick = "_dashGoTab('hotels')";
   } else if (gaps.length) {
     const hard = gaps.filter(g => g !== 'hotel or travel');
     kind = 'warn';
     text = `${hard.length} field${hard.length === 1 ? '' : 's'} need${hard.length === 1 ? 's' : ''} entry`;
     detail = hard.join(', ') + (gaps.length !== hard.length ? ' · hotel or travel' : '');
     title = `Missing on this date: ${detail}`;
-    action = 'Fix now'; onclick = "openDateModal(getActiveDate()?.id)";
+    action = 'Fix now';
+    // Send them where the gap actually lives. Only some of these are fields on
+    // the date form; schedule, hotel and travel gaps live on their own tabs,
+    // and opening the date editor for those left the tour manager staring at a
+    // form with nothing obviously wrong on it.
+    const onForm = gaps.some(g => ['date', 'city', 'venue', 'capacity'].includes(g));
+    onclick = onForm ? "openDateModal(getActiveDate()?.id)"
+      : gaps.includes('schedule') ? "_dashGoTab('schedule')"
+      : gaps.includes('hotel or travel') ? "_dashGoTab('hotels')"
+      : gaps.some(g => /^flight audience/.test(g)) ? "_dashGoTab('travel')"
+      : "openDateModal(getActiveDate()?.id)";
   } else if (others) {
     text = 'Date complete';
     detail = `${others} to review`;
@@ -15544,6 +15599,8 @@ function renderTravel() {
   if (!ad) { root.innerHTML = noDate(); return; }
 
   const items = ad.travel || [];
+  // Travel was added after the date was marked — the mark is moot, drop it.
+  if (items.length && _clearNoTravelOn(ad)) saveState();
   const tplsT = (T().travelTemplates || []);
   root.innerHTML = `
     <div class="section-title">
@@ -15574,11 +15631,22 @@ function renderTravel() {
       </div>
       <button type="button" class="add-btn" onclick="openTravelModal()">+ Add travel</button>
     </div>
-    ${items.length === 0 ? `
+    ${items.length === 0 && ad.noTravel ? `
+      <div class="empty nh-done">
+        <h3>No travel required</h3>
+        <p>Marked${ad.noTravelBy ? ` by ${esc(ad.noTravelBy)}` : ''}${ad.noTravelAt ? ` on ${esc(fmtDate(new Date(ad.noTravelAt).toISOString().slice(0, 10)))}` : ''}. Nobody is moving on this date, so it no longer counts as missing travel. Adding a travel item clears this on its own.</p>
+        <button type="button" class="nh-btn" onclick="clearNoTravel()">Undo — this date needs travel</button>
+      </div>
+    ` : items.length === 0 ? `
       <div class="empty">
         <h3>No travel logged for this day</h3>
         <p>Add buses, flights, vans, runners. Confirmation numbers and times all live here.</p>
         <button type="button" onclick="openTravelModal()">+ Add travel item</button>
+      </div>
+      <div class="empty nh-panel">
+        <h3>No travel required?</h3>
+        <p>A rehearsal in the band's home city, or any day where nobody moves and nobody checks in. Mark it and this date stops asking.</p>
+        <button type="button" class="nh-btn" onclick="markNoTravel()">Mark: no travel required</button>
       </div>
     ` : `
       <div class="tbl">
@@ -31129,7 +31197,7 @@ function calcLiveDateGaps(d) {
   if (status === 'off') {
     const hasHotel = _dateHasHotel(d);
     const hasTravel = !!(d.travel && d.travel.length);
-    if (!hasHotel && !hasTravel && !d.noHotel) missing.push('hotel or travel');
+    if (!hasHotel && !hasTravel && !d.noHotel && !d.noTravel) missing.push('hotel or travel');
     return missing;
   }
   if (!d.city || cityU === 'OFF') missing.push('city');
@@ -31145,7 +31213,7 @@ function calcLiveDateGaps(d) {
     if (!d.venue) missing.push('venue');
     const hasHotel = _dateHasHotel(d);
     const hasTravel = !!(d.travel && d.travel.length);
-    if (!hasHotel && !hasTravel && !d.noHotel) missing.push('hotel or travel');
+    if (!hasHotel && !hasTravel && !d.noHotel && !d.noTravel) missing.push('hotel or travel');
     if (!d.schedule || !d.schedule.length) missing.push('schedule');
     return missing;
   }
@@ -31170,7 +31238,7 @@ function calcLiveDateGaps(d) {
   const hasTravel = !!(d.travel && d.travel.length);
   // A date can also answer this by saying nobody needs a room tonight —
   // overnight drive, flying out after the show, everyone sleeping at home.
-  if (!hasHotel && !hasTravel && !d.noHotel) missing.push('hotel or travel');
+  if (!hasHotel && !hasTravel && !d.noHotel && !d.noTravel) missing.push('hotel or travel');
   // Room assignments are optional — once a hotel property is logged for the
   // night, the Hotels tab is considered complete. TMs add room blocks as a
   // convenience, not a requirement, so it shouldn't drive a gap warning.
