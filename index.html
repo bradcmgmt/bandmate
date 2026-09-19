@@ -2441,7 +2441,8 @@ body.god-account:not(.bg-mark-on) #app[hidden]{display:block!important}
 /* Bandmate for Mac. Signing up leads to choosing a paid plan, which the App
    Store doesn't allow inside the app, so the Mac app's landing offers sign-in
    only. (html.mac-app is set by the shell before the page's first paint.) */
-html.mac-app .landing-btn[onclick="showPricingScreen()"]{display:none}
+html.mac-app .landing-btn[onclick="showPricingScreen()"],
+html.mac-app .login-signup-link{display:none}
 .toast-container{position:fixed;right:20px;top:20px;z-index:1100;display:flex;flex-direction:column;gap:8px;pointer-events:none}
 .toast{
   pointer-events:auto;padding:12px 16px;
@@ -5763,7 +5764,7 @@ setTimeout(window._hideAppBoot,6000);
       <div class="login-field"><label>Email</label><input id="li_email" type="email" autocomplete="email"></div>
       <div class="login-field"><label>Password</label><input id="li_pw" type="password" autocomplete="current-password"></div>
       <button type="button" class="login-btn primary" onclick="loginWithEmail()">Sign in</button>
-      <div class="login-toggle">New to Bandmate? <a onclick="goGetStarted()">Get started →</a></div>
+      <div class="login-toggle login-signup-link">New to Bandmate? <a onclick="goGetStarted()">Get started →</a></div>
       <div class="login-toggle"><a onclick="showForgotPassword()" style="color:var(--warm-mute);font-size:11px">Forgot your password?</a></div>
     </div>
 
@@ -8353,8 +8354,10 @@ const BMIdle = (() => {
         let t = mins(d[f]); if (t == null) return;
         if ((f === 'curfew' && setAt != null && t < setAt) || t < 240) t += 1440;
         // Already on the schedule? Only if it's the same moment by name AND by
-        // time — "Support on stage 8:00" is not the 9:15 set.
-        if (items.some(i => re.test(i.label) && Math.abs(i.at - t) <= 5)) return;
+        // time — "Support on stage 8:00" is not the 9:15 set. The set is the
+        // exception: tour managers name that slot after the artist ("The
+        // Cartographers 9:15"), so anything sitting ON the set time is the set.
+        if (items.some(i => Math.abs(i.at - t) <= 5 && (re.test(i.label) || f === 'setTime'))) return;
         items.push({ at: t, end: null, t: d[f], label });
       });
     }
@@ -31428,6 +31431,9 @@ function hideGetStarted() {
 // desktop keeps its existing in-app signup form (the desktop TM funnel is
 // deliberately left untouched).
 function goGetStarted() {
+  // Mac App Store build: no sign-up funnel (it ends at a paid plan). The link
+  // is hidden there; this is the backstop if anything else calls it.
+  if (typeof _isMacApp === 'function' && _isMacApp()) return;
   if (typeof _isPhoneApp === 'function' && _isPhoneApp()) showGetStartedScreen();
   else showSignupForm();
 }
@@ -31485,6 +31491,11 @@ function showLoginForm() {
   _renderLoginCheckoutBanner();
 }
 function showSignupForm() {
+  // Mac App Store build: every road to sign-up ends at sign-in instead. (A
+  // first-time visitor with no account on this device would otherwise be
+  // defaulted here by showLoginScreen — and sign-up ends at a paid plan,
+  // which can't be offered inside a store app.)
+  if (typeof _isMacApp === 'function' && _isMacApp() && typeof showLoginForm === 'function') { showLoginForm(); return; }
   document.getElementById('loginForm').hidden = true;
   document.getElementById('signupForm').hidden = false;
   // Phone app: sign-up is crew-only (tour managers set up on the web), so
