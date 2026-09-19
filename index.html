@@ -1093,7 +1093,7 @@ body.mobile .god-search{min-width:0;width:100%}
   border:1px solid var(--line-2);border-radius:12px;overflow:hidden;
   background:rgba(20,15,11,.7)}
 .day-notes-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
-  padding:10px 12px;background:rgba(0,0,0,.32);border-bottom:1px solid var(--line)}
+  padding:10px 12px;border-bottom:1px solid var(--line)}
 .dn-btn{padding:6px 10px;background:rgba(0,0,0,.32);
   border:1px solid var(--line-2);border-radius:6px;color:var(--warm);
   font-family:'Inter',sans-serif;font-size:13px;cursor:pointer;
@@ -2213,7 +2213,7 @@ body.inline-modal .panel{display:none!important}
 .inline-modal-host .modal-head{padding:16px 20px;position:sticky;top:0;z-index:4;
   background:linear-gradient(180deg,#160f09,#120c07)}
 .inline-modal-host .modal-head h3{font-size:19px}
-.inline-modal-host .modal-foot{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(12,8,5,.92),rgba(12,8,5,.98))}
+.inline-modal-host .modal-foot{background:none}
 @media (max-width:900px){.inline-modal-host{padding:14px}}
 .modal{
   background:linear-gradient(180deg,#1a1209,#0f0a06);
@@ -2232,7 +2232,10 @@ body.inline-modal .panel{display:none!important}
 .modal-head .x{width:30px;height:30px;display:grid;place-items:center;border:1px solid var(--line-2);border-radius:7px;color:var(--warm-mute)}
 .modal-head .x:hover{color:var(--red);border-color:var(--red)}
 .modal-body{padding:20px}
-.modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--line);background:rgba(0,0,0,.2)}
+/* A row of buttons, not a bar. The tinted fill this used to carry read as an
+   empty dark field to the left of Cancel / Save — the same thing that made the
+   tour-scan toolbar look off. A hairline is enough to separate it. */
+.modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:16px 20px;border-top:1px solid var(--line)}
 .modal-foot .btn{padding:9px 16px;border:1px solid var(--line-2);border-radius:7px;background:rgba(232,148,58,.04);color:var(--warm-mute);
   font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase}
 .modal-foot .btn:hover{color:var(--warm);border-color:var(--line-glow)}
@@ -2332,6 +2335,109 @@ body.god-account:not(.bg-mark-on) #app[hidden]{display:block!important}
 .ob-skip a{color:var(--hi);cursor:pointer}
 
 /* ============ TOAST ============ */
+/* ── Idle screen ─────────────────────────────────────────────────────
+   Deliberately its own near-black (#050403), flatter than the app's
+   ground: it has to read as "the dashboard is gone", not as a dim tab. */
+.bmi{position:fixed;inset:0;z-index:100000;background:#050403;color:#f2ece2;overflow:hidden;cursor:none;
+  user-select:none;-webkit-user-select:none;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;
+  opacity:0;transition:opacity .7s ease}
+.bmi.on{opacity:1}
+.bmi.off{opacity:0;transition:opacity .16s ease}
+.bmi-stage{position:absolute;inset:0;perspective:1150px;perspective-origin:50% 48%}
+.bmi-scale{position:absolute;inset:0;transform-style:preserve-3d;transform-origin:50% 48%;will-change:transform}
+.bmi-sx,.bmi-sy{position:absolute;inset:0;transform-style:preserve-3d}
+.bmi-sx{animation:bmiSwingX 17s ease-in-out infinite alternate}
+.bmi-sy{animation:bmiSwingY 24s ease-in-out infinite alternate}
+.bmi-origin{position:absolute;left:57%;top:44%;width:0;height:0;transform-style:preserve-3d}
+.bmi-it{position:absolute;transform-style:preserve-3d}
+/* Each label turns against the field by the same amount, so the cloud
+   rotates in depth while every word stays square to the viewer. */
+.bmi-uy{transform-style:preserve-3d;animation:bmiUnswingY 24s ease-in-out infinite alternate}
+.bmi-ux{transform-style:preserve-3d;animation:bmiUnswingX 17s ease-in-out infinite alternate}
+.bmi-lb{position:absolute;left:0;top:0;display:flex;align-items:center;gap:7px;white-space:nowrap;transform:translateY(-50%);
+  text-shadow:0 0 5px currentColor;opacity:var(--o,.3);color:#8a7256;transition:color .9s ease,opacity .9s ease}
+.bmi-lb.c{color:#eec894}
+.bmi-lb.hot{color:#ff8a24;opacity:1}
+.bmi-lb span{line-height:1;letter-spacing:-.01em}
+.bmi-lb i{display:block;height:1.4px;background:currentColor;box-shadow:0 0 5px currentColor}
+@keyframes bmiSwingY{from{transform:rotateY(-31deg)}to{transform:rotateY(31deg)}}
+@keyframes bmiUnswingY{from{transform:rotateY(31deg)}to{transform:rotateY(-31deg)}}
+@keyframes bmiSwingX{from{transform:rotateX(-7deg)}to{transform:rotateX(7deg)}}
+@keyframes bmiUnswingX{from{transform:rotateX(7deg)}to{transform:rotateX(-7deg)}}
+@keyframes bmiPulse{0%,100%{opacity:.28}50%{opacity:1}}
+.bmi-veil{position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(to top,rgba(5,4,3,.99) 0,rgba(5,4,3,.9) 15%,transparent 33%),linear-gradient(to bottom,rgba(5,4,3,.95) 0,transparent 15%)}
+.bmi-top{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;gap:24px;
+  padding:clamp(22px,3.2vh,40px) clamp(24px,4vw,58px);font-family:'Bricolage Grotesque',sans-serif;
+  font-size:clamp(11px,.95vw,13px);letter-spacing:.3em;color:#8d8377;text-transform:uppercase}
+.bmi-top .w,.bmi-meta .w{color:#f2ece2}
+.bmi-id{display:flex;flex-direction:column;gap:7px;min-width:0}
+.bmi-id span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:62vw}
+.bmi-mode{display:flex;align-items:center;gap:clamp(14px,1.8vw,26px);flex:none;font-variant-numeric:tabular-nums}
+.bmi-pulse{display:flex;align-items:center;gap:9px}
+.bmi-pulse i{width:6px;height:6px;background:#e8943a;animation:bmiPulse 2.6s ease-in-out infinite}
+.bmi-pulse b{font-weight:inherit}
+.bmi-bot{position:absolute;left:0;right:0;bottom:0;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;
+  gap:clamp(14px,2vw,40px);padding:0 clamp(24px,4vw,58px) clamp(24px,3.4vh,44px);font-family:'Bricolage Grotesque',sans-serif}
+.bmi-show{flex:1 1 380px;min-width:0;display:flex;flex-direction:column;gap:clamp(10px,1.6vh,18px);transition:opacity .22s ease}
+.bmi-show.swap{opacity:0}
+.bmi-kick{font-size:clamp(11px,.95vw,13px);letter-spacing:.3em;color:#e8943a}
+.bmi-cityrow{display:flex;align-items:baseline;gap:clamp(14px,1.8vw,26px);flex-wrap:wrap}
+.bmi-city{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:clamp(42px,6.4vw,112px);line-height:.9;
+  letter-spacing:-.035em;color:#f7ecdb;text-shadow:0 0 26px rgba(232,148,58,.3)}
+.bmi-st{font-size:clamp(12px,1.05vw,15px);letter-spacing:.24em;color:#8d8377}
+.bmi-meta{display:flex;flex-wrap:wrap;gap:clamp(12px,1.8vw,28px);font-size:clamp(12px,1.05vw,15px);letter-spacing:.2em;color:#8d8377;
+  font-variant-numeric:tabular-nums}
+.bmi-meta .hi{color:#e8943a}
+.bmi-hint{flex:0 1 auto;max-width:100%;font-size:clamp(11px,1vw,14px);letter-spacing:.2em;color:#a08868;text-align:right;text-transform:uppercase}
+/* Display mode — read from across a room. The mark moves right to clear a
+   column for the running order, and a soft left veil keeps that column
+   legible where the two meet on a narrow screen. */
+.bmi-origin{transition:left 1.2s ease}
+.bmi.display.board .bmi-origin{left:70%}
+.bmi.display #bmiClock{font-size:clamp(22px,2.7vw,48px);letter-spacing:.06em;line-height:1}
+.bmi.display .bmi-mode{align-items:center}
+.bmi.display.board .bmi-veil{background:linear-gradient(to right,rgba(5,4,3,.9) 0,rgba(5,4,3,.55) 30%,transparent 52%),
+  linear-gradient(to top,rgba(5,4,3,.99) 0,rgba(5,4,3,.9) 15%,transparent 33%),linear-gradient(to bottom,rgba(5,4,3,.95) 0,transparent 15%)}
+.bmi-board{position:absolute;left:clamp(24px,4vw,58px);top:clamp(96px,16vh,190px);width:min(46vw,760px);
+  font-family:'Bricolage Grotesque',sans-serif;display:flex;flex-direction:column;gap:clamp(7px,1.25vh,15px)}
+.bmi-b-h{font-size:clamp(11px,.95vw,13px);letter-spacing:.3em;color:#e8943a;text-transform:uppercase;margin-bottom:clamp(4px,.8vh,10px)}
+.bmi-b-row{display:grid;grid-template-columns:clamp(96px,9.5vw,178px) auto auto;justify-content:start;align-items:baseline;gap:clamp(12px,1.4vw,26px);
+  font-size:clamp(15px,1.75vw,31px);letter-spacing:.1em;color:#f2ece2;font-variant-numeric:tabular-nums;line-height:1.15}
+.bmi-b-row .t{color:#8d8377;text-align:right;white-space:nowrap}
+.bmi-b-row .l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:min(30vw,520px)}
+.bmi-b-row .in{font-size:.62em;letter-spacing:.22em;color:#e8943a;white-space:nowrap}
+.bmi-b-row.past{opacity:.3}
+.bmi-b-row.next .l,.bmi-b-row.now .l{color:#ff8a24;text-shadow:0 0 22px rgba(232,148,58,.42)}
+.bmi-b-row.next .t,.bmi-b-row.now .t{color:#f2ece2}
+/* The two buttons only exist while the mouse is moving. */
+.bmi-ctl{display:flex;gap:10px;opacity:0;pointer-events:none;transition:opacity .2s ease}
+.bmi.ctl-on{cursor:default}
+.bmi.ctl-on .bmi-ctl{opacity:1;pointer-events:auto}
+.bmi-ctl button{padding:10px 16px;border:1px solid rgba(232,148,58,.4);border-radius:6px;background:rgba(232,148,58,.07);color:#f2ece2;
+  font-family:'Bricolage Grotesque',sans-serif;font-size:clamp(11px,.95vw,13px);letter-spacing:.2em;text-transform:uppercase;cursor:pointer}
+.bmi-ctl button:hover{border-color:#e8943a;color:#ffb35a}
+/* Display · the setup panel in the Tools tab */
+.dsp-wrap{display:flex;flex-direction:column;gap:26px;max-width:860px}
+.dsp-lead{margin:0;font-size:14.5px;line-height:1.65;color:var(--warm-mute);max-width:66ch}
+.dsp-sec{display:flex;flex-direction:column}
+.dsp-now{margin-top:12px;padding:16px 18px;border:1px solid var(--line-2);border-radius:10px;background:#070504}
+.dsp-now-h{font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm)}
+.dsp-rows{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.dsp-row{display:grid;grid-template-columns:86px minmax(0,1fr);gap:16px;font-family:'Bricolage Grotesque',monospace;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--warm);font-variant-numeric:tabular-nums}
+.dsp-row .t{color:var(--warm-mute);text-align:right}
+.dsp-row .l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsp-row.more .l{color:var(--warm-mute);text-transform:none;letter-spacing:.02em;font-family:'Inter',sans-serif;font-style:italic}
+.dsp-note{margin-top:8px;font-size:13px;line-height:1.6;color:var(--warm-mute)}
+.dsp-go{flex-direction:row;align-items:center;gap:16px;flex-wrap:wrap}
+.dsp-start{padding:13px 24px;font-size:12px;letter-spacing:.2em}
+.dsp-go-note{font-size:12.5px;color:var(--warm-mute)}
+.dsp-go-note b{color:var(--warm);font-weight:600}
+.dsp-url{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+.dsp-url code{flex:1 1 280px;min-width:0;padding:10px 14px;border:1px solid var(--line-2);border-radius:6px;background:rgba(0,0,0,.3);
+  font-family:'Bricolage Grotesque',monospace;font-size:12.5px;letter-spacing:.04em;color:var(--hi-bright);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:all}
+@media (prefers-reduced-motion:reduce){.bmi-sx,.bmi-sy,.bmi-uy,.bmi-ux,.bmi-pulse i{animation:none}}
+@media print{.bmi{display:none!important}}
 .toast-container{position:fixed;right:20px;top:20px;z-index:1100;display:flex;flex-direction:column;gap:8px;pointer-events:none}
 .toast{
   pointer-events:auto;padding:12px 16px;
@@ -3071,9 +3177,12 @@ body.god-account:not(.bg-mark-on) #app[hidden]{display:block!important}
   text-shadow:0 0 12px rgba(232,148,58,.35)}
 
 /* Tour-scan modal: re-scan button pinned to the top, sticky as user scrolls the gap list */
-.scan-toolbar{display:flex;gap:8px;justify-content:flex-end;margin:-8px -4px 14px;padding:10px 4px;
-  position:sticky;top:-4px;background:linear-gradient(180deg,rgba(20,14,9,.98) 0%,rgba(20,14,9,.92) 80%,rgba(20,14,9,0) 100%);
-  backdrop-filter:blur(6px);z-index:5;border-bottom:1px solid var(--line)}
+/* Just the buttons, sitting on the window's own surface. This used to be a
+   sticky slab with its own darker background and a full-width rule, which
+   read as a big empty field to the left of the buttons — most obvious now
+   that windows open full width inside the tab. The window's header is
+   already sticky and carries the close, so nothing is lost. */
+.scan-toolbar{display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-wrap:wrap;margin:0 0 16px}
 
 /* Either-or gap indicator: blue/cyan to distinguish from regular orange ⚠ */
 .tab-warn-or::after{content:"!";position:absolute;top:5px;right:7px;font-size:11px;color:#8aa9d8;
@@ -8096,6 +8205,494 @@ function applyPhoneScreenFromState() {
 // what's typed. Days already on the tour carry a dot, so a check-out date or
 // a task's due date can be chosen against the actual run.
 // The phone app keeps the OS date wheel, which is better on a touch screen.
+/* =====================================================================
+   IDLE SCREEN
+   A tour manager's laptop sits open in production offices, green rooms and
+   bus lounges, with guest lists, settlements and hotel rooming on it. After a
+   stretch of no input the dashboard is covered by this: a slow-turning field
+   of the tour's own cities in the shape of the Bandmate mark, with a reel of
+   the shows. Everything on it is already public (city, venue, doors, set) —
+   nothing from the private tabs. Any input brings the dashboard straight back.
+
+   Ported from Brad's "BM Idle Screen" design (a design-tool export that ran
+   on React + a template runtime) to plain DOM, fed by the real tour.
+
+   · Built fresh on start and REMOVED on wake, so it costs nothing while
+     you're working — no hidden animations running behind the app.
+   · The wake gesture never reaches the page underneath: a click to wake can't
+     also press "Delete date", a key can't type into the form you left open.
+   · On show day the status line becomes a live clock to doors / set.
+
+   The same screen is also the DISPLAY tool (Tools tab, or open the site with
+   ?display=1): it stays up for a production-office or green-room TV, pins
+   itself to today with the running order and a countdown to whatever is
+   next, keeps the screen awake, and only Esc / "Exit display" ends it. Its
+   running order shows the date's key times plus schedule items the WHOLE
+   tour can see — anything limited to a group or a person never appears.
+   ===================================================================== */
+const BMIdle = (() => {
+  const PTS = [[-0.737,-0.984],[-0.594,-0.989],[-0.487,-0.962],[0.631,-0.99],[0.734,-0.978],[0.853,-0.965],[-0.878,-0.926],[-0.798,-0.894],[-0.64,-0.93],[-0.533,-0.928],[-0.456,-0.912],[0.365,-0.901],[0.469,-0.917],[0.618,-0.907],[0.698,-0.931],[0.805,-0.893],[0.899,-0.918],[-0.908,-0.862],[-0.829,-0.837],[-0.689,-0.87],[-0.643,-0.87],[-0.46,-0.862],[-0.405,-0.832],[0.426,-0.856],[0.539,-0.833],[0.627,-0.835],[0.722,-0.851],[0.838,-0.849],[-0.872,-0.813],[-0.792,-0.792],[-0.682,-0.8],[-0.511,-0.782],[-0.447,-0.789],[0.392,-0.779],[0.46,-0.813],[0.594,-0.779],[0.676,-0.784],[0.789,-0.809],[0.951,-0.776],[-0.976,-0.742],[-0.856,-0.721],[-0.722,-0.737],[-0.569,-0.752],[-0.466,-0.739],[-0.398,-0.739],[0.438,-0.736],[0.502,-0.736],[0.624,-0.718],[0.737,-0.715],[0.896,-0.729],[-0.866,-0.662],[-0.744,-0.667],[-0.676,-0.678],[-0.53,-0.662],[-0.475,-0.68],[0.46,-0.657],[0.576,-0.689],[0.698,-0.657],[0.774,-0.686],[0.893,-0.693],[-0.969,-0.609],[-0.832,-0.6],[-0.734,-0.611],[-0.643,-0.622],[-0.478,-0.604],[-0.408,-0.632],[0.377,-0.608],[0.548,-0.612],[0.64,-0.614],[0.786,-0.598],[0.884,-0.625],[-0.872,-0.564],[-0.805,-0.534],[-0.661,-0.536],[-0.551,-0.564],[-0.466,-0.54],[0.35,-0.576],[0.447,-0.577],[0.548,-0.561],[0.667,-0.539],[0.811,-0.563],[0.936,-0.56],[-0.939,-0.494],[-0.795,-0.486],[-0.679,-0.499],[-0.588,-0.508],[-0.475,-0.5],[-0.347,-0.499],[0.411,-0.508],[0.533,-0.497],[0.676,-0.51],[0.789,-0.494],[0.875,-0.48],[0.988,-0.5],[-0.884,-0.427],[-0.737,-0.433],[-0.67,-0.417],[-0.573,-0.448],[-0.414,-0.422],[0.353,-0.417],[0.463,-0.43],[0.597,-0.422],[0.707,-0.454],[0.817,-0.443],[0.905,-0.417],[-0.915,-0.369],[-0.847,-0.364],[-0.71,-0.39],[-0.6,-0.366],[-0.499,-0.379],[-0.42,-0.392],[0.435,-0.364],[0.551,-0.387],[0.673,-0.382],[0.753,-0.358],[0.838,-0.364],[0.982,-0.358],[-0.878,-0.305],[-0.783,-0.316],[-0.627,-0.319],[-0.573,-0.303],[-0.426,-0.329],[0.377,-0.331],[0.505,-0.339],[0.557,-0.311],[0.731,-0.327],[0.829,-0.327],[0.927,-0.315],[-0.93,-0.273],[-0.869,-0.271],[-0.728,-0.247],[-0.6,-0.241],[-0.484,-0.251],[-0.374,-0.27],[0.447,-0.243],[0.487,-0.241],[0.631,-0.26],[0.747,-0.278],[0.881,-0.259],[-0.853,-0.219],[-0.789,-0.214],[-0.695,-0.207],[-0.566,-0.217],[-0.46,-0.201],[0.359,-0.209],[0.484,-0.185],[0.545,-0.204],[0.667,-0.185],[0.847,-0.206],[0.921,-0.203],[-0.973,-0.124],[-0.814,-0.132],[-0.685,-0.126],[-0.646,-0.143],[-0.511,-0.145],[-0.362,-0.135],[0.392,-0.147],[0.511,-0.122],[0.67,-0.148],[0.716,-0.129],[0.853,-0.132],[-0.908,-0.065],[-0.802,-0.102],[-0.67,-0.089],[-0.536,-0.068],[-0.463,-0.102],[0.353,-0.095],[0.438,-0.098],[0.621,-0.074],[0.67,-0.079],[0.798,-0.086],[0.921,-0.082],[-0.927,-0.023],[-0.853,-0.012],[-0.737,-0.02],[-0.637,-0.038],[-0.484,-0.007],[-0.362,-0.006],[0.398,-0.014],[0.515,-0.006],[0.618,-0.007],[0.777,-0.038],[0.905,-0.017],[-0.927,0.05],[-0.783,0.031],[-0.621,0.042],[-0.518,0.046],[-0.463,0.025],[-0.328,0.031],[0.392,0.03],[0.438,0.03],[0.563,0.025],[0.716,0.044],[0.786,0.02],[0.93,0.025],[-0.945,0.089],[-0.844,0.089],[-0.685,0.086],[-0.634,0.118],[-0.505,0.106],[-0.377,0.106],[0.402,0.079],[0.554,0.092],[0.6,0.095],[0.725,0.089],[0.887,0.106],[-0.887,0.164],[-0.805,0.151],[-0.634,0.137],[-0.515,0.177],[-0.411,0.158],[-0.319,0.171],[-0.218,0.147],[-0.096,0.158],[0.163,0.171],[0.276,0.172],[0.38,0.137],[0.478,0.171],[0.597,0.167],[0.713,0.14],[0.78,0.137],[0.887,0.147],[-0.976,0.217],[-0.863,0.225],[-0.722,0.206],[-0.566,0.198],[-0.475,0.198],[-0.38,0.211],[-0.273,0.209],[-0.151,0.203],[-0.056,0.235],[0.099,0.233],[0.157,0.207],[0.276,0.214],[0.386,0.212],[0.527,0.222],[0.679,0.222],[0.731,0.235],[0.853,0.223],[0.988,0.207],[-0.924,0.273],[-0.747,0.283],[-0.649,0.281],[-0.533,0.283],[-0.435,0.262],[-0.334,0.254],[-0.182,0.289],[-0.056,0.257],[0.05,0.287],[0.166,0.273],[0.218,0.263],[0.377,0.292],[0.481,0.259],[0.551,0.281],[0.716,0.292],[0.792,0.284],[0.902,0.278],[-0.921,0.34],[-0.869,0.351],[-0.731,0.319],[-0.591,0.35],[-0.499,0.326],[-0.35,0.332],[-0.276,0.316],[-0.188,0.329],[-0.072,0.319],[0.05,0.318],[0.154,0.345],[0.307,0.327],[0.42,0.327],[0.502,0.337],[0.6,0.327],[0.771,0.347],[0.86,0.315],[0.988,0.337],[-0.905,0.384],[-0.759,0.387],[-0.643,0.382],[-0.542,0.371],[-0.475,0.39],[-0.285,0.398],[-0.169,0.374],[-0.072,0.409],[0.05,0.385],[0.163,0.372],[0.258,0.401],[0.368,0.414],[0.499,0.398],[0.56,0.382],[0.682,0.384],[0.844,0.408],[0.945,0.409],[-0.921,0.441],[-0.82,0.438],[-0.74,0.472],[-0.618,0.432],[-0.279,0.448],[-0.166,0.467],[-0.069,0.452],[0.056,0.448],[0.166,0.472],[0.276,0.435],[0.655,0.449],[0.771,0.435],[0.841,0.452],[0.966,0.467],[-0.896,0.518],[-0.771,0.5],[-0.075,0.512],[-0.014,0.52],[0.136,0.521],[0.679,0.526],[0.814,0.505],[0.89,0.513],[-0.969,0.556],[-0.847,0.569],[-0.679,0.558],[-0.13,0.587],[-0.023,0.571],[0.066,0.585],[0.786,0.579],[0.887,0.585],[-0.872,0.629],[-0.759,0.625],[-0.188,0.63],[-0.072,0.646],[0.05,0.612],[0.148,0.635],[0.24,0.649],[0.704,0.641],[0.823,0.64],[0.915,0.646],[-0.948,0.685],[-0.853,0.693],[-0.701,0.694],[-0.634,0.697],[-0.521,0.678],[-0.405,0.693],[-0.298,0.688],[-0.124,0.677],[-0.056,0.67],[0.102,0.681],[0.188,0.688],[0.258,0.675],[0.38,0.702],[0.563,0.688],[0.609,0.699],[0.774,0.675],[0.899,0.673],[0.997,0.696],[-0.881,0.749],[-0.774,0.744],[-0.679,0.747],[-0.518,0.765],[-0.432,0.734],[-0.282,0.736],[-0.194,0.753],[0.218,0.747],[0.365,0.734],[0.45,0.734],[0.612,0.758],[0.716,0.765],[0.786,0.769],[0.89,0.739],[-0.927,0.787],[-0.811,0.829],[-0.731,0.805],[-0.612,0.813],[-0.505,0.798],[-0.417,0.803],[-0.234,0.806],[-0.163,0.795],[0.215,0.806],[0.282,0.795],[0.392,0.824],[0.518,0.811],[0.606,0.797],[0.777,0.825],[0.853,0.797],[-0.866,0.862],[-0.808,0.886],[-0.676,0.849],[-0.582,0.875],[-0.472,0.853],[-0.344,0.854],[-0.173,0.885],[-0.108,0.856],[0.026,0.875],[0.096,0.886],[0.258,0.878],[0.362,0.87],[0.444,0.87],[0.569,0.861],[0.667,0.886],[0.847,0.856],[-0.737,0.915],[-0.634,0.917],[-0.493,0.907],[-0.414,0.914],[-0.276,0.926],[-0.111,0.915],[0.105,0.915],[0.224,0.933],[0.301,0.931],[0.435,0.92],[0.524,0.922],[0.67,0.926],[0.777,0.925],[-0.551,0.984],[-0.423,0.965],[-0.334,0.979],[-0.212,0.982],[0.237,0.973],[0.389,0.992],[0.438,0.971]];
+  const HALF_X = 300, HALF_Y = 476, XOFF = -26, PERIOD = 5200;
+  const KEY = 'bandmate.idle.after', BOARD_KEY = 'bandmate.display.board';
+  const CHOICES = [[0, 'Off'], [10, '10 seconds'], [30, '30 seconds'], [60, '1 minute'], [300, '5 minutes']];
+  const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  const WD = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+  const DAY_KIND = { show: 'SHOW DAY', off: 'DAY OFF', travel: 'TRAVEL DAY', rehearsal: 'REHEARSAL', press: 'PRESS DAY' };
+
+  // mode 'idle'    — the privacy cover: any input ends it.
+  // mode 'display' — the room screen: stays up, shows today's running order
+  //                  with a live countdown, ends only on Esc / Exit display.
+  let mode = 'idle';
+  let last = Date.now(), showing = false, root = null, list = [], all = [], kind = 'SHOW', cur = 0, focus = null;
+  let watch = null, reel = null, clock = null, shownAt = 0, anchor = null, graceMs = 400, swapT = null, tail = 0;
+  let nCities = 1, phase = 0, headSig = '', lastMin = -1, ctlT = null, wl = null, ownFS = false;
+  let wantDisplay = false, bootAt = Date.now(), ticks = 0;
+
+  const hash = i => { const x = Math.sin(i * 12.9898) * 43758.5453; return x - Math.floor(x); };
+  const pad = n => String(n).padStart(2, '0');
+  const up = s => String(s || '').trim().toUpperCase();
+  // Field labels are tiny and hang off a point; a long one breaks the
+  // silhouette. Cut on a word boundary.
+  const clip = (s, n) => { s = up(s); if (s.length <= n) return s; const c = s.slice(0, n + 1); const sp = c.lastIndexOf(' '); return (sp > 5 ? c.slice(0, sp) : s.slice(0, n)).trim(); };
+  const noon = iso => new Date(iso + 'T12:00:00');
+  const mins = v => { const x = /^(\d{1,2}):(\d{2})/.exec(v || ''); return x ? (+x[1]) * 60 + (+x[2]) : null; };
+  const span = n => n >= 60 ? Math.floor(n / 60) + 'H ' + pad(n % 60) + 'M' : n + 'M';
+
+  function after() {
+    try { const v = localStorage.getItem(KEY); if (v != null && v !== '' && !isNaN(+v)) return Math.max(0, +v); } catch (e) {}
+    return 10;
+  }
+  function setAfter(sec) { try { localStorage.setItem(KEY, String(Math.max(0, +sec || 0))); } catch (e) {} last = Date.now(); }
+  // What the display's running order draws from: the key times plus every
+  // schedule item the WHOLE tour can see ('schedule'), or the key times alone.
+  function boardOpt() { try { return localStorage.getItem(BOARD_KEY) === 'key' ? 'key' : 'schedule'; } catch (e) { return 'schedule'; } }
+  function setBoardOpt(v) { try { localStorage.setItem(BOARD_KEY, v === 'key' ? 'key' : 'schedule'); } catch (e) {} }
+
+  // Only over the desktop console of a signed-in account. Phones lock
+  // themselves; the signed-out surfaces have nothing to hide.
+  function eligible() {
+    try {
+      if (!state || !state.currentUserId) return false;
+      const app = document.getElementById('app');
+      if (!app || app.hidden) return false;
+      if (typeof _publicSurfaceUp === 'function' && _publicSurfaceUp()) return false;
+      if (typeof _isPhoneApp === 'function' && _isPhoneApp()) return false;
+      const b = document.body.classList;
+      if (b.contains('mobile') || b.contains('phone-app') || b.contains('crew-mobile-only')) return false;
+      const onb = document.getElementById('onboarding');
+      if (onb && !onb.classList.contains('hidden')) return false;
+      return true;
+    } catch (e) { return false; }
+  }
+  // Something is visibly working and being watched (an import parsing, a
+  // scan, an invite sending) — don't cover it.
+  function busy() { return !!document.querySelector('.scan-btn.scanning,.btn-trace,.trace-load,.iz-progress-bar'); }
+
+  function collect() {
+    let t = null; try { t = T(); } catch (e) {}
+    const a = ((t && t.dates) || []).filter(d => d && d.date).slice().sort((x, y) => x.date.localeCompare(y.date));
+    let l = a.filter(d => d.status === 'show' && (d.city || d.venue)), k = 'SHOW';
+    if (!l.length) { l = a.filter(d => d.city || d.venue); k = 'DAY'; }
+    return { t, all: a, l, k };
+  }
+
+  function statusOf(d) {
+    const today = todayISO();
+    if (d.date < today) return kind === 'SHOW' ? 'PLAYED' : 'PAST';
+    if (d.date > today) { const n = Math.round((noon(d.date) - noon(today)) / 864e5); return n === 1 ? 'TOMORROW' : 'IN ' + n + ' DAYS'; }
+    if (d.status !== 'show') return 'TODAY';
+    // Show day: a live clock to the next thing that happens. Times are
+    // wall-clock local to the venue, and on show day so is this laptop.
+    const now = new Date(), m = now.getHours() * 60 + now.getMinutes();
+    const doors = mins(d.doors), set = mins(d.setTime); let curfew = mins(d.curfew);
+    if (doors != null && m < doors) return 'DOORS IN ' + span(doors - m);
+    if (set != null && m < set) return (doors != null ? 'DOORS OPEN · ' : '') + 'SET IN ' + span(set - m);
+    if (set != null) {
+      if (curfew != null && curfew < set) curfew += 1440;          // curfew after midnight
+      return m < (curfew != null ? curfew : set + 90) ? 'ON STAGE' : 'PLAYED';
+    }
+    return 'TONIGHT';
+  }
+
+  // ── the display's running order ─────────────────────────────────────
+  // A touring day doesn't end at midnight: the 1 AM bus call belongs to
+  // tonight's show. The display's "today" rolls over at 4 AM, and minutes are
+  // counted from that day's midnight (so 1:00 AM is minute 1500).
+  function dayNow() {
+    const n = new Date(), base = new Date(n.getTime() - 4 * 3600e3);
+    const iso = base.getFullYear() + '-' + pad(base.getMonth() + 1) + '-' + pad(base.getDate());
+    return { iso, now: Math.floor((n - new Date(iso + 'T00:00:00')) / 60000) };
+  }
+  function boardItems(d) {
+    const items = [];
+    if (boardOpt() === 'schedule') (d.schedule || []).forEach(s => {
+      if (!s || s.allDay || !s.what) return;
+      const t = mins(s.time); if (t == null) return;
+      // Only what the whole tour can see. Anything limited to a group or to
+      // named people stays off a screen the whole room can read.
+      const g = s.groups || [], ind = s.individuals || [];
+      if (!(g.some(x => /^all$/i.test(String(x))) || (!g.length && !ind.length))) return;
+      // After midnight belongs to the END of tonight, whether or not the TM
+      // flagged it "next day": the touring day runs to 4 AM (see dayNow), so a
+      // 12:30 AM bus call sorts last, not first.
+      const late = !!s.nextDay || t < 240;
+      const at = t + (late ? 1440 : 0);
+      let end = mins(s.endTime);
+      if (end != null) end += (late || end < t) ? 1440 : 0;
+      items.push({ at, end, t: s.time, label: clip(s.what, 34) });
+    });
+    // The date's own key times, unless the schedule already carries that moment.
+    if (d.status !== 'off' && d.status !== 'travel') {
+      const setAt = mins(d.setTime);
+      [['loadIn', 'LOAD-IN', /load.?in/i], ['soundcheck', 'SOUNDCHECK', /sound.?check/i], ['doors', 'DOORS', /\bdoors?\b/i],
+       ['setTime', 'SET', /\bset\b|show ?time|on ?stage/i], ['curfew', 'CURFEW', /curfew/i]].forEach(([f, label, re]) => {
+        let t = mins(d[f]); if (t == null) return;
+        if ((f === 'curfew' && setAt != null && t < setAt) || t < 240) t += 1440;
+        // Already on the schedule? Only if it's the same moment by name AND by
+        // time — "Support on stage 8:00" is not the 9:15 set.
+        if (items.some(i => re.test(i.label) && Math.abs(i.at - t) <= 5)) return;
+        items.push({ at: t, end: null, t: d[f], label });
+      });
+    }
+    return items.sort((a, b) => a.at - b.at);
+  }
+  function boardToday() {
+    const { iso, now } = dayNow();
+    const d = all.find(x => x.date === iso) || null;
+    const items = d ? boardItems(d) : [];
+    const next = items.find(i => i.at > now) || null;
+    return { d, items, next, now };
+  }
+
+  function fmtNow() {
+    const n = new Date(); let h24 = false;
+    try { h24 = _dateIs24h(focus || _clockCtx()); } catch (e) {}
+    const sec = mode === 'display' ? '' : ':' + pad(n.getSeconds());       // a wall clock across a room doesn't need seconds
+    if (h24) return pad(n.getHours()) + ':' + pad(n.getMinutes()) + sec;
+    return (n.getHours() % 12 || 12) + ':' + pad(n.getMinutes()) + sec + (n.getHours() < 12 ? ' AM' : ' PM');
+  }
+
+  function fit() {
+    const el = root && root.querySelector('.bmi-scale'); if (!el) return;
+    const k = Math.min(1.35, Math.max(0.3, Math.min((window.innerHeight * 0.78) / (HALF_Y * 2), (window.innerWidth * 0.6) / (HALF_X * 2))));
+    el.style.transform = 'scale(' + k.toFixed(3) + ')';
+  }
+
+  function head() {
+    const c = collect();
+    const meta = (c.t && c.t.meta) || {};
+    const tourName = up(meta.tourName || (c.t && c.t.name) || 'Bandmate');
+    const artist = up(meta.artist || '');
+    const cities = [...new Set(c.l.map(d => clip(d.city || d.venue, 18)).filter(Boolean))];
+    const band = clip(artist || 'BANDMATE', 18);
+    const segs = tourName.split(/\s+[-–—·:|]\s+/).map(s => s.trim()).filter(Boolean);
+    const tourLb = clip(segs.find(s => s !== artist) || 'BANDMATE', 18);
+    let range = '';
+    if (c.all.length) {
+      const a = noon(c.all[0].date), b = noon(c.all[c.all.length - 1].date);
+      const f = (d, y) => pad(d.getDate()) + ' ' + MON[d.getMonth()] + (y ? ' ' + d.getFullYear() : '');
+      range = c.all.length === 1 ? f(a, true) : f(a, a.getFullYear() !== b.getFullYear()) + ' — ' + f(b, true);
+    }
+    const vocab = cities.length ? cities : ['BANDMATE'];
+    return { c, tourName, artist, band, tourLb, range, vocab, sig: [tourName, artist, range, band, tourLb].concat(vocab).join('|') };
+  }
+
+  function build() {
+    const h = head();
+    list = h.c.l; all = h.c.all; kind = h.c.k; headSig = h.sig;
+    nCities = h.vocab.length; phase = 0;
+
+    let items = '';
+    for (let i = 0; i < PTS.length; i++) {
+      if (hash(i + 67) < 0.24) continue;
+      const r = hash(i + 91);
+      const isCity = r >= 0.24;
+      const txt = r < 0.13 ? h.band : (r < 0.24 ? h.tourLb : h.vocab[Math.floor(hash(i + 57) * h.vocab.length) % h.vocab.length]);
+      const o = (isCity ? 0.42 + hash(i) * 0.55 : 0.16 + hash(i) * 0.2).toFixed(2);
+      const fs = isCity ? 7 + Math.round(hash(i + 7) * 8) : 6 + Math.round(hash(i + 7) * 3);
+      const x = (PTS[i][0] * HALF_X + XOFF).toFixed(1), y = (PTS[i][1] * HALF_Y).toFixed(1), z = ((hash(i + 41) - 0.5) * 210).toFixed(1);
+      items += `<div class="bmi-it" style="transform:translate3d(${x}px,${y}px,${z}px)"><div class="bmi-uy"><div class="bmi-ux"><div class="bmi-lb${isCity ? ' c' : ''}" data-n="${esc(txt)}" data-h="${hash(i + 13).toFixed(3)}" style="--o:${o};font-size:${fs}px"><span>${esc(txt)}</span><i style="width:${Math.max(6, 30 - txt.length)}px"></i></div></div></div></div>`;
+    }
+
+    const disp = mode === 'display';
+    const el = document.createElement('div');
+    el.className = 'bmi' + (disp ? ' display' : ''); el.id = 'bmIdle';
+    el.setAttribute('role', 'presentation');
+    el.innerHTML = `
+      <div class="bmi-stage"><div class="bmi-scale"><div class="bmi-sx"><div class="bmi-sy"><div class="bmi-origin">${items}</div></div></div></div></div>
+      <div class="bmi-veil"></div>
+      <div class="bmi-top">
+        <div class="bmi-id"><span class="w">${esc(h.tourName)}</span><span>${esc([h.artist, h.range].filter(Boolean).join(' · '))}</span></div>
+        <div class="bmi-mode"><span class="bmi-pulse"><i></i><b id="bmiMode">${disp ? 'LIVE' : 'IDLE'}</b></span><span class="w" id="bmiClock">${esc(fmtNow())}</span></div>
+      </div>
+      ${disp ? `<div class="bmi-board" id="bmiBoard"></div>` : ''}
+      <div class="bmi-bot">
+        <div class="bmi-show" id="bmiShow"></div>
+        ${disp
+          ? `<div class="bmi-ctl" id="bmiCtl"><button type="button" onclick="BMIdle.fs()" id="bmiFs">Full screen</button><button type="button" onclick="BMIdle.wake()">Exit display</button></div>`
+          : `<div class="bmi-hint">Move the mouse or press any key to return</div>`}
+      </div>`;
+    return el;
+  }
+
+  function paint() {
+    if (!root) return;
+    const box = root.querySelector('#bmiShow'); if (!box) return;
+    // Display: when today is on the tour and has times, the screen is ABOUT
+    // today — the running order up the left, today's show underneath, and it
+    // doesn't wander off to other cities. Otherwise it runs the reel.
+    let board = null;
+    if (mode === 'display') {
+      const b = boardToday();
+      if (b.d && b.items.length) board = b;
+      const host = root.querySelector('#bmiBoard');
+      root.classList.toggle('board', !!board);
+      if (host) host.innerHTML = board ? boardHTML(board) : '';
+    }
+    if (!board && !list.length) {
+      focus = null;
+      box.innerHTML = `<div class="bmi-kick">NO DATES ON THIS TOUR YET</div><div class="bmi-cityrow"><span class="bmi-city">BANDMATE</span></div>`;
+      light();
+      return;
+    }
+    const d = board ? board.d : list[cur], dt = noon(d.date);
+    focus = d;
+    const idx = list.indexOf(d);
+    const cap = String(d.capacity || '').trim();
+    const where = [d.state, d.country].map(up).filter(Boolean).join(' · ');
+    const times = [d.doors ? 'DOORS ' + up(fmtClock(d.doors, d)) : '', d.setTime ? 'SET ' + up(fmtClock(d.setTime, d)) : ''].filter(Boolean).join(' · ');
+    const kick = board
+      ? ['TODAY', DAY_KIND[d.status] || up(d.status), idx >= 0 && kind === 'SHOW' ? 'SHOW ' + pad(idx + 1) + ' / ' + pad(list.length) : '', cap ? 'CAP ' + up(cap) : ''].filter(Boolean).join(' · ')
+      : `${kind} ${pad(cur + 1)} / ${pad(list.length)}${cap ? ' · CAP ' + up(cap) : ''}`;
+    const status = board ? (board.next ? board.next.label + ' IN ' + span(board.next.at - board.now) : 'DAY COMPLETE') : statusOf(d);
+    box.innerHTML = `
+      <div class="bmi-kick">${esc(kick)}</div>
+      <div class="bmi-cityrow"><span class="bmi-city">${esc(up(d.city || d.venue || (DAY_KIND[d.status] || 'TODAY')))}</span>${where ? `<span class="bmi-st">${esc(where)}</span>` : ''}</div>
+      <div class="bmi-meta">
+        ${d.venue && d.city ? `<span class="w">${esc(up(d.venue))}</span>` : ''}
+        <span>${WD[dt.getDay()]} ${pad(dt.getDate())} ${MON[dt.getMonth()]} ${dt.getFullYear()}</span>
+        ${times && !board ? `<span>${esc(times)}</span>` : ''}
+        <span class="hi" id="bmiStatus">${esc(status)}</span>
+      </div>`;
+    light();
+  }
+
+  function boardHTML(b) {
+    // Room for nine lines; on a long day keep a window around what's next.
+    let items = b.items, from = 0;
+    if (items.length > 9) { const ni = b.next ? items.indexOf(b.next) : items.length - 1; from = Math.max(0, Math.min(items.length - 9, ni - 2)); items = items.slice(from, from + 9); }
+    return `<div class="bmi-b-h">Today · running order</div>` + items.map(i => {
+      const live = i.end != null && i.at <= b.now && b.now < i.end;
+      const cls = live ? 'now' : (i === b.next ? 'next' : (i.at <= b.now ? 'past' : ''));
+      const tag = live ? 'NOW' : (i === b.next ? 'IN ' + span(i.at - b.now) : '');
+      return `<div class="bmi-b-row ${cls}"><span class="t">${esc(up(fmtClock(i.t, b.d)))}</span><span class="l">${esc(i.label)}</span>${tag ? `<span class="in">${esc(tag)}</span>` : ''}</div>`;
+    }).join('');
+  }
+
+  // Which labels burn orange. The design is a cream field with sparks of
+  // orange: on its 14-city tour about 1 label in 14 matches the current city.
+  // The field always draws the same 337 labels however short the tour is (a
+  // one-night tour just repeats its one city), so on a short tour EVERY label
+  // matches and the whole mark went solid orange. Cap the lit share at what an
+  // 8-city tour gets, and move which ones are lit on every beat so a short
+  // tour's mark still shimmers instead of sitting still.
+  function light() {
+    if (!root) return;
+    const hot = focus ? clip(focus.city || focus.venue, 18) : 'BANDMATE';
+    const share = Math.min(1, nCities / 8);
+    root.querySelectorAll('.bmi-lb.c').forEach(lb => {
+      const on = lb.dataset.n === hot && (share >= 1 || ((+lb.dataset.h + phase) % 1) < share);
+      lb.classList.toggle('hot', on);
+    });
+  }
+
+  function step() {
+    if (!root || document.hidden) return;
+    phase = (phase + 0.37) % 1;
+    // Nothing to turn to (one show, none, or the display pinned to today):
+    // the lit labels still move.
+    if (list.length < 2 || root.classList.contains('board')) { light(); return; }
+    const box = root.querySelector('#bmiShow');
+    cur = (cur + 1) % list.length;
+    if (!box) { paint(); return; }
+    box.classList.add('swap');
+    clearTimeout(swapT);
+    swapT = setTimeout(() => { paint(); if (box) box.classList.remove('swap'); }, 240);
+  }
+
+  // The display runs for hours while the tour changes underneath it (a
+  // realtime edit from another device, the day rolling over). Re-read it; only
+  // rebuild the field — which restarts its swing — when its words changed.
+  function refresh() {
+    if (!root || mode !== 'display') return;
+    const h = head();
+    if (h.sig !== headSig) {
+      const fresh = build(); fresh.classList.add('on'); fresh.style.transition = 'none';
+      root.replaceWith(fresh); root = fresh; fit();
+    } else { list = h.c.l; all = h.c.all; kind = h.c.k; }
+    if (cur >= list.length) cur = 0;
+    paint();
+  }
+
+  function start(manual, as) {
+    if (showing) return;
+    mode = as === 'display' ? 'display' : 'idle';
+    if (!manual && (!eligible() || busy())) { last = Date.now(); return; }
+    if (manual && !eligible()) return;
+    root = build();
+    // Open on tonight's show, else the next one coming, else the last played.
+    const today = todayISO();
+    cur = list.findIndex(d => d.date >= today);
+    if (cur < 0) cur = Math.max(0, list.length - 1);
+    document.body.appendChild(root);
+    document.body.classList.add('bm-idle');
+    showing = true; shownAt = Date.now(); anchor = null; lastMin = -1; ticks = 0;
+    // Started by hand, the hand is still on the mouse — give it time to leave.
+    graceMs = manual ? 2500 : 400;
+    paint(); fit();
+    requestAnimationFrame(() => { if (root) root.classList.add('on'); });
+    setTimeout(() => { if (root) root.classList.add('on'); }, 60);   // rAF can be throttled
+    reel = setInterval(step, PERIOD);
+    clock = setInterval(() => {
+      if (!root) return;
+      const c = root.querySelector('#bmiClock'); if (c) c.textContent = fmtNow();
+      if (mode === 'display') {
+        const m = new Date().getMinutes();
+        if (m !== lastMin) { lastMin = m; paint(); }                    // countdowns tick by the minute
+        if (++ticks % 30 === 0) refresh();
+      } else {
+        const s = root.querySelector('#bmiStatus'); if (s && list[cur]) s.textContent = statusOf(list[cur]);
+      }
+    }, 1000);
+    window.addEventListener('resize', fit);
+    if (mode === 'display') lockOn();
+  }
+
+  function wake() {
+    if (!showing) return;
+    const wasDisplay = mode === 'display';
+    showing = false; last = Date.now();
+    clearInterval(reel); clearInterval(clock); clearTimeout(swapT); clearTimeout(ctlT);
+    window.removeEventListener('resize', fit);
+    document.body.classList.remove('bm-idle');
+    const el = root; root = null; focus = null;
+    if (wasDisplay) {
+      lockOff();
+      try { if (ownFS && document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
+      ownFS = false; wantDisplay = false;
+      // Left on purpose: a reload shouldn't drop straight back into it.
+      try {
+        const q = location.search.replace(/([?&])display=1(&|$)/, (m, a, b) => b ? a : '').replace(/[?&]$/, '');
+        if (q !== location.search) history.replaceState(null, '', location.pathname + q + location.hash);
+      } catch (e) {}
+    }
+    mode = 'idle';
+    if (!el) return;
+    const m = el.querySelector('#bmiMode'); if (m) m.textContent = 'WAKING';
+    el.classList.add('off');
+    setTimeout(() => { try { el.remove(); } catch (e) {} }, 180);
+  }
+
+  // ── display extras: keep the screen awake, full screen, the exit strip ──
+  async function lockOn() { try { if ('wakeLock' in navigator && !document.hidden) wl = await navigator.wakeLock.request('screen'); } catch (e) {} }
+  function lockOff() { try { if (wl) wl.release(); } catch (e) {} wl = null; }
+  function fs() {
+    try {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else { const p = document.documentElement.requestFullscreen(); ownFS = true; if (p && p.catch) p.catch(() => {}); }
+    } catch (e) {}
+  }
+  function showCtl() {
+    if (!root) return;
+    root.classList.add('ctl-on');
+    const b = root.querySelector('#bmiFs'); if (b) b.textContent = document.fullscreenElement ? 'Exit full screen' : 'Full screen';
+    clearTimeout(ctlT);
+    ctlT = setTimeout(() => { if (root) root.classList.remove('ctl-on'); }, 3200);
+  }
+  const inCtl = e => !!(e.target && e.target.closest && e.target.closest('#bmiCtl'));
+
+  // One listener for everything. While the screen is up, the event is
+  // swallowed here, in the capture phase, before any handler on the page can
+  // act on it.
+  function onInput(e) {
+    if (!showing) { last = Date.now(); return; }
+    const age = Date.now() - shownAt;
+    if (mode === 'display') {
+      // The room screen ignores the room. Moving the mouse only brings up its
+      // two buttons; Esc leaves (the first Esc belongs to the browser's own
+      // full-screen exit and never reaches the page).
+      if (e.type === 'mousemove') { if (age > 1200) showCtl(); return; }
+      if (inCtl(e)) return;                                   // let the buttons work
+      try { if (e.cancelable) e.preventDefault(); } catch (x) {}
+      e.stopImmediatePropagation();
+      if (e.type === 'keydown' && e.key === 'Escape' && age > 400) { tail = Date.now(); wake(); return; }
+      if (e.type === 'keydown' && (e.key === 'f' || e.key === 'F')) { fs(); return; }
+      if (e.type !== 'wheel') showCtl();
+      return;
+    }
+    if (e.type === 'mousemove') {
+      // Browsers fire a synthetic mousemove when the element under a still
+      // cursor changes — i.e. the moment this screen appears. Require real
+      // travel from where the pointer was first seen, after a short grace.
+      if (age < graceMs) return;
+      if (!anchor) { anchor = [e.clientX, e.clientY]; return; }
+      if (Math.abs(e.clientX - anchor[0]) + Math.abs(e.clientY - anchor[1]) < 12) return;
+    } else {
+      try { if (e.cancelable) e.preventDefault(); } catch (x) {}
+      e.stopImmediatePropagation();
+      if (age < 250) return;
+      // A press woke it: the release and the click that follow belong to the
+      // same gesture and must not land on the dashboard. (A mouse-move wake
+      // sets no tail, so the first real click afterwards is never eaten.)
+      if (e.type !== 'wheel') tail = Date.now();
+    }
+    wake();
+  }
+  function swallow(e) {
+    const inTail = tail && Date.now() - tail < 900;
+    if (!showing && !inTail) return;
+    if (showing && mode === 'display' && inCtl(e)) return;
+    e.stopImmediatePropagation();
+    try { if (e.cancelable) e.preventDefault(); } catch (x) {}
+    if (inTail && (e.type === 'click' || e.type === 'keyup' || e.type === 'contextmenu')) tail = 0;   // gesture over
+  }
+
+  // For the Tools panel: what the display would put up right now.
+  function preview() {
+    const c = collect(); all = c.all;
+    const b = boardToday();
+    return { today: b.d, items: b.items.map(i => ({ time: fmtClock(i.t, b.d), label: i.label })), shows: c.l.filter(d => d.date >= todayISO()).length, kind: c.k };
+  }
+
+  function init() {
+    try { wantDisplay = /[?&]display=1(&|$)/.test(location.search); } catch (e) {}
+    ['mousemove', 'mousedown', 'keydown', 'wheel', 'touchstart'].forEach(t =>
+      window.addEventListener(t, onInput, { capture: true, passive: false }));
+    ['mouseup', 'click', 'keyup', 'keypress', 'contextmenu'].forEach(t => window.addEventListener(t, swallow, true));
+    window.addEventListener('scroll', () => { if (!showing) last = Date.now(); }, { capture: true, passive: true });
+    document.addEventListener('visibilitychange', () => { if (showing && mode === 'display' && !document.hidden) lockOn(); });
+    // Timestamps, not timers: input only records when it happened, and one
+    // slow watcher decides. Nothing is re-armed on every mouse move.
+    watch = setInterval(() => {
+      if (showing) { if (!eligible()) wake(); return; }     // signed out underneath, etc.
+      // Opened with ?display=1 (the TV's bookmark): go straight to the display
+      // once the console is up — waiting briefly for the tour to arrive.
+      if (wantDisplay && eligible()) {
+        let ready = false; try { const t = T(); ready = !!(t && t.id !== '_empty'); } catch (e) {}
+        if (ready || Date.now() - bootAt > 15000) { start(true, 'display'); return; }
+      }
+      const s = after(); if (!s) return;
+      if (Date.now() - last >= s * 1000) start(false);
+    }, 1000);
+  }
+
+  return { init, start, wake, fs, after, setAfter, boardOpt, setBoardOpt, preview, CHOICES,
+           display: () => { start(true, 'display'); if (showing && mode === 'display' && !document.fullscreenElement) fs(); },
+           isShowing: () => showing, mode: () => mode };
+})();
+function _idleStartNow() { try { closeUniMenu(); } catch (e) {} try { closeModal(); } catch (e) {} setTimeout(() => BMIdle.start(true), 80); }
+function _idleSetAfter(v) { BMIdle.setAfter(v); toast(+v ? 'Idle screen after ' + (BMIdle.CHOICES.find(c => c[0] === +v) || [0, v + ' seconds'])[1] : 'Idle screen turned off', 'good'); }
+
 const BMCal = (() => {
   let pop = null, input = null, view = null;
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -27278,7 +27875,60 @@ const TOOL_TILES = [
   { id: 'agent',  icon: '→', name: 'Travel Agent',       desc: 'A hotel, or the travel, for any date — suggested from the routing.', go: 'openTravelAgent()', beta: true },
   { id: 'chat',   icon: '✉', name: 'Messaging',          desc: 'Group and direct chats with band and crew.', go: 'openChatsModal()', badge: 'toolsChatUnread' },
   { id: 'pdf',    icon: '⌗', name: 'Day sheet · PDF',    desc: "Today's schedule, travel and hotel on one printable page.", go: 'openDaySheetPDF()' },
+  { id: 'display', icon: '▣', name: 'Display',           desc: "Today's running order and a live countdown, full screen — for the production office or green-room TV.", go: 'openDisplayTool()' },
 ];
+
+// ── Display: the setup panel. The screen itself is BMIdle in 'display' mode.
+function openDisplayTool() {
+  if (!T() || T().id === '_empty') { toast('Open a tour first', 'error'); return; }
+  const pv = BMIdle.preview();
+  const url = location.origin + '/?display=1';
+  const d = pv.today;
+  const kindLb = { show: 'Show day', off: 'Day off', travel: 'Travel day', rehearsal: 'Rehearsal', press: 'Press day' };
+  const now = d && pv.items.length
+    ? `<div class="dsp-now-h">${esc([kindLb[d.status] || 'Today', d.city, d.venue].filter(Boolean).join(' · '))}</div>
+       <div class="dsp-rows">${pv.items.slice(0, 9).map(i => `<div class="dsp-row"><span class="t">${esc(i.time)}</span><span class="l">${esc(i.label)}</span></div>`).join('')}${pv.items.length > 9 ? `<div class="dsp-row more"><span class="t"></span><span class="l">+ ${pv.items.length - 9} more — the screen follows whatever is next</span></div>` : ''}</div>`
+    : `<div class="dsp-now-h">${d ? esc([kindLb[d.status] || 'Today', d.city].filter(Boolean).join(' · ')) + ' — no times to show' : 'Nothing on the tour today'}</div>
+       <div class="dsp-note">The display will run the reel of ${pv.shows ? 'the ' + pv.shows + ' upcoming ' + (pv.shows === 1 ? 'show' : 'shows') : 'the tour'} instead, and switch to the running order by itself on a day that has times.</div>`;
+  const body = `
+    <div class="dsp-wrap">
+      <p class="dsp-lead">A screen for the room. Today's running order with a live countdown to whatever is next, over the tour's mark — built to be read from across a production office or a green room. It stays up until you leave it, and keeps the screen awake.</p>
+
+      <section class="dsp-sec">
+        <div class="rt-kicker">On the screen right now</div>
+        <div class="dsp-now">${now}</div>
+      </section>
+
+      <section class="dsp-sec">
+        <div class="rt-kicker">Running order</div>
+        <div class="field" style="max-width:460px;margin-top:10px">
+          <select id="dsp_board" onchange="BMIdle.setBoardOpt(this.value);openDisplayTool()">
+            <option value="schedule"${BMIdle.boardOpt() === 'schedule' ? ' selected' : ''}>Key times + the schedule everyone can see</option>
+            <option value="key"${BMIdle.boardOpt() === 'key' ? ' selected' : ''}>Key times only — load-in, soundcheck, doors, set, curfew</option>
+          </select>
+        </div>
+        <div class="help" style="margin-top:8px">A schedule item limited to a group or to named people never appears on the display — only what the whole tour can already see.</div>
+      </section>
+
+      <section class="dsp-sec dsp-go">
+        <button type="button" class="rt-btn primary dsp-start" onclick="BMIdle.display()">Start display</button>
+        <span class="dsp-go-note">Goes full screen on this computer. <b>Esc</b> leaves — or move the mouse for the exit.</span>
+      </section>
+
+      <section class="dsp-sec">
+        <div class="rt-kicker">Put it on a TV</div>
+        <div class="dsp-url"><code id="dsp_url">${esc(url)}</code><button type="button" class="rt-btn" onclick="_displayCopyLink()">Copy link</button></div>
+        <div class="help" style="margin-top:8px">Open this on the computer that drives the TV, signed in to Bandmate. It starts the display by itself and follows the tour last opened on that computer. Leaving the display returns to the dashboard, so use a computer you control.</div>
+      </section>
+    </div>`;
+  if (_toolInlineOK() && _toolMount('display', 'Display', body)) return;
+  openModal({ title: 'Display', size: 'lg', hideFooter: true, body });
+}
+function _displayCopyLink() {
+  const url = location.origin + '/?display=1';
+  try { navigator.clipboard.writeText(url).then(() => toast('Link copied', 'good'), () => toast(url, 'good')); }
+  catch (e) { toast(url, 'good'); }
+}
 function renderTools() {
   const root = document.getElementById('p-tools');
   if (!root) return;
@@ -27288,6 +27938,7 @@ function renderTools() {
   // typed must survive a realtime event); it's only rebuilt when missing.
   if (_toolOpen === 'push') { if (!root.querySelector('.pn-wrap')) _renderPushNotificationsModal(); return; }
   if (_toolOpen === 'chat') { if (!root.querySelector('#chatModalRoot')) _chatMountInline(); return; }
+  if (_toolOpen === 'display') { if (!root.querySelector('.dsp-wrap')) openDisplayTool(); return; }
   root.innerHTML = `
     <div class="tools-head"><div class="rt-kicker">Tools</div><h2>Reach for one</h2></div>
     <div class="tools-grid">
@@ -31691,6 +32342,9 @@ function renderUniMenu() {
     <button class="am-item" type="button" onclick="closeUniMenu();openGetAppModal()">
       <span class="am-ic">↧</span><span>Install Bandmate</span>
     </button>
+    <button class="am-item uni-idle" type="button" onclick="_idleStartNow()">
+      <span class="am-ic">◐</span><span>Idle screen</span>
+    </button>
     <button class="am-item danger" type="button" onclick="closeUniMenu();logout()">
       <span class="am-ic" style="color:var(--red);border-color:rgba(232,69,69,.3)">×</span><span>Sign out</span>
     </button>
@@ -31773,6 +32427,15 @@ function openAccountSettingsModal() {
       </div>
       <div class="help" style="margin-top:6px">This is the name your crew and co-managers see — on tours, invites, and the Managers card.</div>
       ${pair('Email', esc(u.email || '—') + ' <span style="color:var(--warm-mute);font-weight:400;font-size:11px">(sign-in — can\'t be changed here)</span>')}
+
+      ${secTitle('Idle screen')}
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <div class="field" style="flex:1"><label>Cover the dashboard after</label>
+          <select id="as_idle" onchange="_idleSetAfter(this.value)">${BMIdle.CHOICES.map(([v, l]) => `<option value="${v}"${BMIdle.after() === v ? ' selected' : ''}>${l}</option>`).join('')}</select>
+        </div>
+        <button type="button" class="btn" style="padding:10px 16px" onclick="_idleStartNow()">Start now</button>
+      </div>
+      <div class="help" style="margin-top:6px">When this computer sits untouched, the dashboard is covered by a slow reel of the tour — cities, venues and show times only, nothing from the private tabs. Moving the mouse brings it straight back. Saved on this computer.</div>
 
       ${secTitle('Subscription')}
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
@@ -34065,6 +34728,9 @@ function init() {
   // Flag the oversight account before ANY routing runs, so the CSS block
   // on the onboarding dead end is already in force during first paint.
   try { _syncGodBodyClass(); } catch (e) {}
+  // Idle screen: starts watching for input now; it only ever covers the
+  // signed-in desktop console (BMIdle.eligible decides, every second).
+  try { BMIdle.init(); } catch (e) { console.warn('idle init', e); }
   // Corrupt local state was set aside by loadState — tell the user rather
   // than letting the device look mysteriously empty.
   if (window.__bandmateCorruptState) {
@@ -35269,7 +35935,7 @@ Object.assign(window, {
   tourStartDate, tourEndDate, addDaysISO, fillDateGapsWithOffDays, _padTourEdgesWithTravelDays,
   toggleExportMenu, closeExportMenu, downloadTourBookPDF, downloadTourBookFromHere, downloadDaySheetPDF, closeTourBook,
   scoutNearVenue,
-  toggleDateGrid, _dateGridPick, _crewAuthId, _modalBackdropDown, _modalBackdropUp, _liveDate, renderTools, _toolClose, _pnClose, _dateModalClockSync, fmtClock, openTravelAgent, closeTravelAgent, _taGo, _taBack, _taAnchor, _taDate, _taPickDate, _taPickTopic, _taSubmitAsk, _taUseHotel, _taMarkNoHotel, _taMarkNoTravel, _taLogMove, _taLogFlight, _taJump, _taOpenDate, _taMore, _taRender, _taPlan, _rtPick, _rtLoadHotels,
+  toggleDateGrid, _dateGridPick, BMIdle, _idleStartNow, _idleSetAfter, openDisplayTool, _displayCopyLink, _crewAuthId, _modalBackdropDown, _modalBackdropUp, _liveDate, renderTools, _toolClose, _pnClose, _dateModalClockSync, fmtClock, openTravelAgent, closeTravelAgent, _taGo, _taBack, _taAnchor, _taDate, _taPickDate, _taPickTopic, _taSubmitAsk, _taUseHotel, _taMarkNoHotel, _taMarkNoTravel, _taLogMove, _taLogFlight, _taJump, _taOpenDate, _taMore, _taRender, _taPlan, _rtPick, _rtLoadHotels,
   toggleTourSwitcher, closeTourSwitcher, switchToTour, switchToTourFromPhone, newTourFlow, newTourManualFlow, newTourImportFlow, renameCurrentTour, deleteCurrentTour,
   toggleUniMenu, closeUniMenu, renderUniMenu, _uniToggleExport,
   openAccountSettingsModal, _acctSaveName, _acctSendReset,
