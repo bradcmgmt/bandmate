@@ -2438,6 +2438,10 @@ body.god-account:not(.bg-mark-on) #app[hidden]{display:block!important}
   font-family:'Bricolage Grotesque',monospace;font-size:12.5px;letter-spacing:.04em;color:var(--hi-bright);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:all}
 @media (prefers-reduced-motion:reduce){.bmi-sx,.bmi-sy,.bmi-uy,.bmi-ux,.bmi-pulse i{animation:none}}
 @media print{.bmi{display:none!important}}
+/* Bandmate for Mac. Signing up leads to choosing a paid plan, which the App
+   Store doesn't allow inside the app, so the Mac app's landing offers sign-in
+   only. (html.mac-app is set by the shell before the page's first paint.) */
+html.mac-app .landing-btn[onclick="showPricingScreen()"]{display:none}
 .toast-container{position:fixed;right:20px;top:20px;z-index:1100;display:flex;flex-direction:column;gap:8px;pointer-events:none}
 .toast{
   pointer-events:auto;padding:12px 16px;
@@ -8578,7 +8582,10 @@ const BMIdle = (() => {
     const el = root; root = null; focus = null;
     if (wasDisplay) {
       lockOff();
-      try { if (ownFS && document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
+      try {
+        if (mac()) { if (ownFS && macFS) { macFS = false; _macPost({ type: 'fullscreen', on: false }); } }
+        else if (ownFS && document.fullscreenElement) document.exitFullscreen();
+      } catch (e) {}
       ownFS = false; wantDisplay = false;
       // Left on purpose: a reload shouldn't drop straight back into it.
       try {
@@ -8594,9 +8601,22 @@ const BMIdle = (() => {
   }
 
   // ── display extras: keep the screen awake, full screen, the exit strip ──
-  async function lockOn() { try { if ('wakeLock' in navigator && !document.hidden) wl = await navigator.wakeLock.request('screen'); } catch (e) {} }
-  function lockOff() { try { if (wl) wl.release(); } catch (e) {} wl = null; }
+  // In the Mac app both of these belong to the shell: a native full-screen
+  // Space (own title-bar-less window, ⌃⌘F works, Esc is ours), and a real
+  // power assertion instead of the Wake Lock API, which WKWebView lacks.
+  const mac = () => (typeof _isMacApp === 'function') && _isMacApp();
+  let macFS = false;
+  async function lockOn() {
+    if (mac()) { _macPost({ type: 'keepAwake', on: true }); return; }
+    try { if ('wakeLock' in navigator && !document.hidden) wl = await navigator.wakeLock.request('screen'); } catch (e) {}
+  }
+  function lockOff() {
+    if (mac()) { _macPost({ type: 'keepAwake', on: false }); return; }
+    try { if (wl) wl.release(); } catch (e) {} wl = null;
+  }
+  const isFS = () => mac() ? macFS : !!document.fullscreenElement;
   function fs() {
+    if (mac()) { macFS = !macFS; if (macFS) ownFS = true; _macPost({ type: 'fullscreen', on: macFS }); return; }
     try {
       if (document.fullscreenElement) document.exitFullscreen();
       else { const p = document.documentElement.requestFullscreen(); ownFS = true; if (p && p.catch) p.catch(() => {}); }
@@ -8605,7 +8625,7 @@ const BMIdle = (() => {
   function showCtl() {
     if (!root) return;
     root.classList.add('ctl-on');
-    const b = root.querySelector('#bmiFs'); if (b) b.textContent = document.fullscreenElement ? 'Exit full screen' : 'Full screen';
+    const b = root.querySelector('#bmiFs'); if (b) b.textContent = isFS() ? 'Exit full screen' : 'Full screen';
     clearTimeout(ctlT);
     ctlT = setTimeout(() => { if (root) root.classList.remove('ctl-on'); }, 3200);
   }
@@ -8671,6 +8691,8 @@ const BMIdle = (() => {
     ['mouseup', 'click', 'keyup', 'keypress', 'contextmenu'].forEach(t => window.addEventListener(t, swallow, true));
     window.addEventListener('scroll', () => { if (!showing) last = Date.now(); }, { capture: true, passive: true });
     document.addEventListener('visibilitychange', () => { if (showing && mode === 'display' && !document.hidden) lockOn(); });
+    // Mac shell: the user left full screen with the green button / ⌃⌘F.
+    window.addEventListener('bandmate-mac-fullscreen-ended', () => { macFS = false; });
     // Timestamps, not timers: input only records when it happened, and one
     // slow watcher decides. Nothing is re-armed on every mouse move.
     watch = setInterval(() => {
@@ -8687,7 +8709,7 @@ const BMIdle = (() => {
   }
 
   return { init, start, wake, fs, after, setAfter, boardOpt, setBoardOpt, preview, CHOICES,
-           display: () => { start(true, 'display'); if (showing && mode === 'display' && !document.fullscreenElement) fs(); },
+           display: () => { start(true, 'display'); if (showing && mode === 'display' && !isFS()) fs(); },
            isShowing: () => showing, mode: () => mode };
 })();
 function _idleStartNow() { try { closeUniMenu(); } catch (e) {} try { closeModal(); } catch (e) {} setTimeout(() => BMIdle.start(true), 80); }
@@ -30343,7 +30365,7 @@ function showPricingScreen() {
   // stays review-safe. (In a normal browser tab — or a desktop-installed
   // PWA — this guard is false and the full pricing/checkout flow runs as
   // usual, since no app-store cut applies there.)
-  if (_isPhoneApp()) {
+  if (_isStoreBuild()) {
     _showInstalledAppBillingNotice();
     return;
   }
@@ -30406,7 +30428,9 @@ function _showInstalledAppBillingNotice() {
   // outside purchase — no website link, no "go subscribe" wording. State
   // the fact and offer the re-check, the Netflix/Spotify pattern. The iOS
   // build keeps its Apple-approved copy and link.
-  const twa = (typeof _twaLaunched === 'function') && _twaLaunched();
+  // The Mac App Store build takes the same strict form for its first review:
+  // state the fact, offer the re-check, link nowhere.
+  const twa = ((typeof _twaLaunched === 'function') && _twaLaunched()) || _isMacApp();
   notice.innerHTML = `
     <div style="max-width:420px;text-align:center;display:flex;flex-direction:column;gap:18px">
       <img src="/icon-192.png" alt="Bandmate" style="width:72px;height:72px;border-radius:18px;margin:0 auto;box-shadow:0 0 30px rgba(232,148,58,.25)">
@@ -31126,6 +31150,8 @@ async function _pricingRecheck() {
 // returned URL. Every change inside the portal auto-fires our webhook
 // against /api/stripe-webhook so the DB stays in sync.
 async function openSubscriptionPortal() {
+  // Store builds never open Stripe (Apple 3.1.1 / Play payments policy).
+  if (_isStoreBuild()) { toast("Billing can't be managed inside the app", 'info'); return; }
   if (!sb) { toast('Auth service not ready — refresh the page', 'error'); return; }
   toast('Opening billing portal...', 'good');
   let accessToken = null;
@@ -32440,7 +32466,7 @@ function openAccountSettingsModal() {
       ${secTitle('Subscription')}
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
         <span class="mono" style="font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${toneColor};border:1px solid ${toneColor};border-radius:5px;padding:3px 9px;opacity:.95">${esc(sub.label)}</span>
-        ${sub.billing ? `<button type="button" class="tb-btn primary" onclick="closeModal();openSubscriptionPortal()">Manage billing →</button>` : ''}
+        ${sub.billing && !_isStoreBuild() ? `<button type="button" class="tb-btn primary" onclick="closeModal();openSubscriptionPortal()">Manage billing →</button>` : ''}
       </div>
       <div style="font-size:12.5px;line-height:1.6;color:var(--warm-mute)">${sub.desc}</div>
 
@@ -32634,6 +32660,25 @@ function _isNativeWrapper() {
     if (/app-platform=\s*(iOS App Store|Google Play)/i.test(ck)) return true;
   } catch (e) { /* fall through */ }
   return false;
+}
+
+// Bandmate for Mac (the Mac App Store app — the bandmate-mac Xcode project).
+// A native window around this same dashboard. It is NOT a "native wrapper" in
+// the sense above: that flag means the phone app and forces the crew view,
+// whereas the Mac app exists to give tour managers the FULL desktop dashboard.
+// The one thing it shares with the store phone builds is Apple's billing rule
+// (Guideline 3.1.1 / 3.1.3(f)): no checkout, no pricing, no "subscribe on our
+// site" inside the app — see _isStoreBuild().
+function _isMacApp() {
+  try { return window.BANDMATE_MAC === true || /BandmateMac\//.test((navigator && navigator.userAgent) || ''); }
+  catch (e) { return false; }
+}
+// Any build distributed through an app store, where in-app billing rules apply.
+function _isStoreBuild() { return _isPhoneApp() || _isMacApp(); }
+// Talk to the Mac shell (Bridge.swift). A no-op everywhere else.
+function _macPost(msg) {
+  if (!_isMacApp()) return false;
+  try { window.webkit.messageHandlers.bandmate.postMessage(msg); return true; } catch (e) { return false; }
 }
 
 function _isInstalledApp() {
@@ -35016,9 +35061,19 @@ function _chatTotalUnread() {
 }
 
 // Update the badges on the chat icons (Tools menu item + crew phone)
+let _macLastUnread = null;
 function _refreshChatBadges() {
   const total = _chatTotalUnread();
   const display = total > 99 ? '99+' : String(total);
+  if (_isMacApp()) {
+    _macPost({ type: 'badge', count: total });
+    // The shell only shows this while the app isn't frontmost. No message
+    // text leaves the dashboard — just that something arrived.
+    if (_macLastUnread !== null && total > _macLastUnread) {
+      _macPost({ type: 'notify', title: 'Bandmate', body: (total - _macLastUnread) === 1 ? 'New message from your tour' : (total - _macLastUnread) + ' new messages from your tour' });
+    }
+    _macLastUnread = total;
+  }
   const elPhone = document.getElementById('phChatUnread');
   if (elPhone) {
     if (total > 0) { elPhone.textContent = display; elPhone.hidden = false; }
@@ -35935,7 +35990,7 @@ Object.assign(window, {
   tourStartDate, tourEndDate, addDaysISO, fillDateGapsWithOffDays, _padTourEdgesWithTravelDays,
   toggleExportMenu, closeExportMenu, downloadTourBookPDF, downloadTourBookFromHere, downloadDaySheetPDF, closeTourBook,
   scoutNearVenue,
-  toggleDateGrid, _dateGridPick, BMIdle, _idleStartNow, _idleSetAfter, openDisplayTool, _displayCopyLink, _crewAuthId, _modalBackdropDown, _modalBackdropUp, _liveDate, renderTools, _toolClose, _pnClose, _dateModalClockSync, fmtClock, openTravelAgent, closeTravelAgent, _taGo, _taBack, _taAnchor, _taDate, _taPickDate, _taPickTopic, _taSubmitAsk, _taUseHotel, _taMarkNoHotel, _taMarkNoTravel, _taLogMove, _taLogFlight, _taJump, _taOpenDate, _taMore, _taRender, _taPlan, _rtPick, _rtLoadHotels,
+  toggleDateGrid, _dateGridPick, _isMacApp, _isStoreBuild, _macPost, BMIdle, _idleStartNow, _idleSetAfter, openDisplayTool, _displayCopyLink, _crewAuthId, _modalBackdropDown, _modalBackdropUp, _liveDate, renderTools, _toolClose, _pnClose, _dateModalClockSync, fmtClock, openTravelAgent, closeTravelAgent, _taGo, _taBack, _taAnchor, _taDate, _taPickDate, _taPickTopic, _taSubmitAsk, _taUseHotel, _taMarkNoHotel, _taMarkNoTravel, _taLogMove, _taLogFlight, _taJump, _taOpenDate, _taMore, _taRender, _taPlan, _rtPick, _rtLoadHotels,
   toggleTourSwitcher, closeTourSwitcher, switchToTour, switchToTourFromPhone, newTourFlow, newTourManualFlow, newTourImportFlow, renameCurrentTour, deleteCurrentTour,
   toggleUniMenu, closeUniMenu, renderUniMenu, _uniToggleExport,
   openAccountSettingsModal, _acctSaveName, _acctSendReset,
