@@ -509,7 +509,11 @@ input,select,textarea{font:inherit;color:inherit;
   line-height:1;margin:3px 0 4px;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
 .day-pill .pbody{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:2px;padding:8px 14px;min-width:0}
 .day-pill .pdow{font-family:'Bricolage Grotesque',monospace;font-size:9px;letter-spacing:.2em;color:var(--warm-mute);line-height:1.15}
-.day-pill .pcity{font-size:13px;font-weight:700;color:var(--warm);line-height:1.2;white-space:nowrap}
+.day-pill{max-width:236px}
+/* The city truncates; the ⚠ / ! flag (an ::after on .pcity) never does. */
+.day-pill .pcity{font-size:13px;font-weight:700;color:var(--warm);line-height:1.2;white-space:nowrap;display:flex;align-items:baseline;max-width:100%;min-width:0}
+.day-pill .pcity .pc-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.day-pill .pcity::after{flex:none}
 .day-pill .pvenue{font-size:10.5px;color:var(--warm-mute);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
 /* Day type, in the stub's footer. Same colour key the old status dot used:
      • Tan / muted-warm — status unknown or not yet set
@@ -2478,7 +2482,8 @@ body.god-account:not(.bg-mark-on) #app[hidden]{display:block!important}
 .bmi-show.swap{opacity:0}
 .bmi-kick{font-size:clamp(11px,.95vw,13px);letter-spacing:.3em;color:#e8943a}
 .bmi-cityrow{display:flex;align-items:baseline;gap:clamp(14px,1.8vw,26px);flex-wrap:wrap}
-.bmi-city{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:clamp(42px,6.4vw,112px);line-height:.9;
+.bmi-city{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:min(62vw,1180px);padding-bottom:.08em;
+  font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:clamp(42px,6.4vw,112px);line-height:.9;
   letter-spacing:-.035em;color:#f7ecdb;text-shadow:0 0 26px rgba(232,148,58,.3)}
 .bmi-st{font-size:clamp(12px,1.05vw,15px);letter-spacing:.24em;color:#8d8377}
 .bmi-meta{display:flex;flex-wrap:wrap;gap:clamp(12px,1.8vw,28px);font-size:clamp(12px,1.05vw,15px);letter-spacing:.2em;color:#8d8377;
@@ -8588,9 +8593,16 @@ const BMIdle = (() => {
     const status = board ? (board.next ? board.next.label + ' IN ' + span(board.next.at - board.now) : 'DAY COMPLETE') : statusOf(d);
     box.innerHTML = `
       <div class="bmi-kick">${esc(kick)}</div>
-      <div class="bmi-cityrow"><span class="bmi-city">${esc(up(d.city || d.venue || (DAY_KIND[d.status] || 'TODAY')))}</span>${where ? `<span class="bmi-st">${esc(where)}</span>` : ''}</div>
+      <div class="bmi-cityrow">${(() => {
+        // The headline is sized for a city. Whatever it is handed — a long
+        // name, or a bad import that put a whole row in the city field — it is
+        // cut to a city's length and scaled to fit; it never takes the screen.
+        const name = clip(d.city || d.venue || (DAY_KIND[d.status] || 'TODAY'), 30);
+        const k = name.length <= 12 ? 1 : name.length <= 17 ? 0.8 : name.length <= 23 ? 0.64 : 0.52;
+        return `<span class="bmi-city" style="font-size:calc(clamp(42px,6.4vw,112px) * ${k})">${esc(name)}</span>`;
+      })()}${where ? `<span class="bmi-st">${esc(clip(where, 28))}</span>` : ''}</div>
       <div class="bmi-meta">
-        ${d.venue && d.city ? `<span class="w">${esc(up(d.venue))}</span>` : ''}
+        ${d.venue && d.city ? `<span class="w">${esc(clip(d.venue, 44))}</span>` : ''}
         <span>${WD[dt.getDay()]} ${pad(dt.getDate())} ${MON[dt.getMonth()]} ${dt.getFullYear()}</span>
         ${times && !board ? `<span>${esc(times)}</span>` : ''}
         <span class="hi" id="bmiStatus">${esc(status)}</span>
@@ -16033,7 +16045,7 @@ function renderDayStrip() {
     return `
       <button type="button" class="day-pill s-${d.status || 'show'} ${isActive ? 'active' : ''} ${isToday ? 'is-today' : ''}${reviewClass}" onclick="setActive('${d.id}')" title="${liveGaps.length ? 'Needs: ' + liveGaps.join(', ') : 'Complete'}">
         <span class="pstub"><span class="pmon">${monLabel}</span><span class="pday">${esc(dayLabel)}</span><span class="pstatus">${typeLabel}</span></span>
-        <span class="pbody"><span class="pdow">${dow(d.date)}</span><span class="pcity">${esc(cityLabel)}</span>${subLabel ? `<span class="pvenue">${esc(subLabel)}</span>` : ''}</span>
+        <span class="pbody"><span class="pdow">${dow(d.date)}</span><span class="pcity"><span class="pc-t">${esc(cityLabel)}</span></span>${subLabel ? `<span class="pvenue">${esc(subLabel)}</span>` : ''}</span>
       </button>
     `;
   }).join('');
@@ -21518,6 +21530,23 @@ async function processImportFile(file) {
       result.snippet = text.slice(0, 200);
       result.kind = 'pdf';
       processTextDoc(text, file, result);
+      // A date grid (routing sheet, "Date | City | Venue" list) is read column
+      // by column; when that works it replaces the line-based guess above.
+      try {
+        const tbl = _pdfTableToDates(pdfResult.rows || [], text);
+        if (tbl.confident) {
+          result.extracted.dates = tbl.dates;
+          // The line-based pass sees airline codes in a grid that has none
+          // ("→ LA 11/24" reads as flight LA 11; "Phoenix, AZ 545" miles as AZ 545).
+          // Keep its flights only when the document actually talks about flying.
+          const mentionsFlying = /\b(flight|flt|airline|depart(s|ure)? [A-Z]{3}\b|boarding)\b/i.test(text);
+          const keep = (result.extracted.travel || []).filter(t => (t.type || '') === 'flight' && mentionsFlying);
+          if (tbl.travel.length || !mentionsFlying) result.extracted.travel = keep.concat(tbl.travel);
+          const shows = tbl.dates.filter(d => d.status === 'show').length;
+          result.notes.push(`Table · ${tbl.dates.length} dates read column by column (${shows} show${shows === 1 ? '' : 's'}${tbl.travel.length ? ', ' + tbl.travel.length + ' drives' : ''})`);
+        }
+      } catch (e) { console.warn('[Bandmate] pdf table pass failed:', e); }
+      (result.extracted.dates || []).forEach(_sanitizeImportedDate);
     } else {
       result.kind = 'pdf_unread';
       result.extracted.attachOnly = true;
@@ -21751,6 +21780,11 @@ async function extractPDFText(file) {
     const buf = await file.arrayBuffer();
     const pdf = await lib.getDocument({ data: buf }).promise;
     let out = '';
+    // Alongside the flat text, keep every fragment's position. Flattening a
+    // spreadsheet-style PDF to "one line per row, cells joined by a space"
+    // throws the column boundaries away — and then a whole routing row reads
+    // as one long "city". `rows` is what _pdfTableToDates() reads.
+    const rows = [];
     // Read up to 200 pages — enough for a fat agency deal-memo bundle (typically
     // 3 pages per memo × 40 memos = 120 pages on a long North American run).
     const pageLimit = Math.min(pdf.numPages, 200);
@@ -21766,10 +21800,16 @@ async function extractPDFText(file) {
       let pageText = '';
       let lastY = null;
       let lastEnd = 0; // x-coordinate at the end of the prior fragment
+      const pageRows = [];
       content.items.forEach((it) => {
         const str = it.str || '';
         const y = it.transform ? it.transform[5] : null;
         const x = it.transform ? it.transform[4] : 0;
+        if (str.trim() && y !== null) {
+          let row = pageRows.find(r => Math.abs(r.y - y) <= 2.5);
+          if (!row) { row = { y, page: i, cells: [] }; pageRows.push(row); }
+          row.cells.push({ x, w: it.width || 0, s: str });
+        }
         if (lastY !== null && y !== null && Math.abs(y - lastY) > 2) {
           pageText += '\n';
         } else if (pageText && !pageText.endsWith(' ') && !pageText.endsWith('\n') && str && str[0] !== ' ') {
@@ -21782,8 +21822,21 @@ async function extractPDFText(file) {
         lastEnd = x + (it.width || 0);
       });
       out += pageText + '\n\n';
+      pageRows.sort((a, b) => b.y - a.y).forEach(r => {
+        r.cells.sort((a, b) => a.x - b.x);
+        // fragments of one cell arrive split now and then: rejoin what touches
+        const merged = [];
+        r.cells.forEach(c => {
+          const last = merged[merged.length - 1];
+          if (last && c.x - (last.x + last.w) < 2.5) { last.s += (/\s$/.test(last.s) || /^\s/.test(c.s) ? '' : ' ') + c.s; last.w = c.x + c.w - last.x; }
+          else merged.push({ x: c.x, w: c.w, s: c.s });
+        });
+        merged.forEach(c => { c.s = c.s.replace(/\s+/g, ' ').trim(); });
+        r.cells = merged.filter(c => c.s);
+        if (r.cells.length) rows.push(r);
+      });
     }
-    return { text: out, error: null };
+    return { text: out, rows, error: null };
   } catch (e) {
     console.warn('[Bandmate] PDF parse failed:', e);
     // Common cases: encrypted PDF, image-only (scanned, no embedded text),
@@ -24131,6 +24184,137 @@ function _forwardFillDate(rows) {
   });
 }
 
+// A "city" is never a paragraph. When a parser hands back a whole row
+// ("Tue 10/27/2026 Tue Fairfield CT The Warehouse at FTC Albany → …") keep
+// the DATE — that part was right — and park the text in the notes instead of
+// letting it run through the day strip, the phone header and the idle screen.
+function _sanitizeImportedDate(d) {
+  if (!d) return d;
+  const bad = v => { v = String(v || ''); return v.length > 42 || /\d{1,2}\/\d{1,2}(\/\d{2,4})?/.test(v) || /\d{1,2}:\d{2}\s*[ap]m/i.test(v) || /→|->/.test(v); };
+  ['city', 'venue'].forEach(k => {
+    if (!bad(d[k])) return;
+    const raw = String(d[k]).trim();
+    d.notes = [d.notes, 'Imported row — check city and venue: ' + raw.slice(0, 160)].filter(Boolean).join('\n');
+    d[k] = '';
+    d._needsReview = true;
+  });
+  return d;
+}
+
+// ── PDF tables → dates ───────────────────────────────────────────────
+// Reads a spreadsheet-style PDF the way a person does: find the header row,
+// work out where each column sits, then read every row cell by cell.
+//   · Columns come from the DATA (left-aligned, so their x-starts line up);
+//     each header is matched by its CENTRE, because headers are usually
+//     centred over a column while the cells under them are not.
+//   · "OFF" / "Travel day" / "Stay put" rows become off and travel days, and
+//     take their city from the Overnight column.
+//   · A Drive column ("DuBois → Albany", with Miles / Hrs / Roll By / Arrive)
+//     becomes that day's travel item.
+//   · Dates without a year ("10/24") take it from the document, else from
+//     the calendar — the next time that date comes round.
+const _PDF_COLS = [
+  ['date', /^(date|showdate|dates?)$/], ['dow', /^(day|dow|weekday)$/],
+  ['city', /^(city|citystate|cityst|market|town|location)$/], ['state', /^(st|state|prov|province|region|stateprov)$/],
+  ['venue', /^(venue.*|club|room)$/], ['capacity', /^(cap|capacity|roomcap|venuecap)$/],
+  ['doors', /^doors?$/], ['setTime', /^(set|settime|showtime|stage|onstage)$/], ['loadIn', /^(loadin|load)$/],
+  ['soundcheck', /^(soundcheck|sc)$/], ['curfew', /^curfew$/], ['promoter', /^(promoter|buyer|talentbuyer)$/],
+  ['drive', /^(drive|route|routing|travel|fromto)$/], ['miles', /^(miles|mi|distance|mileage)$/], ['hrs', /^(hrs|hours|hr|drivetime|time)$/],
+  ['rollBy', /^(rollby|roll|depart|departure|leave|buscall|vancall|call)$/], ['arrive', /^(arrive|arrival|eta|arriveby)$/],
+  ['overnight', /^(overnight|sleep|stay|overnightin)$/], ['notes', /^(notes?|comments?|remarks)$/], ['status', /^(status|type|daytype)$/],
+];
+function _pdfColKey(label) {
+  const n = String(label || '').toLowerCase().replace(/[^a-z]/g, '');
+  const hit = _PDF_COLS.find(([, re]) => re.test(n));
+  return hit ? hit[0] : '';
+}
+function _pdfTableToDates(rows, fullText) {
+  const none = { dates: [], travel: [], confident: false };
+  if (!Array.isArray(rows) || rows.length < 3) return none;
+  const DATE_RE = /(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?/;
+  const hasDate = r => r.cells.length && DATE_RE.test(r.cells[0].s) && r.cells[0].s.length <= 22;
+  const t24 = v => { const m = /^(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m?\.?$/i.exec(String(v || '').trim()); if (!m) { const h = /^(\d{1,2}):(\d{2})$/.exec(String(v || '').trim()); return h ? String(+h[1]).padStart(2, '0') + ':' + h[2] : ''; } let h = +m[1] % 12; if (/p/i.test(m[3])) h += 12; return String(h).padStart(2, '0') + ':' + (m[2] || '00'); };
+  const blank = v => !v || /^[—–\-]+$/.test(String(v).trim());
+  const yearInDoc = (() => { const m = /\b(20\d\d)\b/.exec(String(fullText || '')); return m ? +m[1] : 0; })();
+
+  const dates = [], travel = [];
+  let model = null, prevMonth = 0, year = 0, lastRec = null, lastRow = null, lastPlace = { city: '', state: '' };
+  rows.forEach((row, ri) => {
+    // a header row: at least two recognised column names, one of them the date
+    const keys = row.cells.map(c => _pdfColKey(c.s));
+    if (keys.filter(Boolean).length >= 2 && keys.includes('date') && !hasDate(row)) {
+      // columns: cluster the x-starts of the dated rows that follow
+      const data = []; for (let k = ri + 1; k < rows.length && data.length < 60; k++) { if (hasDate(rows[k])) data.push(rows[k]); else if (data.length && rows[k].page !== row.page) break; }
+      if (data.length < 2) return;
+      // "—" placeholders are centred in their cell, a few points off the real
+      // values' left edge — counted, they become phantom columns of their own.
+      const xs = []; data.forEach(r => r.cells.forEach(c => { if (!blank(c.s)) xs.push(c.x); })); xs.sort((a, b) => a - b);
+      const anchors = []; xs.forEach(x => { const a = anchors[anchors.length - 1]; if (a && x - a.max <= 7) { a.max = x; a.n++; a.min = Math.min(a.min, x); } else anchors.push({ min: x, max: x, n: 1 }); });
+      const cols = anchors.filter(a => a.n >= Math.max(1, Math.floor(data.length * 0.12))).map(a => a.min);
+      const colOf = x => { let i = 0; for (let k = 0; k < cols.length; k++) if (x >= cols[k] - 4) i = k; return i; };
+      const names = cols.map(() => '');
+      row.cells.forEach((c, ci) => { if (keys[ci]) { const i = colOf(c.x + c.w / 2); if (!names[i]) names[i] = keys[ci]; } });
+      if (!names.includes('date')) names[0] = 'date';
+      model = { colOf, names };
+      return;
+    }
+    if (!model) return;
+    const rec = {}; row.cells.forEach(c => { const k = model.names[model.colOf(c.x)]; if (k) rec[k] = rec[k] ? rec[k] + ' ' + c.s : c.s; });
+    if (!hasDate(row)) {
+      // a wrapped cell (a long note running onto a second line) belongs to the row above
+      if (lastRec && lastRow && lastRow.page === row.page && lastRow.y - row.y < 16) { if (rec.notes) lastRec.notes = [lastRec.notes, rec.notes].filter(Boolean).join(' '); if (rec.venue && lastRec.venue && lastRec.status === 'show') lastRec.venue += ' ' + rec.venue; }
+      return;
+    }
+    const m = DATE_RE.exec(rec.date || row.cells[0].s); if (!m) return;
+    const mo = +m[1], da = +m[2]; if (mo < 1 || mo > 12 || da < 1 || da > 31) return;
+    if (m[3]) year = +m[3] < 100 ? 2000 + +m[3] : +m[3];
+    else {
+      if (!year) { const now = new Date(); year = yearInDoc || now.getFullYear(); if (!yearInDoc && new Date(year, mo - 1, da) < new Date(now.getTime() - 90 * 864e5)) year++; }
+      else if (prevMonth && mo < prevMonth - 6) year++;                // Dec → Jan
+    }
+    prevMonth = mo;
+    const iso = year + '-' + String(mo).padStart(2, '0') + '-' + String(da).padStart(2, '0');
+
+    let city = blank(rec.city) ? '' : rec.city, state = blank(rec.state) ? '' : rec.state, venue = blank(rec.venue) ? '' : rec.venue;
+    let status = 'show'; const extra = [];
+    const offWord = v => /^(off|day off|off day|travel|travel day|drive day|stay put|rest day|fly day)$/i.test(String(v || '').trim());
+    const st = String(rec.status || '').trim();
+    if (offWord(city) || offWord(venue) || offWord(st)) {
+      const word = [city, venue, st].filter(offWord).join(' ');
+      status = /travel|drive|fly/i.test(word) ? 'travel' : 'off';
+      if (/stay put|rest/i.test(word)) extra.push(word.replace(/^off\s*/i, '').trim());
+      if (offWord(city)) city = ''; if (offWord(venue)) venue = '';
+      // where the night is spent is where that day "is"
+      const where = !blank(rec.overnight) ? rec.overnight : (String(rec.drive || '').split(/→|->|–>| to /)[1] || '');
+      if (!city && where) city = where.trim();
+    } else if (venue && /^(off\b|travel\b|drive\b|fly\b|flight\b|home\b|rest\b|stay\b|no show|day off)/i.test(venue.trim())) {
+      // A "Venue / Day" column also describes days that aren't shows — "Off the
+      // road by noon" is a plan for the day, not a room. It's a travel day when
+      // there is a drive on it, a day off when there isn't.
+      extra.push(venue.trim()); venue = '';
+      status = /→|->|–>/.test(String(rec.drive || '')) ? 'travel' : 'off';
+    }
+    // "Home" is where they sleep, not a city: keep the place they actually are.
+    if (/^home$/i.test(city.trim())) { extra.push('Home'); city = lastPlace.city; if (!state) state = lastPlace.state; }
+    if (city && !state) { const cs = /^(.*?),\s*([A-Za-z]{2,3})\.?$/.exec(city.trim()); if (cs) { city = cs[1].trim(); state = cs[2].toUpperCase(); } }
+    else if (city && state && new RegExp(',\\s*' + state + '$', 'i').test(city)) city = city.replace(/,\s*[A-Za-z]{2,3}$/, '').trim();
+    if (!blank(rec.notes)) extra.push(rec.notes);
+
+    const d = { date: iso, city, state, venue, status, capacity: blank(rec.capacity) ? '' : rec.capacity, promoter: blank(rec.promoter) ? '' : rec.promoter,
+      doors: t24(rec.doors), setTime: t24(rec.setTime), loadIn: t24(rec.loadIn), soundcheck: t24(rec.soundcheck), curfew: t24(rec.curfew), notes: extra.join(' · ') };
+    dates.push(d); lastRec = d; lastRow = row;
+    if (d.city) lastPlace = { city: d.city, state: d.state };
+
+    const legs = String(rec.drive || '').split(/\s*(?:→|->|–>)\s*/).map(x => x.trim()).filter(Boolean);
+    if (legs.length === 2) {
+      const bits = [blank(rec.miles) ? '' : rec.miles + ' mi', blank(rec.hrs) ? '' : rec.hrs + ' hrs'].filter(Boolean).join(' · ');
+      travel.push({ date: iso, type: 'van', description: legs[0] + ' → ' + legs[1], time: t24(rec.rollBy), arriveTime: t24(rec.arrive), notes: bits });
+    }
+  });
+  const good = dates.filter(d => d.city || d.venue || d.status !== 'show').length;
+  return { dates, travel, confident: dates.length >= 2 && good / dates.length >= 0.6 };
+}
+
 function _validImportedDate(d) {
   if (!d.date) return false;
   if (d.city) return true;
@@ -25034,6 +25218,7 @@ function izApply() {
       type: t.type || 'flight',
       description: t.description || '',
       time: t.time || '',
+      arriveTime: t.arriveTime || '',
       flightNumber: t.flightNumber || '',
       conf: t.conf || '',
       person: t.person || '',
@@ -34048,6 +34233,7 @@ function _applyImportResults(results, files) {
       type: t.type || 'flight',
       description: t.description || '',
       time: t.time || '',
+      arriveTime: t.arriveTime || '',
       flightNumber: t.flightNumber || '',
       conf: t.conf || '',
       person: t.person || '',
