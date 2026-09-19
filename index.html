@@ -1819,15 +1819,16 @@ body.mobile .god-search{min-width:0;width:100%}
 .phone-hide-btn{
   padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;
   font-family:'Bricolage Grotesque',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
-  color:#ffd9ae;border:1px solid rgba(255,140,50,.45);
+  color:#ffd2b8;border:1px solid rgba(255,92,48,.62);
   background:
-    radial-gradient(circle at 25% 75%, rgba(255,150,45,.30), transparent 46%),
-    radial-gradient(circle at 70% 30%, rgba(255,80,25,.20), transparent 42%),
-    rgba(255,255,255,.02);
+    radial-gradient(circle at 25% 75%, rgba(255,104,36,.46), transparent 48%),
+    radial-gradient(circle at 70% 30%, rgba(236,44,24,.36), transparent 44%),
+    rgba(60,12,6,.30);
+  box-shadow:0 0 12px rgba(240,60,30,.22);
   background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
   animation:tabFlame 8s ease-in-out infinite alternate;
 }
-.phone-hide-btn:hover{color:#ffe9c9;border-color:rgba(255,160,70,.8);box-shadow:0 0 14px rgba(255,122,31,.25)}
+.phone-hide-btn:hover{color:#ffe6d6;border-color:rgba(255,110,60,.9);box-shadow:0 0 16px rgba(240,60,30,.38)}
 body.crew-mobile-only .phone-hide-btn,body.tm-crew-tour .phone-hide-btn,body.phone-app .phone-hide-btn{display:none!important}
 body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app) .phone-rig{display:none!important}
 body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app) .stage{grid-template-columns:1fr!important}
@@ -1836,16 +1837,16 @@ body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app) .
   padding:16px 9px 16px 10px;border-radius:9px 0 0 9px;cursor:pointer;
   writing-mode:vertical-rl;
   font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;font-weight:700;
-  color:#ffd9ae;border:1px solid rgba(255,140,50,.5);border-right:none;
+  color:#ffd2b8;border:1px solid rgba(255,92,48,.66);border-right:none;
   background:
-    radial-gradient(circle at 25% 75%, rgba(255,150,45,.35), transparent 46%),
-    radial-gradient(circle at 70% 30%, rgba(255,80,25,.22), transparent 42%),
-    rgba(20,13,8,.92);
+    radial-gradient(circle at 25% 75%, rgba(255,104,36,.5), transparent 48%),
+    radial-gradient(circle at 70% 30%, rgba(236,44,24,.4), transparent 44%),
+    rgba(40,10,6,.94);
   background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
   animation:tabFlame 8s ease-in-out infinite alternate;
-  box-shadow:0 0 18px rgba(255,122,31,.2);
+  box-shadow:0 0 20px rgba(240,60,30,.3);
 }
-.phone-expand-btn:hover{color:#ffe9c9;border-color:rgba(255,160,70,.85);box-shadow:0 0 22px rgba(255,122,31,.35)}
+.phone-expand-btn:hover{color:#ffe6d6;border-color:rgba(255,110,60,.95);box-shadow:0 0 26px rgba(240,60,30,.45)}
 body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app):not(.mobile):not(.admin-active) .phone-expand-btn{display:block}
 .phone{width:340px;height:700px;border-radius:42px;background:#0a0705;border:1px solid var(--line-2);
   box-shadow:inset 0 0 0 4px #110c08,inset 0 0 0 5px var(--line-2),0 0 60px rgba(232,148,58,.18),0 30px 70px -20px rgba(0,0,0,.8);
@@ -1899,6 +1900,97 @@ body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app):n
 .phone .nav button.on{color:var(--hi);text-shadow:0 0 8px rgba(232,148,58,.5)}
 .p-screen{display:none;flex:1;flex-direction:column;gap:12px;padding:14px 16px 18px;overflow-y:auto;min-height:0}
 .p-screen.on{display:flex}
+/* Swipe between tabs (PhoneSwipe): the browser keeps vertical scrolling, and
+   hands horizontal drags to the pager instead of trying to pan with them. */
+.p-screen{touch-action:pan-y;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+/* In the installed app the DOCUMENT never scrolls — every surface is its own
+   fixed layer. Left scrollable, iOS lets a drag at the top or bottom of a
+   screen rubber-band the whole page instead, and until that bounce settles
+   the screen under your finger won't scroll at all. */
+html.native-app,html.native-app body{height:100%;overflow:hidden;overscroll-behavior:none}
+
+/* ── a window, as a page inside the phone ── */
+.ph-page{position:absolute;left:0;right:0;z-index:30;display:flex;flex-direction:column;
+  background:linear-gradient(180deg,#0d0906,#120c08);
+  transform:translate3d(100%,0,0);transition:transform .24s cubic-bezier(.22,.78,.2,1);will-change:transform}
+.ph-page.in{transform:none}
+.ph-page[hidden]{display:none!important}
+.ph-page-head{flex:none;display:grid;grid-template-columns:auto 1fr;align-items:center;gap:6px;padding:12px 14px 12px 8px;
+  border-bottom:1px solid var(--line);background:rgba(10,7,5,.6)}
+html body.phone-app .ph-page-head{padding-top:calc(12px + env(safe-area-inset-top))}
+.ph-page-head h3{margin:0;font-size:15px;font-weight:800;color:var(--warm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px}
+.ph-back{display:inline-flex;align-items:center;gap:2px;padding:8px 10px 8px 4px;background:none;border:0;color:var(--hi);
+  font-family:'Bricolage Grotesque',monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;border-radius:8px}
+.ph-back:active{background:rgba(232,148,58,.14)}
+.ph-page-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:16px}
+.ph-page-foot{flex:none;padding:12px 16px}
+@media (prefers-reduced-motion:reduce){.ph-page{transition:none}}
+
+/* ── the ember, on the phone ── */
+.ph-ember,.ph-ember-btn,.ember-mini{
+  border:1px solid rgba(232,148,58,.62)!important;
+  background:
+    radial-gradient(circle at 24% 78%,rgba(255,150,45,.36),transparent 46%),
+    radial-gradient(circle at 72% 26%,rgba(255,80,25,.24),transparent 42%),
+    linear-gradient(135deg,rgba(232,148,58,.2),rgba(232,148,58,.05))!important;
+  background-size:230% 230%,210% 210%,100% 100%!important;background-repeat:no-repeat!important;
+  animation:tabFlame 7s ease-in-out infinite alternate;
+  box-shadow:0 0 16px rgba(232,148,58,.28),inset 0 1px 0 rgba(255,220,170,.13)}
+@media (prefers-reduced-motion:reduce){.ph-ember,.ph-ember-btn,.ember-mini{animation:none}}
+.ph-ember-btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 16px;border-radius:11px;
+  color:var(--hi-bright);font-family:'Bricolage Grotesque',monospace;font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;
+  text-shadow:0 0 10px rgba(232,148,58,.45);cursor:pointer;transition:transform .1s ease}
+.ph-ember-btn:active{transform:scale(.975)}
+.ph-quiet-btn{flex:none;padding:14px 14px;background:none;border:1px solid var(--line-2);border-radius:11px;color:var(--warm-mute);
+  font-family:'Bricolage Grotesque',monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
+.ph-sheet-actions{display:flex;gap:10px;align-items:stretch;border-top:1px solid var(--line);padding-top:14px}
+.ph-status-note{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--warm-mute);text-align:center}
+/* flight status: a lit dot + the word, the same everywhere it appears */
+.phf-status::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;
+  box-shadow:0 0 8px currentColor;margin-right:6px;vertical-align:1px}
+.phf-status.muted::before{box-shadow:none;opacity:.7}
+.ptr-statusline{display:flex!important;align-items:center;gap:9px;flex-wrap:wrap;margin-top:3px}
+.ptr-leg{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--warm-mute)}
+/* upcoming dates press in */
+.ph-up-row{border-radius:9px;transition:transform .12s ease,background .12s ease;-webkit-tap-highlight-color:transparent}
+.ph-up-row.pressed,.ph-up-row:active{transform:scale(.972);background:rgba(232,148,58,.13)}
+/* DOS quick */
+.dos-quick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.p-quick{background:linear-gradient(135deg,rgba(232,148,58,.06),rgba(232,148,58,.01));border:1px solid var(--line-2);border-radius:10px;
+  padding:13px 6px;display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--warm);cursor:pointer;transition:transform .1s ease,background .12s}
+.p-quick:active{transform:scale(.97);background:rgba(232,148,58,.12)}
+.p-quick .pq-ic{font-size:19px;color:var(--hi);line-height:1}
+.p-quick .pq-lb{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--warm-mute)}
+.phone .nav button .gly .mic-ic{width:17px;height:17px;display:block;margin:0 auto}
+/* hotel actions */
+.ph-hotel-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;padding-top:12px;border-top:1px dashed rgba(232,148,58,.1)}
+.ph-hotel-actions.one{grid-template-columns:1fr}
+.ph-act{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 10px;border-radius:10px;cursor:pointer;
+  background:rgba(232,148,58,.08);border:1px solid rgba(232,148,58,.4);color:var(--hi);
+  font-family:'Bricolage Grotesque',monospace;font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;transition:transform .1s ease,background .12s}
+.ph-act:active{transform:scale(.97);background:rgba(232,148,58,.2)}
+/* More: the tour you're on */
+.ph-tour-current{border-radius:11px;padding:12px 13px;display:flex;flex-direction:column;gap:3px}
+.ph-tour-current .ptc-k{font-family:'Bricolage Grotesque',monospace;font-size:9px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--hi)}
+.ph-tour-current .ptc-n{font-weight:800;font-size:15px;line-height:1.2;color:var(--hi-bright);text-shadow:0 0 12px rgba(232,148,58,.35)}
+.ph-tour-current .ptc-m{font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.06em;color:var(--warm-mute)}
+.phone-task.mine{margin:2px 0;padding:9px 8px}
+/* dashboard: Manage groups */
+.lbl-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.lbl-row label{margin-bottom:0}
+.lbl-row + .group-picker,.lbl-row + div{margin-top:7px}
+.lbl-row-end{justify-content:flex-end;margin-bottom:-18px;position:relative;z-index:1}
+.ember-mini{padding:5px 11px;border-radius:6px;color:var(--hi-bright);cursor:pointer;
+  font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;
+  text-shadow:0 0 8px rgba(232,148,58,.45);transition:transform .1s ease}
+.ember-mini:active{transform:scale(.96)}
+/* a very small labelled check, for a one-off switch beside a field label */
+.mini-check{display:inline-flex;align-items:center;gap:6px;padding:3px 2px;background:none;border:0;cursor:pointer;color:var(--warm-mute);
+  font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+.mini-check i{width:12px;height:12px;border:1px solid var(--line-2);border-radius:3px;display:grid;place-items:center;background:rgba(0,0,0,.3);transition:background .12s,border-color .12s}
+.mini-check.on{color:var(--hi)}
+.mini-check.on i{background:var(--hi);border-color:var(--hi)}
+.mini-check.on i::after{content:"";width:6px;height:3px;border-left:1.6px solid #0a0705;border-bottom:1.6px solid #0a0705;transform:rotate(-45deg) translate(.5px,-.5px)}
 .p-card{background:linear-gradient(180deg,rgba(24,17,11,.95),rgba(17,12,8,.95));
   border:1px solid var(--line);border-radius:14px;padding:15px;display:flex;flex-direction:column;gap:8px;
   box-shadow:inset 0 1px 0 rgba(232,148,58,.06);
@@ -2374,7 +2466,10 @@ body.god-account:not(.bg-mark-on) #app[hidden]{display:block!important}
 .bmi-id{display:flex;flex-direction:column;gap:7px;min-width:0}
 .bmi-id span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:62vw}
 .bmi-mode{display:flex;align-items:center;gap:clamp(14px,1.8vw,26px);flex:none;font-variant-numeric:tabular-nums}
-.bmi-pulse{display:flex;align-items:center;gap:9px}
+.bmi-pulse{display:flex;align-items:center;gap:9px;padding:9px 15px 9px 13px;border:1px solid rgba(232,148,58,.55);border-radius:7px;
+  background:rgba(232,148,58,.06);color:#f2ece2;animation:bmiBoxGlow 2.6s ease-in-out infinite}
+@keyframes bmiBoxGlow{0%,100%{box-shadow:0 0 10px rgba(232,148,58,.16),inset 0 0 10px rgba(232,148,58,.05);border-color:rgba(232,148,58,.4)}
+  50%{box-shadow:0 0 24px rgba(232,148,58,.42),inset 0 0 14px rgba(232,148,58,.12);border-color:rgba(232,148,58,.8)}}
 .bmi-pulse i{width:6px;height:6px;background:#e8943a;animation:bmiPulse 2.6s ease-in-out infinite}
 .bmi-pulse b{font-weight:inherit}
 .bmi-bot{position:absolute;left:0;right:0;bottom:0;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;
@@ -2436,7 +2531,7 @@ body.god-account:not(.bg-mark-on) #app[hidden]{display:block!important}
 .dsp-url{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
 .dsp-url code{flex:1 1 280px;min-width:0;padding:10px 14px;border:1px solid var(--line-2);border-radius:6px;background:rgba(0,0,0,.3);
   font-family:'Bricolage Grotesque',monospace;font-size:12.5px;letter-spacing:.04em;color:var(--hi-bright);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:all}
-@media (prefers-reduced-motion:reduce){.bmi-sx,.bmi-sy,.bmi-uy,.bmi-ux,.bmi-pulse i{animation:none}}
+@media (prefers-reduced-motion:reduce){.bmi-sx,.bmi-sy,.bmi-uy,.bmi-ux,.bmi-pulse,.bmi-pulse i{animation:none}}
 @media print{.bmi{display:none!important}}
 /* Bandmate for Mac. Signing up leads to choosing a paid plan, which the App
    Store doesn't allow inside the app, so the Mac app's landing offers sign-in
@@ -3522,8 +3617,16 @@ body.print-stage-mode #stagePrintArea{
   100% {transform:rotateY(360deg); filter:drop-shadow(0 0 6px rgba(232,148,58,.25))}
 }
 @media (prefers-reduced-motion:reduce){.phone-avatar{animation:none;filter:drop-shadow(0 0 6px rgba(232,148,58,.25))}}
-.phone-trigger-chev{color:var(--warm-mute);font-size:12px;flex:none;transition:transform .15s,color .15s}
-.phone-app-bar.menu-open .phone-trigger-chev{transform:rotate(180deg);color:var(--hi)}
+/* The date menu's arrow: its own small well, so it reads as a control and
+   stays put and visible however long (or wrapped) the city is. */
+.phone-trigger-chev{flex:none;align-self:center;display:grid;place-items:center;width:28px;height:28px;margin-left:2px;
+  border:1px solid rgba(232,148,58,.38);border-radius:8px;background:rgba(232,148,58,.08);color:var(--hi);
+  box-shadow:0 0 10px rgba(232,148,58,.14);transition:transform .18s ease,color .15s,border-color .15s,background .15s}
+.phone-trigger-chev svg{display:block}
+.phone-date-trigger:active .phone-trigger-chev{background:rgba(232,148,58,.2)}
+.phone-app-bar .city{min-width:0;flex:0 1 auto}
+.ph-city-name{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.phone-app-bar.menu-open .phone-trigger-chev{transform:rotate(180deg);color:var(--hi-bright);border-color:rgba(232,148,58,.7);background:rgba(232,148,58,.18)}
 
 .phone-date-menu{
   position:absolute;left:8px;right:8px;top:74px;
@@ -5000,6 +5103,11 @@ html body.phone-app .phone .screen,
 html body.phone-app .p-screen {
   touch-action: manipulation !important;
 }
+/* …except the tab screens themselves, which the swipe pager needs as pan-y.
+   (pan-y still forbids double-tap zoom, so the no-zoom rule above holds.) */
+html body.phone-app .phone .p-screen {
+  touch-action: pan-y !important;
+}
 /* App + stage collapse to a single full-bleed surface */
 html body.phone-app #app { padding: 0 !important; margin: 0 !important; max-width: 100vw !important; }
 html body.phone-app .stage {
@@ -6005,7 +6113,7 @@ setTimeout(window._hideAppBoot,6000);
             <button type="button" class="phone-date-trigger" onclick="togglePhoneDateMenu()">
               <img src="avatar.png" class="phone-avatar" alt="" />
               <div class="city" id="phCity">—<small id="phSub">—</small></div>
-              <span class="phone-trigger-chev">▾</span>
+              <span class="phone-trigger-chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
             </button>
             <div class="phone-app-bar-actions">
               <button type="button" class="ic ic-search" onclick="openPhoneSearch()" title="Search tour data" aria-label="Search">
@@ -6025,11 +6133,14 @@ setTimeout(window._hideAppBoot,6000);
           <div class="p-screen" data-screen="guests" id="ph-guests"></div>
           <div class="p-screen" data-screen="more" id="ph-more"></div>
 
+          <!-- Search, messaging, travel details… open here, as a page inside
+               the app, instead of as a pop-up over it. -->
+          <div class="ph-page" id="phPage" hidden></div>
           <div class="nav">
             <button type="button" class="on" data-go="today"><span class="gly">◐</span><span>Today</span></button>
             <button type="button" data-go="schedule"><span class="gly">▦</span><span>Sched</span></button>
             <button type="button" data-go="hotel"><span class="gly"><svg class="bed-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v11m0-4h18m0 4v-8a2 2 0 0 0-2-2h-8v6"/><circle cx="7" cy="10" r="1.15"/></svg></span><span>Hotel</span></button>
-            <button type="button" data-go="guests"><span class="gly">+</span><span>Guests</span></button>
+            <button type="button" data-go="guests" aria-label="Day of show"><span class="gly"><svg class="mic-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/><path d="M8.5 21h7"/></svg></span><span>DOS</span></button>
             <button type="button" data-go="more"><span class="gly">⋯</span><span>More</span></button>
           </div>
         </div>
@@ -8239,7 +8350,7 @@ const BMIdle = (() => {
   const PTS = [[-0.737,-0.984],[-0.594,-0.989],[-0.487,-0.962],[0.631,-0.99],[0.734,-0.978],[0.853,-0.965],[-0.878,-0.926],[-0.798,-0.894],[-0.64,-0.93],[-0.533,-0.928],[-0.456,-0.912],[0.365,-0.901],[0.469,-0.917],[0.618,-0.907],[0.698,-0.931],[0.805,-0.893],[0.899,-0.918],[-0.908,-0.862],[-0.829,-0.837],[-0.689,-0.87],[-0.643,-0.87],[-0.46,-0.862],[-0.405,-0.832],[0.426,-0.856],[0.539,-0.833],[0.627,-0.835],[0.722,-0.851],[0.838,-0.849],[-0.872,-0.813],[-0.792,-0.792],[-0.682,-0.8],[-0.511,-0.782],[-0.447,-0.789],[0.392,-0.779],[0.46,-0.813],[0.594,-0.779],[0.676,-0.784],[0.789,-0.809],[0.951,-0.776],[-0.976,-0.742],[-0.856,-0.721],[-0.722,-0.737],[-0.569,-0.752],[-0.466,-0.739],[-0.398,-0.739],[0.438,-0.736],[0.502,-0.736],[0.624,-0.718],[0.737,-0.715],[0.896,-0.729],[-0.866,-0.662],[-0.744,-0.667],[-0.676,-0.678],[-0.53,-0.662],[-0.475,-0.68],[0.46,-0.657],[0.576,-0.689],[0.698,-0.657],[0.774,-0.686],[0.893,-0.693],[-0.969,-0.609],[-0.832,-0.6],[-0.734,-0.611],[-0.643,-0.622],[-0.478,-0.604],[-0.408,-0.632],[0.377,-0.608],[0.548,-0.612],[0.64,-0.614],[0.786,-0.598],[0.884,-0.625],[-0.872,-0.564],[-0.805,-0.534],[-0.661,-0.536],[-0.551,-0.564],[-0.466,-0.54],[0.35,-0.576],[0.447,-0.577],[0.548,-0.561],[0.667,-0.539],[0.811,-0.563],[0.936,-0.56],[-0.939,-0.494],[-0.795,-0.486],[-0.679,-0.499],[-0.588,-0.508],[-0.475,-0.5],[-0.347,-0.499],[0.411,-0.508],[0.533,-0.497],[0.676,-0.51],[0.789,-0.494],[0.875,-0.48],[0.988,-0.5],[-0.884,-0.427],[-0.737,-0.433],[-0.67,-0.417],[-0.573,-0.448],[-0.414,-0.422],[0.353,-0.417],[0.463,-0.43],[0.597,-0.422],[0.707,-0.454],[0.817,-0.443],[0.905,-0.417],[-0.915,-0.369],[-0.847,-0.364],[-0.71,-0.39],[-0.6,-0.366],[-0.499,-0.379],[-0.42,-0.392],[0.435,-0.364],[0.551,-0.387],[0.673,-0.382],[0.753,-0.358],[0.838,-0.364],[0.982,-0.358],[-0.878,-0.305],[-0.783,-0.316],[-0.627,-0.319],[-0.573,-0.303],[-0.426,-0.329],[0.377,-0.331],[0.505,-0.339],[0.557,-0.311],[0.731,-0.327],[0.829,-0.327],[0.927,-0.315],[-0.93,-0.273],[-0.869,-0.271],[-0.728,-0.247],[-0.6,-0.241],[-0.484,-0.251],[-0.374,-0.27],[0.447,-0.243],[0.487,-0.241],[0.631,-0.26],[0.747,-0.278],[0.881,-0.259],[-0.853,-0.219],[-0.789,-0.214],[-0.695,-0.207],[-0.566,-0.217],[-0.46,-0.201],[0.359,-0.209],[0.484,-0.185],[0.545,-0.204],[0.667,-0.185],[0.847,-0.206],[0.921,-0.203],[-0.973,-0.124],[-0.814,-0.132],[-0.685,-0.126],[-0.646,-0.143],[-0.511,-0.145],[-0.362,-0.135],[0.392,-0.147],[0.511,-0.122],[0.67,-0.148],[0.716,-0.129],[0.853,-0.132],[-0.908,-0.065],[-0.802,-0.102],[-0.67,-0.089],[-0.536,-0.068],[-0.463,-0.102],[0.353,-0.095],[0.438,-0.098],[0.621,-0.074],[0.67,-0.079],[0.798,-0.086],[0.921,-0.082],[-0.927,-0.023],[-0.853,-0.012],[-0.737,-0.02],[-0.637,-0.038],[-0.484,-0.007],[-0.362,-0.006],[0.398,-0.014],[0.515,-0.006],[0.618,-0.007],[0.777,-0.038],[0.905,-0.017],[-0.927,0.05],[-0.783,0.031],[-0.621,0.042],[-0.518,0.046],[-0.463,0.025],[-0.328,0.031],[0.392,0.03],[0.438,0.03],[0.563,0.025],[0.716,0.044],[0.786,0.02],[0.93,0.025],[-0.945,0.089],[-0.844,0.089],[-0.685,0.086],[-0.634,0.118],[-0.505,0.106],[-0.377,0.106],[0.402,0.079],[0.554,0.092],[0.6,0.095],[0.725,0.089],[0.887,0.106],[-0.887,0.164],[-0.805,0.151],[-0.634,0.137],[-0.515,0.177],[-0.411,0.158],[-0.319,0.171],[-0.218,0.147],[-0.096,0.158],[0.163,0.171],[0.276,0.172],[0.38,0.137],[0.478,0.171],[0.597,0.167],[0.713,0.14],[0.78,0.137],[0.887,0.147],[-0.976,0.217],[-0.863,0.225],[-0.722,0.206],[-0.566,0.198],[-0.475,0.198],[-0.38,0.211],[-0.273,0.209],[-0.151,0.203],[-0.056,0.235],[0.099,0.233],[0.157,0.207],[0.276,0.214],[0.386,0.212],[0.527,0.222],[0.679,0.222],[0.731,0.235],[0.853,0.223],[0.988,0.207],[-0.924,0.273],[-0.747,0.283],[-0.649,0.281],[-0.533,0.283],[-0.435,0.262],[-0.334,0.254],[-0.182,0.289],[-0.056,0.257],[0.05,0.287],[0.166,0.273],[0.218,0.263],[0.377,0.292],[0.481,0.259],[0.551,0.281],[0.716,0.292],[0.792,0.284],[0.902,0.278],[-0.921,0.34],[-0.869,0.351],[-0.731,0.319],[-0.591,0.35],[-0.499,0.326],[-0.35,0.332],[-0.276,0.316],[-0.188,0.329],[-0.072,0.319],[0.05,0.318],[0.154,0.345],[0.307,0.327],[0.42,0.327],[0.502,0.337],[0.6,0.327],[0.771,0.347],[0.86,0.315],[0.988,0.337],[-0.905,0.384],[-0.759,0.387],[-0.643,0.382],[-0.542,0.371],[-0.475,0.39],[-0.285,0.398],[-0.169,0.374],[-0.072,0.409],[0.05,0.385],[0.163,0.372],[0.258,0.401],[0.368,0.414],[0.499,0.398],[0.56,0.382],[0.682,0.384],[0.844,0.408],[0.945,0.409],[-0.921,0.441],[-0.82,0.438],[-0.74,0.472],[-0.618,0.432],[-0.279,0.448],[-0.166,0.467],[-0.069,0.452],[0.056,0.448],[0.166,0.472],[0.276,0.435],[0.655,0.449],[0.771,0.435],[0.841,0.452],[0.966,0.467],[-0.896,0.518],[-0.771,0.5],[-0.075,0.512],[-0.014,0.52],[0.136,0.521],[0.679,0.526],[0.814,0.505],[0.89,0.513],[-0.969,0.556],[-0.847,0.569],[-0.679,0.558],[-0.13,0.587],[-0.023,0.571],[0.066,0.585],[0.786,0.579],[0.887,0.585],[-0.872,0.629],[-0.759,0.625],[-0.188,0.63],[-0.072,0.646],[0.05,0.612],[0.148,0.635],[0.24,0.649],[0.704,0.641],[0.823,0.64],[0.915,0.646],[-0.948,0.685],[-0.853,0.693],[-0.701,0.694],[-0.634,0.697],[-0.521,0.678],[-0.405,0.693],[-0.298,0.688],[-0.124,0.677],[-0.056,0.67],[0.102,0.681],[0.188,0.688],[0.258,0.675],[0.38,0.702],[0.563,0.688],[0.609,0.699],[0.774,0.675],[0.899,0.673],[0.997,0.696],[-0.881,0.749],[-0.774,0.744],[-0.679,0.747],[-0.518,0.765],[-0.432,0.734],[-0.282,0.736],[-0.194,0.753],[0.218,0.747],[0.365,0.734],[0.45,0.734],[0.612,0.758],[0.716,0.765],[0.786,0.769],[0.89,0.739],[-0.927,0.787],[-0.811,0.829],[-0.731,0.805],[-0.612,0.813],[-0.505,0.798],[-0.417,0.803],[-0.234,0.806],[-0.163,0.795],[0.215,0.806],[0.282,0.795],[0.392,0.824],[0.518,0.811],[0.606,0.797],[0.777,0.825],[0.853,0.797],[-0.866,0.862],[-0.808,0.886],[-0.676,0.849],[-0.582,0.875],[-0.472,0.853],[-0.344,0.854],[-0.173,0.885],[-0.108,0.856],[0.026,0.875],[0.096,0.886],[0.258,0.878],[0.362,0.87],[0.444,0.87],[0.569,0.861],[0.667,0.886],[0.847,0.856],[-0.737,0.915],[-0.634,0.917],[-0.493,0.907],[-0.414,0.914],[-0.276,0.926],[-0.111,0.915],[0.105,0.915],[0.224,0.933],[0.301,0.931],[0.435,0.92],[0.524,0.922],[0.67,0.926],[0.777,0.925],[-0.551,0.984],[-0.423,0.965],[-0.334,0.979],[-0.212,0.982],[0.237,0.973],[0.389,0.992],[0.438,0.971]];
   const HALF_X = 300, HALF_Y = 476, XOFF = -26, PERIOD = 5200;
   const KEY = 'bandmate.idle.after', BOARD_KEY = 'bandmate.display.board';
-  const CHOICES = [[0, 'Off'], [10, '10 seconds'], [30, '30 seconds'], [60, '1 minute'], [300, '5 minutes']];
+  const CHOICES = [[0, 'Off'], [15, '15 seconds'], [30, '30 seconds'], [60, '1 minute'], [300, '5 minutes']];
   const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
   const WD = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
   const DAY_KIND = { show: 'SHOW DAY', off: 'DAY OFF', travel: 'TRAVEL DAY', rehearsal: 'REHEARSAL', press: 'PRESS DAY' };
@@ -8252,6 +8363,7 @@ const BMIdle = (() => {
   let watch = null, reel = null, clock = null, shownAt = 0, anchor = null, graceMs = 400, swapT = null, tail = 0;
   let nCities = 1, phase = 0, headSig = '', lastMin = -1, ctlT = null, wl = null, ownFS = false;
   let wantDisplay = false, bootAt = Date.now(), ticks = 0;
+  let guardOn = () => {}, guardOff = () => {};
 
   const hash = i => { const x = Math.sin(i * 12.9898) * 43758.5453; return x - Math.floor(x); };
   const pad = n => String(n).padStart(2, '0');
@@ -8264,8 +8376,10 @@ const BMIdle = (() => {
   const span = n => n >= 60 ? Math.floor(n / 60) + 'H ' + pad(n % 60) + 'M' : n + 'M';
 
   function after() {
-    try { const v = localStorage.getItem(KEY); if (v != null && v !== '' && !isNaN(+v)) return Math.max(0, +v); } catch (e) {}
-    return 10;
+    // 15 seconds is the floor as well as the default: a value saved back when
+    // the choice was 10 is lifted to 15. (0 still means Off.)
+    try { const v = localStorage.getItem(KEY); if (v != null && v !== '' && !isNaN(+v)) return +v <= 0 ? 0 : Math.max(15, +v); } catch (e) {}
+    return 15;
   }
   function setAfter(sec) { try { localStorage.setItem(KEY, String(Math.max(0, +sec || 0))); } catch (e) {} last = Date.now(); }
   // What the display's running order draws from: the key times plus every
@@ -8554,6 +8668,7 @@ const BMIdle = (() => {
     document.body.appendChild(root);
     document.body.classList.add('bm-idle');
     showing = true; shownAt = Date.now(); anchor = null; lastMin = -1; ticks = 0;
+    guardOn();
     // Started by hand, the hand is still on the mouse — give it time to leave.
     graceMs = manual ? 2500 : 400;
     paint(); fit();
@@ -8579,6 +8694,7 @@ const BMIdle = (() => {
     if (!showing) return;
     const wasDisplay = mode === 'display';
     showing = false; last = Date.now();
+    guardOff();
     clearInterval(reel); clearInterval(clock); clearTimeout(swapT); clearTimeout(ctlT);
     window.removeEventListener('resize', fit);
     document.body.classList.remove('bm-idle');
@@ -8689,8 +8805,16 @@ const BMIdle = (() => {
 
   function init() {
     try { wantDisplay = /[?&]display=1(&|$)/.test(location.search); } catch (e) {}
-    ['mousemove', 'mousedown', 'keydown', 'wheel', 'touchstart'].forEach(t =>
-      window.addEventListener(t, onInput, { capture: true, passive: false }));
+    // Watching for activity must never cost anything: these are PASSIVE. A
+    // non-passive touchstart/wheel listener on window makes the browser hold
+    // every scroll until the main thread answers — on a phone that is "I can't
+    // scroll for a few seconds" whenever the app is busy. The blocking
+    // versions (needed to swallow the wake gesture) exist only while the idle
+    // screen or the Display is actually up.
+    const EVTS = ['mousemove', 'mousedown', 'keydown', 'wheel', 'touchstart'];
+    EVTS.forEach(t => window.addEventListener(t, () => { if (!showing) last = Date.now(); }, { capture: true, passive: true }));
+    guardOn = () => EVTS.forEach(t => window.addEventListener(t, onInput, { capture: true, passive: false }));
+    guardOff = () => EVTS.forEach(t => window.removeEventListener(t, onInput, { capture: true }));
     ['mouseup', 'click', 'keyup', 'keypress', 'contextmenu'].forEach(t => window.addEventListener(t, swallow, true));
     window.addEventListener('scroll', () => { if (!showing) last = Date.now(); }, { capture: true, passive: true });
     document.addEventListener('visibilitychange', () => { if (showing && mode === 'display' && !document.hidden) lockOn(); });
@@ -9466,8 +9590,67 @@ function _modalInlineHost() {
   if (!document.querySelector('.panels-wrap')) return null;
   return host;
 }
+// The phone app (and the crew preview on the dashboard) opens its windows as a
+// PAGE inside the phone: it slides in over the content with a Back button,
+// the tab bar stays put, and tapping a tab leaves it. No pop-up.
+function _modalPhoneHost() {
+  const page = document.getElementById('phPage'), phone = document.querySelector('.phone');
+  if (!page || !phone || !phone.offsetWidth) return null;
+  const app = document.getElementById('app');
+  if (!app || app.hidden) return null;
+  if (typeof _publicSurfaceUp === 'function' && _publicSurfaceUp()) return null;
+  const b = document.body.classList;
+  let isTheApp = b.contains('phone-app') || b.contains('crew-mobile-only') || b.contains('tm-crew-tour');
+  try { if (_isPhoneApp()) isTheApp = true; } catch (e) {}
+  if (isTheApp) return page;
+  // On the desktop dashboard: only a window opened FROM the phone preview.
+  return (Date.now() - _lastPhoneTapAt < 1200) ? page : null;
+}
+let _phPageCloseT = null;
+function _phPageOpen(page, title, body, o) {
+  clearTimeout(_phPageCloseT);
+  const phone = page.closest('.phone'), nav = phone.querySelector('.nav'), bar = phone.querySelector('.phone-app-bar');
+  page.style.top = (bar ? bar.offsetTop : 0) + 'px';
+  page.style.bottom = (nav ? nav.offsetHeight : 0) + 'px';
+  page.innerHTML = `
+    <div class="ph-page-head">
+      <button type="button" class="ph-back" onclick="closeModal()" aria-label="Back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg><span>Back</span></button>
+      <h3>${esc(title)}</h3>
+    </div>
+    <div class="ph-page-body modal-body">${body}</div>
+    ${o.hideFooter ? '' : `
+      <div class="ph-page-foot modal-foot">
+        ${o.showDelete ? `<button type="button" class="btn danger" onclick="_modalDelete()">${esc(o.deleteLabel)}</button><div class="flex1"></div>` : ''}
+        <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+        <button type="button" class="btn primary" onclick="_modalSubmit()">${esc(o.submitLabel)}</button>
+      </div>`}`;
+  const wasOpen = !page.hidden;
+  page.hidden = false;
+  if (wasOpen) { page.classList.add('in'); return; }        // one page replacing another: no second slide
+  page.classList.remove('in');
+  void page.offsetWidth;
+  page.classList.add('in');
+}
+function _phPageClose(instant) {
+  const page = document.getElementById('phPage');
+  if (!page || page.hidden) return;
+  clearTimeout(_phPageCloseT);
+  const done = () => { page.hidden = true; page.classList.remove('in'); page.innerHTML = ''; };
+  if (instant) { done(); return; }
+  page.classList.remove('in');
+  _phPageCloseT = setTimeout(done, 210);
+}
+
 function openModal({ title, body, onSubmit, submitLabel = 'Save', size = '', showDelete = false, onDelete = null, hideFooter = false, deleteLabel = 'Delete' }) {
   _modalOnSubmit = onSubmit;
+  const phoneHost = _modalPhoneHost();
+  if (phoneHost) {
+    $('#modalRoot').innerHTML = '';
+    _phPageOpen(phoneHost, title, body, { submitLabel, showDelete, deleteLabel, hideFooter });
+    if (onDelete) window._modalDelete = () => { if (confirm('Delete this item?')) { onDelete(); closeModal(); renderAll(); } };
+    try { _wireAllAutocomplete(phoneHost); } catch (e) {}
+    return;
+  }
   const inline = _modalInlineHost();
   const root = inline || $('#modalRoot');
   const card = `
@@ -9517,6 +9700,7 @@ function _modalBackdropUp(e, el) {
   if (was && e.target === el) closeModal();
 }
 function closeModal() {
+  try { _phPageClose(); } catch (e) {}
   $('#modalRoot').innerHTML = '';
   const host = document.getElementById('inlineModalHost');
   if (host) { host.innerHTML = ''; host.hidden = true; }
@@ -10558,7 +10742,7 @@ function openScheduleModal(itemId) {
           </div>
         </div>
         <div class="field full"><label>What *</label><input id="s_what" value="${esc(i.what)}" placeholder="e.g. Soundcheck, Lobby call, Doors"></div>
-        <div class="field full"><label>Visible to groups <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span></label>
+        <div class="field full"><div class="lbl-row"><label>Visible to groups <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span></label><button type="button" class="ember-mini" onclick="_manageGroupsFromForm()">Manage groups</button></div>
           ${renderGroupPicker('s_grp', i.groups && i.groups.length ? i.groups : ['All'], true)}
         </div>
         <div class="field full"><label>+ Specific individuals <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(in addition to groups)</span></label>
@@ -10850,6 +11034,21 @@ function _flightLiveFor(t, date) {
   if (!e || !Array.isArray(e.legs)) return null;
   const leg = _flightLegFor(t, e.legs);
   return leg ? { leg, info: _flightStatusInfo(leg), fetchedAt: e.fetchedAt } : null;
+}
+// One clear status for any flight, live or not. Before tracking starts
+// (the day before departure) a flight still says what it is: Scheduled.
+function _flightStatusBadge(t, date) {
+  let label = 'Scheduled', tone = 'muted', note = '';
+  const live = _flightLiveFor(t, date);
+  if (live) { label = live.info.label; tone = live.info.tone; note = 'Updated ' + _agoShort(live.fetchedAt); }
+  else if (!_flightCode(t.flightNumber)) { label = 'No live status'; note = 'Needs the airline code and flight number'; }
+  else if (_flightLiveNoAuth || _flightApiConfigured === false) { label = 'Scheduled'; }
+  else if (!_flightTrackable(t, date)) { label = 'Scheduled'; note = 'Live status starts the day before'; }
+  else {
+    const e = _flightLive[_flightLiveKey(t, date)];
+    label = (e && (e.failed || Array.isArray(e.legs))) ? 'Status unavailable' : 'Checking status';
+  }
+  return { label, tone, note, html: `<span class="phf-status ${tone}">${esc(label)}</span>` };
 }
 function _flightFinished(t, date) {
   const live = _flightLiveFor(t, date);
@@ -11712,6 +11911,7 @@ function openTravelModal(itemId, opts) {
         </div>
 
         <div class="field full">
+          <div class="lbl-row lbl-row-end"><button type="button" class="ember-mini" onclick="_manageGroupsFromForm()">Manage groups</button></div>
           <label>Visible to groups <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span>${i._audienceNeeded ? ' <span class="mono" style="color:#fdba74;font-size:10px;letter-spacing:.18em;text-transform:uppercase;margin-left:6px">! Imported — pick who&apos;s flying</span>' : ''}</label>
           ${renderGroupPicker('tv_grp', i.groups && i.groups.length ? i.groups : (i._audienceNeeded ? [] : ['All']), true)}
           <div class="muted mono" id="tv_grp_hint" style="font-size:10px;letter-spacing:.06em;margin-top:6px;line-height:1.5;${isFlight ? '' : 'display:none'}">Flights are visible to <b style="color:var(--warm)">everyone</b> by default — change this only to hide the flight from some groups. The passengers above are who's flying.</div>
@@ -12056,6 +12256,11 @@ function _normStay(s, fallbackDateISO) {
     who: s.who || 'Everyone', notes: s.notes || '',
     rooms: Array.isArray(s.rooms) ? s.rooms : [],
   };
+  // Who the stay is for, the same way a schedule item says who it's for.
+  // `who` above stays as the readable label every printout and card uses.
+  if (Array.isArray(s.groups)) out.groups = s.groups;
+  if (Array.isArray(s.individuals)) out.individuals = s.individuals;
+  if (s.airbnb) out.airbnb = true;
   if (out.checkOutDate && out.checkInDate && out.checkOutDate < out.checkInDate) out.checkOutDate = out.checkInDate;
   return out;
 }
@@ -12185,6 +12390,15 @@ function _stayNights(stay) {
   return Math.max(1, Math.round((b - a) / 86400000));
 }
 
+// Airbnb: no hotel name to type — the stay is simply called "Airbnb".
+function _hotelAirbnbToggle(btn) {
+  const on = !btn.classList.contains('on');
+  btn.classList.toggle('on', on); btn.setAttribute('aria-pressed', String(on));
+  const inp = document.getElementById('h_name'), lbl = document.getElementById('h_name_lbl'), note = document.getElementById('h_airbnb_note');
+  if (inp) { inp.hidden = on; if (!on) setTimeout(() => inp.focus(), 30); }
+  if (lbl) lbl.textContent = on ? 'Airbnb' : 'Hotel name *';
+  if (note) note.hidden = !on;
+}
 function _hotelWhoToggle(sel) {
   const custom = sel.value === '__custom';
   const inp = document.getElementById('h_who_custom');
@@ -12202,9 +12416,17 @@ function openHotelModal(stayId) {
     name: '', address: '', conf: '', phone: '', checkIn: '', checkOut: '',
     checkInDate: ad.date, checkOutDate: ad.date, who: 'Everyone', notes: '', rooms: [],
   };
-  const whoIsCustom = _HOTEL_WHO.indexOf(h.who) < 0;
-  const whoOptions = _HOTEL_WHO.map(w => `<option ${!whoIsCustom && h.who === w ? 'selected' : ''}>${w}</option>`).join('')
-    + `<option value="__custom" ${whoIsCustom ? 'selected' : ''}>+ Custom…</option>`;
+  // Who's staying: groups + named people, exactly like a schedule item. A stay
+  // saved before this existed only has the `who` label — read it back into
+  // groups where it names one ("Band", "Crew"); otherwise start from All.
+  const _allGroups = getGroups();
+  const _hasAudience = Array.isArray(h.groups) || Array.isArray(h.individuals);
+  const _legacyGroups = String(h.who || '').split(/[,;&/]|\band\b/i).map(x => x.trim().toLowerCase()).filter(Boolean)
+    .map(w => _allGroups.find(g => g.toLowerCase() === w || (w === 'management' && g.toLowerCase() === 'mgmt'))).filter(Boolean);
+  const initGroups = _hasAudience ? (h.groups && h.groups.length ? h.groups : ((h.individuals || []).length ? [] : ['All']))
+    : (_legacyGroups.length ? _legacyGroups : ['All']);
+  const initIndiv = h.individuals || [];
+  const isAirbnb = !!h.airbnb || /^air\s*bnb$/i.test(String(h.name || '').trim());
   openModal({
     title: editing ? 'Edit hotel' : 'Add hotel for ' + ad.city,
     size: 'lg',
@@ -12216,16 +12438,26 @@ function openHotelModal(stayId) {
     } : null,
     body: `
       <div class="form-grid">
-        <div class="field full"><label>Hotel name *</label><input id="h_name" data-ac="hotel" data-ac-addr-to="#h_addr" data-ac-phone-to="#h_phone" autocomplete="off" value="${esc(h.name)}"></div>
+        <div class="field full">
+          <div class="lbl-row"><label id="h_name_lbl">${isAirbnb ? 'Airbnb' : 'Hotel name *'}</label><button type="button" class="mini-check${isAirbnb ? ' on' : ''}" id="h_airbnb" onclick="_hotelAirbnbToggle(this)" aria-pressed="${isAirbnb}"><i aria-hidden="true"></i>Airbnb</button></div>
+          <input id="h_name" data-ac="hotel" data-ac-addr-to="#h_addr" data-ac-phone-to="#h_phone" autocomplete="off" value="${esc(isAirbnb ? '' : h.name)}" ${isAirbnb ? 'hidden' : ''}>
+          <div class="help" id="h_airbnb_note" ${isAirbnb ? '' : 'hidden'} style="margin-top:6px">Saved as <b>Airbnb</b> — no name needed. Put the address below.</div>
+        </div>
         <div class="field full"><label>Address</label><input id="h_addr" value="${esc(h.address)}"></div>
         <div class="field"><label>Check-in date *</label><input id="h_indate" type="date" value="${esc(h.checkInDate || ad.date)}"></div>
         <div class="field"><label>Check-out date *</label><input id="h_outdate" type="date" value="${esc(h.checkOutDate || h.checkInDate || ad.date)}"></div>
         <div class="field"><label>Check-in time</label><input id="h_in" value="${esc(h.checkIn)}" placeholder="e.g. 15:00"></div>
         <div class="field"><label>Check-out time</label><input id="h_out" value="${esc(h.checkOut)}" placeholder="e.g. 11:00"></div>
-        <div class="field"><label>Who's staying here</label>
-          <select id="h_who" onchange="_hotelWhoToggle(this)">${whoOptions}</select>
+        <div class="field full"><div class="lbl-row"><label>Who's staying here <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span></label><button type="button" class="ember-mini" onclick="_manageGroupsFromForm()">Manage groups</button></div>
+          ${renderGroupPicker('h_grp', initGroups, true)}
         </div>
-        <div class="field"><label id="h_who_custom_lbl" ${whoIsCustom ? '' : 'hidden'}>Custom group</label><input id="h_who_custom" ${whoIsCustom ? '' : 'hidden'} value="${whoIsCustom ? esc(h.who) : ''}" placeholder="e.g. Support act"></div>
+        <div class="field full"><label>+ Specific individuals <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(in addition to groups)</span></label>
+          <div class="group-picker" id="h_ind_picker">
+            ${T().crew.length ? T().crew.map(c => `
+              <button type="button" class="group-pick ${initIndiv.includes(c.id) ? 'on' : ''}" data-cid="${c.id}" onclick="this.classList.toggle('on')">${esc(c.name)}</button>
+            `).join('') : '<div class="muted mono" style="font-size:10.5px">No crew on roster yet</div>'}
+          </div>
+        </div>
         <div class="field"><label>Confirmation #</label><input id="h_conf" value="${esc(h.conf)}"></div>
         <div class="field"><label>Phone</label><input id="h_phone" value="${esc(h.phone)}"></div>
         <div class="field full"><label>Notes</label><textarea id="h_notes">${esc(h.notes)}</textarea></div>
@@ -12233,17 +12465,27 @@ function openHotelModal(stayId) {
       <div class="help">This hotel shows on every day from check-in through check-out. Add more than one hotel on a day for a split party (band / crew / talent) or a same-day check-out + check-in after travel. Add room assignments after saving.</div>
     `,
     onSubmit: () => {
-      const name = $('#h_name').value.trim();
+      const airbnb = !!document.getElementById('h_airbnb')?.classList.contains('on');
+      const name = airbnb ? 'Airbnb' : $('#h_name').value.trim();
       if (!name) { toast('Hotel name required', 'error'); return false; }
       const inDate = $('#h_indate').value || ad.date;
       const outDate = $('#h_outdate').value || inDate;
       if (outDate < inDate) { toast('Check-out date can’t be before check-in', 'error'); return false; }
-      let who = $('#h_who').value;
-      if (who === '__custom') who = ($('#h_who_custom').value.trim() || 'Everyone');
+      let groups = readGroupPicker('h_grp');
+      const individuals = [...document.querySelectorAll('#h_ind_picker .group-pick.on')].map(b => b.dataset.cid);
+      const everyone = groups.includes('All') || (!groups.length && !individuals.length);
+      if (everyone) groups = ['All'];
+      // `who` is the label the cards, day sheets and the phone print.
+      const firstNames = individuals.map(id => { const c = T().crew.find(x => x.id === id); return c ? String(c.name || '').split(' ')[0] : ''; }).filter(Boolean);
+      let who = everyone ? 'Everyone' : groups.concat(firstNames).join(', ');
+      // An older stay with a hand-typed label ("Talent", "Openers") that maps to
+      // no group keeps that label until someone actually changes the audience.
+      if (editing && !_hasAudience && !_legacyGroups.length && everyone && !individuals.length && h.who) who = h.who;
       const data = {
         name, address: $('#h_addr').value.trim(), conf: $('#h_conf').value.trim(),
         phone: $('#h_phone').value.trim(), checkIn: $('#h_in').value.trim(), checkOut: $('#h_out').value.trim(),
         checkInDate: inDate, checkOutDate: outDate, who, notes: $('#h_notes').value.trim(),
+        groups, individuals, airbnb,
       };
       if (editing) {
         const f = _findStay(stayId);
@@ -15109,7 +15351,7 @@ function openCrewMemberModal(id) {
       <div class="form-grid">
         <div class="field full"><label>Name *</label><input id="cm_name" value="${esc(v.name)}"></div>
         <div class="field full"><label>Role *</label><input id="cm_role" value="${esc(v.role)}" placeholder="e.g. Bass, FOH, Tour Manager"></div>
-        <div class="field full"><label>Groups * <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(controls which schedule items they see)</span></label>
+        <div class="field full"><div class="lbl-row"><label>Groups * <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(controls which schedule items they see)</span></label><button type="button" class="ember-mini" onclick="_manageGroupsFromForm()">Manage groups</button></div>
           ${renderGroupPicker('cm_grp', (v.groups && v.groups.length) ? v.groups : (v.type ? [v.type] : ['Crew']), false)}
         </div>
         <div class="field"><label>Email * <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(used to send invite)</span></label><input id="cm_email" type="email" value="${esc(v.email)}" placeholder="member@band.com" oninput="checkCrewEmailMatch()" onblur="checkCrewEmailMatch()"></div>
@@ -20115,7 +20357,35 @@ function _phoneGoScreen(screen) {
   try { saveUIPrefs(); } catch (e) {}
 }
 
+// A re-render replaces the screens' contents. Doing that while a finger is
+// down kills the scroll in progress (the element being dragged is gone), so a
+// render that arrives mid-touch — a realtime edit, a flight-status refresh —
+// waits until the finger lifts. Taps are unaffected: their handlers run on
+// click, after the touch has ended.
+let _phoneFingerDown = false, _phoneRenderPending = false, _phoneFingerT = null, _lastPhoneTapAt = 0;
+(function () {
+  const down = e => {
+    if (!(e.target && e.target.closest && e.target.closest('.phone'))) return;
+    _lastPhoneTapAt = Date.now();
+    if (e.type !== 'touchstart') return;
+    _phoneFingerDown = true;
+    clearTimeout(_phoneFingerT);
+    _phoneFingerT = setTimeout(up, 2500);        // a lost touchend must never freeze rendering
+  };
+  const up = e => {
+    if (e && e.touches && e.touches.length) return;
+    clearTimeout(_phoneFingerT);
+    _phoneFingerDown = false;
+    if (_phoneRenderPending) { _phoneRenderPending = false; setTimeout(() => { try { renderPhone(); } catch (x) {} }, 0); }
+  };
+  document.addEventListener('touchstart', down, { capture: true, passive: true });
+  document.addEventListener('mousedown', down, { capture: true, passive: true });
+  document.addEventListener('touchend', up, { capture: true, passive: true });
+  document.addEventListener('touchcancel', up, { capture: true, passive: true });
+})();
+
 function renderPhone() {
+  if (_phoneFingerDown) { _phoneRenderPending = true; return; }
   const ad = getPhoneDate();
   if (!ad) {
     // No active date — either an empty tour (no dates) or no tour at all.
@@ -20139,7 +20409,7 @@ function renderPhone() {
     try { renderPhoneDateMenu(); } catch (e) {}
     return;
   }
-  $('#phCity').innerHTML = `${esc(ad.city || '—')}${ad.state ? ', ' + esc(ad.state) : ''}<small>DAY ${(T().dates.findIndex(d=>d.id===ad.id)+1).toString().padStart(2,'0')} / ${T().dates.length.toString().padStart(2,'0')} · ${fmtMD(ad.date)}</small>`;
+  $('#phCity').innerHTML = `<span class="ph-city-name">${esc(_phoneCityLine(ad))}</span><small>DAY ${(T().dates.findIndex(d=>d.id===ad.id)+1).toString().padStart(2,'0')} / ${T().dates.length.toString().padStart(2,'0')} · ${fmtMD(ad.date)}</small>`;
 
   const viewer = getCrewById(viewerKey);
   const isTM = viewerKey === 'tm';
@@ -20155,7 +20425,9 @@ function renderPhone() {
   // Every hotel stay covering this day (band/crew split, or a check-out +
   // check-in after travel). `myRoom`/`myRoomStay` = the first stay that has a
   // room assigned to this viewer, so the Today hero can show "your room #".
-  const _dayStays = _hotelsForDate(ad);
+  // …filtered to this viewer the same way schedule and travel are. A stay with
+  // no audience saved (everything before this existed) is visible to everyone.
+  const _dayStays = _hotelsForDate(ad).filter(st => isItemVisibleToViewer(st, viewer, hasMgmt));
   let myRoom = null, myRoomStay = null;
   for (const _s of _dayStays) {
     const _rm = (_s.rooms || []).find(r => r.personId === viewerKey);
@@ -20380,6 +20652,10 @@ function renderPhone() {
         const justDone = myTasks.filter(t => t.done && t.doneAt && (now - t.doneAt) < dayMs);
         const list = [...open, ...justDone];
         const lbl = isTM ? 'OPEN TASKS' : 'YOUR TASKS';
+        // A task with YOUR name on it glows. (For the tour manager, that's the
+        // crew entry tied to their own account, if there is one.)
+        const _meCrew = (T().crew || []).find(c => c.userId && c.userId === state.currentUserId);
+        const _isMine = t => !!t.assignee && (t.assignee === viewerKey || (_meCrew && t.assignee === _meCrew.id));
         if (!list.length) return `
           <div class="lbl">${lbl} · 0</div>
           <div class="sub">${isTM ? 'All clear — no open tasks.' : 'Nothing on your plate.'}</div>
@@ -20399,7 +20675,7 @@ function renderPhone() {
                 ? `Done${t.doneBy ? ' · ' + esc(t.doneBy.split(' ')[0]) : ''}${t.doneAt ? ' · ' + fmtMD(new Date(t.doneAt).toISOString().slice(0,10)) : ''}`
                 : `${t.due ? 'Due ' + fmtMD(t.due) : 'No due date'}`) + assigneeTag;
               return `
-                <div class="phone-task ${t.done?'done':''}" onclick="event.stopPropagation();toggleTask('${t.id}')">
+                <div class="phone-task ${t.done?'done':''}${!t.done && _isMine(t) ? ' mine ph-ember' : ''}" onclick="event.stopPropagation();toggleTask('${t.id}')">
                   <span class="ptask-cb">${t.done?'✓':''}</span>
                   <div class="ptask-body">
                     <div class="ptask-label">${esc(t.label)}</div>
@@ -20451,7 +20727,7 @@ function renderPhone() {
               ? 'Day off'
               : `${esc(d.city)}${d.venue ? ' · ' + esc(d.venue) : ''}`;
           return `
-            <div style="display:grid;grid-template-columns:46px 1fr auto;gap:10px;padding:10px 0;border-bottom:1px dashed rgba(232,148,58,.1);cursor:pointer" onclick="${onClick}">
+            <div class="ph-up-row" role="button" tabindex="0" style="display:grid;grid-template-columns:46px 1fr auto;gap:10px;padding:10px 8px;border-bottom:1px dashed rgba(232,148,58,.1);cursor:pointer" onclick="_phPress(this, () => { ${onClick} })">
               <div class="mono" style="${d.id===ad.id?'color:var(--hot)':''};font-weight:700;font-size:13px">${fmtMD(d.date)}</div>
               <div>
                 <div style="font-weight:700;font-size:13px;color:var(--warm)">${titleLine}</div>
@@ -20483,6 +20759,15 @@ function renderPhone() {
         ${h.conf ? `<div><div class="lbl">CONF</div><div class="mono" style="font-size:11px;color:var(--warm)">${esc(h.conf)}</div></div>` : ''}
         ${h.phone ? `<div><div class="lbl">PHONE</div><div class="mono" style="font-size:12px;color:var(--warm)">${_telLinkHTML(h.phone)}</div></div>` : ''}
       </div>
+      ${(() => {
+        const dest = [h.name, h.address].filter(Boolean).join(', ');
+        const digits = (h.phone && _looksLikePhone(String(h.phone))) ? _telDigits(h.phone) : '';
+        if (!dest && !digits) return '';
+        return `<div class="ph-hotel-actions${dest && digits ? '' : ' one'}">
+          ${dest ? `<button type="button" class="ph-act" onclick="_hotelDirections('${esc(dest).replace(/'/g, '&#39;')}')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.800 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/></svg><span>Directions</span></button>` : ''}
+          ${digits ? `<button type="button" class="ph-act" onclick="_dialDirect('${esc(digits)}')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.500 1.500a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg><span>Call hotel</span></button>` : ''}
+        </div>`;
+      })()}
     </div>`;
   }).join('') : `<div class="p-card"><div class="lbl">HOTEL</div><div class="sub">${ad.noHotel ? 'No hotel tonight — none needed for this date.' : 'Not added yet for this date.'}</div></div>`;
 
@@ -20490,6 +20775,16 @@ function renderPhone() {
   // TM + Mgmt see EVERY guest on this date with inline approve/deny
   // buttons on each pending row (same controls as the dashboard Guest
   // List tab). Regular crew see only their own submissions.
+  // DOS — day of show. The set list and the day sheet lead (they used to sit
+  // under More → Quick); the guest list follows.
+  const dosQuickHtml = `
+    <div class="p-card">
+      <div class="lbl">DAY OF SHOW</div>
+      <div class="dos-quick">
+        <button type="button" class="p-quick" onclick="_phoneShowSetList()"><span class="pq-ic">▤</span><span class="pq-lb">Set list</span></button>
+        <button type="button" class="p-quick" onclick="printDay()"><span class="pq-ic">⎙</span><span class="pq-lb">Day sheet</span></button>
+      </div>
+    </div>`;
   const _myUid = (U() && U().id) || '';
   const myGuests = hasMgmt ? ad.guests : ad.guests.filter(g =>
     (g.submittedById && _myUid && g.submittedById === _myUid) ||
@@ -20505,6 +20800,7 @@ function renderPhone() {
     const _idx = T().dates.findIndex(d => d.id === ad.id);
     const _nextShow = T().dates.slice(_idx + 1).find(d => d.status === 'show' || d.status === 'press');
     $('#ph-guests').innerHTML = `
+      ${dosQuickHtml}
       <div class="p-card">
         <div class="lbl">GUEST LIST</div>
         <div class="sub" style="margin-top:6px">${ad.status === 'travel' ? 'Travel day' : 'Day off'} — no guest list today.</div>
@@ -20516,6 +20812,7 @@ function renderPhone() {
       </div>`;
   } else {
   $('#ph-guests').innerHTML = `
+    ${dosQuickHtml}
     ${_noGuestDay ? `
       <div class="p-card" style="border-color:rgba(253,186,116,.4)">
         <div class="lbl" style="color:#fdba74">⚠ ${ad.status === 'travel' ? 'TRAVEL DAY' : 'DAY OFF'}</div>
@@ -20610,7 +20907,11 @@ function renderPhone() {
       phTourSwitcherHtml = `
         <div class="ph-tour-card">
           <div class="lbl">${crewLabel ? "YOUR TOURS · " : "VIEWING TOURS · "}${myTours.length}</div>
-          <div class="h">Currently: ${esc(T().name || 'Untitled tour')}</div>
+          <div class="ph-tour-current ph-ember">
+            <div class="ptc-k">Currently viewing</div>
+            <div class="ptc-n">${esc(T().name || 'Untitled tour')}</div>
+            <div class="ptc-m">${esc((T().meta && T().meta.artist) || '')}${(T().meta && T().meta.artist) ? ' · ' : ''}${(T().dates || []).length} dates</div>
+          </div>
           ${otherTours.length ? `
             <div class="other-tours">
               ${otherTours.map(t => `
@@ -20649,13 +20950,6 @@ function renderPhone() {
     ${tmEditNoticeHtml}
     ${phTourSwitcherHtml}
     ${profileCardHtml}
-    <div class="p-card">
-      <div class="lbl">QUICK</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
-        <button type="button" class="p-quick" onclick="_phoneShowSetList()" style="background:linear-gradient(135deg,rgba(232,148,58,.06),rgba(232,148,58,.01));border:1px solid var(--line-2);border-radius:10px;padding:11px 6px;display:flex;flex-direction:column;align-items:center;gap:5px;color:var(--warm)"><span style="font-size:18px;color:var(--hi)">▤</span><span style="font-family:'Bricolage Grotesque',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--warm-mute)">Set list</span></button>
-        <button type="button" class="p-quick" onclick="printDay()" style="background:linear-gradient(135deg,rgba(232,148,58,.06),rgba(232,148,58,.01));border:1px solid var(--line-2);border-radius:10px;padding:11px 6px;display:flex;flex-direction:column;align-items:center;gap:5px;color:var(--warm)"><span style="font-size:18px;color:var(--hi)">⎙</span><span style="font-family:'Bricolage Grotesque',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--warm-mute)">Print day</span></button>
-      </div>
-    </div>
     ${isTM ? `<div class="p-card">
       <div class="lbl">PERMISSIONS</div>
       <div class="h" style="font-size:13px">${esc(viewer?.permissions?.toUpperCase() || 'FULL ACCESS')}</div>
@@ -20721,8 +21015,186 @@ function bindAuthEnterKey() {
   });
 }
 
+/* ---------- phone: swipe between the bottom tabs ----------
+   A real pager, not a swipe detector. The screen under your finger moves WITH
+   it, the neighbouring tab's screen slides in beside it, and on release the
+   pair settles — forward if you dragged far enough or flicked, otherwise
+   back. Swipe left → the next tab to the right, swipe right → the previous
+   one (content follows the finger, the way every phone pager works). The tab
+   bar's highlight crosses over at the halfway point, so it tracks the swipe.
+
+   · Vertical scrolling is untouched: the gesture commits to an axis after the
+     first ~8px, and only a clearly horizontal one becomes a swipe.
+   · It stays out of the way of anything that scrolls sideways itself, text
+     fields, maps, and the OS back-swipe zone on the left edge.
+   · At the first/last tab it rubber-bands instead of sticking dead.
+   · The five screens stay display:none/flex as before; only for the life of a
+     gesture is the neighbour laid beside the current one. Nothing to clean up
+     can be left behind: every finish path goes through the same unstage().  */
+const PhoneSwipe = (() => {
+  const EASE = 'cubic-bezier(.22,.78,.2,1)';
+  let g = null;         // the live gesture
+  let settling = null;  // { finish } while a release animation is running
+
+  const order = () => [...document.querySelectorAll('.phone .nav button[data-go]')].map(b => b.dataset.go);
+  const pane = name => document.querySelector('.p-screen[data-screen="' + name + '"]');
+  const reduced = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
+
+  function ownsSidewaysDrag(target, stop) {
+    for (let el = target; el && el !== stop; el = el.parentElement) {
+      if (el.matches && el.matches('input,textarea,select,[contenteditable="true"],[data-noswipe],.leaflet-container,canvas')) return true;
+      if (el.scrollWidth > el.clientWidth + 6) {
+        const ox = getComputedStyle(el).overflowX;
+        if (ox === 'auto' || ox === 'scroll') return true;
+      }
+    }
+    return false;
+  }
+  const put = (el, x, ms) => {
+    el.style.transition = ms ? 'transform ' + ms + 'ms ' + EASE : 'none';
+    el.style.transform = 'translate3d(' + x.toFixed(1) + 'px,0,0)';
+  };
+  function stage(cur, nb) {                 // lay the neighbour over the current screen's exact box
+    nb.style.position = 'absolute';
+    nb.style.left = cur.offsetLeft + 'px'; nb.style.top = cur.offsetTop + 'px';
+    nb.style.width = cur.offsetWidth + 'px'; nb.style.height = cur.offsetHeight + 'px';
+    nb.style.display = 'flex';
+    nb.style.willChange = 'transform'; cur.style.willChange = 'transform';
+  }
+  function unstage(el) { if (el) ['position', 'left', 'top', 'width', 'height', 'display', 'transform', 'transition', 'willChange'].forEach(k => { el.style[k] = ''; }); }
+  function navShow(name) { document.querySelectorAll('.phone .nav button').forEach(b => b.classList.toggle('on', b.dataset.go === name)); }
+
+  function start(x, y, target) {
+    if (settling) settling.finish();
+    g = null;
+    if (!target || !target.closest) return;
+    const cur = target.closest('.phone .p-screen.on');
+    if (!cur || !cur.offsetWidth) return;                       // not on screen (preview collapsed) — nothing to page
+    if (document.body.classList.contains('bm-idle')) return;
+    if (ownsSidewaysDrag(target, cur)) return;
+    // Leave the left edge to the OS back-swipe in the installed app.
+    try { if (_isPhoneApp() && x < 18) return; } catch (e) {}
+    const names = order(), idx = names.indexOf(cur.dataset.screen);
+    if (idx < 0 || names.length < 2) return;
+    g = { x0: x, y0: y, cur, names, idx, w: cur.offsetWidth, axis: null, dx: 0, eff: 0, nb: null, nbName: '', dir: 0, lx: x, lt: performance.now(), vx: 0 };
+  }
+
+  // returns true when the move belongs to the swipe (caller should preventDefault)
+  function move(x, y) {
+    if (!g) return false;
+    const dx = x - g.x0, dy = y - g.y0;
+    if (!g.axis) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return false;
+      g.axis = Math.abs(dx) > Math.abs(dy) * 1.15 ? 'x' : 'y';
+      if (g.axis === 'y') { g = null; return false; }          // it's a scroll — not ours
+      g.x0 = x; g.lx = x; g.lt = performance.now();            // start the drag from here: no jump on takeover
+      return true;
+    }
+    const now = performance.now(), dt = Math.max(1, now - g.lt);
+    g.vx = g.vx * 0.6 + ((x - g.lx) / dt) * 0.4; g.lx = x; g.lt = now;
+    g.dx = dx;
+    if (reduced()) return true;
+    const dir = dx < 0 ? 1 : -1, tName = g.names[g.idx + dir] || '';
+    if (tName !== g.nbName) {                                   // crossed zero, or first move: swap which neighbour is staged
+      unstage(g.nb);
+      g.nb = tName ? pane(tName) : null; g.nbName = tName; g.dir = dir;
+      if (g.nb) stage(g.cur, g.nb);
+    }
+    g.eff = g.nb ? Math.max(-g.w, Math.min(g.w, dx)) : dx * 0.28;   // no neighbour: rubber band
+    put(g.cur, g.eff, 0);
+    if (g.nb) put(g.nb, g.eff + g.dir * g.w, 0);
+    navShow(g.nb && Math.abs(g.eff) > g.w * 0.5 ? g.nbName : g.names[g.idx]);
+    return true;
+  }
+
+  function end(cancelled) {
+    const s = g; g = null;
+    if (!s || s.axis !== 'x') return;
+    // A flick needs real travel in its own direction: a finger that wanders
+    // back to where it started, still moving, must not throw the page.
+    const flick = Math.abs(s.eff) > 14 && Math.abs(s.vx) > 0.45 && (s.vx < 0) === (s.eff < 0);
+    if (reduced()) { const t = s.names[s.idx + (s.dx < 0 ? 1 : -1)]; if (!cancelled && t && Math.abs(s.dx) > 56) _phoneGoScreen(t); return; }
+    const commit = !cancelled && !!s.nb && (Math.abs(s.eff) > s.w * 0.33 || flick);
+    const remaining = commit ? s.w - Math.abs(s.eff) : Math.abs(s.eff);
+    const ms = Math.round(Math.max(140, Math.min(320, remaining / Math.max(Math.abs(s.vx), 0.9))));
+    let done = false;
+    const finish = () => {
+      if (done) return; done = true; settling = null;
+      clearTimeout(timer); s.cur.removeEventListener('transitionend', onEnd);
+      // Switch first, clear the inline styles second, all in one frame — so the
+      // incoming screen is never unstyled-and-hidden for a paint.
+      if (commit) { try { _phoneGoScreen(s.nbName); } catch (e) {} } else navShow(s.names[s.idx]);
+      unstage(s.cur); unstage(s.nb);
+    };
+    const onEnd = (e) => { if (e.target === s.cur && e.propertyName === 'transform') finish(); };
+    s.cur.addEventListener('transitionend', onEnd);
+    const timer = setTimeout(finish, ms + 80);                 // transitionend can be skipped (hidden tab, zero-distance)
+    settling = { finish };
+    if (remaining < 1) { finish(); return; }
+    put(s.cur, commit ? -s.dir * s.w : 0, ms);
+    if (s.nb) put(s.nb, commit ? 0 : s.dir * s.w, ms);
+    navShow(commit ? s.nbName : s.names[s.idx]);
+  }
+
+  function init() {
+    const first = e => e.touches && e.touches[0];
+    // The one listener that may block scrolling (it has to be non-passive to
+    // preventDefault on browsers without touch-action) is only attached while
+    // a swipe candidate is live. A permanent one on document would make the
+    // browser wait on the main thread before starting ANY scroll, app-wide.
+    let listening = false;
+    const onMove = e => {
+      if (!g) { stopListening(); return; }
+      if (e.touches.length !== 1) { end(true); stopListening(); return; }
+      const t = first(e);
+      if (move(t.clientX, t.clientY) && e.cancelable) e.preventDefault();
+      if (!g) stopListening();                                   // it turned out to be a scroll
+    };
+    const stopListening = () => { if (listening) { document.removeEventListener('touchmove', onMove, { passive: false }); listening = false; } };
+    document.addEventListener('touchstart', e => {
+      if (e.touches.length === 1) { const t = first(e); start(t.clientX, t.clientY, e.target); } else if (g) end(true);
+      if (g && !listening) { document.addEventListener('touchmove', onMove, { passive: false }); listening = true; }
+      else if (!g) stopListening();
+    }, { passive: true });
+    document.addEventListener('touchend', () => { end(false); stopListening(); }, { passive: true });
+    document.addEventListener('touchcancel', () => { end(true); stopListening(); }, { passive: true });
+  }
+  return { init, _start: start, _move: move, _end: end, _live: () => g, _settling: () => !!settling };
+})();
+
+// "Manchester, NH" + state "New Hampshire" used to render as
+// "Manchester, NH, New Hampshire". If the city already carries its region,
+// leave it alone.
+function _phoneCityLine(ad) {
+  const city = String((ad && ad.city) || '').trim(), st = String((ad && ad.state) || '').trim();
+  if (!city) return st || '—';
+  if (!st || city.indexOf(',') > -1 || city.toLowerCase().endsWith(st.toLowerCase())) return city;
+  return city + ', ' + st;
+}
+// A tap that visibly registers: the row presses in, then the action runs.
+function _phPress(el, fn) {
+  if (!el || el.classList.contains('pressed')) return;
+  el.classList.add('pressed');
+  setTimeout(() => { try { el.classList.remove('pressed'); } catch (e) {} try { fn(); } catch (e) { console.error(e); } }, 130);
+}
+// Hotel: straight to the maps app / straight to the dialler. No menu.
+function _hotelDirections(dest) {
+  const q = encodeURIComponent(dest || '');
+  const apple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent || '');
+  _openExternalUrl(apple ? 'https://maps.apple.com/?daddr=' + q : 'https://www.google.com/maps/dir/?api=1&destination=' + q);
+}
+function _dialDirect(digits) { if (digits) { try { window.location.href = 'tel:' + digits; } catch (e) {} } }
+// Dashboard forms → the Crew tab's group manager. Leaving drops the form.
+function _manageGroupsFromForm() {
+  if (!confirm("Manage Groups opens on the Crew tab, so you'll leave this form — anything typed here won't be saved.\n\nGo to Manage Groups?")) return;
+  closeModal();
+  try { _dashGoTab('profiles'); saveUIPrefs(); } catch (e) {}
+  setTimeout(() => { try { openManageGroupsModal(); } catch (e) {} }, 60);
+}
+
 function bindPhoneNav() {
   $$('.phone .nav button').forEach(b => b.onclick = () => {
+    try { _phPageClose(true); _modalOnSubmit = null; } catch (e) {}      // a tab tap leaves any open page
     // Every tab — including "Today" — only switches the SCREEN, never the
     // viewed date. The viewed date defaults to today exactly once (cold open /
     // sign-in, via _resolvePhoneBootDate); after that it changes ONLY through
@@ -25926,8 +26398,18 @@ function renderGroupPicker(idPrefix, selected, includeAll = true) {
   `;
 }
 
+// "All" and the named groups are either/or. Left independent, picking "Crew"
+// with "All" still lit looked like a restriction but wasn't one — All means
+// everyone, so the item (or the hotel) stayed visible to the whole tour.
 function toggleGroupPick(btn) {
   btn.classList.toggle('on');
+  const picker = btn.closest('.group-picker');
+  if (!picker || !btn.classList.contains('on')) return;
+  const isAll = btn.dataset.group === 'All';
+  picker.querySelectorAll('.group-pick.on').forEach(b => {
+    if (b === btn) return;
+    if (isAll || b.dataset.group === 'All') b.classList.remove('on');
+  });
 }
 
 function readGroupPicker(idPrefix) {
@@ -26161,10 +26643,9 @@ function _phoneShowDayTravel(dateId) {
                   <span class="ptr-type">${esc(typeLabel)}</span>
                   <span class="ptr-time">${t.allDay ? 'ALL' : esc(_fmt12Safe(t.time, d) || '—')}${t.arriveTime ? `<span class="ptr-arr">↓ ${esc(_fmt12Safe(t.arriveTime, d))}</span>` : ''}</span>
                   <span class="ptr-desc">${esc(_travelShortDesc(t) || t.description || '—')}${(() => {
-                    const li = t.type === 'flight' ? _legInfo(t) : null;
-                    const lv = t.type === 'flight' ? _flightLiveFor(t, d.date) : null;
-                    const bits = [li ? `Leg ${li.number}/${li.count}` : '', lv ? lv.info.label : ''].filter(Boolean);
-                    return bits.length ? `<span class="ptr-live ${lv ? 'phf-status ' + lv.info.tone : ''}">${esc(bits.join(' · '))}</span>` : '';
+                    if (t.type !== 'flight') return '';
+                    const li = _legInfo(t), st = _flightStatusBadge(t, d.date);
+                    return `<span class="ptr-live ptr-statusline">${li ? `<span class="ptr-leg">Leg ${li.number}/${li.count}</span>` : ''}${st.html}</span>`;
                   })()}</span>
                   ${codeLabel ? `<span class="ptr-code">${esc(codeLabel)}</span>` : ''}
                   <span class="ptr-chev">›</span>
@@ -26175,9 +26656,10 @@ function _phoneShowDayTravel(dateId) {
         ` : `
           <div class="muted" style="font-size:13px;color:var(--warm-mute);font-style:italic;text-align:center;padding:16px 0">No travel items added for this day yet.</div>
         `}
-        <div style="display:flex;gap:8px;justify-content:space-between;border-top:1px solid var(--line);padding-top:14px">
-          <button type="button" class="btn" onclick="closeModal();setActive('${esc(dateId)}')">Jump to this day →</button>
-          <button type="button" class="btn primary" onclick="closeModal()" style="padding:8px 16px">Close</button>
+        ${items.some(t => t.type === 'flight') ? `<div class="ph-status-note">${esc((() => { const f = items.find(t => t.type === 'flight'); const b = _flightStatusBadge(f, d.date); return b.note || 'Flight status updates on its own'; })())}</div>` : ''}
+        <div class="ph-sheet-actions">
+          <button type="button" class="ph-ember-btn" onclick="closeModal();setActive('${esc(dateId)}')">Jump to this day <span aria-hidden="true">→</span></button>
+          <button type="button" class="ph-quiet-btn" onclick="closeModal()">Close</button>
         </div>
       </div>
     `,
@@ -34813,6 +35295,7 @@ function init() {
   try { _wireAllAutocomplete(document); } catch (e) { console.warn('autocomplete init:', e); }
   try { bindTabs(); } catch (e) { console.error('bindTabs:', e); }
   try { bindPhoneNav(); } catch (e) { console.error('bindPhoneNav:', e); }
+  try { PhoneSwipe.init(); } catch (e) { console.error('PhoneSwipe:', e); }
   try { bindAuthEnterKey(); } catch (e) { console.error('bindAuthEnterKey:', e); }
   // Track mouse globally so the Show Day badge glare aims at the cursor even
   // when the cursor is well outside the badge.
@@ -36001,7 +36484,7 @@ Object.assign(window, {
   tourStartDate, tourEndDate, addDaysISO, fillDateGapsWithOffDays, _padTourEdgesWithTravelDays,
   toggleExportMenu, closeExportMenu, downloadTourBookPDF, downloadTourBookFromHere, downloadDaySheetPDF, closeTourBook,
   scoutNearVenue,
-  toggleDateGrid, _dateGridPick, _isMacApp, _isStoreBuild, _macPost, BMIdle, _idleStartNow, _idleSetAfter, openDisplayTool, _displayCopyLink, _crewAuthId, _modalBackdropDown, _modalBackdropUp, _liveDate, renderTools, _toolClose, _pnClose, _dateModalClockSync, fmtClock, openTravelAgent, closeTravelAgent, _taGo, _taBack, _taAnchor, _taDate, _taPickDate, _taPickTopic, _taSubmitAsk, _taUseHotel, _taMarkNoHotel, _taMarkNoTravel, _taLogMove, _taLogFlight, _taJump, _taOpenDate, _taMore, _taRender, _taPlan, _rtPick, _rtLoadHotels,
+  toggleDateGrid, _dateGridPick, PhoneSwipe, _hotelAirbnbToggle, _phPress, _hotelDirections, _dialDirect, _manageGroupsFromForm, _phPageClose, _flightStatusBadge, _phoneCityLine, _isMacApp, _isStoreBuild, _macPost, BMIdle, _idleStartNow, _idleSetAfter, openDisplayTool, _displayCopyLink, _crewAuthId, _modalBackdropDown, _modalBackdropUp, _liveDate, renderTools, _toolClose, _pnClose, _dateModalClockSync, fmtClock, openTravelAgent, closeTravelAgent, _taGo, _taBack, _taAnchor, _taDate, _taPickDate, _taPickTopic, _taSubmitAsk, _taUseHotel, _taMarkNoHotel, _taMarkNoTravel, _taLogMove, _taLogFlight, _taJump, _taOpenDate, _taMore, _taRender, _taPlan, _rtPick, _rtLoadHotels,
   toggleTourSwitcher, closeTourSwitcher, switchToTour, switchToTourFromPhone, newTourFlow, newTourManualFlow, newTourImportFlow, renameCurrentTour, deleteCurrentTour,
   toggleUniMenu, closeUniMenu, renderUniMenu, _uniToggleExport,
   openAccountSettingsModal, _acctSaveName, _acctSendReset,
