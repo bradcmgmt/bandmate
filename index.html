@@ -2453,7 +2453,26 @@ body.god-account:not(.bg-mark-on) #app[hidden]{display:block!important}
 .bmi-lb{position:absolute;left:0;top:0;display:flex;align-items:center;gap:7px;white-space:nowrap;transform:translateY(-50%);
   text-shadow:0 0 5px currentColor;opacity:var(--o,.3);color:#8a7256;transition:color .9s ease,opacity .9s ease}
 .bmi-lb.c{color:#eec894}
-.bmi-lb.hot{color:#ff8a24;opacity:1}
+/* Lighting up: an old tube struggling to catch — a couple of false starts, a
+   brown-out, one last dropout, then it holds. Only the way ON changes: when
+   .hot comes off, the animation goes with it and the label fades out on the
+   same .9s transition as before. `both` keeps a label dark through its own
+   start delay, so nothing turns orange before it has flickered. */
+.bmi-lb.hot{color:#ff8a24;opacity:1;animation:bmiFlickerOn var(--fl,1500ms) linear var(--fd,0ms) 1 both}
+@keyframes bmiFlickerOn{
+  0%,5%    {color:#eec894;opacity:var(--o,.5)}
+  6%,8%    {color:#ff8a24;opacity:.95}
+  9%,17%   {color:#eec894;opacity:var(--o,.5)}
+  18%,20%  {color:#ff8a24;opacity:.6}
+  21%,29%  {color:#eec894;opacity:calc(var(--o,.5) * .8)}
+  30%,36%  {color:#ff8a24;opacity:1}
+  37%,40%  {color:#c9772a;opacity:.45}
+  41%,55%  {color:#ff8a24;opacity:.9}
+  56%,60%  {color:#eec894;opacity:var(--o,.5)}
+  61%,64%  {color:#ff8a24;opacity:.7}
+  65%,68%  {color:#b5651f;opacity:.4}
+  72%,100% {color:#ff8a24;opacity:1}
+}
 .bmi-lb span{line-height:1;letter-spacing:-.01em}
 .bmi-lb i{display:block;height:1.4px;background:currentColor;box-shadow:0 0 5px currentColor}
 @keyframes bmiSwingY{from{transform:rotateY(-31deg)}to{transform:rotateY(31deg)}}
@@ -2536,7 +2555,7 @@ body.god-account:not(.bg-mark-on) #app[hidden]{display:block!important}
 .dsp-url{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
 .dsp-url code{flex:1 1 280px;min-width:0;padding:10px 14px;border:1px solid var(--line-2);border-radius:6px;background:rgba(0,0,0,.3);
   font-family:'Bricolage Grotesque',monospace;font-size:12.5px;letter-spacing:.04em;color:var(--hi-bright);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:all}
-@media (prefers-reduced-motion:reduce){.bmi-sx,.bmi-sy,.bmi-uy,.bmi-ux,.bmi-pulse,.bmi-pulse i{animation:none}}
+@media (prefers-reduced-motion:reduce){.bmi-sx,.bmi-sy,.bmi-uy,.bmi-ux,.bmi-pulse,.bmi-pulse i,.bmi-lb.hot{animation:none}}
 @media print{.bmi{display:none!important}}
 /* Bandmate for Mac. Signing up leads to choosing a paid plan, which the App
    Store doesn't allow inside the app, so the Mac app's landing offers sign-in
@@ -8537,7 +8556,7 @@ const BMIdle = (() => {
       const o = (isCity ? 0.42 + hash(i) * 0.55 : 0.16 + hash(i) * 0.2).toFixed(2);
       const fs = isCity ? 7 + Math.round(hash(i + 7) * 8) : 6 + Math.round(hash(i + 7) * 3);
       const x = (PTS[i][0] * HALF_X + XOFF).toFixed(1), y = (PTS[i][1] * HALF_Y).toFixed(1), z = ((hash(i + 41) - 0.5) * 210).toFixed(1);
-      items += `<div class="bmi-it" style="transform:translate3d(${x}px,${y}px,${z}px)"><div class="bmi-uy"><div class="bmi-ux"><div class="bmi-lb${isCity ? ' c' : ''}" data-n="${esc(txt)}" data-h="${hash(i + 13).toFixed(3)}" style="--o:${o};font-size:${fs}px"><span>${esc(txt)}</span><i style="width:${Math.max(6, 30 - txt.length)}px"></i></div></div></div></div>`;
+      items += `<div class="bmi-it" style="transform:translate3d(${x}px,${y}px,${z}px)"><div class="bmi-uy"><div class="bmi-ux"><div class="bmi-lb${isCity ? ' c' : ''}" data-n="${esc(txt)}" data-h="${hash(i + 13).toFixed(3)}" style="--o:${o};--fd:${Math.round(hash(i + 29) * 900)}ms;--fl:${1100 + Math.round(hash(i + 31) * 900)}ms;font-size:${fs}px"><span>${esc(txt)}</span><i style="width:${Math.max(6, 30 - txt.length)}px"></i></div></div></div></div>`;
     }
 
     const disp = mode === 'display';
