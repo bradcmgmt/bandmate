@@ -1038,6 +1038,12 @@ body.admin-active .stage{grid-template-columns:1fr!important}
 .god-th:hover,.god-th.on{color:#e3d6ff}
 .god-row-click{cursor:pointer;transition:background .12s}
 .god-row-click:hover{background:rgba(140,120,255,.07)}
+/* An account that has been invited to a tour but hasn't accepted any of them
+   yet — present, but not really in. Dimmed rather than hidden. */
+.god-row-pending{opacity:.52}
+.god-row-pending:hover{opacity:.8}
+.god-invited{margin-left:8px;font-family:'Bricolage Grotesque',monospace;font-size:8.5px;font-weight:700;
+  letter-spacing:.18em;text-transform:uppercase;color:#c9b3ff;opacity:.85}
 .god-kick{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;white-space:nowrap}
 .god-kick.st-live{color:var(--good)}
 .god-kick.st-upcoming,.god-kick.st-active{color:#8aa9d8}
@@ -24607,10 +24613,16 @@ function _godUserTable(rows, key) {
     </div>
     ${rows.map(x => {
       const toursTxt = (x.tours_owned != null) ? `${_godNum(x.tours_owned)} own${x.tours_managing ? ' · ' + _godNum(x.tours_managing) + ' mgr' : ''}${x.tours_member ? ' · ' + _godNum(x.tours_member) + ' crew' : ''}${x.invites_pending ? ' · ' + _godNum(x.invites_pending) + ' inv' : ''}` : '—';
-      const click = x.id ? ` class="contact-row god-row-click" onclick="_godOpenUser('${esc(x.id)}')"` : ' class="contact-row"';
+      // Invited somewhere and accepted nowhere: an account that exists but
+      // isn't on a tour yet. Dimmed, with the reason spelled out, so the list
+      // reads at a glance.
+      const pendingOnly = (x.invites_pending || 0) > 0
+        && !(x.tours_owned || 0) && !(x.tours_managing || 0) && !(x.tours_member || 0);
+      const cls = 'contact-row' + (x.id ? ' god-row-click' : '') + (pendingOnly ? ' god-row-pending' : '');
+      const click = x.id ? ` class="${cls}" onclick="_godOpenUser('${esc(x.id)}')"` : ` class="${cls}"`;
       return `
       <div${click} style="${cols}">
-        <div class="nm" style="min-width:0"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.email || '—')}${x.confirmed === false ? '<span style="color:#fdba74;font-size:10px"> · unconfirmed</span>' : ''}</span>${x.display_name ? `<span style="display:block;font-size:11px;color:var(--warm-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.display_name)}</span>` : ''}</div>
+        <div class="nm" style="min-width:0"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.email || '—')}${pendingOnly ? '<span class="god-invited">invited</span>' : ''}${x.confirmed === false ? '<span style="color:#fdba74;font-size:10px"> · unconfirmed</span>' : ''}</span>${x.display_name ? `<span style="display:block;font-size:11px;color:var(--warm-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.display_name)}</span>` : ''}</div>
         <div class="role">${esc(_godRoleLabel(x))}</div>
         <div class="role">${esc(_godSubLabel(x))}</div>
         <div class="role" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(toursTxt)}">${esc(toursTxt)}</div>
@@ -24876,7 +24888,7 @@ async function _loadGodStats(force) {
 // private to its owner, so this comes from tour_push_status (patch-047),
 // which reports registration only — never a token. Cached per tour for a
 // minute; silent if the patch isn't installed yet.
-const _pushStatus = { tourId: '', at: 0, map: {}, loading: false, ok: false };
+const _pushStatus = { tourId: '', at: 0, map: {}, byEmail: {}, loading: false, ok: false };
 function _loadPushStatus(tourId) {
   if (!sb || !tourId || tourId === '_empty') return;
   const fresh = _pushStatus.tourId === tourId && Date.now() - _pushStatus.at < 60000;
@@ -24885,18 +24897,44 @@ function _loadPushStatus(tourId) {
   sb.rpc('tour_push_status', { p_tour_id: tourId }).then(({ data, error }) => {
     _pushStatus.loading = false;
     if (error || !Array.isArray(data)) return;   // not installed / not allowed: stay quiet
-    const map = {};
-    data.forEach(row => { if (row && row.user_id) map[row.user_id] = row; });
-    _pushStatus.tourId = tourId; _pushStatus.at = Date.now(); _pushStatus.map = map; _pushStatus.ok = true;
+    const map = {}, byEmail = {};
+    data.forEach(row => {
+      if (!row || !row.user_id) return;
+      map[row.user_id] = row;
+      if (row.email) byEmail[String(row.email).toLowerCase()] = row;   // patch-051
+    });
+    _pushStatus.tourId = tourId; _pushStatus.at = Date.now(); _pushStatus.map = map; _pushStatus.byEmail = byEmail; _pushStatus.ok = true;
     try { renderCrewProfiles(); } catch (e) {}
   }).catch(() => { _pushStatus.loading = false; });
 }
 const _PUSH_PLATFORM = { ios: 'iPhone', android: 'Android' };
 // '' when we can't know yet: no answer from the server, or this person hasn't
 // accepted the invite, so there's no account to register a device against.
+// A crew member's REAL account id. Devices belong to the auth account, but a
+// roster entry can still carry a prototype-era stub ('u_someonegmailcom')
+// written by an old client — patch-051 repairs those, and this keeps the app
+// correct on any device whose copy hasn't caught up yet. Never returns a stub:
+// handing one to send-push is how notifications went nowhere, silently.
+function _crewAuthId(c) {
+  if (!c) return '';
+  if (_isUuid(c.userId)) return c.userId;
+  const em = String(c.email || '').toLowerCase();
+  if (em) {
+    const viaPush = _pushStatus.byEmail && _pushStatus.byEmail[em];
+    if (viaPush && _isUuid(viaPush.user_id)) return viaPush.user_id;
+    try {
+      const rec = typeof findUserByEmail === 'function' ? findUserByEmail(c.email) : null;
+      if (rec && _isUuid(rec.id)) return rec.id;
+    } catch (e) {}
+  }
+  return '';
+}
 function _pushStateFor(c) {
-  if (!_pushStatus.ok || !c || !c.userId) return null;
-  const hit = _pushStatus.map[c.userId];
+  if (!_pushStatus.ok || !c) return null;
+  const uid = _crewAuthId(c);
+  if (!uid && !c.userId) return null;                 // hasn't accepted — nothing to know yet
+  const hit = (uid && _pushStatus.map[uid])
+    || (c.email && _pushStatus.byEmail ? _pushStatus.byEmail[String(c.email).toLowerCase()] : null);
   if (!hit) return { on: false, label: 'Push off — app not installed' };
   const names = (hit.platforms || []).map(x => _PUSH_PLATFORM[x] || x).filter(Boolean);
   return { on: true, label: 'Push on' + (names.length ? ' · ' + names.join(', ') : '') };
@@ -33323,12 +33361,14 @@ function _pnResolveTargetUserIds(audience) {
   const groups = (audience && audience.groups) || [];
   const all = groups.some(g => String(g).toLowerCase() === 'all');
   crew.forEach(c => {
-    if (!c.userId) return;
-    if (all || (c.groups || []).some(g => groups.includes(g))) ids.add(c.userId);
+    const uid = _crewAuthId(c);
+    if (!uid) return;
+    if (all || (c.groups || []).some(g => groups.includes(g))) ids.add(uid);
   });
   ((audience && audience.individuals) || []).forEach(cid => {
     const c = crew.find(x => x.id === cid);
-    if (c && c.userId) ids.add(c.userId);
+    const uid = _crewAuthId(c);
+    if (uid) ids.add(uid);
   });
   return Array.from(ids);
 }
@@ -35229,7 +35269,7 @@ Object.assign(window, {
   tourStartDate, tourEndDate, addDaysISO, fillDateGapsWithOffDays, _padTourEdgesWithTravelDays,
   toggleExportMenu, closeExportMenu, downloadTourBookPDF, downloadTourBookFromHere, downloadDaySheetPDF, closeTourBook,
   scoutNearVenue,
-  toggleDateGrid, _dateGridPick, _modalBackdropDown, _modalBackdropUp, _liveDate, renderTools, _toolClose, _pnClose, _dateModalClockSync, fmtClock, openTravelAgent, closeTravelAgent, _taGo, _taBack, _taAnchor, _taDate, _taPickDate, _taPickTopic, _taSubmitAsk, _taUseHotel, _taMarkNoHotel, _taMarkNoTravel, _taLogMove, _taLogFlight, _taJump, _taOpenDate, _taMore, _taRender, _taPlan, _rtPick, _rtLoadHotels,
+  toggleDateGrid, _dateGridPick, _crewAuthId, _modalBackdropDown, _modalBackdropUp, _liveDate, renderTools, _toolClose, _pnClose, _dateModalClockSync, fmtClock, openTravelAgent, closeTravelAgent, _taGo, _taBack, _taAnchor, _taDate, _taPickDate, _taPickTopic, _taSubmitAsk, _taUseHotel, _taMarkNoHotel, _taMarkNoTravel, _taLogMove, _taLogFlight, _taJump, _taOpenDate, _taMore, _taRender, _taPlan, _rtPick, _rtLoadHotels,
   toggleTourSwitcher, closeTourSwitcher, switchToTour, switchToTourFromPhone, newTourFlow, newTourManualFlow, newTourImportFlow, renameCurrentTour, deleteCurrentTour,
   toggleUniMenu, closeUniMenu, renderUniMenu, _uniToggleExport,
   openAccountSettingsModal, _acctSaveName, _acctSendReset,
