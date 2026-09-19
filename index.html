@@ -507,14 +507,18 @@ input,select,textarea{font:inherit;color:inherit;
   color:var(--warm-mute);line-height:1}
 .day-pill .pday{font-family:'Bricolage Grotesque',monospace;font-size:21px;font-weight:800;color:var(--hi);
   line-height:1;margin:3px 0 4px;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
-.day-pill .pbody{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:2px;padding:8px 14px;min-width:0}
+/* Nothing in the body may be wider than the body: every line is bounded by
+   its container (not by a fixed pixel width that can exceed it), and the body
+   clips as a last resort — text never crosses the pill's border. */
+.day-pill .pbody{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:2px;padding:8px 14px;min-width:0;max-width:100%;overflow:hidden;box-sizing:border-box}
+.day-pill .pbody > *{max-width:100%;min-width:0}
 .day-pill .pdow{font-family:'Bricolage Grotesque',monospace;font-size:9px;letter-spacing:.2em;color:var(--warm-mute);line-height:1.15}
 .day-pill{max-width:236px}
 /* The city truncates; the ⚠ / ! flag (an ::after on .pcity) never does. */
 .day-pill .pcity{font-size:13px;font-weight:700;color:var(--warm);line-height:1.2;white-space:nowrap;display:flex;align-items:baseline;max-width:100%;min-width:0}
 .day-pill .pcity .pc-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .day-pill .pcity::after{flex:none}
-.day-pill .pvenue{font-size:10.5px;color:var(--warm-mute);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+.day-pill .pvenue{font-size:10.5px;color:var(--warm-mute);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(150px,100%)}
 /* Day type, in the stub's footer. Same colour key the old status dot used:
      • Tan / muted-warm — status unknown or not yet set
      • Green            — show day
@@ -1874,8 +1878,7 @@ body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app):n
 .phone .status-row .right .batt::before{content:"";position:absolute;left:1px;top:1px;bottom:1px;width:80%;background:var(--good);border-radius:1px}
 .phone-app-bar{display:flex;align-items:center;justify-content:space-between;padding:6px 18px 12px;border-bottom:1px solid rgba(232,148,58,.12);position:relative}
 .phone-app-bar::after{content:"";position:absolute;left:18px;right:18px;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,var(--hi),transparent);opacity:.4}
-.phone-app-bar .city{font-weight:900;font-size:18px;letter-spacing:.02em;
-  background:linear-gradient(180deg,#fff5e0,#e8943a);-webkit-background-clip:text;background-clip:text;color:transparent}
+.phone-app-bar .city{font-weight:900;font-size:18px;letter-spacing:.02em;line-height:1.15;color:#fbe3bd;overflow:hidden}
 .phone-app-bar .city small{display:block;font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.2em;color:var(--warm-mute);font-weight:500;margin-top:1px;background:none;-webkit-text-fill-color:initial}
 .phone-app-bar .ic{width:32px;height:32px;border-radius:8px;
   background:linear-gradient(135deg,rgba(232,148,58,.08),rgba(232,148,58,.02));
@@ -2451,7 +2454,9 @@ body.god-account:not(.bg-mark-on) #app[hidden]{display:block!important}
 .bmi-uy{transform-style:preserve-3d;animation:bmiUnswingY 24s ease-in-out infinite alternate}
 .bmi-ux{transform-style:preserve-3d;animation:bmiUnswingX 17s ease-in-out infinite alternate}
 .bmi-lb{position:absolute;left:0;top:0;display:flex;align-items:center;gap:7px;white-space:nowrap;transform:translateY(-50%);
-  text-shadow:0 0 5px currentColor;opacity:var(--o,.3);color:#8a7256;transition:color .9s ease,opacity .9s ease}
+  text-shadow:0 0 5px currentColor;opacity:var(--o,.3);color:#8a7256;
+  /* going dark: a slow fade that starts on this label's own --od (set per beat) */
+  transition:color 1.3s ease var(--od,0ms),opacity 1.3s ease var(--od,0ms)}
 .bmi-lb.c{color:#eec894}
 /* Lighting up: an old tube struggling to catch — a couple of false starts, a
    brown-out, one last dropout, then it holds. Only the way ON changes: when
@@ -3649,7 +3654,11 @@ body.print-stage-mode #stagePrintArea{
 .phone-trigger-chev svg{display:block}
 .phone-date-trigger:active .phone-trigger-chev{background:rgba(232,148,58,.2)}
 .phone-app-bar .city{min-width:0;flex:0 1 auto}
-.ph-city-name{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+/* The gradient lives on the clamped element itself. On the parent, a
+   background-clip:text mask still paints lines the clamp has hidden — the
+   cut-off third line used to ghost over the "DAY 02 / 07" row beneath. */
+.ph-city-name{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;padding-bottom:1px;
+  background:linear-gradient(180deg,#fff5e0,#e8943a);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
 .phone-app-bar.menu-open .phone-trigger-chev{transform:rotate(180deg);color:var(--hi-bright);border-color:rgba(232,148,58,.7);background:rgba(232,148,58,.18)}
 
 .phone-date-menu{
@@ -8372,7 +8381,11 @@ function applyPhoneScreenFromState() {
    ===================================================================== */
 const BMIdle = (() => {
   const PTS = [[-0.737,-0.984],[-0.594,-0.989],[-0.487,-0.962],[0.631,-0.99],[0.734,-0.978],[0.853,-0.965],[-0.878,-0.926],[-0.798,-0.894],[-0.64,-0.93],[-0.533,-0.928],[-0.456,-0.912],[0.365,-0.901],[0.469,-0.917],[0.618,-0.907],[0.698,-0.931],[0.805,-0.893],[0.899,-0.918],[-0.908,-0.862],[-0.829,-0.837],[-0.689,-0.87],[-0.643,-0.87],[-0.46,-0.862],[-0.405,-0.832],[0.426,-0.856],[0.539,-0.833],[0.627,-0.835],[0.722,-0.851],[0.838,-0.849],[-0.872,-0.813],[-0.792,-0.792],[-0.682,-0.8],[-0.511,-0.782],[-0.447,-0.789],[0.392,-0.779],[0.46,-0.813],[0.594,-0.779],[0.676,-0.784],[0.789,-0.809],[0.951,-0.776],[-0.976,-0.742],[-0.856,-0.721],[-0.722,-0.737],[-0.569,-0.752],[-0.466,-0.739],[-0.398,-0.739],[0.438,-0.736],[0.502,-0.736],[0.624,-0.718],[0.737,-0.715],[0.896,-0.729],[-0.866,-0.662],[-0.744,-0.667],[-0.676,-0.678],[-0.53,-0.662],[-0.475,-0.68],[0.46,-0.657],[0.576,-0.689],[0.698,-0.657],[0.774,-0.686],[0.893,-0.693],[-0.969,-0.609],[-0.832,-0.6],[-0.734,-0.611],[-0.643,-0.622],[-0.478,-0.604],[-0.408,-0.632],[0.377,-0.608],[0.548,-0.612],[0.64,-0.614],[0.786,-0.598],[0.884,-0.625],[-0.872,-0.564],[-0.805,-0.534],[-0.661,-0.536],[-0.551,-0.564],[-0.466,-0.54],[0.35,-0.576],[0.447,-0.577],[0.548,-0.561],[0.667,-0.539],[0.811,-0.563],[0.936,-0.56],[-0.939,-0.494],[-0.795,-0.486],[-0.679,-0.499],[-0.588,-0.508],[-0.475,-0.5],[-0.347,-0.499],[0.411,-0.508],[0.533,-0.497],[0.676,-0.51],[0.789,-0.494],[0.875,-0.48],[0.988,-0.5],[-0.884,-0.427],[-0.737,-0.433],[-0.67,-0.417],[-0.573,-0.448],[-0.414,-0.422],[0.353,-0.417],[0.463,-0.43],[0.597,-0.422],[0.707,-0.454],[0.817,-0.443],[0.905,-0.417],[-0.915,-0.369],[-0.847,-0.364],[-0.71,-0.39],[-0.6,-0.366],[-0.499,-0.379],[-0.42,-0.392],[0.435,-0.364],[0.551,-0.387],[0.673,-0.382],[0.753,-0.358],[0.838,-0.364],[0.982,-0.358],[-0.878,-0.305],[-0.783,-0.316],[-0.627,-0.319],[-0.573,-0.303],[-0.426,-0.329],[0.377,-0.331],[0.505,-0.339],[0.557,-0.311],[0.731,-0.327],[0.829,-0.327],[0.927,-0.315],[-0.93,-0.273],[-0.869,-0.271],[-0.728,-0.247],[-0.6,-0.241],[-0.484,-0.251],[-0.374,-0.27],[0.447,-0.243],[0.487,-0.241],[0.631,-0.26],[0.747,-0.278],[0.881,-0.259],[-0.853,-0.219],[-0.789,-0.214],[-0.695,-0.207],[-0.566,-0.217],[-0.46,-0.201],[0.359,-0.209],[0.484,-0.185],[0.545,-0.204],[0.667,-0.185],[0.847,-0.206],[0.921,-0.203],[-0.973,-0.124],[-0.814,-0.132],[-0.685,-0.126],[-0.646,-0.143],[-0.511,-0.145],[-0.362,-0.135],[0.392,-0.147],[0.511,-0.122],[0.67,-0.148],[0.716,-0.129],[0.853,-0.132],[-0.908,-0.065],[-0.802,-0.102],[-0.67,-0.089],[-0.536,-0.068],[-0.463,-0.102],[0.353,-0.095],[0.438,-0.098],[0.621,-0.074],[0.67,-0.079],[0.798,-0.086],[0.921,-0.082],[-0.927,-0.023],[-0.853,-0.012],[-0.737,-0.02],[-0.637,-0.038],[-0.484,-0.007],[-0.362,-0.006],[0.398,-0.014],[0.515,-0.006],[0.618,-0.007],[0.777,-0.038],[0.905,-0.017],[-0.927,0.05],[-0.783,0.031],[-0.621,0.042],[-0.518,0.046],[-0.463,0.025],[-0.328,0.031],[0.392,0.03],[0.438,0.03],[0.563,0.025],[0.716,0.044],[0.786,0.02],[0.93,0.025],[-0.945,0.089],[-0.844,0.089],[-0.685,0.086],[-0.634,0.118],[-0.505,0.106],[-0.377,0.106],[0.402,0.079],[0.554,0.092],[0.6,0.095],[0.725,0.089],[0.887,0.106],[-0.887,0.164],[-0.805,0.151],[-0.634,0.137],[-0.515,0.177],[-0.411,0.158],[-0.319,0.171],[-0.218,0.147],[-0.096,0.158],[0.163,0.171],[0.276,0.172],[0.38,0.137],[0.478,0.171],[0.597,0.167],[0.713,0.14],[0.78,0.137],[0.887,0.147],[-0.976,0.217],[-0.863,0.225],[-0.722,0.206],[-0.566,0.198],[-0.475,0.198],[-0.38,0.211],[-0.273,0.209],[-0.151,0.203],[-0.056,0.235],[0.099,0.233],[0.157,0.207],[0.276,0.214],[0.386,0.212],[0.527,0.222],[0.679,0.222],[0.731,0.235],[0.853,0.223],[0.988,0.207],[-0.924,0.273],[-0.747,0.283],[-0.649,0.281],[-0.533,0.283],[-0.435,0.262],[-0.334,0.254],[-0.182,0.289],[-0.056,0.257],[0.05,0.287],[0.166,0.273],[0.218,0.263],[0.377,0.292],[0.481,0.259],[0.551,0.281],[0.716,0.292],[0.792,0.284],[0.902,0.278],[-0.921,0.34],[-0.869,0.351],[-0.731,0.319],[-0.591,0.35],[-0.499,0.326],[-0.35,0.332],[-0.276,0.316],[-0.188,0.329],[-0.072,0.319],[0.05,0.318],[0.154,0.345],[0.307,0.327],[0.42,0.327],[0.502,0.337],[0.6,0.327],[0.771,0.347],[0.86,0.315],[0.988,0.337],[-0.905,0.384],[-0.759,0.387],[-0.643,0.382],[-0.542,0.371],[-0.475,0.39],[-0.285,0.398],[-0.169,0.374],[-0.072,0.409],[0.05,0.385],[0.163,0.372],[0.258,0.401],[0.368,0.414],[0.499,0.398],[0.56,0.382],[0.682,0.384],[0.844,0.408],[0.945,0.409],[-0.921,0.441],[-0.82,0.438],[-0.74,0.472],[-0.618,0.432],[-0.279,0.448],[-0.166,0.467],[-0.069,0.452],[0.056,0.448],[0.166,0.472],[0.276,0.435],[0.655,0.449],[0.771,0.435],[0.841,0.452],[0.966,0.467],[-0.896,0.518],[-0.771,0.5],[-0.075,0.512],[-0.014,0.52],[0.136,0.521],[0.679,0.526],[0.814,0.505],[0.89,0.513],[-0.969,0.556],[-0.847,0.569],[-0.679,0.558],[-0.13,0.587],[-0.023,0.571],[0.066,0.585],[0.786,0.579],[0.887,0.585],[-0.872,0.629],[-0.759,0.625],[-0.188,0.63],[-0.072,0.646],[0.05,0.612],[0.148,0.635],[0.24,0.649],[0.704,0.641],[0.823,0.64],[0.915,0.646],[-0.948,0.685],[-0.853,0.693],[-0.701,0.694],[-0.634,0.697],[-0.521,0.678],[-0.405,0.693],[-0.298,0.688],[-0.124,0.677],[-0.056,0.67],[0.102,0.681],[0.188,0.688],[0.258,0.675],[0.38,0.702],[0.563,0.688],[0.609,0.699],[0.774,0.675],[0.899,0.673],[0.997,0.696],[-0.881,0.749],[-0.774,0.744],[-0.679,0.747],[-0.518,0.765],[-0.432,0.734],[-0.282,0.736],[-0.194,0.753],[0.218,0.747],[0.365,0.734],[0.45,0.734],[0.612,0.758],[0.716,0.765],[0.786,0.769],[0.89,0.739],[-0.927,0.787],[-0.811,0.829],[-0.731,0.805],[-0.612,0.813],[-0.505,0.798],[-0.417,0.803],[-0.234,0.806],[-0.163,0.795],[0.215,0.806],[0.282,0.795],[0.392,0.824],[0.518,0.811],[0.606,0.797],[0.777,0.825],[0.853,0.797],[-0.866,0.862],[-0.808,0.886],[-0.676,0.849],[-0.582,0.875],[-0.472,0.853],[-0.344,0.854],[-0.173,0.885],[-0.108,0.856],[0.026,0.875],[0.096,0.886],[0.258,0.878],[0.362,0.87],[0.444,0.87],[0.569,0.861],[0.667,0.886],[0.847,0.856],[-0.737,0.915],[-0.634,0.917],[-0.493,0.907],[-0.414,0.914],[-0.276,0.926],[-0.111,0.915],[0.105,0.915],[0.224,0.933],[0.301,0.931],[0.435,0.92],[0.524,0.922],[0.67,0.926],[0.777,0.925],[-0.551,0.984],[-0.423,0.965],[-0.334,0.979],[-0.212,0.982],[0.237,0.973],[0.389,0.992],[0.438,0.971]];
-  const HALF_X = 300, HALF_Y = 476, XOFF = -26, PERIOD = 5200;
+  const HALF_X = 300, HALF_Y = 476, XOFF = -26;
+  // One beat: the lit city dies off label by label (OFF_SPREAD), the date
+  // changes LEAD ms in — once most of it has gone dark — and the next city
+  // catches across ON_SPREAD. The period is what's left over as "all lit".
+  const PERIOD = 8000, LEAD = 1700, OFF_SPREAD = 1900, ON_SPREAD = 2800;
   const KEY = 'bandmate.idle.after', BOARD_KEY = 'bandmate.display.board';
   const CHOICES = [[0, 'Off'], [15, '15 seconds'], [30, '30 seconds'], [60, '1 minute'], [300, '5 minutes']];
   const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -8385,7 +8398,7 @@ const BMIdle = (() => {
   let mode = 'idle';
   let last = Date.now(), showing = false, root = null, list = [], all = [], kind = 'SHOW', cur = 0, focus = null;
   let watch = null, reel = null, clock = null, shownAt = 0, anchor = null, graceMs = 400, swapT = null, tail = 0;
-  let nCities = 1, phase = 0, headSig = '', lastMin = -1, ctlT = null, wl = null, ownFS = false;
+  let nCities = 1, phase = 0, headSig = '', lastMin = -1, ctlT = null, wl = null, ownFS = false, lightT = null;
   let wantDisplay = false, bootAt = Date.now(), ticks = 0;
   let guardOn = () => {}, guardOff = () => {};
 
@@ -8648,28 +8661,60 @@ const BMIdle = (() => {
   // matches and the whole mark went solid orange. Cap the lit share at what an
   // 8-city tour gets, and move which ones are lit on every beat so a short
   // tour's mark still shimmers instead of sitting still.
+  // Spread a set of labels across a window so they go one after another, not
+  // in a clump: each takes an even slot (in an order that changes every beat)
+  // plus a little jitter, written to the CSS variable its animation /
+  // transition reads as its delay.
+  function spread(labels, cssVar, windowMs) {
+    const n = labels.length; if (!n) return;
+    const order = labels.map(lb => ({ lb, k: (+lb.dataset.h * 7.31 + phase * 3.17) % 1 })).sort((a, b) => a.k - b.k);
+    const slot = n > 1 ? windowMs / (n - 1) : 0;
+    order.forEach((o, i) => {
+      const jitter = (o.k - 0.5) * slot * 0.7;
+      o.lb.style.setProperty(cssVar, Math.max(0, Math.round(i * slot + jitter)) + 'ms');
+    });
+  }
+  // Everything lit goes dark, slowly and one by one (the fade + its per-label
+  // delay are the .bmi-lb transition).
+  function dieOff() {
+    if (!root) return;
+    const lit = [...root.querySelectorAll('.bmi-lb.hot')];
+    spread(lit, '--od', OFF_SPREAD);
+    lit.forEach(lb => lb.classList.remove('hot'));
+  }
   function light() {
     if (!root) return;
     const hot = focus ? clip(focus.city || focus.venue, 18) : 'BANDMATE';
     const share = Math.min(1, nCities / 8);
+    const turnOn = [], turnOff = [];
     root.querySelectorAll('.bmi-lb.c').forEach(lb => {
       const on = lb.dataset.n === hot && (share >= 1 || ((+lb.dataset.h + phase) % 1) < share);
-      lb.classList.toggle('hot', on);
+      const was = lb.classList.contains('hot');
+      if (on && !was) turnOn.push(lb); else if (!on && was) turnOff.push(lb);
     });
+    spread(turnOff, '--od', OFF_SPREAD); turnOff.forEach(lb => lb.classList.remove('hot'));
+    // the whole city catches across ON_SPREAD — per city, however many labels it has
+    spread(turnOn, '--fd', ON_SPREAD); turnOn.forEach(lb => lb.classList.add('hot'));
   }
 
   function step() {
     if (!root || document.hidden) return;
     phase = (phase + 0.37) % 1;
-    // Nothing to turn to (one show, none, or the display pinned to today):
-    // the lit labels still move.
-    if (list.length < 2 || root.classList.contains('board')) { light(); return; }
-    const box = root.querySelector('#bmiShow');
-    cur = (cur + 1) % list.length;
-    if (!box) { paint(); return; }
-    box.classList.add('swap');
-    clearTimeout(swapT);
-    swapT = setTimeout(() => { paint(); if (box) box.classList.remove('swap'); }, 240);
+    // The lit city dies away first; only then does anything new come on.
+    dieOff();
+    clearTimeout(lightT);
+    lightT = setTimeout(() => {
+      if (!root) return;
+      // Nothing to turn to (one show, none, or the display pinned to today):
+      // a different handful of labels catches instead.
+      if (list.length < 2 || root.classList.contains('board')) { light(); return; }
+      const box = root.querySelector('#bmiShow');
+      cur = (cur + 1) % list.length;
+      if (!box) { paint(); return; }
+      box.classList.add('swap');
+      clearTimeout(swapT);
+      swapT = setTimeout(() => { paint(); if (box) box.classList.remove('swap'); }, 240);
+    }, LEAD);
   }
 
   // The display runs for hours while the tour changes underneath it (a
@@ -8726,7 +8771,7 @@ const BMIdle = (() => {
     const wasDisplay = mode === 'display';
     showing = false; last = Date.now();
     guardOff();
-    clearInterval(reel); clearInterval(clock); clearTimeout(swapT); clearTimeout(ctlT);
+    clearInterval(reel); clearInterval(clock); clearTimeout(swapT); clearTimeout(ctlT); clearTimeout(lightT);
     window.removeEventListener('resize', fit);
     document.body.classList.remove('bm-idle');
     const el = root; root = null; focus = null;
@@ -20426,7 +20471,7 @@ function renderPhone() {
     const tour = T();
     const hasTour = !!(tour && tour.id && tour.id !== '_empty');
     const tourName = hasTour ? (tour.meta?.artist || tour.name || 'Your tour') : '';
-    $('#phCity').innerHTML = `${hasTour ? esc(tourName) : 'Bandmate'}<small>${hasTour ? 'NO DATES YET' : 'NO TOUR YET'}</small>`;
+    $('#phCity').innerHTML = `<span class="ph-city-name">${hasTour ? esc(tourName) : 'Bandmate'}</span><small>${hasTour ? 'NO DATES YET' : 'NO TOUR YET'}</small>`;
     const card = (h, sub) => `<div class="p-card"><div class="lbl" style="color:#8aa9d8">${h}</div><div class="sub" style="margin-top:6px;line-height:1.55">${sub}</div></div>`;
     const todayEl = document.getElementById('ph-today');
     if (todayEl) todayEl.innerHTML = hasTour
