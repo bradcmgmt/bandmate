@@ -440,6 +440,7 @@ input,select,textarea{font:inherit;color:inherit;
 
 /* ============ DAY STRIP ============ */
 .day-strip-wrap{
+  position:relative;   /* anchors the Grid View panel that drops from under it */
   /* Static positioning — rides along inside the .sticky-header wrap
      above. Extra bottom padding (14px instead of 10px) gives the
      active pill's amber glow room to render fully inside the wrap. */
@@ -545,13 +546,78 @@ input,select,textarea{font:inherit;color:inherit;
     linear-gradient(135deg,rgba(232,148,58,.18),rgba(232,148,58,.04));
   background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat}
 @media (prefers-reduced-motion: reduce){.day-pill.is-today{animation:none}}
-.day-strip-actions{display:flex;align-items:center;gap:6px;flex:none}
+/* Two compact buttons stacked to the height of a date pill: the column's
+   4px / 8px padding mirrors .day-strip's, so the pair lines up with the
+   pill's top and bottom edges instead of floating in the middle. */
+.day-strip-actions{display:flex;flex-direction:column;align-items:stretch;gap:5px;flex:none;padding:4px 0 8px}
 .day-add-btn{
-  padding:8px 12px;border:1px dashed var(--line-glow);border-radius:9px;color:var(--hi);
-  background:transparent;font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
+  padding:0 11px;border:1px dashed var(--line-glow);border-radius:7px;color:var(--hi);
+  background:transparent;font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
   white-space:nowrap;
 }
 .day-add-btn:hover{background:rgba(232,148,58,.08);border-style:solid}
+.day-grid-btn{border-style:solid;border-color:var(--line-2);color:var(--warm-mute)}
+.day-grid-btn:hover{color:var(--warm);border-color:var(--line-glow);background:rgba(232,148,58,.06)}
+/* While Grid View is open the button burns — the same flames-in-glass as an
+   active tab. Closed, it goes back to the grey above. */
+.day-grid-btn.on,.day-grid-btn.on:hover{color:var(--hi-bright);border-color:rgba(232,148,58,.75);font-weight:700;
+  background:
+    radial-gradient(circle at 24% 78%,rgba(255,150,45,.40),transparent 46%),
+    radial-gradient(circle at 72% 26%,rgba(255,80,25,.26),transparent 42%),
+    linear-gradient(135deg,rgba(232,148,58,.22),rgba(232,148,58,.05));
+  background-size:230% 230%,210% 210%,100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 7s ease-in-out infinite alternate;
+  box-shadow:0 0 14px rgba(232,148,58,.3),inset 0 1px 0 rgba(255,220,170,.14);text-shadow:0 0 10px rgba(232,148,58,.4)}
+@media (prefers-reduced-motion:reduce){.day-grid-btn.on{animation:none}}
+/* GRID VIEW — every date at once, reading top to bottom. Drops from under
+   the strip and overlays the console (nothing reflows, so it can't jank).
+   Transform + opacity only, ~130ms in and ~100ms out: a tour manager should
+   never be waiting on it. Closed, it's visibility:hidden so it can't be
+   tabbed into or clicked. */
+.date-grid{position:absolute;left:0;right:0;top:100%;z-index:40;max-height:min(72vh,680px);overflow-y:auto;padding:14px 22px 18px;
+  background:linear-gradient(180deg,#130d08,#0c0805);border-bottom:1px solid var(--line-2);box-shadow:0 28px 54px -18px rgba(0,0,0,.9);
+  transform:translateY(-10px);opacity:0;visibility:hidden;pointer-events:none;
+  transition:transform .1s cubic-bezier(.4,0,1,1),opacity .09s linear,visibility 0s linear .1s;will-change:transform,opacity}
+.date-grid.open{transform:none;opacity:1;visibility:visible;pointer-events:auto;
+  transition:transform .13s cubic-bezier(.2,.8,.2,1),opacity .1s linear,visibility 0s}
+@media (prefers-reduced-motion:reduce){.date-grid,.date-grid.open{transition:none}}
+.dg-head{display:flex;align-items:baseline;gap:12px;margin-bottom:10px}
+.dg-head .dg-k{font-family:'Bricolage Grotesque',monospace;font-size:10px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--hi)}
+.dg-head .dg-s{font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.1em;color:var(--warm-mute)}
+.dg-head .dg-x{margin-left:auto;background:none;border:0;color:var(--warm-mute);font-family:'Bricolage Grotesque',monospace;font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;cursor:pointer}
+.dg-head .dg-x:hover{color:var(--hi-bright)}
+/* A real grid that fills by COLUMN: dates run down the first column, then
+   the next — top to bottom first, left to right second — and every cell
+   sits on a shared row line, so the columns are level with each other.
+   (CSS multi-column can't do that: a month heading in one column pushed
+   that column's cells out of step with its neighbours.) The row count is
+   set from the available width in _dateGridLayout(). Every cell is the same
+   height; the month is marked INSIDE the cell where it changes, so nothing
+   ever breaks the rhythm. */
+.dg-cols{display:grid;grid-auto-flow:column;grid-template-rows:repeat(var(--dg-rows,8),44px);grid-auto-columns:var(--dg-col,minmax(0,1fr));gap:5px 10px;align-items:stretch}
+.dg-cell{display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;height:44px;margin:0;padding:0 10px;box-sizing:border-box;
+  border:1px solid var(--line);border-radius:8px;background:none;text-align:left;color:var(--warm);cursor:pointer}
+.dg-side{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:4px;min-width:8px}
+.dg-mon{font-family:'Bricolage Grotesque',monospace;font-size:8.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--hi)}
+.dg-cell:hover{border-color:rgba(232,148,58,.5);background:rgba(232,148,58,.06)}
+.dg-cell.active{border-color:var(--hi);background:rgba(232,148,58,.12)}
+.dg-stub{display:flex;flex-direction:column;align-items:center;line-height:1}
+.dg-day{font-family:'Bricolage Grotesque',monospace;font-size:17px;font-weight:800;color:var(--hi)}
+.dg-dow{margin-top:3px;font-family:'Bricolage Grotesque',monospace;font-size:8.5px;letter-spacing:.16em;color:var(--warm-mute)}
+.dg-cell.today .dg-day{color:var(--hi-bright);text-shadow:0 0 10px rgba(232,148,58,.5)}
+.dg-body{min-width:0}
+.dg-city{display:block;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dg-sub{display:block;margin-top:2px;font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.06em;color:var(--warm-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dg-sub b{font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#6dcf8b}
+.dg-cell.s-off .dg-sub b,.dg-cell.s-off .dg-day{color:var(--warm-mute)}
+.dg-cell.s-travel .dg-sub b{color:#8aa9d8}
+.dg-cell.s-rehearsal .dg-sub b,.dg-cell.s-press .dg-sub b{color:#c9b3ff}
+/* One mark only — "!" — in the same two colours the date strip uses: red when
+   something required is missing, blue when the only open question is where
+   everyone sleeps (a hotel or a travel item). */
+.dg-flag{font-family:'Bricolage Grotesque',monospace;font-size:13px;font-weight:900;line-height:1;color:var(--red);text-shadow:0 0 6px rgba(232,69,69,.6)}
+.dg-flag.or{color:#8aa9d8;text-shadow:0 0 6px rgba(138,169,216,.7)}
 
 /* Add-date chooser cards (single date vs. date range). Two big
    side-by-side cards inside the modal, each with an icon, title,
@@ -3544,34 +3610,6 @@ body.print-tourbook-mode #tourBookArea{display:block!important;position:fixed;in
 .pn-h-body{font-size:12.5px;color:var(--warm);line-height:1.4;margin-bottom:5px}
 .pn-h-sender{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;color:var(--warm-mute);letter-spacing:.06em;text-align:right}
 
-/* ============ UPLOAD SETTLEMENT ============ */
-/* The ember button: the same flames-in-glass as an active tab, on a button. */
-.tb-btn.ember{color:var(--hi-bright);border-color:rgba(232,148,58,.68);font-weight:700;
-  background:
-    radial-gradient(circle at 24% 78%,rgba(255,150,45,.36),transparent 46%),
-    radial-gradient(circle at 72% 26%,rgba(255,80,25,.24),transparent 42%),
-    linear-gradient(135deg,rgba(232,148,58,.18),rgba(232,148,58,.04));
-  background-size:230% 230%,210% 210%,100% 100%;background-repeat:no-repeat;
-  animation:tabFlame 7s ease-in-out infinite alternate;
-  box-shadow:0 0 16px rgba(232,148,58,.24),inset 0 1px 0 rgba(255,220,170,.12);text-shadow:0 0 10px rgba(232,148,58,.35)}
-.tb-btn.ember:hover{border-color:var(--hi-bright);box-shadow:0 0 24px rgba(232,148,58,.4),inset 0 1px 0 rgba(255,220,170,.2)}
-@media (prefers-reduced-motion:reduce){.tb-btn.ember{animation:none}}
-.su-intro{font-size:13px;line-height:1.55;color:var(--warm-mute);margin-bottom:14px}
-.su-intro b{color:var(--warm)}
-.su-item{padding:14px 16px 6px;border:1px solid var(--line);border-radius:10px;margin-bottom:12px;background:linear-gradient(180deg,rgba(255,255,255,.015),transparent)}
-.su-item.unmatched{border-color:rgba(253,186,116,.45)}
-.su-head{display:flex;align-items:center;gap:14px;margin-bottom:10px;padding-bottom:9px;border-bottom:1px solid var(--line)}
-.su-inc,.su-check{display:flex;align-items:center;gap:8px;font-family:'Bricolage Grotesque',monospace;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--hi);cursor:pointer}
-.su-check{color:var(--warm);margin-top:22px}
-.su-src{flex:1;min-width:0;font-family:'Bricolage Grotesque',monospace;font-size:10.5px;letter-spacing:.06em;color:var(--warm-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.su-now{margin-top:6px;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.05em;color:var(--warm-mute)}
-.su-warn{color:#fdba74;font-weight:600;text-transform:none;letter-spacing:.02em}
-.su-dim{color:var(--warm-mute);font-weight:400;text-transform:none;letter-spacing:.02em}
-.su-problems{margin-bottom:12px;padding:10px 12px;border:1px solid rgba(253,186,116,.35);border-radius:8px;font-size:12px;line-height:1.5;color:#fdba74}
-.su-empty{padding:8px 0 4px}
-.su-empty h3{margin:0 0 8px;font-size:17px;color:var(--warm)}
-.su-empty p{margin:0 0 16px;font-size:13px;line-height:1.6;color:var(--warm-mute)}
-
 /* ============ CALENDAR DROPDOWN ============
    One themed calendar for every date field on the desktop console. The
    field stays a real date input (typing still works); the browser's own
@@ -5716,7 +5754,9 @@ setTimeout(window._hideAppBoot,6000);
     <div class="day-strip" id="dayStrip"></div>
     <div class="day-strip-actions">
       <button type="button" class="day-add-btn" onclick="openAddDateChooser()">+ Add Date</button>
+      <button type="button" class="day-add-btn day-grid-btn" id="dateGridBtn" onclick="toggleDateGrid()" aria-expanded="false" aria-controls="dateGrid">Grid View</button>
     </div>
+    <div class="date-grid" id="dateGrid" aria-hidden="true"></div>
   </div>
 
   </div><!-- /sticky-header -->
@@ -6000,7 +6040,7 @@ if (sb) {
         try { saveState(); } catch (e) {}
         try { hideCrewBlockScreen(); } catch (e) {}
         try { showLandingScreen(); } catch (e) {}
-        try { toast('Session expired — please sign in again', 'error'); } catch (e) {}
+        if (!window._deliberateSignOut) { try { toast('Session expired — please sign in again', 'error'); } catch (e) {} }
       }
     }
   });
@@ -13330,263 +13370,6 @@ function moveSetItem(id, dir) {
 /* =====================================================================
    SETTLEMENT
    ===================================================================== */
-/* =====================================================================
-   UPLOAD SETTLEMENT — read a settlement and fill the Settlements grid
-   Takes what a promoter or business manager actually sends: a single-show
-   settlement sheet (PDF, text, or a label/value spreadsheet) or a summary
-   with one row per show (XLSX / CSV). Pulls the guarantee, the final amount
-   due the artist, the deductions and the currency, matches each one to a
-   show on the tour by date, then venue, then city — and puts it in front of
-   the tour manager to check BEFORE anything is written. Nothing imports
-   without that review, and a field the parser didn't find never overwrites
-   what's already on the date.
-
-   File reading reuses the import wizard's extractors (extractPDFText,
-   extractXLSXSheets, parseCSV), so anything that opens there opens here.
-   ===================================================================== */
-let _su = { items: [], files: [] };
-const SU_CUR = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'CHF', 'NOK', 'SEK', 'DKK', 'ISK', 'PLN', 'CZK', 'HUF', 'BGN', 'RON', 'RSD', 'TRY', 'JPY', 'MXN', 'BRL', 'NZD'];
-const SU_MON = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
-const SU_MONEY = /\(?[-−]?\s*(?:US\$|CA\$|C\$|A\$|[$€£])?\s*\d{1,3}(?:[.,\s]\d{3})+(?:[.,]\d{1,2})?\)?|\(?[-−]?\s*(?:US\$|CA\$|C\$|A\$|[$€£])?\s*\d+(?:[.,]\d{1,2})?\)?/g;
-// What each kind of line looks like. Order of testing matters: "balance due
-// artist after deposit" is the FINAL figure, not a deposit line.
-const SU_FINAL = /(total|net|amount|balance|payment)\s+(due|payable|owed)\s+(to\s+)?(the\s+)?artist|artist\s+(settlement|pay\s*out|payment|walk\s*out|net|share)|due\s+(to\s+)?(the\s+)?artist|net\s+to\s+artist|walk\s*-?\s*out|final\s+settlement|total\s+artist\s+(payment|payout|settlement|due)|balance\s+due/;
-const SU_OVER  = /overage|percentage\s+(earned|due|payout|payment)|back\s*-?\s*end|\bbonus\b|artist\s+%|split\s+earned/;
-const SU_DED   = /withholding|tax(es)?\s+withheld|foreign\s+artist\s+tax|\bwht\b|commission|deposit|\badvance\b|production\s+(charge|cost|buy\s*-?\s*out|fee)|catering|hospitality\s+buy|merch(andise)?\s+(fee|commission|hall)|charge\s*-?\s*back|deduction|\bless\b|insurance|ascap|\bbmi\b|sesac|\bprs\b|gema|socan|buy\s*-?\s*out/;
-const SU_GUAR  = /\bguarantee\b|guaranteed\s+fee|artist\s+fee|flat\s+fee|performance\s+fee|\bfee\b/;
-const SU_GROSS = /gross\s+(box\s+office|ticket|receipts|sales)|total\s+gross|\bgbor\b|\bnbor\b|net\s+(box\s+office|gross|receipts)|gross\s+potential/;
-// Box-office-level lines: they come off the GROSS before the artist's share
-// is worked out, so they are not deductions from what the artist is paid.
-const SU_BOXOFFICE = /sales\s+tax|\bvat\b|\bgst\b|\bhst\b|facility\s+(fee|charge)|ticket(ing)?\s+(fee|charge|commission)|credit\s+card|show\s+expenses|total\s+expenses|split\s+point|break\s*-?\s*even/;
-
-// "1,234.56", "1.234,56", "(1,250)", "-€900", "1 234,50" → a number.
-function _suMoney(tok) {
-  const raw = String(tok || '').trim();
-  const neg = /^\(.*\)$/.test(raw) || /^[^\d]*[-−]/.test(raw);
-  let s = raw.replace(/[^\d.,]/g, '');
-  if (!s) return null;
-  const lastC = s.lastIndexOf(','), lastD = s.lastIndexOf('.');
-  let dec = -1;
-  if (lastC > -1 && lastD > -1) dec = Math.max(lastC, lastD);
-  else if (lastC > -1) dec = /^\d{1,3}(,\d{3})+$/.test(s) ? -1 : (s.length - lastC - 1 <= 2 ? lastC : -1);
-  else if (lastD > -1) dec = /^\d{1,3}(\.\d{3})+$/.test(s) ? -1 : (s.length - lastD - 1 <= 2 ? lastD : -1);
-  const intPart = (dec > -1 ? s.slice(0, dec) : s).replace(/[.,]/g, '');
-  const frac = dec > -1 ? s.slice(dec + 1) : '';
-  const n = parseFloat(intPart + (frac ? '.' + frac : ''));
-  return isFinite(n) ? (neg ? -n : n) : null;
-}
-// Every date in the text as ISO. 03/04/2026 is ambiguous (US vs everyone
-// else), so both readings are offered — the tour's own dates settle it.
-function _suDates(text) {
-  const out = new Set(); const t = String(text || '');
-  const iso = (y, m, d) => { y = +y; m = +m; d = +d; if (y < 100) y += 2000; if (m < 1 || m > 12 || d < 1 || d > 31 || y < 2000 || y > 2100) return; out.add(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`); };
-  let m;
-  const r1 = /\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/g; while ((m = r1.exec(t))) iso(m[1], m[2], m[3]);
-  const r2 = /\b(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})\b/g;
-  while ((m = r2.exec(t))) { const a = +m[1], b = +m[2]; if (a > 12) iso(m[3], b, a); else if (b > 12) iso(m[3], a, b); else { iso(m[3], a, b); iso(m[3], b, a); } }
-  const r3 = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(20\d{2})\b/gi; while ((m = r3.exec(t))) iso(m[3], SU_MON[m[1].toLowerCase()], m[2]);
-  const r4 = /\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?,?\s+(20\d{2})\b/gi; while ((m = r4.exec(t))) iso(m[3], SU_MON[m[2].toLowerCase()], m[1]);
-  return [...out];
-}
-function _suCurrency(text) {
-  const t = String(text || ''); const n = (re) => (t.match(re) || []).length;
-  const c = { USD: n(/\bUSD\b|US\$/g), EUR: n(/€|\bEUR\b/g), GBP: n(/£|\bGBP\b/g), CAD: n(/\bCAD\b|CA\$|C\$/g), AUD: n(/\bAUD\b|A\$/g), CHF: n(/\bCHF\b/g), SEK: n(/\bSEK\b/g), NOK: n(/\bNOK\b/g), DKK: n(/\bDKK\b/g), MXN: n(/\bMXN\b/g), JPY: n(/¥|\bJPY\b/g) };
-  let best = '', hi = 0; Object.keys(c).forEach(k => { if (c[k] > hi) { hi = c[k]; best = k; } });
-  if (!best && /\$/.test(t)) best = 'USD';
-  return best;
-}
-const _suFmt = n => (n < 0 ? '-' : '') + Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
-
-// A single-show settlement: walk it line by line, label → amount.
-function _settleFromText(text, source) {
-  const full = String(text || '');
-  const it = { source, mode: 'doc', dates: _suDates(full), hay: full.toLowerCase(), currency: _suCurrency(full), guarantee: null, finalAmount: null, overage: null, deductions: [], gross: null, tickets: null, found: 0 };
-  full.split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean).forEach(line => {
-    // dates and percentages aren't money
-    const clean = line.replace(/\b\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}\b/g, ' ').replace(/\b20\d{2}-\d{1,2}-\d{1,2}\b/g, ' ').replace(/\d+(?:[.,]\d+)?\s*%/g, ' ');
-    const toks = clean.match(SU_MONEY);
-    if (!toks) return;
-    const amt = _suMoney(toks[toks.length - 1]);
-    if (amt == null) return;
-    const label = clean.replace(SU_MONEY, ' ').replace(/\b(USD|EUR|GBP|CAD|AUD|CHF|SEK|NOK|DKK|MXN|JPY)\b/g, ' ').replace(/[$€£¥]/g, ' ')
-      .replace(/\(\s*\)/g, ' ').replace(/[:.\-–—\s]+$/, '').replace(/\s+/g, ' ').trim();
-    const l = label.toLowerCase();
-    if (!l) return;
-    if (SU_FINAL.test(l)) { it.finalAmount = Math.abs(amt); return; }            // the last one wins — it's the bottom line
-    if (SU_BOXOFFICE.test(l)) { if (SU_GROSS.test(l) && it.gross == null) it.gross = Math.abs(amt); return; }
-    if (SU_DED.test(l))   { if (Math.abs(amt) > 0) it.deductions.push(`${label}: ${_suFmt(-Math.abs(amt))}`); return; }
-    if (SU_OVER.test(l))  { it.overage = Math.abs(amt); return; }
-    if (SU_GUAR.test(l))  { if (it.guarantee == null) it.guarantee = Math.abs(amt); return; }
-    if (SU_GROSS.test(l)) { if (it.gross == null) it.gross = Math.abs(amt); return; }
-  });
-  const tix = /(tickets?\s+sold|paid\s+(?:attendance|tickets?)|total\s+(?:sold|paid)|attendance)\D{0,14}(\d[\d,.\s]*\d|\d)/i.exec(full);
-  if (tix) { const n = _suMoney(tix[2]); if (n != null && n < 500000) it.tickets = Math.round(n); }
-  it.found = [it.guarantee, it.finalAmount].filter(v => v != null).length + (it.deductions.length ? 1 : 0);
-  return it;
-}
-
-// A summary with one row per show.
-function _settleFromTable(rows, source) {
-  if (!rows || !rows.length) return [];
-  const headers = Object.keys(rows[0]);
-  const pick = re => headers.find(h => re.test(String(h).toLowerCase()));
-  const hDate = pick(/\bdate\b|^day$/), hVenue = pick(/venue|festival|room/), hCity = pick(/\bcity\b|market|town/);
-  const hFinal = pick(/final|settle|walk\s*-?\s*out|net\s*(to\s*)?artist|total\s*(due|artist)|artist\s*(total|net|pay)|pay\s*-?\s*out|\bpaid\b|balance/);
-  const hGuar = pick(/guarant|\bguar\b|\bfee\b/), hDed = pick(/deduct|withhold|\btax|commission|expense/), hNotes = pick(/note|comment|memo/), hCur = pick(/curr|ccy/);
-  if ((!hDate && !hVenue && !hCity) || (!hGuar && !hFinal)) return [];
-  const out = [];
-  rows.forEach((r, i) => {
-    const g = hGuar ? _suMoney(r[hGuar]) : null, f = hFinal ? _suMoney(r[hFinal]) : null;
-    if (g == null && f == null) return;
-    const where = [hVenue ? r[hVenue] : '', hCity ? r[hCity] : ''].filter(Boolean).join(' ');
-    if (/^\s*(total|totals|sum|grand total)\s*$/i.test(String(r[hDate] || where || ''))) return;
-    const ded = hDed ? _suMoney(r[hDed]) : null;
-    out.push({
-      source: `${source} · row ${i + 1}`, mode: 'row', dates: _suDates(hDate ? r[hDate] : ''), hay: where.toLowerCase(), label: where,
-      currency: (hCur && String(r[hCur]).trim().toUpperCase().slice(0, 3)) || _suCurrency(Object.values(r).join(' ')),
-      guarantee: g != null ? Math.abs(g) : null, finalAmount: f != null ? Math.abs(f) : null, overage: null,
-      deductions: ded ? [`${hDed}: ${_suFmt(-Math.abs(ded))}`] : [], notesText: hNotes ? String(r[hNotes] || '').trim() : '', gross: null, tickets: null, found: 2,
-    });
-  });
-  return out;
-}
-
-// Which show is this? Exact date first, then the venue, then the city.
-function _settleMatch(it) {
-  let best = '', hi = 0;
-  (T().dates || []).filter(d => !d.status || d.status === 'show').forEach(d => {
-    let sc = 0;
-    if ((it.dates || []).includes(d.date)) sc += 100;
-    if (d.venue && d.venue.length > 3 && it.hay.includes(d.venue.toLowerCase())) sc += 40;
-    if (d.city && d.city.length > 2 && it.hay.includes(d.city.toLowerCase())) sc += 20;
-    if (sc > hi) { hi = sc; best = d.id; }
-  });
-  return hi >= 20 ? best : '';
-}
-
-function openSettlementUpload() {
-  if (!T() || T().id === '_empty') { toast('Open a tour first', 'error'); return; }
-  const inp = document.createElement('input');
-  inp.type = 'file'; inp.multiple = true; inp.hidden = true;
-  inp.accept = '.pdf,.xlsx,.xls,.csv,.tsv,.txt,application/pdf,text/plain,text/csv';
-  inp.onchange = () => { const files = [...(inp.files || [])]; inp.remove(); if (files.length) _settleHandleFiles(files); };
-  document.body.appendChild(inp);
-  inp.click();
-}
-
-async function _settleHandleFiles(files) {
-  toast(`Reading ${files.length === 1 ? files[0].name : files.length + ' files'}…`);
-  const items = [], problems = [];
-  for (const file of files) {
-    const name = file.name || 'file', ext = (name.split('.').pop() || '').toLowerCase();
-    try {
-      if (ext === 'xlsx' || ext === 'xls') {
-        const sheets = await extractXLSXSheets(file);
-        if (!sheets) { problems.push(`${name}: couldn't open the spreadsheet`); continue; }
-        Object.keys(sheets).filter(k => k !== '__meta').forEach(sn => {
-          const rows = sheets[sn] || [];
-          const tbl = _settleFromTable(rows, `${name} · ${sn}`);
-          if (tbl.length) { items.push(...tbl); return; }
-          // A label / value settlement laid out in cells — read it as lines.
-          const lines = [Object.keys(rows[0] || {}).join(' ')].concat(rows.map(r => Object.values(r).join(' ')));
-          const doc = _settleFromText(lines.join('\n'), `${name} · ${sn}`);
-          if (doc.found) items.push(doc);
-        });
-      } else if (ext === 'csv' || ext === 'tsv') {
-        const text = await file.text();
-        const grid = ext === 'tsv' ? text.split(/\r?\n/).map(l => l.split('\t')) : parseCSV(text);
-        const hi = grid.findIndex(r => r.filter(c => /date|venue|city|guarant|settle|final|total|fee/i.test(String(c))).length >= 2);
-        let tbl = [];
-        if (hi > -1) {
-          const hdr = grid[hi].map(h => String(h).trim());
-          const rows = grid.slice(hi + 1).filter(r => r.some(c => String(c).trim())).map(r => { const o = {}; hdr.forEach((h, i) => { if (h) o[h] = String(r[i] == null ? '' : r[i]).trim(); }); return o; });
-          tbl = _settleFromTable(rows, name);
-        }
-        if (tbl.length) items.push(...tbl);
-        else { const doc = _settleFromText(grid.map(r => r.join(' ')).join('\n'), name); if (doc.found) items.push(doc); }
-      } else if (ext === 'pdf') {
-        const res = await extractPDFText(file);
-        if (!res || !res.text) { problems.push(`${name}: ${(res && res.error) || 'no readable text (a scanned image?)'}`); continue; }
-        const doc = _settleFromText(res.text, name);
-        if (doc.found) items.push(doc); else problems.push(`${name}: no settlement figures found`);
-      } else {
-        const doc = _settleFromText(await file.text(), name);
-        if (doc.found) items.push(doc); else problems.push(`${name}: no settlement figures found`);
-      }
-    } catch (e) { console.warn('[settlement upload]', name, e); problems.push(`${name}: couldn't be read`); }
-  }
-  items.forEach(it => { it.matchId = _settleMatch(it); });
-  _su = { items, problems };
-  _settleReview();
-}
-
-function _settleReview() {
-  const items = _su.items, problems = _su.problems || [];
-  const shows = (T().dates || []).filter(d => !d.status || d.status === 'show').slice().sort((a, b) => a.date.localeCompare(b.date));
-  const problemHTML = problems.length ? `<div class="su-problems">${problems.map(p => `<div>${esc(p)}</div>`).join('')}</div>` : '';
-  if (!items.length) {
-    openModal({
-      title: 'Upload settlement', hideFooter: true,
-      body: `${problemHTML}<div class="su-empty"><h3>Nothing to import</h3><p>The agent looks for a guarantee, a “total due artist” / “balance due” / “walk-out” line, deductions (withholding, commission, deposits, buy-outs) and a show date. A scanned image won't have readable text — export the PDF from the source, or send the spreadsheet.</p><button type="button" class="tb-btn" onclick="closeModal()">Close</button></div>`,
-    });
-    return;
-  }
-  const row = (it, i) => {
-    const d = shows.find(x => x.id === it.matchId);
-    const s = d ? (d.settlement || {}) : {};
-    const cur = it.currency || (d ? _dateCurrency(d) : (T().meta.currency || 'USD'));
-    const notes = [it.notesText, it.gross != null ? `Gross ${_suFmt(it.gross)}` : '', it.tickets != null ? `${it.tickets.toLocaleString()} tickets` : '', it.overage != null ? `Overage ${_suFmt(it.overage)}` : ''].filter(Boolean).join(' · ');
-    const now = d ? `On the tour now: guarantee ${_dateCurrency(d)} ${(parseFloat(s.guarantee) || 0).toLocaleString()} · final ${s.finalAmount ? parseFloat(s.finalAmount).toLocaleString() : '—'}${s.settled ? ' · settled' : ''}` : '';
-    return `
-      <section class="su-item ${it.matchId ? '' : 'unmatched'}" id="su_item_${i}">
-        <div class="su-head">
-          <label class="su-inc"><input type="checkbox" id="su_inc_${i}" ${it.matchId ? 'checked' : ''}> Import</label>
-          <div class="su-src">${esc(it.source)}${it.label ? ` · ${esc(it.label)}` : ''}</div>
-        </div>
-        <div class="form-grid">
-          <div class="field full"><label>Show ${it.matchId ? '' : '<span class="su-warn">— couldn\'t place this one; pick the show</span>'}</label>
-            <select id="su_date_${i}"><option value="">Don't import</option>${shows.map(x => `<option value="${x.id}" ${x.id === it.matchId ? 'selected' : ''}>${esc(fmtMD(x.date))} · ${esc(x.city || '')}${x.venue ? ' · ' + esc(x.venue) : ''}</option>`).join('')}</select>
-            ${now ? `<div class="su-now">${esc(now)}</div>` : ''}</div>
-          <div class="field"><label>Currency</label><select id="su_cur_${i}">${SU_CUR.map(c => `<option ${c === cur ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
-          <div class="field"><label>Guarantee ${it.guarantee == null ? '<span class="su-dim">(not found — left as is)</span>' : ''}</label><input type="number" step="0.01" id="su_g_${i}" value="${it.guarantee != null ? it.guarantee : ''}"></div>
-          <div class="field"><label>Final settlement ${it.finalAmount == null ? '<span class="su-dim">(not found — left as is)</span>' : ''}</label><input type="number" step="0.01" id="su_f_${i}" value="${it.finalAmount != null ? it.finalAmount : ''}"></div>
-          <div class="field"><label class="su-check"><input type="checkbox" id="su_set_${i}" ${it.finalAmount != null ? 'checked' : ''}> Mark as settled</label></div>
-          <div class="field full"><label>Deductions</label><textarea id="su_d_${i}" rows="2">${esc(it.deductions.join('; '))}</textarea></div>
-          <div class="field full"><label>Notes</label><textarea id="su_n_${i}" rows="2">${esc(notes)}</textarea></div>
-        </div>
-      </section>`;
-  };
-  const matched = items.filter(it => it.matchId).length;
-  openModal({
-    title: `Upload settlement · ${items.length} found`, size: 'lg',
-    submitLabel: 'Import to the grid',
-    body: `<div class="su-intro">Read from the file${items.length === 1 ? '' : 's'}. <b>${matched}</b> of ${items.length} placed on a show. Check the figures, fix anything that's off, then import — nothing is written until you do, and a blank field leaves the date's current value alone.</div>${problemHTML}${items.map(row).join('')}`,
-    onSubmit: () => {
-      let n = 0;
-      items.forEach((it, i) => {
-        if (!document.getElementById('su_inc_' + i)?.checked) return;
-        const d = _rtDateByIdSafe(document.getElementById('su_date_' + i)?.value);
-        if (!d) return;
-        const s = d.settlement || (d.settlement = { settled: false, guarantee: 0, finalAmount: 0, deductions: '', notes: '' });
-        const g = parseFloat(document.getElementById('su_g_' + i).value), f = parseFloat(document.getElementById('su_f_' + i).value);
-        const ded = document.getElementById('su_d_' + i).value.trim(), notes = document.getElementById('su_n_' + i).value.trim();
-        if (isFinite(g) && g > 0) s.guarantee = g;
-        if (isFinite(f) && f !== 0) s.finalAmount = f;
-        s.currency = document.getElementById('su_cur_' + i).value || s.currency;
-        if (ded) s.deductions = s.deductions && s.deductions !== ded ? `${s.deductions} | ${ded}` : ded;
-        if (notes) s.notes = s.notes && s.notes !== notes ? `${s.notes} | ${notes}` : notes;
-        if (document.getElementById('su_set_' + i).checked) { s.settled = true; if (!s.settledAt) s.settledAt = Date.now(); }
-        n++;
-      });
-      if (!n) { toast('Tick at least one settlement and pick its show', 'error'); return false; }
-      saveState();
-      try { renderAccounting(); } catch (e) {}
-      toast(`Imported ${n} settlement${n === 1 ? '' : 's'} into the grid`, 'good');
-    },
-  });
-}
-function _rtDateByIdSafe(id) { return id ? ((T().dates || []).find(d => d.id === id) || null) : null; }
-
 function openSettleModal(dateId) {
   const dt = T().dates.find(d => d.id === dateId);
   if (!dt) return;
@@ -14890,6 +14673,11 @@ function openTagModal(id) {
 /* =====================================================================
    RENDER
    ===================================================================== */
+// Is one of the signed-out surfaces on screen?
+function _publicSurfaceUp() {
+  return ['landingScreen', 'loginScreen', 'pricingScreen', 'welcomeScreen', 'getStartedScreen']
+    .some(id => { const el = document.getElementById(id); return !!el && !el.hidden; });
+}
 function renderAll() {
   // Keep body.god-account in step with who's signed in — the CSS hard
   // block for the onboarding dead end hangs off it.
@@ -14924,6 +14712,18 @@ function renderAll() {
   // up staring at the create-your-first-tour screen. Wait for the next
   // render instead; whoever is signing in will have landed by then.
   if (state && state.currentUserId && !_u) return;
+  // Signed out and looking at the landing / sign-in / pricing screens → paint
+  // NOTHING. renderAll has ~70 callers and plenty of them are async
+  // completions (the final cloud sync logout() awaits, a hydrate, a rates
+  // refresh, the Crew tab's push-status load). They land after
+  // showLandingScreen() has hidden #app, and without this guard the line
+  // below un-hid it again — the dashboard showing through the translucent
+  // landing after Log out. One guard here covers every one of those callers.
+  if ((!state || !state.currentUserId) && _publicSurfaceUp()) {
+    $('#onboarding').classList.add('hidden');
+    $('#app').hidden = true;
+    return;
+  }
   if (!state || !state.onboarded) {
     $('#onboarding').classList.remove('hidden');
     $('#app').hidden = true;
@@ -15082,6 +14882,93 @@ function renderDayStamp() {
   paint(parts.filter(Boolean).join(' '));
 }
 
+/* ---------- GRID VIEW: every date at once ---------- */
+// Opened from the button under "+ Add Date". Shows the whole run reading top
+// to bottom (CSS columns), click a date to jump to it. Closes on the button,
+// on Escape, on picking a date, or the moment the tour manager clicks back
+// into the dashboard — that click still does whatever it was meant to do.
+let _dateGridOpen = false;
+function toggleDateGrid(force) {
+  const want = typeof force === 'boolean' ? force : !_dateGridOpen;
+  const el = document.getElementById('dateGrid'), btn = document.getElementById('dateGridBtn');
+  if (!el) return;
+  if (want && !(T().dates || []).length) { toast('No dates yet — add your first one', ''); return; }
+  _dateGridOpen = want;
+  if (want) _dateGridRender();
+  el.classList.toggle('open', want);
+  el.setAttribute('aria-hidden', String(!want));
+  if (btn) { btn.classList.toggle('on', want); btn.setAttribute('aria-expanded', String(want)); }
+  if (want) { const a = el.querySelector('.dg-cell.active'); if (a) { try { a.scrollIntoView({ block: 'nearest' }); } catch (e) {} } }
+}
+function _dateGridRender() {
+  const el = document.getElementById('dateGrid');
+  if (!el) return;
+  const dates = (T().dates || []).filter(d => /^\d{4}-\d{2}-\d{2}/.test(d.date || '')).slice().sort((a, b) => a.date.localeCompare(b.date));
+  const activeId = T().activeDateId, today = todayISO();
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const multiMonth = new Set(dates.map(d => d.date.slice(0, 7))).size > 1;
+  let lastMonth = '', shows = 0;
+  const cells = dates.map(d => {
+    const gaps = calcLiveDateGaps(d);
+    const hard = gaps.filter(g => g !== 'hotel or travel').length > 0;
+    const isOff = d.status === 'off' || (d.city || '').toUpperCase() === 'OFF';
+    const status = d.status || 'show';
+    if (status === 'show') shows++;
+    const word = ({ show: 'Show', travel: 'Travel', off: 'Day off', press: 'Press', rehearsal: 'Rehearsal' })[status] || status;
+    const move = (status === 'travel' && Array.isArray(d.travel) && d.travel[0]) ? (d.travel[0].description || d.travel[0].flightNumber || '') : '';
+    const sub = isOff ? '' : String(d.venue || move || '').trim();
+    const ym = d.date.slice(0, 7);
+    // Where the month turns, the cell says so itself (top right) — a heading
+    // between cells would knock that column out of line with the others.
+    let mon = '';
+    if (multiMonth && ym !== lastMonth) { lastMonth = ym; mon = `<span class="dg-mon">${MONTHS[parseInt(ym.slice(5), 10) - 1].slice(0, 3)}</span>`; }
+    const flag = hard ? '<span class="dg-flag" aria-label="Needs entry">!</span>' : (gaps.length ? '<span class="dg-flag or" aria-label="Needs a hotel or a travel item">!</span>' : '');
+    return `
+      <button type="button" class="dg-cell s-${esc(status)} ${d.id === activeId ? 'active' : ''} ${d.date === today ? 'today' : ''}" onclick="_dateGridPick('${d.id}')" title="${esc(fmtDate(d.date))}${gaps.length ? ' — needs: ' + esc(gaps.join(', ')) : ' — all set'}">
+        <span class="dg-stub"><span class="dg-day">${esc(d.date.slice(8, 10))}</span><span class="dg-dow">${esc(dow(d.date))}</span></span>
+        <span class="dg-body"><span class="dg-city">${esc(isOff ? 'Day off' : (d.city || '—'))}</span><span class="dg-sub"><b>${esc(word)}</b>${sub ? ' · ' + esc(sub) : ''}</span></span>
+        <span class="dg-side">${mon}${flag}</span>
+      </button>`;
+  }).join('');
+  el.innerHTML = `
+    <div class="dg-head"><span class="dg-k">All dates</span><span class="dg-s">${dates.length} day${dates.length === 1 ? '' : 's'} · ${shows} show${shows === 1 ? '' : 's'} · click one to jump to it</span><button type="button" class="dg-x" onclick="toggleDateGrid(false)">Close</button></div>
+    <div class="dg-cols">${cells}</div>`;
+  _dateGridLayout();
+}
+// How many columns: as many as the width allows, so a short run spreads out
+// across the panel instead of standing in one tall column — but NEVER a column
+// with fewer than three dates in it. The grid fills by column, so the last
+// column is the short one; step the column count down until it holds three.
+//   11 dates, room for 5 → 3 columns (4 · 4 · 3)      13 → 3 columns (5 · 5 · 3)
+//   10 → 2 columns (5 · 5)   9 → 3 (3 · 3 · 3)   5 or fewer → one column
+function _dateGridLayout() {
+  const el = document.getElementById('dateGrid'); if (!el) return;
+  const cols = el.querySelector('.dg-cols'); if (!cols) return;
+  const n = cols.children.length; if (!n) return;
+  cols.style.maxWidth = '';
+  const w = cols.clientWidth || Math.max(0, el.clientWidth - 44);
+  const fit = Math.max(1, Math.floor((w + 10) / (236 + 10)));
+  let rows = n, used = 1;
+  for (let c = Math.min(fit, Math.floor(n / 3)); c >= 1; c--) {
+    const r = Math.ceil(n / c), u = Math.ceil(n / r), last = n - r * (u - 1);
+    if (u === 1 || last >= 3) { rows = r; used = u; break; }
+  }
+  cols.style.setProperty('--dg-rows', String(rows));
+  cols.style.setProperty('--dg-col', 'minmax(0, 1fr)');
+  // Fewer columns than the width could hold: let them share the space, but
+  // stop a cell growing absurdly wide on a big screen.
+  if (used < fit) cols.style.maxWidth = (used * 420 + (used - 1) * 10) + 'px';
+}
+addEventListener('resize', () => { if (_dateGridOpen) _dateGridLayout(); }, { passive: true });
+// Close first so the slide starts this frame, then do the (heavier) re-render.
+function _dateGridPick(id) { toggleDateGrid(false); setTimeout(() => setActive(id), 0); }
+document.addEventListener('mousedown', e => {
+  if (!_dateGridOpen) return;
+  if (e.target.closest('#dateGrid') || e.target.closest('#dateGridBtn')) return;
+  toggleDateGrid(false);
+}, true);
+document.addEventListener('keydown', e => { if (_dateGridOpen && e.key === 'Escape') toggleDateGrid(false); });
+
 function renderDayStrip() {
   const strip = $('#dayStrip');
   if (!T().dates.length) {
@@ -15166,6 +15053,8 @@ function renderDayStrip() {
       strip.classList.toggle('fade-r', sl < max - 4);
     }, 60);
   }
+  // Keep an open Grid View in step with whatever just changed.
+  if (_dateGridOpen) _dateGridRender();
 }
 
 // Text that overflows its box shuttles gently instead of just ending in an
@@ -17227,7 +17116,6 @@ function renderAccounting() {
       <span class="crumb">/ ${T().dates.length} DATES${isMulti ? ' · MULTI-CURRENCY' : ' · ' + (T().meta.currency || 'USD')}</span>
       <span class="stamp">${settledCount} / ${showDates.length} SETTLED</span>
       <span class="flex1"></span>
-      <button type="button" class="tb-btn ember" onclick="openSettlementUpload()" title="Read a settlement sheet (PDF, spreadsheet, CSV or text) and fill the grid — you check every figure before it's imported">↑ Upload settlement</button>
       <button type="button" class="tb-btn primary" onclick="exportSettlementReportCSV()" title="Download a CSV of every show — guarantee, final settlement, deductions, status. Email it to your client's business manager.">↓ Export settlement report</button>
       <button type="button" class="tb-btn" onclick="printSettlementReport()" title="Open a printable settlement summary — print to PDF and send to the business manager">Printable</button>
     </div>
@@ -31305,6 +31193,10 @@ async function completePasswordReset() {
 async function logout() {
   closeAccountMenu();
   if (!confirm('Sign out? Your tour data stays on this device.')) return;
+  // signOut() below fires SIGNED_OUT while currentUserId is still set, which
+  // the auth listener reads as a session dying mid-use. Tell it this one is
+  // on purpose so it doesn't toast "Session expired".
+  window._deliberateSignOut = true;
   if (sb) {
     try { db.unsubscribeRealtime(); } catch (e) { /* non-fatal */ }
     // Flush any pending debounced cloud sync BEFORE we drop the session.
@@ -31325,6 +31217,7 @@ async function logout() {
   // from the crew gate would leave it visible behind the landing page.
   hideCrewBlockScreen();
   showLandingScreen();
+  window._deliberateSignOut = false;
 }
 
 function postLoginRouting() {
@@ -35172,7 +35065,7 @@ Object.assign(window, {
   tourStartDate, tourEndDate, addDaysISO, fillDateGapsWithOffDays, _padTourEdgesWithTravelDays,
   toggleExportMenu, closeExportMenu, downloadTourBookPDF, downloadTourBookFromHere, downloadDaySheetPDF, closeTourBook,
   scoutNearVenue,
-  openSettlementUpload, renderTools, _toolClose, _pnClose, _dateModalClockSync, fmtClock, openTravelAgent, closeTravelAgent, _taGo, _taBack, _taAnchor, _taDate, _taPickDate, _taPickTopic, _taSubmitAsk, _taUseHotel, _taMarkNoHotel, _taMarkNoTravel, _taLogMove, _taLogFlight, _taJump, _taOpenDate, _taMore, _taRender, _taPlan, _rtPick, _rtLoadHotels,
+  toggleDateGrid, _dateGridPick, renderTools, _toolClose, _pnClose, _dateModalClockSync, fmtClock, openTravelAgent, closeTravelAgent, _taGo, _taBack, _taAnchor, _taDate, _taPickDate, _taPickTopic, _taSubmitAsk, _taUseHotel, _taMarkNoHotel, _taMarkNoTravel, _taLogMove, _taLogFlight, _taJump, _taOpenDate, _taMore, _taRender, _taPlan, _rtPick, _rtLoadHotels,
   toggleTourSwitcher, closeTourSwitcher, switchToTour, switchToTourFromPhone, newTourFlow, newTourManualFlow, newTourImportFlow, renameCurrentTour, deleteCurrentTour,
   toggleUniMenu, closeUniMenu, renderUniMenu, _uniToggleExport,
   openAccountSettingsModal, _acctSaveName, _acctSendReset,
