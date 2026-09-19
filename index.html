@@ -2454,9 +2454,7 @@ body.god-account:not(.bg-mark-on) #app[hidden]{display:block!important}
 .bmi-uy{transform-style:preserve-3d;animation:bmiUnswingY 24s ease-in-out infinite alternate}
 .bmi-ux{transform-style:preserve-3d;animation:bmiUnswingX 17s ease-in-out infinite alternate}
 .bmi-lb{position:absolute;left:0;top:0;display:flex;align-items:center;gap:7px;white-space:nowrap;transform:translateY(-50%);
-  text-shadow:0 0 5px currentColor;opacity:var(--o,.3);color:#8a7256;
-  /* going dark: a slow fade that starts on this label's own --od (set per beat) */
-  transition:color 1.3s ease var(--od,0ms),opacity 1.3s ease var(--od,0ms)}
+  text-shadow:0 0 5px currentColor;opacity:var(--o,.3);color:#8a7256}
 .bmi-lb.c{color:#eec894}
 /* Lighting up: an old tube struggling to catch — a couple of false starts, a
    brown-out, one last dropout, then it holds. Only the way ON changes: when
@@ -2464,6 +2462,20 @@ body.god-account:not(.bg-mark-on) #app[hidden]{display:block!important}
    same .9s transition as before. `both` keeps a label dark through its own
    start delay, so nothing turns orange before it has flickered. */
 .bmi-lb.hot{color:#ff8a24;opacity:1;animation:bmiFlickerOn var(--fl,1500ms) linear var(--fd,0ms) 1 both}
+/* Power cut. The label holds lit through its own slot in the cascade (`both`
+   keeps the 0% frame during --od), then: a surge, a drop, one weak re-glow,
+   a brown-out, and it's gone — ending exactly on its unlit resting state. */
+.bmi-lb.dying{animation:bmiDieOut var(--ol,300ms) linear var(--od,0ms) 1 both}
+@keyframes bmiDieOut{
+  0%   {color:#ff8a24;opacity:1}
+  10%  {color:#ffc98a;opacity:1}
+  24%  {color:#ff8a24;opacity:.28}
+  38%  {color:#ff8a24;opacity:.85}
+  54%  {color:#b5651f;opacity:.2}
+  68%  {color:#d97a26;opacity:.5}
+  82%  {color:#8a5a2a;opacity:.18}
+  100% {color:#eec894;opacity:var(--o,.5)}
+}
 @keyframes bmiFlickerOn{
   0%,5%    {color:#eec894;opacity:var(--o,.5)}
   6%,8%    {color:#ff8a24;opacity:.95}
@@ -2560,7 +2572,7 @@ body.god-account:not(.bg-mark-on) #app[hidden]{display:block!important}
 .dsp-url{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
 .dsp-url code{flex:1 1 280px;min-width:0;padding:10px 14px;border:1px solid var(--line-2);border-radius:6px;background:rgba(0,0,0,.3);
   font-family:'Bricolage Grotesque',monospace;font-size:12.5px;letter-spacing:.04em;color:var(--hi-bright);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:all}
-@media (prefers-reduced-motion:reduce){.bmi-sx,.bmi-sy,.bmi-uy,.bmi-ux,.bmi-pulse,.bmi-pulse i,.bmi-lb.hot{animation:none}}
+@media (prefers-reduced-motion:reduce){.bmi-sx,.bmi-sy,.bmi-uy,.bmi-ux,.bmi-pulse,.bmi-pulse i,.bmi-lb.hot,.bmi-lb.dying{animation:none}}
 @media print{.bmi{display:none!important}}
 /* Bandmate for Mac. Signing up leads to choosing a paid plan, which the App
    Store doesn't allow inside the app, so the Mac app's landing offers sign-in
@@ -8385,7 +8397,9 @@ const BMIdle = (() => {
   // One beat: the lit city dies off label by label (OFF_SPREAD), the date
   // changes LEAD ms in — once most of it has gone dark — and the next city
   // catches across ON_SPREAD. The period is what's left over as "all lit".
-  const PERIOD = 8000, LEAD = 1700, OFF_SPREAD = 1900, ON_SPREAD = 2800;
+  // The cut is fast — the whole city is gone inside about half a second, label
+  // after label, like the power going — then a beat of dark before the next.
+  const PERIOD = 7500, LEAD = 1150, OFF_SPREAD = 420, ON_SPREAD = 2800;
   const KEY = 'bandmate.idle.after', BOARD_KEY = 'bandmate.display.board';
   const CHOICES = [[0, 'Off'], [15, '15 seconds'], [30, '30 seconds'], [60, '1 minute'], [300, '5 minutes']];
   const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -8575,6 +8589,8 @@ const BMIdle = (() => {
     const disp = mode === 'display';
     const el = document.createElement('div');
     el.className = 'bmi' + (disp ? ' display' : ''); el.id = 'bmIdle';
+    // a label that has finished dying is simply an unlit label again
+    el.addEventListener('animationend', e => { if (e.animationName === 'bmiDieOut' && e.target.classList) e.target.classList.remove('dying'); });
     el.setAttribute('role', 'presentation');
     el.innerHTML = `
       <div class="bmi-stage"><div class="bmi-scale"><div class="bmi-sx"><div class="bmi-sy"><div class="bmi-origin">${items}</div></div></div></div></div>
@@ -8674,14 +8690,25 @@ const BMIdle = (() => {
       o.lb.style.setProperty(cssVar, Math.max(0, Math.round(i * slot + jitter)) + 'ms');
     });
   }
-  // Everything lit goes dark, slowly and one by one (the fade + its per-label
-  // delay are the .bmi-lb transition).
-  function dieOff() {
-    if (!root) return;
-    const lit = [...root.querySelectorAll('.bmi-lb.hot')];
-    spread(lit, '--od', OFF_SPREAD);
-    lit.forEach(lb => lb.classList.remove('hot'));
+  // Going dark is an ANIMATION of its own (.dying → bmiDieOut), not a CSS
+  // transition: once a property has been driven by a CSS animation (the
+  // flicker-on), browsers start no transition for it when the class comes off —
+  // every label just snapped to dark in the same frame. Each label waits its
+  // slot in the cascade (--od), stutters out over --ol, and drops the class
+  // when it's done (see the animationend listener in build()).
+  function kill(labels) {
+    spread(labels, '--od', OFF_SPREAD);
+    labels.forEach(lb => {
+      lb.style.setProperty('--ol', (230 + Math.round(((+lb.dataset.h * 13.7) % 1) * 190)) + 'ms');
+      lb.classList.remove('hot'); lb.classList.add('dying');
+    });
+    // Backstop for the animationend clean-up (a throttled or hidden page can
+    // skip the event). Harmless either way — a finished .dying label already
+    // looks exactly like an unlit one — and light() clears it before re-lighting.
+    const batch = labels.slice();
+    setTimeout(() => batch.forEach(lb => { if (!lb.classList.contains('hot')) lb.classList.remove('dying'); }), OFF_SPREAD + 560);
   }
+  function dieOff() { if (root) kill([...root.querySelectorAll('.bmi-lb.hot')]); }
   function light() {
     if (!root) return;
     const hot = focus ? clip(focus.city || focus.venue, 18) : 'BANDMATE';
@@ -8692,9 +8719,9 @@ const BMIdle = (() => {
       const was = lb.classList.contains('hot');
       if (on && !was) turnOn.push(lb); else if (!on && was) turnOff.push(lb);
     });
-    spread(turnOff, '--od', OFF_SPREAD); turnOff.forEach(lb => lb.classList.remove('hot'));
+    kill(turnOff);
     // the whole city catches across ON_SPREAD — per city, however many labels it has
-    spread(turnOn, '--fd', ON_SPREAD); turnOn.forEach(lb => lb.classList.add('hot'));
+    spread(turnOn, '--fd', ON_SPREAD); turnOn.forEach(lb => { lb.classList.remove('dying'); lb.classList.add('hot'); });
   }
 
   function step() {
