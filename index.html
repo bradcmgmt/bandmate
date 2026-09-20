@@ -1203,7 +1203,7 @@ body.mobile .god-search{min-width:0;width:100%}
 .day-sheet .row .t{font-family:'Bricolage Grotesque',monospace;font-weight:700;font-size:13px;color:var(--hi);white-space:nowrap}
 .day-sheet .row .what{font-size:13px;font-weight:600;color:var(--warm);min-width:0;line-height:1.3;overflow-wrap:anywhere}
 .day-sheet .row .who{font-family:'Bricolage Grotesque',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;flex:none;max-width:80px;overflow:hidden;text-overflow:ellipsis}
-.p-row .t2{display:block;margin-top:2px;font-size:9px;font-weight:700;letter-spacing:.02em;color:var(--warm-mute);white-space:nowrap}
+.p-row .t2{display:block;width:60px;text-align:right;margin-top:2px;font-size:9px;font-weight:700;letter-spacing:.02em;color:var(--warm-mute);white-space:nowrap}
 .p-row .lbl.live-good{color:#7adc97}
 .p-row .lbl.live-warn{color:#fdba74}
 .p-row .lbl.live-bad{color:var(--red)}
@@ -2040,9 +2040,16 @@ html body.phone-app .ph-page-head{padding-top:calc(12px + env(safe-area-inset-to
 .tel-sheet button{display:block;width:100%;padding:14px;margin-top:8px;background:rgba(232,148,58,.08);border:1px solid rgba(232,148,58,.22);border-radius:10px;color:var(--warm);font-family:'Bricolage Grotesque',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;cursor:pointer}
 .tel-sheet button.primary{background:linear-gradient(135deg,#e8943a,#f5b35e);color:#0a0705;border-color:transparent}
 .tel-sheet button.quiet{background:transparent;border-color:transparent;color:var(--warm-mute)}
-.p-row{display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px solid rgba(232,148,58,.08);position:relative;z-index:1}
+.p-row{display:grid;grid-template-columns:var(--tcol,60px) minmax(0,1fr) auto;gap:12px;align-items:baseline;padding:8px 0;border-bottom:1px solid rgba(232,148,58,.08);position:relative;z-index:1}
 .p-card.hi .p-row:last-child{border-bottom:0}
-.p-row .t{font-family:'Bricolage Grotesque',monospace;font-weight:700;font-size:12px;color:var(--hi)}
+.p-row .t{font-family:'Bricolage Grotesque',monospace;font-weight:700;font-size:12px;color:var(--hi);font-variant-numeric:tabular-nums;min-width:0}
+/* Times never wrap. Start times sit right-aligned in a fixed 60px column —
+   tabular figures, so the colons line up down the list — and the end time
+   follows on the same line, lighter and smaller: you scan the starts. */
+.p-row .t .tl{display:flex;align-items:baseline;white-space:nowrap}
+.p-row .t .ts{flex:none;width:60px;text-align:right}
+.p-row .t .te{flex:none;margin-left:6px;font-size:10.5px;font-weight:600;letter-spacing:0;color:var(--warm-mute)}
+.p-row.has-ends .lbl{max-width:88px}
 .p-row .lbl{justify-self:end;text-align:right;max-width:124px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--warm-mute)}
 
 /* Phone travel row — tappable card listing each travel item with a
@@ -8355,6 +8362,7 @@ function applyTabFromState() {
 function applyPhoneScreenFromState() {
   document.querySelectorAll('.phone .nav button').forEach(b => b.classList.toggle('on', b.dataset.go === phoneScreen));
   document.querySelectorAll('.p-screen').forEach(s => s.classList.toggle('on', s.dataset.screen === phoneScreen));
+  try { _phoneFitTimes(); } catch (e) {}
 }
 
 /* ---------- calendar dropdown for every date field ---------- */
@@ -20414,9 +20422,45 @@ function _renderPhoneMoreMinimal() {
 // when the schedule leads the TODAY tab (travel days / days with no notes),
 // the TODAY hero (capped). One source keeps the two screens in exact sync so
 // the next-day overlap can never go missing on one of them again.
+// A schedule time for the phone, in parts: the START is what you scan for, the
+// END is secondary. "2:00 PM" + "– 3:00" (the PM isn't repeated when it's the
+// same), "11:30 AM" + "– 1:00 PM" when it crosses noon, "14:00" + "– 15:00"
+// where the date runs on a 24-hour clock.
+function _phoneTimeParts(s) {
+  if (!s) return { start: '—', end: '' };
+  if (s.allDay) return { start: 'ALL DAY', end: '' };
+  const dd = _clockCtx();
+  const f = t => (/^\d{1,2}:\d{2}/.test(t || '') ? fmtClock(t, dd) : '');
+  const start = f(s.time), endFull = f(s.endTime);
+  if (!start) return { start: '—', end: '' };
+  if (!endFull) return { start, end: '' };
+  const mer = v => (/\s*([AP]M)$/i.exec(v) || [])[1] || '';
+  const end = mer(start) && mer(start).toUpperCase() === mer(endFull).toUpperCase() ? endFull.replace(/\s*[AP]M$/i, '') : endFull;
+  return { start, end };
+}
+// The time column is exactly as wide as the longest time in its card — measured,
+// not guessed, so titles sit as far left as they can and never get squeezed by
+// slack. Only a visible screen can be measured; hidden tabs keep the estimate
+// until they're shown (applyPhoneScreenFromState calls this too).
+function _phoneFitTimes() {
+  document.querySelectorAll('.phone .p-screen.on .p-card').forEach(card => {
+    const rows = [...card.querySelectorAll('.p-row')].filter(r => r.querySelector('.tl'));
+    if (!rows.length) return;
+    let w = 0;
+    rows.forEach(r => { w = Math.max(w, r.querySelector('.tl').scrollWidth, (r.querySelector('.t2') || {}).scrollWidth || 0); });
+    if (w > 0) rows.forEach(r => r.style.setProperty('--tcol', Math.ceil(w) + 'px'));
+  });
+}
 function _phoneScheduleRowsHTML(items, earlyTomorrow, nextDateLabel, emptyMsg, limit) {
   const shown = (typeof limit === 'number') ? items.slice(0, limit) : items;
+  // One time column for the whole list — today's rows and the "tomorrow" rows
+  // alike — sized to the longest time in it, so every title starts on the same
+  // line and no time ever has to wrap.
+  const _all = shown.concat(earlyTomorrow || []).map(_phoneTimeParts);
+  const _endCh = _all.reduce((m, p) => Math.max(m, p.end ? p.end.length + 2 : 0), 0);
+  const _tcol = 60 + (_endCh ? 6 + Math.ceil(_endCh * 5.3) : 0);     // a first guess; _phoneFitTimes() measures the real thing
   const row = (s, cls) => {
+    const tp = _phoneTimeParts(s);
     const aud = _scheduleAudience(s);
     // A flight carries its landing time under the departure time, and its
     // live status where a group tag would sit, so crew get both without
@@ -20426,8 +20470,8 @@ function _phoneScheduleRowsHTML(items, earlyTomorrow, nextDateLabel, emptyMsg, l
     const lands = flt ? ((live && (live.leg.arrival.revisedTime || live.leg.arrival.time)) || s._travelArrive || '') : '';
     const status = live ? _shortStatus(live.info.label) : '';
     return `
-    <div class="p-row${cls || ''}">
-      <span class="t">${esc(_scheduleTimeDisplay(s))}${lands ? `<span class="t2">↓ ${esc(_fmt12Safe(lands))}</span>` : ''}</span>
+    <div class="p-row${cls || ''}${_endCh ? ' has-ends' : ''}" style="--tcol:${_tcol}px">
+      <span class="t"><span class="tl"><span class="ts">${esc(tp.start)}</span>${tp.end ? `<span class="te">– ${esc(tp.end)}</span>` : ''}</span>${lands ? `<span class="t2">↓ ${esc(_fmt12Safe(lands))}</span>` : ''}</span>
       <span class="what">${esc(s.what)}</span>
       ${status ? `<span class="lbl live-${live.info.tone}">${esc(status)}</span>`
         : aud.kind === 'tag' ? `<span class="lbl">${esc(aud.text)}</span>` : ''}
@@ -21068,6 +21112,7 @@ function renderPhone() {
     ` : ''}
   `;
 
+  try { _phoneFitTimes(); } catch (e) {}
   // Sync date menu + today-button alert state
   renderPhoneDateMenu();
   const onToday = isPhoneOnToday();
