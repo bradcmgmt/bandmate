@@ -2856,6 +2856,16 @@ html.mac-app .login-signup-link{display:none}
 .profile-req-card .btn-fill{margin-top:4px;padding:9px 14px;background:linear-gradient(135deg,#ff6464,#e84545);color:#fff;
   border-radius:8px;font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
   text-align:center}
+.profile-req-card.mgr{background:linear-gradient(135deg,rgba(138,169,216,.14),rgba(138,169,216,.03));border-color:rgba(138,169,216,.5);animation:none}
+.profile-req-card.mgr .lbl{color:#b1c8ee}
+.profile-req-card.mgr .btn-fill{background:linear-gradient(135deg,#a9c2ea,#7f9fd2);color:#0b0f17}
+.profile-req-card.saved{cursor:default}
+.profile-req-card .btn-row{display:flex;gap:8px;margin-top:4px}
+.profile-req-card .btn-row .btn-fill{flex:1.5;margin-top:0;border:none;cursor:pointer;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.profile-req-card .btn-ghost{flex:1;min-width:0;padding:9px 8px;background:transparent;border:1px solid var(--line-2);color:var(--warm);border-radius:8px;
+  font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;cursor:pointer;white-space:nowrap}
+.profile-done-card.acct{background:rgba(232,148,58,.03);border-color:var(--line-2)}
+.profile-done-card.acct .lbl{color:var(--warm-mute)}
 .profile-done-card{
   background:linear-gradient(135deg,rgba(109,207,139,.10),rgba(109,207,139,.02));
   border:1px solid rgba(109,207,139,.4);border-radius:14px;padding:14px;
@@ -2888,6 +2898,8 @@ html.mac-app .login-signup-link{display:none}
   border:1px solid var(--line);border-radius:11px;padding:14px;display:flex;flex-direction:column;gap:8px;
   box-shadow:inset 0 1px 0 rgba(232,148,58,.05);position:relative;overflow:hidden;
 }
+/* a co-manager's tile is a crew tile; only the role line leans a shade cooler */
+.profile-tile.mgr .pt-name span{color:#a3b0c4}
 .profile-tile.submitted{border-color:rgba(109,207,139,.35)}
 .profile-tile.pending{border-color:rgba(232,148,58,.35);border-style:dashed}
 .profile-tile .pt-head{display:flex;align-items:center;gap:10px}
@@ -20432,7 +20444,12 @@ function _renderPhoneMoreMinimal() {
       <button type="button" onclick="logout()" style="margin-top:10px;padding:11px;background:transparent;color:var(--red);border:1px solid rgba(232,69,69,.4);border-radius:8px;font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;cursor:pointer">Sign out</button>
     </div>
   ` : '';
-  moreEl.innerHTML = pendingHtml + tourCard + accountCard;
+  let profileCard = '';
+  try {
+    const hasTour = !!(current && current.id && current.id !== '_empty');
+    if (hasTour) profileCard = _phoneProfileCardHtml(getCrewById(viewerKey), viewerKey === 'tm');
+  } catch (e) {}
+  moreEl.innerHTML = pendingHtml + tourCard + profileCard + accountCard;
 }
 
 // Shared schedule-rows renderer for the phone — today's items PLUS the
@@ -21032,29 +21049,9 @@ function renderPhone() {
   `;
   }
 
-  // MORE — include required-profile card if viewing as a crew member
-  let profileCardHtml = '';
-  if (!isTM && viewer) {
-    const sub = isProfileSubmitted(viewer);
-    const missing = profileMissingRequired(viewer);
-    if (!sub) {
-      profileCardHtml = `
-        <div class="profile-req-card" onclick="openProfileForm('${viewer.id}', true)">
-          <div class="lbl">⚠ Required · Tour Profile</div>
-          <div class="h">Submit your profile to ${esc(T().meta.presenter || 'Tour Manager')}</div>
-          <div class="sub">${missing.length} required field${missing.length===1?'':'s'} remaining · used for hotels, travel, dietary, immigration, emergency contact</div>
-          <div class="btn-fill">Fill out form →</div>
-        </div>`;
-    } else {
-      profileCardHtml = `
-        <div class="profile-done-card">
-          <div class="lbl">✓ Profile Submitted</div>
-          <div class="h">${esc(viewer.name)}</div>
-          <div class="sub">Submitted ${fmtDate(new Date(viewer.profileSubmittedAt).toISOString().slice(0,10))} · TM has access</div>
-          <button type="button" class="btn-edit" onclick="openProfileForm('${viewer.id}', true)">Edit</button>
-        </div>`;
-    }
-  }
+  // MORE — the tour-profile card: crew for their own record, and a co-manager
+  // (who is the 'tm' viewer on their own phone) for their manager record.
+  const profileCardHtml = _phoneProfileCardHtml(viewer, isTM);
   const phPendingHtml = _pendingInvitesHtml();
   const _phPendingIds = new Set(_pendingTourInvites().map(t => t.id));
   let phTourSwitcherHtml = '';
@@ -25566,6 +25563,269 @@ function isProfileSubmitted(c) {
   return !!(c && c.profileSubmittedAt);
 }
 
+// ── Co-managers fill out the same profile ────────────────────────────────
+// A co-manager lives in crew[] too (flagged isManager — grant_co_manager puts
+// them there), so their profile rides on that record exactly like a crew
+// member's: same form, same submit_crew_profile RPC, same patch-027 guard.
+// The owner reads it on the Crew tab instead of having to ask.
+function _myManagerRecord(tour) {
+  const u = U(); tour = tour || T();
+  if (!u || !tour) return null;
+  const em = String(u.email || '').toLowerCase();
+  return (tour.crew || []).find(c => c.isManager && (c.userId === u.id || (em && String(c.email || '').toLowerCase() === em))) || null;
+}
+function _coManagesTour(tour) {
+  const u = U(); tour = tour || T();
+  if (!u || !tour || tour.id === '_empty' || tour.ownerId === u.id) return false;
+  return (tour.managerIds || []).includes(u.id) || !!_myManagerRecord(tour);
+}
+// An account put into manager_ids by hand can edit the tour but has no crew[]
+// record to hang a profile on — give it the one grant_co_manager would have.
+function _ensureMyManagerRecord(tour) {
+  tour = tour || T();
+  let rec = _myManagerRecord(tour);
+  if (rec || !_coManagesTour(tour)) return rec;
+  const u = U();
+  rec = { id: 'mgr_' + String(u.id).replace(/-/g, ''), userId: u.id, name: u.name || '', email: String(u.email || '').toLowerCase(),
+          role: 'Co-manager', isManager: true, permissions: 'all', claimed: true, groups: ['Mgmt'] };
+  if (!Array.isArray(tour.crew)) tour.crew = [];
+  tour.crew.push(rec);
+  return rec;
+}
+function openMyManagerProfile() {
+  const rec = _ensureMyManagerRecord(T());
+  if (!rec) { toast("You don't co-manage this tour", 'error'); return; }
+  openProfileForm(rec.id, true);
+}
+// Is this crew[] record the signed-in account's own?
+function _isMyCrewRecord(c) {
+  const u = U();
+  if (!u || !c) return false;
+  const em = String(u.email || '').toLowerCase();
+  return c.userId === u.id || (!!em && String(c.email || '').toLowerCase() === em);
+}
+/* ── Saved profile: fill it out once, it follows you tour to tour ─────────
+   The form's answers are kept on the ACCOUNT (saved_profiles, patch-052 — a row
+   only its owner can read) as well as on each tour's roster record. A new tour
+   is then one tap, "Send to <tour manager>", instead of fifty fields, and an
+   edit goes to every tour it has already been sent to. Sending stays a
+   deliberate tap: passport and medical details never reach a new tour manager
+   just because they typed your email into a roster. */
+function _fmtStamp(ms) {
+  const d = new Date(Number(ms) || Date.now()), z = n => String(n).padStart(2, '0');
+  return fmtDate(`${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`);   // the LOCAL day, not UTC's
+}
+// Just the form's own answers — no blanks, no bookkeeping keys.
+function _spClean(p) {
+  const o = {};
+  PROFILE_SCHEMA.forEach(sec => sec.fields.forEach(f => { if (p && p[f.k]) o[f.k] = p[f.k]; }));
+  return o;
+}
+// Every roster record, on any tour, that belongs to the signed-in account.
+function _myTourRecords() {
+  if (!U() || !state || !state.tours) return [];
+  const out = [];
+  Object.values(state.tours).forEach(t => {
+    if (!t || t.id === '_empty') return;
+    try { if (_isTombstoned(t.id)) return; } catch (e) {}
+    const rec = (t.crew || []).find(c => _isMyCrewRecord(c));
+    if (rec) out.push({ tour: t, rec });
+  });
+  return out;
+}
+const _spCloud = { uid: '', loading: false, done: false, missing: false, row: null };
+// What the account has on file. With nothing saved yet it falls back to the
+// newest profile this person has submitted on any tour — so everyone who filled
+// one out before this existed already has a saved profile, nothing to re-enter.
+function _savedProfileGet() {
+  const u = U(); if (!u) return null;
+  const sp = u.savedProfile || (_spCloud.uid === u.id ? _spCloud.row : null);
+  if (sp && sp.profile && Object.keys(_spClean(sp.profile)).length) return sp;
+  const subs = _myTourRecords().filter(x => isProfileSubmitted(x.rec) && Object.keys(_spClean(x.rec.profile)).length);
+  if (!subs.length) return null;
+  const stamp = x => Number((x.rec.profile || {})._updatedAt) || Number(x.rec.profileSubmittedAt) || 0;
+  subs.sort((a, b) => stamp(b) - stamp(a));
+  const completedAt = Math.min(...subs.map(x => Number((x.rec.profile || {})._completedAt) || Number(x.rec.profileSubmittedAt) || Date.now()));
+  return { profile: _spClean(subs[0].rec.profile), completedAt, updatedAt: stamp(subs[0]), derived: true };
+}
+function _savedProfileStore(profile, completedAt, updatedAt) {
+  const u = U(); if (!u) return null;
+  const now = Date.now();
+  const sp = { profile: _spClean(profile), completedAt: Number(completedAt) || now, updatedAt: Number(updatedAt) || now };
+  u.savedProfile = sp;
+  if (_spCloud.uid === u.id) _spCloud.row = sp;
+  if (sb && _isUuid(u.id) && !_spCloud.missing) {
+    sb.from('saved_profiles').upsert({
+      user_id: u.id, profile: sp.profile,
+      completed_at: new Date(sp.completedAt).toISOString(), updated_at: new Date(sp.updatedAt).toISOString(),
+    }, { onConflict: 'user_id' }).then(({ error }) => {
+      if (!error) return;
+      console.warn('[saved_profiles] save', error.message || error);
+      if (/saved_profiles|relation|schema cache/i.test(error.message || '')) _spCloud.missing = true;   // patch-052 not run yet
+    }).catch(() => {});
+  }
+  return sp;
+}
+// Once per sign-in: pull the account's copy down (another device may have
+// edited it), or put ours up if the cloud has none. Silent without patch-052.
+function _savedProfileLoad() {
+  const u = U();
+  if (!sb || !u || !_isUuid(u.id)) return;
+  if (_spCloud.uid !== u.id) Object.assign(_spCloud, { uid: u.id, loading: false, done: false, missing: false, row: null });
+  if (_spCloud.done || _spCloud.loading || _spCloud.missing) return;
+  _spCloud.loading = true;
+  sb.from('saved_profiles').select('profile,completed_at,updated_at').eq('user_id', u.id).maybeSingle()
+    .then(({ data, error }) => {
+      _spCloud.loading = false;
+      if (error) { _spCloud.missing = true; return; }
+      _spCloud.done = true;
+      const cur = U(); if (!cur || cur.id !== u.id) return;
+      const local = cur.savedProfile, cloudAt = data && data.updated_at ? Date.parse(data.updated_at) : 0;
+      if (data && data.profile && Object.keys(data.profile).length && (!local || cloudAt > (local.updatedAt || 0))) {
+        const sp = { profile: data.profile, completedAt: data.completed_at ? Date.parse(data.completed_at) : cloudAt, updatedAt: cloudAt };
+        cur.savedProfile = sp; _spCloud.row = sp;
+        try { saveState(); } catch (e) {}
+        try { renderPhone(); } catch (e) {}
+      } else if (!data || (local && (local.updatedAt || 0) > cloudAt)) {
+        const have = _savedProfileGet();
+        if (have) _savedProfileStore(have.profile, have.completedAt, have.updatedAt);
+      }
+    }).catch(() => { _spCloud.loading = false; });
+}
+// Put the saved details on ONE tour's roster record: here, and on the server
+// through submit_crew_profile — the one write a crew member is allowed, and it
+// only ever touches the caller's own record.
+function _savedProfileApplyTo(tour, rec, sp, when) {
+  rec.profile = Object.assign({}, sp.profile, { _completedAt: sp.completedAt, _updatedAt: sp.updatedAt });
+  rec.profileSubmittedAt = rec.profileSubmittedAt || when || Date.now();
+  if (!sb || !tour || !_isUuid(tour.id)) return Promise.resolve({ ok: true, local: true });
+  return sb.rpc('submit_crew_profile', { p_tour_id: tour.id, p_crew_id: rec.id, p_profile: rec.profile, p_submitted_at: rec.profileSubmittedAt })
+    .then(({ error }) => ({ ok: !error, error }))
+    .catch(error => ({ ok: false, error }));
+}
+function _tourOwnerFirst(tour) {
+  const n = _tourOwnerInfo(tour || T()).name || '';
+  return (!n || n === 'Tour owner' || n === 'You') ? 'your tour manager' : n.split(' ')[0];
+}
+// The one-tap path on a new tour.
+function sendSavedProfile() {
+  const tour = T(), u = U(), sp = _savedProfileGet();
+  if (!u || !tour || tour.id === '_empty') return;
+  const rec = (tour.crew || []).find(c => _isMyCrewRecord(c)) || _ensureMyManagerRecord(tour);
+  if (!rec) { toast("You're not on this tour's roster", 'error'); return; }
+  if (!sp) { openProfileForm(rec.id, true); return; }
+  const need = [];
+  PROFILE_SCHEMA.forEach(sec => sec.fields.forEach(f => { if (f.req && !sp.profile[f.k]) need.push(f.l); }));
+  if (need.length) { toast('A few required details are missing — add them, then send', ''); openProfileForm(rec.id, true); return; }
+  if (sp.derived) _savedProfileStore(sp.profile, sp.completedAt, sp.updatedAt);
+  const who = _tourOwnerFirst(tour), mgr = _isTourManager(tour, u.id);
+  const before = { profile: rec.profile, at: rec.profileSubmittedAt };
+  _savedProfileApplyTo(tour, rec, sp, Date.now()).then(async r => {
+    if (r.ok) {
+      if (!r.local) { try { await db.hydrateUserData(state.currentUserId); renderAll(); } catch (e) {} }
+      return;
+    }
+    if (mgr) return;                       // a manager's normal sync carries it
+    // A crew member has no other route — don't leave the phone saying "sent".
+    rec.profile = before.profile; rec.profileSubmittedAt = before.at;
+    try { saveState(); renderAll(); } catch (e) {}
+    toast("Your profile didn't reach the tour: " + ((r.error && r.error.message) || 'unknown error') + '. Try again, or ask your tour manager.', 'error');
+  });
+  saveState();
+  renderAll();
+  toast('Profile sent to ' + who, 'good');
+}
+// The account's own copy, shaped like a roster record so the same form edits it.
+function _accountProfileRecord() {
+  const u = U() || {}, sp = _savedProfileGet();
+  return { id: '__me', _account: true, userId: u.id, name: u.name || 'My details', email: u.email || '',
+           profile: Object.assign({}, sp ? sp.profile : {}), profileSubmittedAt: sp ? sp.completedAt : 0 };
+}
+function openSavedProfile() { openProfileForm('__me', true); }
+
+// The phone's More-tab profile card. Crew get it for their own roster record;
+// a co-manager signed in on their phone is the full-access 'tm' viewer, so
+// theirs comes from their manager record instead. It is also where the
+// account's saved details live: completed when, sent to this tour when.
+function _phoneProfileCardHtml(viewer, isTM) {
+  let rec = null, mgr = false, open = '', mine = false;
+  if (!isTM && viewer && viewer.id !== 'tm') {
+    rec = viewer; mgr = !!viewer.isManager; mine = _isMyCrewRecord(viewer);
+    open = `openProfileForm('${viewer.id}', true)`;
+  } else if (isTM && _coManagesTour(T())) {
+    rec = _myManagerRecord(T()) || { name: (U() || {}).name || '', profile: {} };
+    mgr = true; mine = true; open = 'openMyManagerProfile()';
+  }
+  // `mine` is false in the dashboard's preview of someone else's phone — that
+  // shows their tour record only, never anything from the viewer's account.
+  const own = mine || (!rec && isTM && !!U());
+  if (own) _savedProfileLoad();
+  const sp = own ? _savedProfileGet() : null;
+  const onTours = own ? _myTourRecords().filter(x => isProfileSubmitted(x.rec)).length : 0;
+  if (!rec) {
+    // No form to fill on this tour (you own it) — the account's details still show.
+    if (!sp) return '';
+    return `
+        <div class="profile-done-card acct">
+          <div class="lbl">My details · saved to your account</div>
+          <div class="h">Completed ${esc(_fmtStamp(sp.completedAt))}</div>
+          <div class="sub">Rooming, dietary, travel and emergency contact. Filled out once, sent to any tour you join with one tap${onTours ? ` · on file with ${onTours} tour${onTours===1?'':'s'}` : ''}${sp.updatedAt && _fmtStamp(sp.updatedAt) !== _fmtStamp(sp.completedAt) ? ` · updated ${esc(_fmtStamp(sp.updatedAt))}` : ''}</div>
+          <button type="button" class="btn-edit" onclick="openSavedProfile()">Edit</button>
+        </div>`;
+  }
+  const who = mine ? _tourOwnerFirst(T()) : '';
+  const ownerFirst = _tourOwnerFirst(T()) === 'your tour manager' ? 'the tour owner' : _tourOwnerFirst(T());
+  if (!isProfileSubmitted(rec)) {
+    if (mine && sp) {
+      // Already filled out on another tour: nothing to type, just send it.
+      return `
+        <div class="profile-req-card saved${mgr ? ' mgr' : ''}">
+          <div class="lbl">${mgr ? 'Tour Profile · Co-manager' : '⚠ Required · Tour Profile'}</div>
+          <div class="h">Send your saved profile to ${esc(who)}</div>
+          <div class="sub">Completed ${esc(_fmtStamp(sp.completedAt))} · it's saved to your account, so there's nothing to fill out again</div>
+          <div class="btn-row">
+            <button type="button" class="btn-fill" onclick="sendSavedProfile()">Send to ${esc(who)}</button>
+            <button type="button" class="btn-ghost" onclick="${open}">Review first</button>
+          </div>
+        </div>`;
+    }
+    const missing = profileMissingRequired(rec);
+    const left = `${missing.length} required field${missing.length===1?'':'s'} remaining`;
+    return mgr ? `
+        <div class="profile-req-card mgr" onclick="${open}">
+          <div class="lbl">Tour Profile · Co-manager</div>
+          <div class="h">Share your profile with ${esc(ownerFirst)}</div>
+          <div class="sub">${left} · dietary, rooming, travel and emergency contact, so nobody has to ask you on the road. You fill it out once — it's saved for your next tour</div>
+          <div class="btn-fill">Fill out form →</div>
+        </div>` : `
+        <div class="profile-req-card" onclick="${open}">
+          <div class="lbl">⚠ Required · Tour Profile</div>
+          <div class="h">Submit your profile to ${esc(T().meta.presenter || 'Tour Manager')}</div>
+          <div class="sub">${left} · used for hotels, travel, dietary, immigration, emergency contact${mine ? ". You fill it out once — it's saved for your next tour" : ''}</div>
+          <div class="btn-fill">Fill out form →</div>
+        </div>`;
+  }
+  const pm = rec.profile || {};
+  const doneAt = Number(pm._completedAt) || (sp && sp.completedAt) || rec.profileSubmittedAt;
+  const updAt = Number(pm._updatedAt) || 0;
+  const sameDay = _fmtStamp(doneAt) === _fmtStamp(rec.profileSubmittedAt);
+  const updated = updAt && _fmtStamp(updAt) !== _fmtStamp(rec.profileSubmittedAt) && _fmtStamp(updAt) !== _fmtStamp(doneAt) ? ` · updated ${esc(_fmtStamp(updAt))}` : '';
+  return mine ? `
+        <div class="profile-done-card">
+          <div class="lbl">✓ Profile Submitted</div>
+          <div class="h">${esc(rec.name)}</div>
+          <div class="sub">${sameDay ? `Completed and sent to ${esc(who)} ${esc(_fmtStamp(rec.profileSubmittedAt))}` : `Completed ${esc(_fmtStamp(doneAt))} · sent to ${esc(who)} ${esc(_fmtStamp(rec.profileSubmittedAt))}`}${updated}</div>
+          <div class="sub">Saved to your account${onTours > 1 ? ` · on file with ${onTours} of your tours` : ''}. Your next tour is a single tap, and an edit here updates every tour that has it.</div>
+          <button type="button" class="btn-edit" onclick="${open}">Edit</button>
+        </div>` : `
+        <div class="profile-done-card">
+          <div class="lbl">✓ Profile Submitted</div>
+          <div class="h">${esc(rec.name)}</div>
+          <div class="sub">Submitted ${esc(_fmtStamp(rec.profileSubmittedAt))} · ${mgr ? esc(ownerFirst) + ' and the tour’s managers can see it' : 'TM has access'}</div>
+          <button type="button" class="btn-edit" onclick="${open}">Edit</button>
+        </div>`;
+}
+
 function profileMissingRequired(c) {
   if (!c) return [];
   const p = c.profile || {};
@@ -25580,17 +25840,35 @@ function profileMissingRequired(c) {
 
 /* ---------- profile form modal ---------- */
 function openProfileForm(crewId, isSelf=false) {
-  const c = T().crew.find(x => x.id === crewId);
+  // '__me' edits the account's saved details directly — no tour record involved.
+  const acct = crewId === '__me';
+  let c = acct ? _accountProfileRecord() : T().crew.find(x => x.id === crewId);
   if (!c) return;
   ensureProfile(c);
   const p = c.profile;
   const submitted = isProfileSubmitted(c);
+  const _mine = _isMyCrewRecord(c);
+  // Filling out your own form for the first time: start with what the account
+  // already knows (shown in the fields only — nothing is saved until Submit).
+  const _pre = {};
+  if (_mine && !submitted) {
+    const _u = U() || {}, _nm = String(_u.name || c.name || '').trim().split(/\s+/).filter(Boolean);
+    if (_nm.length) _pre.firstName = _nm[0];
+    if (_nm.length > 1) _pre.lastName = _nm.slice(1).join(' ');
+    _pre.email = _u.email || c.email || '';
+    // …and everything they've already filled out on another tour.
+    const _sp = _savedProfileGet();
+    if (_sp) Object.assign(_pre, _sp.profile);
+  }
+  const _ownerFirst = (() => { const n = _tourOwnerInfo(T()).name || ''; return (!n || n === 'Tour owner' || n === 'You') ? 'the tour owner' : n.split(' ')[0]; })();
   openModal({
-    title: `${submitted ? 'Edit' : 'Submit'} crew profile · ${c.name}`,
+    title: acct ? 'My details · saved to your account' : `${submitted ? 'Edit' : 'Submit'} ${c.isManager ? 'tour' : 'crew'} profile · ${c.name || 'Co-manager'}`,
     size: 'lg',
     body: `
       <div class="iz-tip" style="margin-bottom:16px">
         Bandmate uses this for hotel rooming, dietary requirements, travel preferences, emergency contact, and immigration paperwork. Required fields are marked with <span style="color:var(--red);font-weight:700">*</span>.
+        ${acct ? '<br>These details are saved to your account and follow you tour to tour. A tour manager only sees them once you send them to that tour.'
+          : _mine ? "<br>You only do this once: it's saved to your account, and your next tour is a single tap." : ''}
       </div>
       ${PROFILE_SCHEMA.map(sec => `
         <div class="pf-section">
@@ -25600,7 +25878,7 @@ function openProfileForm(crewId, isSelf=false) {
           </div>
           <div class="form-grid">
             ${sec.fields.map(f => {
-              const val = esc(p[f.k] || '');
+              const val = esc(p[f.k] || _pre[f.k] || '');
               const id = `pf_${f.k}`;
               const cls = f.wide ? 'full' : '';
               const star = f.req ? ' <span style="color:var(--red)">*</span>' : '';
@@ -25617,8 +25895,15 @@ function openProfileForm(crewId, isSelf=false) {
         </div>
       `).join('')}
     `,
-    submitLabel: submitted ? 'Save changes' : 'Submit to Tour Manager',
+    submitLabel: acct ? 'Save my details' : submitted ? 'Save changes' : (c.isManager && _mine ? 'Submit to ' + _ownerFirst : 'Submit to Tour Manager'),
     onSubmit: () => {
+      // The roster can be swapped out underneath an open form (realtime, a
+      // re-hydrate) — write to the record that's live NOW, not the one we opened.
+      if (!acct) {
+        const _live = (T().crew || []).find(x => x.id === crewId);
+        if (!_live) { toast('That person is no longer on this tour', 'error'); return false; }
+        c = _live;
+      }
       // collect all values
       const out = {};
       let missing = [];
@@ -25633,8 +25918,30 @@ function openProfileForm(crewId, isSelf=false) {
         toast('Required fields missing: ' + missing.slice(0,3).join(', ') + (missing.length>3?'…':''), 'error');
         return false;
       }
-      c.profile = out;
-      c.profileSubmittedAt = c.profileSubmittedAt || Date.now();
+      // When it was first completed / last changed rides inside the profile, so
+      // the tour manager's side can show the same dates the person sees.
+      const _now = Date.now(), _old = c.profile || {};
+      let _doneAt = Number(_old._completedAt) || Number(c.profileSubmittedAt) || _now;
+      let _also = 0;
+      if (_mine) {
+        // Your own form: keep the account's copy, and hand the new version to
+        // every OTHER tour that already has it — they agreed to nothing new.
+        const _prev = _savedProfileGet();
+        if (_prev && _prev.completedAt) _doneAt = Math.min(_doneAt, _prev.completedAt);
+        const _sp = _savedProfileStore(out, _doneAt, _now);
+        _myTourRecords().forEach(x => {
+          if (!isProfileSubmitted(x.rec) || (!acct && x.tour.id === T().id)) return;
+          _also++;
+          _savedProfileApplyTo(x.tour, x.rec, _sp);
+        });
+      }
+      if (acct) {
+        saveState(); renderAll();
+        toast(_also ? `Saved · updated on ${_also} tour${_also===1?'':'s'}` : 'Saved to your account', 'good');
+        return;
+      }
+      c.profile = Object.assign(out, { _completedAt: _doneAt, _updatedAt: _now });
+      c.profileSubmittedAt = c.profileSubmittedAt || _now;
       saveState();
       // Crew profiles live in tours.crew[] — a tours-row field a crew member
       // can't write under RLS, so the normal sync (_runActiveTourSync) bails
@@ -25649,7 +25956,13 @@ function openProfileForm(crewId, isSelf=false) {
         // populated locally (a truncated sync could blank it, which used to
         // skip the RPC silently and leave the profile stranded on the phone).
         const _mgr = (typeof _isTourManager === 'function') ? _isTourManager(tour, u && u.id) : (tour && tour.ownerId === (u && u.id));
-        if (sb && u && tour && tour.id && !_mgr) {
+        // A co-manager's OWN profile takes the RPC as well. Their normal sync
+        // would carry it, but that is a whole-tour upsert from a phone; the RPC
+        // is one targeted write to their own record. If it's refused (a record
+        // made on this device a moment ago isn't on the server yet) the normal
+        // sync still delivers it, so a manager never sees the error.
+        const _ownMgr = !!(_mgr && c.isManager && _isMyCrewRecord(c) && tour && tour.ownerId !== (u && u.id));
+        if (sb && u && tour && tour.id && (!_mgr || _ownMgr)) {
           sb.rpc('submit_crew_profile', {
             p_tour_id: tour.id,
             p_crew_id: c.id,
@@ -25661,6 +25974,7 @@ function openProfileForm(crewId, isSelf=false) {
               // server-side refusal (e.g. a stale crew id) behind a network
               // excuse, so nobody knew the profile never reached the tour.
               console.warn('[submit_crew_profile]', error);
+              if (_ownMgr) return;       // the co-manager's normal sync carries it
               toast("Your profile didn't reach the tour: " + (error.message || 'unknown error') + '. Try again, or ask your tour manager.', 'error');
               return;
             }
@@ -25674,7 +25988,7 @@ function openProfileForm(crewId, isSelf=false) {
         }
       } catch (e) { console.warn('[openProfileForm] rpc dispatch', e); }
       renderAll();
-      toast(submitted ? 'Profile updated' : 'Profile submitted to Tour Manager', 'good');
+      toast(submitted ? ('Profile updated' + (_also ? ` on ${_also + 1} tours` : '')) : (c.isManager && _mine ? 'Profile shared with ' + _ownerFirst : 'Profile submitted to Tour Manager'), 'good');
     },
   });
 }
@@ -25706,7 +26020,7 @@ function renderManagersCard() {
       <div class="pt-ini" style="background:rgba(138,169,216,.15);color:#b1c8ee">${esc(initials(m.name || m.email || '?'))}</div>
       <div style="flex:1;min-width:0">
         <div style="font-weight:700;font-size:13.5px">${esc(m.name || 'Co-manager')} <span style="font-family:'Bricolage Grotesque',monospace;font-size:9px;letter-spacing:.16em;color:#b1c8ee;border:1px solid rgba(138,169,216,.4);padding:1px 6px;border-radius:4px;margin-left:4px">CO-MANAGER</span></div>
-        <div style="font-size:11px;color:var(--warm-mute)">${esc(m.email || '')}</div>
+        <div style="font-size:11px;color:var(--warm-mute)">${esc(m.email || '')}${m.email ? ' · ' : ''}<span style="color:${isProfileSubmitted(m) ? 'var(--good)' : 'var(--warm-mute)'}">${isProfileSubmitted(m) ? 'Profile submitted ' + esc(_fmtStamp(m.profileSubmittedAt)) : 'Profile not submitted yet'}</span></div>
       </div>
       ${isOwner ? `<button type="button" class="tb-btn" style="color:var(--red);border-color:rgba(232,69,69,.35)" onclick="revokeCoManager('${esc(m.userId || '')}','${esc((m.name || 'this manager').replace(/['\\]/g,''))}')">Revoke</button>` : ''}
     </div>`).join('');
@@ -26379,8 +26693,13 @@ function renderCrewProfiles() {
   // Co-managers live in crew[] (flagged isManager) for display + revoke, but
   // they're managers, not crew filling out profiles — keep them out of the grid.
   const roster = T().crew.filter(c => !c.isManager);
-  const submitted = roster.filter(c => isProfileSubmitted(c));
-  const pending = roster.filter(c => !isProfileSubmitted(c));
+  // …but they fill out the same profile, so they sit in the same grid, after
+  // the crew, told apart only by the role line. (The tour-readiness scan still
+  // counts crew alone: a co-manager's form never holds the tour up.)
+  const comgrs = T().crew.filter(c => c.isManager);
+  const people = roster.concat(comgrs);          // what the grid shows is what the toolbar counts
+  const submitted = people.filter(c => isProfileSubmitted(c));
+  const pending = people.filter(c => !isProfileSubmitted(c));
   // Two different "pending"s: accepted-but-no-form (amber) vs. hasn't even
   // accepted the invite (gray). Counted and shown separately so the TM can
   // tell who to nudge for the form and who to chase for the invite.
@@ -26405,13 +26724,13 @@ function renderCrewProfiles() {
   root.innerHTML = `
     <div class="section-title">
       <h2>Crew</h2>
-      <span class="crumb">/ ${roster.length} CREW · ${submitted.length} SUBMITTED · ${pendingForm.length} PENDING${awaiting.length ? ' · ' + awaiting.length + ' NOT ACCEPTED' : ''}</span>
+      <span class="crumb">/ ${roster.length} CREW${comgrs.length ? ' · ' + comgrs.length + ' CO-MANAGER' + (comgrs.length===1?'':'S') : ''} · ${submitted.length} SUBMITTED · ${pendingForm.length} PENDING${awaiting.length ? ' · ' + awaiting.length + ' NOT ACCEPTED' : ''}</span>
     </div>
 
     ${renderManagersCard()}
 
     <div class="profiles-toolbar">
-      <span class="stat"><b>${submitted.length}</b> / ${roster.length} profiles submitted</span>
+      <span class="stat"><b>${submitted.length}</b> / ${people.length} profiles submitted</span>
       ${pendingForm.length ? `<span class="stat" style="color:var(--hi)">⚠ ${pendingForm.length} pending</span>` : ''}
       ${awaiting.length ? `<span class="stat" style="color:var(--warm-mute)">○ ${awaiting.length} not accepted</span>` : ''}
       <div class="view-toggle">
@@ -26426,18 +26745,32 @@ function renderCrewProfiles() {
     </div>
 
     ${crewView === 'list' ? renderCrewListTable() : `<div class="profiles-grid">
-      ${roster.map(c => {
+      ${people.map(_profileTileHtml).join('')}
+    </div>`}
+  `;
+}
+
+// One person's profile tile on the Crew tab — crew and co-managers alike.
+function _profileTileHtml(c) {
         const sub = isProfileSubmitted(c);
         const p = c.profile || {};
         const awaiting = !sub && crewAwaitingInvite(c);
         const cls = sub ? 'submitted' : awaiting ? 'unclaimed' : 'pending';
         const stat = sub ? '✓ SUBMITTED' : awaiting ? '○ NOT ACCEPTED' : '⧖ PENDING';
-        const subText = sub ? `Submitted ${fmtDate(new Date(c.profileSubmittedAt).toISOString().slice(0,10))}` : awaiting ? "Hasn't accepted the invite yet" : 'Not yet submitted';
+        let subText = sub ? `Submitted ${_fmtStamp(c.profileSubmittedAt)}` : awaiting ? "Hasn't accepted the invite yet" : 'Not yet submitted';
+        if (sub) {
+          // Filled out on an earlier tour and sent here / edited since: say so.
+          const _done = Number(p._completedAt) || 0, _upd = Number(p._updatedAt) || 0, _s = _fmtStamp(c.profileSubmittedAt);
+          if (_done && _fmtStamp(_done) !== _s) subText += ` · completed ${_fmtStamp(_done)}`;
+          if (_upd && _fmtStamp(_upd) !== _s && (!_done || _fmtStamp(_upd) !== _fmtStamp(_done))) subText += ` · updated ${_fmtStamp(_upd)}`;
+        }
+        const mgr = !!c.isManager, mine = mgr && _isMyCrewRecord(c);
+        const first = esc(String(c.name || c.email || 'them').split(' ')[0]);
         return `
-          <div class="profile-tile ${cls}">
+          <div class="profile-tile ${cls}${mgr ? ' mgr' : ''}">
             <div class="pt-head">
-              <div class="pt-ini">${esc(initials(c.name))}</div>
-              <div class="pt-name">${esc(c.name)}<span>${esc(c.role)}</span></div>
+              <div class="pt-ini">${esc(initials(c.name || c.email || '?'))}</div>
+              <div class="pt-name">${esc(c.name || c.email || 'Co-manager')}<span>${esc(mgr ? 'Co-manager' + (mine ? ' · you' : '') : c.role)}</span></div>
               <span class="pt-stat">${stat}</span>
             </div>
             <div class="muted mono" style="font-size:10.5px;margin-bottom:6px">${esc(subText)}</div>
@@ -26456,19 +26789,20 @@ function renderCrewProfiles() {
               <div class="pt-row"><span class="pl">Passport #1</span><span class="pv">${p.p1Number?'****'+esc(String(p.p1Number).slice(-4))+' · '+esc(p.p1Country||'')+(p.p1Exp?' · exp '+esc(p.p1Exp):''):'—'}</span></div>
             ` : `
               ${awaiting
-                ? `<div class="muted" style="padding:8px 0;font-size:12.5px">Waiting on <b>${esc(c.name.split(' ')[0])}</b> to accept the invite sent to ${esc(c.email)}. Once they're in, they fill out the form on their phone.</div>`
-                : `<div class="muted" style="padding:8px 0;font-size:12.5px">Tour Manager: ask <b>${esc(c.name.split(' ')[0])}</b> to fill out the form on their phone (More tab → Required Profile).</div>`}
+                ? `<div class="muted" style="padding:8px 0;font-size:12.5px">Waiting on <b>${first}</b> to accept the invite sent to ${esc(c.email)}. Once they're in, they fill out the form on their phone.</div>`
+                : mine
+                ? `<div class="muted" style="padding:8px 0;font-size:12.5px">This one is yours. Fill it out here, or in the phone app (More tab → Tour Profile).</div>`
+                : mgr
+                ? `<div class="muted" style="padding:8px 0;font-size:12.5px">Ask <b>${first}</b> to fill out the form in the phone app (More tab → Tour Profile).</div>`
+                : `<div class="muted" style="padding:8px 0;font-size:12.5px">Tour Manager: ask <b>${first}</b> to fill out the form on their phone (More tab → Required Profile).</div>`}
             `}
             <div class="pt-actions">
               ${awaiting ? `<button type="button" onclick="resendCrewInvite('${c.id}', this)">Resend invite</button>` : ''}
-              <button type="button" onclick="openProfileForm('${c.id}')">${sub ? 'View / edit' : 'Fill on their behalf'}</button>
+              <button type="button" onclick="openProfileForm('${c.id}')">${sub ? 'View / edit' : mine ? 'Fill out my profile' : 'Fill on their behalf'}</button>
               ${sub ? `<button type="button" onclick="downloadOneProfileCSV('${c.id}')">↓ CSV</button>` : ''}
             </div>
           </div>
         `;
-      }).join('')}
-    </div>`}
-  `;
 }
 
 function renderCrewListTable() {
@@ -26479,13 +26813,13 @@ function renderCrewListTable() {
       <table class="crew-list-table">
         <thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
         <tbody>
-          ${T().crew.filter(c => !c.isManager).map(c => {
+          ${T().crew.filter(c => !c.isManager).concat(T().crew.filter(c => c.isManager)).map(c => {
             const p = c.profile || {};
             const submitted = isProfileSubmitted(c);
             const cells = [
-              `<a onclick="openProfileForm('${c.id}')" style="cursor:pointer;color:var(--hi)">${esc(c.name)}</a>`,
-              esc(c.role || ''),
-              esc(c.type || ''),
+              `<a onclick="openProfileForm('${c.id}')" style="cursor:pointer;color:var(--hi)">${esc(c.name || c.email || 'Co-manager')}</a>`,
+              esc(c.isManager ? 'Co-manager' : (c.role || '')),
+              esc(c.isManager ? 'mgmt' : (c.type || '')),
               (c.groups || []).map(g => `<span class="group-chip">${esc(g)}</span>`).join('') || '<span class="muted mono">none</span>',
               (() => { const ps = _pushStateFor(c); return ps ? `<span class="push-cell${ps.on ? ' on' : ''}">${esc(ps.on ? 'ON' : 'OFF')}</span>` : '<span class="muted mono">—</span>'; })(),
               `<span class="stat-cell ${submitted?'sub':(crewAwaitingInvite(c)?'wait':'pend')}">${submitted ? '✓ DONE' : crewAwaitingInvite(c) ? '○ NOT ACCEPTED' : '⧖ PEND'}</span>`,
@@ -26544,9 +26878,9 @@ function renderCrewListTable() {
 }
 
 function remindAllPending() {
-  const pending = T().crew.filter(c => !c.isManager && !isProfileSubmitted(c) && !crewAwaitingInvite(c));
+  const pending = T().crew.filter(c => !isProfileSubmitted(c) && !crewAwaitingInvite(c));
   if (!pending.length) { toast('All profiles already submitted (anyone still gray hasn\'t accepted their invite yet — resend it from the roster)', 'good'); return; }
-  toast(`Reminders queued for ${pending.length} crew member${pending.length===1?'':'s'} (would send via email/SMS in production)`, '');
+  toast(`Reminders queued for ${pending.length} ${pending.length===1?'person':'people'} (would send via email/SMS in production)`, '');
 }
 
 /* ---------- exports ---------- */
@@ -26558,7 +26892,7 @@ function downloadProfilesCSV() {
   const rows = [headers];
   T().crew.forEach(c => {
     const p = c.profile || {};
-    const row = [c.name, c.role, c.type || '', isProfileSubmitted(c) ? new Date(c.profileSubmittedAt).toISOString().slice(0,10) : 'PENDING'];
+    const row = [c.name, c.isManager ? 'Co-manager' : c.role, c.isManager ? 'mgmt' : (c.type || ''), isProfileSubmitted(c) ? new Date(c.profileSubmittedAt).toISOString().slice(0,10) : 'PENDING'];
     PROFILE_SCHEMA.forEach(sec => sec.fields.forEach(f => row.push(p[f.k] || '')));
     rows.push(row);
   });
@@ -34123,7 +34457,7 @@ function scanTour(tour) {
   if (!tour.crew || !tour.crew.length) {
     scan.globalGaps.push({ what: 'No crew roster', fix: 'Add band + crew via Crew Roster button — invites are sent to their email' });
   } else {
-    const crewOnly = tour.crew.filter(c => !c.isManager);   // co-managers don't fill crew profiles
+    const crewOnly = tour.crew.filter(c => !c.isManager);   // a co-manager's profile is a courtesy — it never counts as a gap
     const total = crewOnly.length;
     const unsubmitted = crewOnly.filter(c => !c.profileSubmittedAt);
     const noEmail = crewOnly.filter(c => !c.email || !c.email.trim());
@@ -36956,6 +37290,8 @@ document.addEventListener('touchend', (e) => {
 
 /* expose handlers used by inline onclick */
 Object.assign(window, {
+  openMyManagerProfile, _phoneProfileCardHtml, _myManagerRecord, _coManagesTour,
+  sendSavedProfile, openSavedProfile, _savedProfileGet, _myTourRecords,
   onbChooseSample, onbChooseCSV, onbChooseScratch, downloadCSVTemplate,
   izAddFiles, izRemoveFile, izStartAnalyze, izApply, izBack,
   resetTour, exportTour, printDay,
