@@ -2033,13 +2033,24 @@ html body.phone-app .ph-page-head{padding-top:calc(12px + env(safe-area-inset-to
    sheet below instead of jumping straight into the dialer. */
 .ph-tel{color:inherit;text-decoration:none;border-bottom:1px dashed rgba(232,148,58,.55);padding-bottom:1px;-webkit-tap-highlight-color:transparent}
 .ph-tel:active{color:var(--hi)}
-.tel-sheet-bg{position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center}
-.tel-sheet{width:100%;max-width:460px;background:#150e08;border:1px solid var(--line-2);border-bottom:0;border-radius:16px 16px 0 0;padding:14px 14px calc(14px + env(safe-area-inset-bottom));box-shadow:0 -12px 40px rgba(0,0,0,.5)}
-.tel-sheet .ts-lbl{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--warm-mute);text-align:center}
-.tel-sheet .ts-num{font-family:'Bricolage Grotesque',monospace;font-size:17px;font-weight:700;color:var(--warm);letter-spacing:.04em;margin:4px 0 12px;text-align:center}
-.tel-sheet button{display:block;width:100%;padding:14px;margin-top:8px;background:rgba(232,148,58,.08);border:1px solid rgba(232,148,58,.22);border-radius:10px;color:var(--warm);font-family:'Bricolage Grotesque',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;cursor:pointer}
-.tel-sheet button.primary{background:linear-gradient(135deg,#e8943a,#f5b35e);color:#0a0705;border-color:transparent}
-.tel-sheet button.quiet{background:transparent;border-color:transparent;color:var(--warm-mute)}
+.tel-sheet-bg,.act-sheet-bg{position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center}
+.tel-sheet,.act-sheet{width:100%;max-width:460px;background:#150e08;border:1px solid var(--line-2);border-bottom:0;border-radius:16px 16px 0 0;padding:14px 14px calc(14px + env(safe-area-inset-bottom));box-shadow:0 -12px 40px rgba(0,0,0,.5)}
+.tel-sheet .ts-lbl,.act-sheet .ts-lbl{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--warm-mute);text-align:center}
+.tel-sheet .ts-num,.act-sheet .ts-num{font-family:'Bricolage Grotesque',monospace;font-size:17px;font-weight:700;color:var(--warm);letter-spacing:.04em;margin:4px 0 12px;text-align:center}
+.tel-sheet button,.act-sheet button{display:block;width:100%;padding:14px;margin-top:8px;background:rgba(232,148,58,.08);border:1px solid rgba(232,148,58,.22);border-radius:10px;color:var(--warm);font-family:'Bricolage Grotesque',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;cursor:pointer}
+.tel-sheet button.primary,.act-sheet button.primary{background:linear-gradient(135deg,#e8943a,#f5b35e);color:#0a0705;border-color:transparent}
+.tel-sheet button.quiet,.act-sheet button.quiet{background:transparent;border-color:transparent;color:var(--warm-mute)}
+/* the address sheet lists apps, so each row carries its mark */
+.act-sheet button{display:flex;align-items:center;justify-content:center;gap:10px}
+.act-sheet button svg{width:17px;height:17px;flex:none}
+.act-sheet .ts-sub{font-family:'Bricolage Grotesque',monospace;font-size:11px;color:var(--warm-mute);letter-spacing:.04em;text-align:center;margin:-8px 0 12px;line-height:1.45;white-space:pre-line}
+/* An address you can tap for directions. A line of text with a pin, not a button. */
+.ph-addr{display:inline-flex;align-items:flex-start;gap:5px;background:none;border:0;padding:0;margin:0;text-align:left;
+  font:inherit;color:inherit;letter-spacing:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ph-addr .pin{width:11px;height:11px;flex:none;margin-top:1.5px;color:var(--hi);opacity:.85}
+.ph-addr .tx{text-decoration:underline;text-decoration-color:rgba(232,148,58,.4);text-underline-offset:3px;text-decoration-thickness:1px}
+.ph-addr:active .tx,.ph-addr:hover .tx{color:var(--hi);text-decoration-color:rgba(232,148,58,.75)}
+.ph-addr:active .pin{opacity:1}
 .p-row{display:grid;grid-template-columns:var(--tcol,60px) minmax(0,1fr) auto;gap:12px;align-items:baseline;padding:8px 0;border-bottom:1px solid rgba(232,148,58,.08);position:relative;z-index:1}
 .p-card.hi .p-row:last-child{border-bottom:0}
 .p-row .t{font-family:'Bricolage Grotesque',monospace;font-weight:700;font-size:12px;color:var(--hi);font-variant-numeric:tabular-nums;min-width:0}
@@ -11042,6 +11053,85 @@ function _openTelSheet(ev, digits, label) {
   return false;
 }
 function _closeTelSheet() { const el = document.getElementById('telSheet'); if (el) el.remove(); }
+
+/* ── Addresses you can tap for directions ────────────────────────────────
+   Every venue and hotel address on the phone is a link to the maps app.
+   Which maps app is the driver's business, not ours — a tour splits between
+   Waze people and Google people — so the tap opens a chooser rather than
+   picking for them. Apple Maps only appears where it exists. */
+// "Manchester, NH 03103" — the zip belongs to the state, not to its own comma.
+function _cityStateZip(h) {
+  const cs = [h.city, h.state].map(x => String(x || '').trim()).filter(Boolean).join(', ');
+  const zip = String(h.zip || '').trim();
+  return [cs, zip].filter(Boolean).join(' ');
+}
+// What a maps app should be asked to find for a hotel stay. One builder, so the
+// Directions button and the address line above it can't drift apart.
+function _stayDest(h) { return h ? _mapsDest(h.name, h.address, _cityStateZip(h)) : ''; }
+function _mapsDest(...parts) {
+  return parts.map(x => String(x == null ? '' : x).trim()).filter(Boolean).join(', ').replace(/\s*,\s*,+/g, ', ').trim();
+}
+function _isAppleDevice() {
+  try { return /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent || ''); } catch (e) { return false; }
+}
+// The tappable address itself. `text` is what's shown (an array prints as
+// separate lines); `dest` is what the maps app is asked to find.
+function _addrHTML(dest, text, o) {
+  o = o || {};
+  const d = String(dest || '').trim();
+  const lines = (Array.isArray(text) ? text : [text == null ? d : text]).map(x => String(x || '').trim()).filter(Boolean);
+  if (!d || !lines.length) return '';
+  const body = lines.map(esc).join('<br>');
+  return `<button type="button" class="ph-addr" data-dest="${esc(d)}" aria-label="Directions to ${esc(o.what || lines[0])}"
+    onclick="_openMapSheet(event, this.dataset.dest, this.dataset.what)" data-what="${esc(o.what || '')}"><span class="pin"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/></svg></span><span class="tx">${body}</span></button>`;
+}
+function _closeMapSheet() { const el = document.getElementById('mapSheet'); if (el) el.remove(); }
+function _openMapSheet(ev, dest, what) {
+  try { if (ev) { ev.preventDefault(); ev.stopPropagation(); } } catch (e) {}
+  _closeMapSheet(); _closeTelSheet();
+  const d = String(dest || '').trim();
+  if (!d) return false;
+  const apple = _isAppleDevice();
+  const row = (kind, label, icon, primary) =>
+    `<button type="button"${primary ? ' class="primary"' : ''} onclick="_mapAct('${kind}')">${icon}<span>${esc(label)}</span></button>`;
+  const pin = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/></svg>`;
+  const arrow = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l18-8-8 18-2-8-8-2z"/></svg>`;
+  const wheel = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2"/><path d="M12 3v5.8M4.2 16.5l5-2.9M19.8 16.5l-5-2.9"/></svg>`;
+  const copy = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>`;
+  const bg = document.createElement('div');
+  bg.className = 'act-sheet-bg'; bg.id = 'mapSheet';
+  bg.innerHTML = `
+    <div class="act-sheet" role="dialog" aria-label="Directions">
+      <div class="ts-lbl">Directions</div>
+      <div class="ts-num">${esc(what || d.split(',')[0])}</div>
+      ${what ? `<div class="ts-sub">${esc(d)}</div>` : ''}
+      ${apple ? row('apple', 'Apple Maps', pin, true) : ''}
+      ${row('google', 'Google Maps', arrow, !apple)}
+      ${row('waze', 'Waze', wheel, false)}
+      ${row('copy', 'Copy address', copy, false)}
+      <button type="button" class="quiet" onclick="_closeMapSheet()">Cancel</button>
+    </div>`;
+  bg.addEventListener('click', e => { if (e.target === bg) _closeMapSheet(); });
+  bg._dest = d;
+  document.body.appendChild(bg);
+  return false;
+}
+function _mapAct(kind) {
+  const el = document.getElementById('mapSheet'); const dest = el ? el._dest : '';
+  _closeMapSheet();
+  if (!dest) return;
+  if (kind === 'copy') {
+    try { navigator.clipboard.writeText(dest).then(() => { try { toast('Address copied', 'info'); } catch (e) {} }); } catch (e) {}
+    return;
+  }
+  const q = encodeURIComponent(dest);
+  // Universal links, not custom schemes: they open the installed app and fall
+  // back to that app's website when it isn't installed, so a tap never dead-ends.
+  const url = kind === 'apple' ? 'https://maps.apple.com/?daddr=' + q
+            : kind === 'waze'  ? 'https://waze.com/ul?q=' + q + '&navigate=yes'
+            :                    'https://www.google.com/maps/dir/?api=1&destination=' + q;
+  if (!_openExternalUrl(url)) toast('Could not open a maps app', 'error');
+}
 function _telAct(kind) {
   const el = document.getElementById('telSheet'); const digits = el ? el._digits : '';
   _closeTelSheet();
@@ -20689,12 +20779,26 @@ function renderPhone() {
     : ad.status === 'rehearsal' ? 'Rehearsal day'
     : 'Press day';
   const _heroItemCount = myItems.length ? (_heroDoorsSet ? ' · ' : '') + myItems.length + ' items' : '';
+  // The venue's address, tappable for directions — the thing everyone opens
+  // the app for on a show day, and what a driver or a cab needs.
+  const _venueAddrLine = (() => {
+    const place = [ad.city, ad.state, ad.country].filter(Boolean).join(', ');
+    const street = String(ad.venueAddress || '').trim();
+    if (!ad.venue && !street) return '';
+    // The street alone is ambiguous — there's a 555 Elm St in every state — so
+    // the city rides along unless the address already names it.
+    const hasPlace = !!place && street.toLowerCase().includes(String(ad.city || '').toLowerCase().trim());
+    const dest = _mapsDest(ad.venue, street, (street && hasPlace) ? '' : place);
+    if (!dest) return '';
+    return `<div class="sub" style="margin-top:5px">${_addrHTML(dest, street ? [street, place].filter(Boolean) : place, { what: ad.venue || place })}</div>`;
+  })();
   const _heroEmptyMsg = ad.status === 'travel' ? 'Travel day — no schedule items.' : ad.status === 'off' ? 'Day off — nothing scheduled.' : isTM ? 'No schedule items on this day yet.' : 'Nothing scheduled for you on this day.';
   const _todayHeroCard = _scheduleLeadsToday ? `
     <div class="p-card hi">
       <div class="lbl">${_heroKicker}</div>
       ${_heroHeadline}
       <div class="sub">${_heroDoorsSet}${_heroItemCount}</div>
+      ${_venueAddrLine}
       <div style="margin-top:8px">
         ${_phoneScheduleRowsHTML(myItems, myEarlyTomorrow, nextDateLabel, _heroEmptyMsg, 8)}
       </div>
@@ -20704,6 +20808,7 @@ function renderPhone() {
       <div class="lbl">${_heroKicker}</div>
       ${_heroHeadline}
       <div class="sub">${_heroDoorsSet}</div>
+      ${_venueAddrLine}
       <div class="lbl" style="color:#f5d76e;margin-top:14px">DAY NOTES</div>
       <div class="p-notes-body">${_linkifyPhonesHTML(ad.dayNotes)}</div>
       <button type="button" class="ph-sched-link" onclick="_phoneGoScreen('schedule')">Full schedule →</button>
@@ -20730,7 +20835,7 @@ function renderPhone() {
       const myR = (h.rooms || []).find(r => r.personId === viewerKey);
       const addressLines = [];
       if (h.address) addressLines.push(h.address);
-      const cityLine = [h.city, h.state, h.zip].filter(Boolean).join(', ');
+      const cityLine = _cityStateZip(h);
       if (cityLine) addressLines.push(cityLine);
       const detailPairs = [];
       if (h.checkIn) detailPairs.push({ k: 'Check-in', v: h.checkIn });
@@ -20743,8 +20848,8 @@ function renderPhone() {
         <div class="p-card">
           <div class="lbl">${myR ? 'YOUR ROOM' + whoTag : 'HOTEL' + whoTag + roleTag}</div>
           <div class="h">${myR ? '#' + esc(myR.roomNum || '—') : esc(h.name)}</div>
-          <div class="sub">${esc(h.name)}${roleTag && myR ? '<span style="color:var(--warm-mute)">' + roleTag + '</span>' : ''}</div>
-          ${addressLines.length ? `<div class="sub" style="white-space:pre-line;line-height:1.45">${esc(addressLines.join('\n'))}</div>` : ''}
+          ${myR ? `<div class="sub">${esc(h.name)}${roleTag ? '<span style="color:var(--warm-mute)">' + roleTag + '</span>' : ''}</div>` : ''}
+          ${addressLines.length ? `<div class="sub" style="line-height:1.45">${_addrHTML(_stayDest(h), addressLines, { what: h.name })}</div>` : ''}
           ${detailPairs.length ? `
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:10px">
               ${detailPairs.map(p => `
@@ -20933,7 +21038,12 @@ function renderPhone() {
     <div class="p-card">
       <div class="lbl">${whoLbl}${roleLbl}</div>
       <div class="h">${esc(h.name)}</div>
-      <div class="sub">${esc(h.address || '')}</div>
+      ${(() => {
+        const place = _cityStateZip(h);
+        const lines = [h.address, place].map(x => String(x || '').trim()).filter(Boolean);
+        if (!lines.length) return '';
+        return `<div class="sub" style="line-height:1.45">${_addrHTML(_stayDest(h), lines, { what: h.name })}</div>`;
+      })()}
       <div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(232,148,58,.1);display:grid;grid-template-columns:1fr 1fr;gap:10px">
         ${myR ? `<div><div class="lbl">YOUR ROOM</div><div class="mono" style="font-size:22px;font-weight:800;color:var(--hi);text-shadow:0 0 12px rgba(232,148,58,.4)">${esc(myR.roomNum || '—')}</div></div>` : ''}
         ${h.checkIn ? `<div><div class="lbl">CHECK-IN</div><div class="mono" style="font-size:14px;font-weight:700;color:var(--warm)">${esc(fmtClock(h.checkIn, ad))}</div></div>` : ''}
@@ -20942,11 +21052,11 @@ function renderPhone() {
         ${h.phone ? `<div><div class="lbl">PHONE</div><div class="mono" style="font-size:12px;color:var(--warm)">${_telLinkHTML(h.phone)}</div></div>` : ''}
       </div>
       ${(() => {
-        const dest = [h.name, h.address].filter(Boolean).join(', ');
+        const dest = _stayDest(h);
         const digits = (h.phone && _looksLikePhone(String(h.phone))) ? _telDigits(h.phone) : '';
         if (!dest && !digits) return '';
         return `<div class="ph-hotel-actions${dest && digits ? '' : ' one'}">
-          ${dest ? `<button type="button" class="ph-act" onclick="_hotelDirections('${esc(dest).replace(/'/g, '&#39;')}')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.800 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/></svg><span>Directions</span></button>` : ''}
+          ${dest ? `<button type="button" class="ph-act" onclick="_hotelDirections(this.dataset.dest, this.dataset.what)" data-dest="${esc(dest)}" data-what="${esc(h.name || '')}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.800 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/></svg><span>Directions</span></button>` : ''}
           ${digits ? `<button type="button" class="ph-act" onclick="_dialDirect('${esc(digits)}')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.500 1.500a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg><span>Call hotel</span></button>` : ''}
         </div>`;
       })()}
@@ -21340,12 +21450,9 @@ function _phPress(el, fn) {
   el.classList.add('pressed');
   setTimeout(() => { try { el.classList.remove('pressed'); } catch (e) {} try { fn(); } catch (e) { console.error(e); } }, 130);
 }
-// Hotel: straight to the maps app / straight to the dialler. No menu.
-function _hotelDirections(dest) {
-  const q = encodeURIComponent(dest || '');
-  const apple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent || '');
-  _openExternalUrl(apple ? 'https://maps.apple.com/?daddr=' + q : 'https://www.google.com/maps/dir/?api=1&destination=' + q);
-}
+// Hotel: the same chooser the addresses open, so the Directions button and the
+// address line behave identically. (Was: straight to one maps app.)
+function _hotelDirections(dest, what) { _openMapSheet(null, dest, what); }
 function _dialDirect(digits) { if (digits) { try { window.location.href = 'tel:' + digits; } catch (e) {} } }
 // Dashboard forms → the Crew tab's group manager. Leaving drops the form.
 function _manageGroupsFromForm() {
@@ -37292,6 +37399,7 @@ document.addEventListener('touchend', (e) => {
 Object.assign(window, {
   openMyManagerProfile, _phoneProfileCardHtml, _myManagerRecord, _coManagesTour,
   sendSavedProfile, openSavedProfile, _savedProfileGet, _myTourRecords,
+  _openMapSheet, _mapAct, _closeMapSheet, _addrHTML, _mapsDest, _cityStateZip, _stayDest,
   onbChooseSample, onbChooseCSV, onbChooseScratch, downloadCSVTemplate,
   izAddFiles, izRemoveFile, izStartAnalyze, izApply, izBack,
   resetTour, exportTour, printDay,
