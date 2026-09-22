@@ -5283,6 +5283,9 @@ html body.phone-app .phone .nav {
   font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:800;
   display:flex;align-items:center;justify-content:center;line-height:1;
   box-shadow:0 0 8px rgba(232,69,58,.6)}
+/* …but `display:flex` above outranks the hidden attribute's own display:none,
+   so an empty inbox still painted a red 0. Only [hidden] beats it. */
+.ic-chat .ic-badge[hidden]{display:none}
 
 /* Tools-menu badge — same red unread chip */
 
@@ -6223,7 +6226,7 @@ setTimeout(window._hideAppBoot,6000);
             <button type="button" class="on" data-go="today"><span class="gly">◐</span><span>Today</span></button>
             <button type="button" data-go="schedule"><span class="gly">▦</span><span>Sched</span></button>
             <button type="button" data-go="hotel"><span class="gly"><svg class="bed-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v11m0-4h18m0 4v-8a2 2 0 0 0-2-2h-8v6"/><circle cx="7" cy="10" r="1.15"/></svg></span><span>Hotel</span></button>
-            <button type="button" data-go="guests" aria-label="Day of show"><span class="gly"><svg class="mic-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/><path d="M8.5 21h7"/></svg></span><span>DOS</span></button>
+            <button type="button" data-go="guests" aria-label="Day of show"><span class="gly"><svg class="mic-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/><path d="M8.5 21h7"/></svg></span><span>Show</span></button>
             <button type="button" data-go="more"><span class="gly">⋯</span><span>More</span></button>
           </div>
         </div>
