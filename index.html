@@ -3750,6 +3750,16 @@ body.print-stage-mode #stagePrintArea{
 .phone-date-item.is-next::after{
   content:'COMING UP';color:var(--hi);background:rgba(232,148,58,.1);border:1px solid rgba(232,148,58,.4);
 }
+/* A day already behind you: still there to scroll back to, just not competing
+   with the ones ahead. Greyed rather than faded, so the row stays crisp. The
+   selected date keeps its full colour even when it's in the past — you're
+   looking at it. */
+.phone-date-item.past .pdi-date{color:#8a7a63}
+.phone-date-item.past .pdi-city{color:#9a8f82}
+.phone-date-item.past .pdi-meta{color:#6f665b}
+.phone-date-item.past.current .pdi-date{color:var(--hi)}
+.phone-date-item.past.current .pdi-city{color:var(--warm)}
+.phone-date-item.past.current .pdi-meta{color:var(--warm-mute)}
 .phone-date-item .pdi-date{font-family:'Bricolage Grotesque',monospace;font-size:11.5px;font-weight:700;color:var(--hi)}
 .phone-date-item .pdi-info{min-width:0}
 .phone-date-item .pdi-city{font-weight:700;font-size:13px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -28304,8 +28314,12 @@ function renderPhoneDateMenu() {
       // future (a finished tour's last date gets no chip).
       const isNext = !isToday && !isTomorrow && d.id === tourToday?.id && d.date > _todayIso;
       const chipClass = isToday ? 'is-today' : isTomorrow ? 'is-tomorrow' : isNext ? 'is-next' : '';
+      // Strictly earlier than the device's own day — today's show hasn't passed
+      // just because the load-in has. (The signature above carries _todayIso,
+      // so the menu rebuilds by itself when the day rolls over.)
+      const isPast = d.date < _todayIso;
       return `
-        <div class="phone-date-item ${isCurrent?'current':''} ${chipClass}" onclick="setPhoneViewDate('${d.id}')">
+        <div class="phone-date-item ${isCurrent?'current':''} ${isPast?'past':''} ${chipClass}" onclick="setPhoneViewDate('${d.id}')">
           <div class="pdi-date">${fmtMD(d.date)}</div>
           <div class="pdi-info">
             <div class="pdi-city">${esc(d.city || '—')}${d.state?', '+esc(d.state):''}</div>
