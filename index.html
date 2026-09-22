@@ -11116,6 +11116,68 @@ function _openMapSheet(ev, dest, what) {
   document.body.appendChild(bg);
   return false;
 }
+// Each maps app twice over: the app asked for by its own name, and the website
+// that stands in when it isn't installed. iOS only hands a website's link to
+// its app when the SYSTEM opens the link — inside an in-app browser it shows
+// the site and a "get the app" banner instead, which is where a hotel address
+// used to land. So where the page can reach the system itself we ask for the
+// app by scheme, and keep the website underneath as the safety net.
+// `web` asks for a route and is right wherever the link reaches the maps app —
+// an ordinary browser, or the store app once its shell hands maps links to the
+// system. `page` is for a link that can only land in the app's own in-app
+// browser: a route from "wherever you are" can't be drawn there, because that
+// browser has no location, which is how a hotel became an empty Directions
+// panel over a blank map. The place page instead draws the pin, names the
+// hotel, and carries each service's own button into its app.
+const _MAP_APPS = {
+  apple:  { scheme: q => 'maps://?daddr=' + q + '&dirflg=d',
+            web:    q => 'https://maps.apple.com/?daddr=' + q + '&dirflg=d',
+            page:   q => 'https://maps.apple.com/?q=' + q },
+  google: { scheme: q => 'comgooglemaps://?daddr=' + q + '&directionsmode=driving',
+            web:    q => 'https://www.google.com/maps/dir/?api=1&destination=' + q,
+            page:   q => 'https://www.google.com/maps/search/?api=1&query=' + q },
+  waze:   { scheme: q => 'waze://?q=' + q + '&navigate=yes',
+            web:    q => 'https://waze.com/ul?q=' + q + '&navigate=yes',
+            page:   q => 'https://waze.com/ul?q=' + q + '&navigate=yes' },
+};
+// True while a tap can only reach a web page: the store app's shell opens
+// external links in its own browser, and iOS never hands a link to its app from
+// there. The updated shell announces itself, and this turns itself off.
+function _mapsOpensInAppBrowser() {
+  try {
+    if (window.BANDMATE_MAPS_NATIVE === true) return false;
+    if (typeof _isMacApp === 'function' && _isMacApp()) return false;
+    return _isNativeWrapper();
+  } catch (e) { return false; }
+}
+// Asking by scheme is right in a home-screen web app, where the page talks to
+// the system directly. NOT in the store app — its shell forwards the https link
+// and drops unknown schemes, so probing would only cost a pause. NOT in an
+// ordinary browser tab either, where the https link already opens the app and a
+// dead scheme can raise "cannot open page".
+function _mapsCanTryScheme() {
+  try {
+    if (_isNativeWrapper()) return false;
+    if (navigator.standalone === true) return true;
+    if (window.matchMedia && (window.matchMedia('(display-mode: standalone)').matches
+                           || window.matchMedia('(display-mode: fullscreen)').matches)) return true;
+  } catch (e) {}
+  return false;
+}
+// Ask for the app; if we're still here a moment later, it wasn't listening.
+function _openAppElseWeb(schemeUrl, webUrl) {
+  let gone = false;
+  const leave = () => { gone = true; };
+  const onHide = () => { if (document.hidden) leave(); };
+  document.addEventListener('visibilitychange', onHide);
+  window.addEventListener('pagehide', leave);
+  setTimeout(() => {
+    document.removeEventListener('visibilitychange', onHide);
+    window.removeEventListener('pagehide', leave);
+    if (!gone) _openExternalUrl(webUrl);
+  }, 900);
+  try { window.location.href = schemeUrl; } catch (e) { leave(); _openExternalUrl(webUrl); }
+}
 function _mapAct(kind) {
   const el = document.getElementById('mapSheet'); const dest = el ? el._dest : '';
   _closeMapSheet();
@@ -11124,12 +11186,9 @@ function _mapAct(kind) {
     try { navigator.clipboard.writeText(dest).then(() => { try { toast('Address copied', 'info'); } catch (e) {} }); } catch (e) {}
     return;
   }
-  const q = encodeURIComponent(dest);
-  // Universal links, not custom schemes: they open the installed app and fall
-  // back to that app's website when it isn't installed, so a tap never dead-ends.
-  const url = kind === 'apple' ? 'https://maps.apple.com/?daddr=' + q
-            : kind === 'waze'  ? 'https://waze.com/ul?q=' + q + '&navigate=yes'
-            :                    'https://www.google.com/maps/dir/?api=1&destination=' + q;
+  const app = _MAP_APPS[kind] || _MAP_APPS.google, q = encodeURIComponent(dest);
+  if (_mapsCanTryScheme()) { _openAppElseWeb(app.scheme(q), app.web(q)); return; }
+  const url = _mapsOpensInAppBrowser() ? app.page(q) : app.web(q);
   if (!_openExternalUrl(url)) toast('Could not open a maps app', 'error');
 }
 function _telAct(kind) {
@@ -37399,7 +37458,7 @@ document.addEventListener('touchend', (e) => {
 Object.assign(window, {
   openMyManagerProfile, _phoneProfileCardHtml, _myManagerRecord, _coManagesTour,
   sendSavedProfile, openSavedProfile, _savedProfileGet, _myTourRecords,
-  _openMapSheet, _mapAct, _closeMapSheet, _addrHTML, _mapsDest, _cityStateZip, _stayDest,
+  _openMapSheet, _mapAct, _closeMapSheet, _addrHTML, _mapsDest, _cityStateZip, _stayDest, _mapsCanTryScheme, _mapsOpensInAppBrowser,
   onbChooseSample, onbChooseCSV, onbChooseScratch, downloadCSVTemplate,
   izAddFiles, izRemoveFile, izStartAnalyze, izApply, izBack,
   resetTour, exportTour, printDay,
