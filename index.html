@@ -7890,6 +7890,8 @@ _onTourChange(payload) {
           }
         }, 1200);
       }
+      // Being on the roster IS the invite — join anything waiting.
+      try { await _autoAcceptInvites(); } catch (e) { console.warn('[hydrate] autoAccept', e); }
       return { tours: tourRows.length, dates: (dateRows || []).length };
     } catch (e) {
       this._err('hydrate', e);
@@ -8097,9 +8099,70 @@ function _pendingTourInvites() {
   return Object.values(state.tours).filter(t => {
     if (!t || t.id === '_empty') return false;
     if (t.ownerId === userId) return false;                 // they own it
+    if ((t.managerIds || []).includes(userId)) return false; // they co-manage it — grant_co_manager
+                                                             // rosters them by email but leaves
+                                                             // member_ids alone, which read as an
+                                                             // invite to a tour they already run
     if ((t.memberIds || []).includes(userId)) return false; // already accepted
     return (t.crew || []).some(c => (c.email || '').toLowerCase() === email);
   });
+}
+
+/* ── Joining a tour ──────────────────────────────────────────────────────
+   A manager putting someone on the roster IS the invitation; the tap that
+   used to follow it confirmed nothing they hadn't already decided. Worse, it
+   was invisible: read access matches on email alone, so an invited person
+   signs in and sees the whole tour — schedule, hotels, set list — while the
+   manager's Crew tab still reads PENDING against their name. People told
+   their manager they had joined, honestly, and the roster disagreed.
+   So joining now happens on sign-in. The pending card stays for the case
+   this can't cover: offline, or the call failing. */
+let _autoAcceptBusy = false;
+const _autoAcceptTried = new Set();
+async function _autoAcceptInvites() {
+  if (_autoAcceptBusy || !sb) return 0;
+  const u = (typeof U === 'function') ? U() : null;
+  if (!u || !_isUuid(u.id)) return 0;
+  // The oversight account can read every tour in the system. Joining them all
+  // would write it into every roster on the platform.
+  try { if (typeof _isGodAccount === 'function' && _isGodAccount()) return 0; } catch (e) {}
+  const email = String(u.email || '').toLowerCase();
+  if (!email) return 0;
+  const waiting = _pendingTourInvites().filter(t => _isUuid(t.id) && !_autoAcceptTried.has(t.id));
+  if (!waiting.length) return 0;
+  _autoAcceptBusy = true;
+  const joined = [];
+  try {
+    for (const t of waiting) {
+      _autoAcceptTried.add(t.id);          // one attempt per tour per session, so a
+                                           // refusal can't turn into a loop
+      try {
+        const { error } = await sb.rpc('accept_tour_invite', { p_tour_id: t.id });
+        if (error) { console.warn('[autoAccept]', t.id, error.message || error); continue; }
+      } catch (e) { console.warn('[autoAccept] threw', t.id, e); continue; }
+      // Mirror exactly what the RPC just wrote, rather than re-hydrating from
+      // inside a hydrate.
+      const tour = state.tours[t.id];
+      if (tour) {
+        if (!Array.isArray(tour.memberIds)) tour.memberIds = [];
+        if (!tour.memberIds.includes(u.id)) tour.memberIds.push(u.id);
+        const rec = (tour.crew || []).find(c => String(c.email || '').toLowerCase() === email);
+        if (rec) { rec.userId = u.id; rec.claimed = true; rec.claimedAt = rec.claimedAt || Date.now(); }
+      }
+      joined.push(t);
+    }
+  } finally { _autoAcceptBusy = false; }
+  if (!joined.length) return 0;
+  try { _clearPendingCrewInvite(); } catch (e) {}
+  try { saveState(); } catch (e) {}
+  try { (typeof renderAll === 'function' ? renderAll() : renderPhone()); } catch (e) {}
+  // Say it once, naming the tour when there's only one.
+  try {
+    toast(joined.length === 1
+      ? `You're on ${joined[0].name || 'the tour'}`
+      : `You're on ${joined.length} tours`, 'good');
+  } catch (e) {}
+  return joined.length;
 }
 
 // Accept a pending tour invite: calls the secure accept_tour_invite RPC
@@ -8142,7 +8205,7 @@ function _pendingInvitesHtml() {
   return `
     <div class="ph-pending-card">
       <div class="lbl">PENDING INVITES · ${pending.length}</div>
-      <div class="pi-sub">Tap accept to join — no need to open your email.</div>
+      <div class="pi-sub">We couldn't join you automatically — tap accept.</div>
       ${pending.map(t => {
         const myCrew = (t.crew || []).find(c => (c.email || '').toLowerCase() === email);
         const role = myCrew && myCrew.role ? myCrew.role : '';
@@ -8441,7 +8504,7 @@ const BMIdle = (() => {
   // after label, like the power going — then a beat of dark before the next.
   const PERIOD = 7500, LEAD = 1150, OFF_SPREAD = 420, ON_SPREAD = 2800;
   const KEY = 'bandmate.idle.after', BOARD_KEY = 'bandmate.display.board';
-  const CHOICES = [[0, 'Off'], [15, '15 seconds'], [30, '30 seconds'], [60, '1 minute'], [300, '5 minutes']];
+  const CHOICES = [[0, 'Off'], [45, '45 seconds'], [60, '1 minute'], [300, '5 minutes']];
   const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
   const WD = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
   const DAY_KIND = { show: 'SHOW DAY', off: 'DAY OFF', travel: 'TRAVEL DAY', rehearsal: 'REHEARSAL', press: 'PRESS DAY' };
@@ -8467,10 +8530,12 @@ const BMIdle = (() => {
   const span = n => n >= 60 ? Math.floor(n / 60) + 'H ' + pad(n % 60) + 'M' : n + 'M';
 
   function after() {
-    // 15 seconds is the floor as well as the default: a value saved back when
-    // the choice was 10 is lifted to 15. (0 still means Off.)
-    try { const v = localStorage.getItem(KEY); if (v != null && v !== '' && !isNaN(+v)) return +v <= 0 ? 0 : Math.max(15, +v); } catch (e) {}
-    return 15;
+    // 45 seconds is the floor as well as the default — long enough to read a
+    // day sheet or talk to someone without the screen covering itself. A
+    // shorter value saved when the choices were 10, 15 or 30 is lifted to 45.
+    // (0 still means Off.)
+    try { const v = localStorage.getItem(KEY); if (v != null && v !== '' && !isNaN(+v)) return +v <= 0 ? 0 : Math.max(45, +v); } catch (e) {}
+    return 45;
   }
   function setAfter(sec) { try { localStorage.setItem(KEY, String(Math.max(0, +sec || 0))); } catch (e) {} last = Date.now(); }
   // What the display's running order draws from: the key times plus every
@@ -37457,7 +37522,7 @@ document.addEventListener('touchend', (e) => {
 /* expose handlers used by inline onclick */
 Object.assign(window, {
   openMyManagerProfile, _phoneProfileCardHtml, _myManagerRecord, _coManagesTour,
-  sendSavedProfile, openSavedProfile, _savedProfileGet, _myTourRecords,
+  sendSavedProfile, openSavedProfile, _savedProfileGet, _myTourRecords, _autoAcceptInvites,
   _openMapSheet, _mapAct, _closeMapSheet, _addrHTML, _mapsDest, _cityStateZip, _stayDest, _mapsCanTryScheme, _mapsOpensInAppBrowser,
   onbChooseSample, onbChooseCSV, onbChooseScratch, downloadCSVTemplate,
   izAddFiles, izRemoveFile, izStartAnalyze, izApply, izBack,
