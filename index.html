@@ -20902,9 +20902,16 @@ function _histCurrent(row, tour) {
   }
   const d = (tour.dates || []).find(x => x.id === row.row_id);
   if (!d) return null;                       // the date was deleted since
+  // hotel/hotels are built with dateToRow's own expressions, so the live side
+  // is the same SHAPE the trigger stored. Anything else reads as a change the
+  // moment a stay carries a key the legacy mirror object doesn't.
   return { date: d.date, city: d.city, venue: d.venue, status: d.status,
            schedule: d.schedule || [], travel: d.travel || [], guests: d.guests || [],
-           set_list: d.setList || [], hotel: (d.hotels && d.hotels[0]) || d.hotel || null,
+           set_list: d.setList || [],
+           hotel: (d.hotels && d.hotels.length) ? _legacyHotelObj(d.hotels[0])
+                    : (d.hotel ? _legacyHotelObj(_normStay(d.hotel, d.date)) : null),
+           hotels: (d.hotels && d.hotels.length) ? d.hotels
+                    : (d.hotel ? [_normStay(d.hotel, d.date)] : null),
            settlement: d.settlement || {}, advance: d.advance || {},
            allotments: d.allotments || {}, day_notes: d.dayNotes || '' };
 }
@@ -20922,10 +20929,15 @@ function _historyEntries(rows, tour) {
       if (!after) return;                    // nothing to compare against
       const fields = [];
       Object.keys(_HIST_FIELDS).forEach(f => {
-        if (!(f in before) && !(f in after)) return;
+        // Absent from either side means that snapshot predates the field, so
+        // there is nothing to compare — not a change from nothing to something.
+        if (!(f in before) || !(f in after)) return;
         if (_histSame(before[f], after[f])) return;
         fields.push(f);
       });
+      // `hotel` is a legacy mirror of the first stay in `hotels`. When both
+      // moved that is one edit, reported once.
+      if (fields.includes('hotels')) { const k = fields.indexOf('hotel'); if (k > -1) fields.splice(k, 1); }
       if (!fields.length) return;            // a write that changed nothing visible
       const d = r.table_name === 'dates'
         ? ((tour.dates || []).find(x => x.id === r.row_id) || { date: before.date, city: before.city })
