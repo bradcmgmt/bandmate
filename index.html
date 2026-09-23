@@ -2806,6 +2806,15 @@ html.mac-app .login-signup-link{display:none}
 .iz-gap:last-child{border-bottom:none}
 .iz-gap:hover{background:rgba(232,148,58,.08);box-shadow:inset 0 0 0 1px rgba(232,148,58,.25)}
 .iz-gap[onclick]:hover{background:rgba(232,148,58,.12);cursor:pointer}
+/* "This one doesn't apply to us." Quiet until the row is under the cursor —
+   waiving a gap should never be easier than fixing it. */
+.gap-waive{flex:none;align-self:center;padding:3px 9px;background:none;border:1px solid var(--line-2);border-radius:5px;
+  color:var(--warm-mute);font-family:'Bricolage Grotesque',monospace;font-size:9px;font-weight:700;letter-spacing:.14em;
+  text-transform:uppercase;cursor:pointer;opacity:.55;transition:opacity .12s ease,color .12s ease,border-color .12s ease}
+.iz-gap:hover .gap-waive,.gap-waive:hover{opacity:1}
+.gap-waive:hover{color:var(--warm);border-color:var(--hi)}
+.gap-waive-no{flex:none;align-self:center;font-family:'Bricolage Grotesque',monospace;font-size:9px;font-weight:700;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--hi);opacity:.7}
 .iz-gap.tw:hover{background:rgba(249,115,22,.10);box-shadow:inset 0 0 0 1px rgba(249,115,22,.3)}
 .iz-gap.muted{color:var(--warm-mute);font-style:italic}
 .iz-gap .gtag{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--red);background:rgba(232,69,69,.08);padding:3px 7px;border-radius:4px;border:1px solid rgba(232,69,69,.25);flex:none}
@@ -6447,6 +6456,9 @@ const dbMap = {
       // How the tour moves (patch-050): bus / van / fly, drive ceiling, hotel
       // radius, chains, budget. Routing drafts every hop from it.
       travel_profile: (t.meta && t.meta.travelProfile) || {},
+      // Gaps the TM has marked "not needed" (patch-053). Tour-wide, because
+      // the decision belongs to the tour, not to the browser that made it.
+      gap_overrides: t.gapOverrides || {},
       artist_logo: t.artistLogo || null,
     };
   },
@@ -6484,6 +6496,7 @@ const dbMap = {
       ownerEmail: row.owner_email || '',
       memberIds: row.member_ids || [],
       managerIds: row.manager_ids || [],
+      gapOverrides: row.gap_overrides || {},
     };
   },
   dateToRow(tourId, d, position) {
@@ -8614,7 +8627,7 @@ const BMIdle = (() => {
   function boardItems(d) {
     const items = [];
     if (boardOpt() === 'schedule') (d.schedule || []).forEach(s => {
-      if (!s || s.allDay || !s.what) return;
+      if (!s || s.allDay || !s.what || s.pending) return;   // a placeholder is not a running order
       const t = mins(s.time); if (t == null) return;
       // Only what the whole tour can see. Anything limited to a group or to
       // named people stays off a screen the whole room can read.
@@ -10963,6 +10976,13 @@ function openScheduleModal(itemId) {
           </div>
         </div>
         <div class="field full"><label>What *</label><input id="s_what" value="${esc(i.what)}" placeholder="e.g. Soundcheck, Lobby call, Doors"></div>
+        <div class="field full">
+          <label>Status</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <button type="button" id="s_pending_btn" class="allday-btn ${i.pending ? 'on' : ''}" onclick="_schedTogglePending()" title="A pending item is a placeholder. It stays on your dashboard and off the band and crew's phones until you make it live.">PENDING</button>
+            <span class="muted mono" id="s_pending_note" style="font-size:10.5px;letter-spacing:.04em">${i.pending ? 'Placeholder \u2014 hidden from band and crew, and this date counts as incomplete.' : 'Live \u2014 everyone assigned to it can see this item.'}</span>
+          </div>
+        </div>
         <div class="field full"><div class="lbl-row"><label>Visible to groups <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span></label><button type="button" class="ember-mini" onclick="_manageGroupsFromForm()">Manage groups</button></div>
           ${renderGroupPicker('s_grp', i.groups && i.groups.length ? i.groups : ['All'], true)}
         </div>
@@ -11008,7 +11028,10 @@ function openScheduleModal(itemId) {
       // see all "this show's wrap-up" items together; rendering logic
       // (dashboard + crew mobile) merges them onto the appropriate day.
       const nextDay = document.getElementById('s_nextday_btn')?.classList.contains('on') || false;
-      const baseData = { time, endTime, allDay, what, notes: $('#s_notes').value.trim(), groups, individuals, nextDay };
+      // pending: a placeholder the TM hasn't committed to. Default is live —
+      // an item is only pending if it was deliberately toggled.
+      const pending = document.getElementById('s_pending_btn')?.classList.contains('on') || false;
+      const baseData = { time, endTime, allDay, what, notes: $('#s_notes').value.trim(), groups, individuals, nextDay, pending };
       // Resolve the date and the item as they are NOW, not as they were when
       // this form opened — a refresh in between can have replaced them.
       const live = _liveDate(ad.id) || ad;
@@ -12455,6 +12478,50 @@ function _whoBlockHTML(item, paxLabel, namesOnly) {
 // pickers. Disables/clears BOTH start (s_time) and end (s_end)
 // pickers so an all-day item can't accidentally retain a stale
 // end time after the toggle.
+function _schedTogglePending() {
+  const btn = document.getElementById('s_pending_btn');
+  if (!btn) return;
+  btn.classList.toggle('on');
+  const note = document.getElementById('s_pending_note');
+  if (note) note.textContent = btn.classList.contains('on')
+    ? 'Placeholder — hidden from band and crew, and this date counts as incomplete.'
+    : 'Live — everyone assigned to it can see this item.';
+}
+
+/* ── Marking a gap "not needed" ──────────────────────────────────────── */
+// dateId is null for a tour-wide gap. The reason is optional but worth
+// asking for: in three weeks nobody remembers why a date was waved through.
+function markGapNotNeeded(dateId, label) {
+  const tour = T();
+  if (!tour || !label) return;
+  if (!_gapIsOverridable(label)) {
+    toast('Pending items can’t be waived — make them live, or delete them', 'error');
+    return;
+  }
+  const where = dateId ? (() => { const d = (tour.dates || []).find(x => x.id === dateId); return d ? ` on ${fmtMD(d.date)}` : ''; })() : ' for this tour';
+  const note = prompt(`Mark "${label}"${where} as not needed?\n\nOptional — why? (e.g. "Sage is staying in Denver, no flight")`, '');
+  if (note === null) return;                       // cancelled
+  const u = U();
+  _gapOverrides(tour)[_gapOverrideId(dateId, label)] = {
+    at: Date.now(),
+    by: (u && (u.name || u.email)) || '',
+    note: String(note || '').trim(),
+    label: String(label),
+    dateId: dateId || null,
+  };
+  saveState();
+  toast('Marked not needed', 'good');
+  try { closeModal(); openTourScan(); } catch (e) { try { renderAll(); } catch (_) {} }
+}
+function undoGapOverride(key) {
+  const tour = T();
+  if (!tour || !key) return;
+  delete _gapOverrides(tour)[key];
+  saveState();
+  toast('Gap restored', 'good');
+  try { closeModal(); openTourScan(); } catch (e) { try { renderAll(); } catch (_) {} }
+}
+
 function _schedToggleAllDay() {
   _toggleTime12AllDay('s_allday_btn', 's_time');
   // Mirror the state onto the end-time picker without flipping its
@@ -16778,7 +16845,7 @@ function renderDashboard() {
         <div class="bm-sched-row">
           <div class="time">${s.allDay ? 'ALL DAY' : esc(_scheduleTimeDisplay(s, ad))}</div>
           <div>
-            <div class="what">${esc(s.what)}</div>
+            <div class="what">${esc(s.what)}${s.pending ? `<span class="who" style="color:var(--hi);margin-left:6px" title="Hidden from band and crew until you make it live">PENDING</span>` : ''}</div>
             ${(() => { const a = _scheduleAudience(s); return a.text ? `<div class="who">${esc(a.text)}</div>` : ''; })()}
           </div>
         </div>
@@ -17411,10 +17478,14 @@ function renderSchedule() {
           const carryoverBadge = s._carryover
             ? `<span class="who" style="color:#fdba74;font-size:10px;letter-spacing:.16em;margin-left:6px">← PREV DAY</span>`
             : '';
+          // Only the TM sees this row at all, so the marker can be plain.
+          const pendingBadge = s.pending
+            ? `<span class="who" style="color:var(--hi);font-size:10px;letter-spacing:.16em;margin-left:6px" title="Hidden from band and crew until you make it live">PENDING</span>`
+            : '';
           return `
           <div class="item-row" style="grid-template-columns:minmax(110px,140px) minmax(160px,1fr) minmax(140px,220px) auto;align-items:flex-start">
             <span class="t" style="padding-top:8px">${esc(_scheduleTimeDisplay(s, ad))}</span>
-            <span class="what" style="padding-top:6px;min-width:0">${esc(s.what)}${travelBadge}${nextDayBadge}${carryoverBadge}${s.notes ? `<span class="note">${esc(s.notes)}</span>` : ''}${isTravel ? '' : _whoBlockHTML(s, 'Who', true)}</span>
+            <span class="what" style="padding-top:6px;min-width:0">${esc(s.what)}${travelBadge}${nextDayBadge}${carryoverBadge}${pendingBadge}${s.notes ? `<span class="note">${esc(s.notes)}</span>` : ''}${isTravel ? '' : _whoBlockHTML(s, 'Who', true)}</span>
             ${isTravel
               ? (_whoBlockHTML(s._travelRef, s._travelType === 'flight' ? 'Passengers' : 'Who')
                   || (s._audienceNeeded ? `<div class="travel-share"><span class="viz-chip warn-chip" title="Needs audience — pick who's on this in Travel">! NEEDS AUDIENCE</span></div>` : `<div class="travel-share muted-share">Visible to all</div>`))
@@ -25291,7 +25362,7 @@ function mergeImportResults(results) {
   return merged;
 }
 
-function calcDateGaps(d) {
+function calcDateGaps(d, tour) {
   const missing = [];
   let status = (d.status || 'show').toLowerCase();
   // Defensive: if city/venue is the literal string "OFF" (legacy data, pre-migration),
@@ -25307,11 +25378,11 @@ function calcDateGaps(d) {
   // either-or pair, same treatment the live gap analysis uses.
   if (status === 'off') {
     if (!hasHotel && !hasTravel) missing.push('hotel or travel');
-    return missing;
+    return _applyGapRules(d, missing, tour);
   }
   if (!d.city || cityU === 'OFF') missing.push('city');
   // Travel days need a destination city but not show-day fields
-  if (status === 'travel') return missing;
+  if (status === 'travel') return _applyGapRules(d, missing, tour);
   // Show / press days
   if (!d.venue) missing.push('venue');
   // capacity is optional — not a gap
@@ -25321,7 +25392,7 @@ function calcDateGaps(d) {
   // sleeping in town (hotel) or rolling out overnight (travel).
   if (!hasHotel && !hasTravel) missing.push('hotel or travel');
   // promoter is optional — never flagged as a gap
-  return missing;
+  return _applyGapRules(d, missing, tour);
 }
 
 function calcGapSummary(merged) {
@@ -27281,6 +27352,10 @@ function _viewerHasMgmtAccess(viewer) {
 
 function isItemVisibleToViewer(item, viewer, isTM) {
   if (isTM) return true;
+  // A pending item is the TM thinking out loud — a hold, a maybe, a time
+  // they haven't confirmed. The band and crew only ever see it once it's
+  // made live, so nobody plans a day around a placeholder.
+  if (item && item.pending) return false;
   // Imported flights start with no audience and an _audienceNeeded
   // flag. Until the TM picks who's actually on the flight, the row
   // stays hidden from crew so we don't broadcast a placeholder to
@@ -34567,7 +34642,50 @@ function _fleshOutSampleTour(tour) {
    TOUR SCAN — gap analysis, available from Dashboard at any time
    ===================================================================== */
 
-function calcLiveDateGaps(d) {
+/* ── Gaps the tour manager has answered by hand ──────────────────────────
+   The scan is a checklist, not a rulebook. A crew member with no flight
+   because they're staying in the city isn't a hole in the tour, and neither
+   is a night where everyone sleeps at home. Marking a gap "not needed"
+   files that answer against the tour so it stops being asked.
+
+   The key is the KIND of gap, never its wording: "2 flights need a passenger
+   list" becomes flight-audience, so the override survives the count changing
+   underneath it. */
+function _gapKey(label) {
+  return String(label || '')
+    .toLowerCase()
+    .split('·')[0]                 // drop the detail after the separator
+    .replace(/[0-9]+/g, ' ')       // and any count inside it
+    .replace(/[^a-z ]/g, ' ')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/s$/, '');            // "1 pending schedule item" and "4 …items"
+                                   // are the same gap; so are 1 and 3 flights
+}
+// A placeholder is the one thing you can't wave through — the whole point of
+// marking an item pending is that the date is not finished.
+function _gapIsOverridable(label) { return _gapKey(label) !== 'pending-schedule-item'; }
+function _gapOverrideId(dateId, label) { return (dateId || 'tour') + '|' + _gapKey(label); }
+function _gapOverrides(tour) {
+  tour = tour || T();
+  if (!tour) return {};
+  if (!tour.gapOverrides || typeof tour.gapOverrides !== 'object') tour.gapOverrides = {};
+  return tour.gapOverrides;
+}
+function _isGapOverridden(tour, dateId, label) {
+  return !!_gapOverrides(tour)[_gapOverrideId(dateId, label)];
+}
+// Every gap list in the app ends here, so placeholders and overrides behave
+// the same whether you're looking at a day pill, a date form or the scan.
+function _applyGapRules(d, missing, tour) {
+  const pending = (d && d.schedule || []).filter(x => x && x.pending).length;
+  if (pending) missing.push(`${pending} pending schedule item${pending === 1 ? '' : 's'}`);
+  const ov = _gapOverrides(tour);
+  if (!Object.keys(ov).length) return missing;
+  return missing.filter(m => !ov[_gapOverrideId(d && d.id, m)]);
+}
+
+function calcLiveDateGaps(d, tour) {
   const missing = [];
   let status = (d.status || 'show').toLowerCase();
   // Defensive: if city/venue is the literal string "OFF" (legacy data, pre-migration),
@@ -34582,12 +34700,12 @@ function calcLiveDateGaps(d) {
     const hasHotel = _dateHasHotel(d);
     const hasTravel = !!(d.travel && d.travel.length);
     if (!hasHotel && !hasTravel && !d.noHotel && !d.noTravel) missing.push('hotel or travel');
-    return missing;
+    return _applyGapRules(d, missing, tour);
   }
   if (!d.city || cityU === 'OFF') missing.push('city');
   if (status === 'travel') {
     if (!d.travel || !d.travel.length) missing.push('travel items');
-    return missing;
+    return _applyGapRules(d, missing, tour);
   }
   // Rehearsal days: like a show day but without the audience-side
   // requirements. Required: city + venue (rehearsal location) + schedule
@@ -34599,7 +34717,7 @@ function calcLiveDateGaps(d) {
     const hasTravel = !!(d.travel && d.travel.length);
     if (!hasHotel && !hasTravel && !d.noHotel && !d.noTravel) missing.push('hotel or travel');
     if (!d.schedule || !d.schedule.length) missing.push('schedule');
-    return missing;
+    return _applyGapRules(d, missing, tour);
   }
   // Show / press days require the full kit.
   // NOTE: doors and set time used to be checked here separately, but the
@@ -34640,7 +34758,7 @@ function calcLiveDateGaps(d) {
   if (flightsNeedingAudience.length) {
     missing.push(`flight audience · ${flightsNeedingAudience.length} flight${flightsNeedingAudience.length===1?'':'s'} need${flightsNeedingAudience.length===1?'s':''} a passenger list`);
   }
-  return missing;
+  return _applyGapRules(d, missing, tour);
 }
 
 // Field-to-tab map: lets us mark which tabs have outstanding gaps,
@@ -34673,10 +34791,29 @@ function scanTour(tour) {
     incompleteDates: [],
     globalGaps: [],
     completeGlobal: [],
+    overridden: [],
+    pendingItems: [],
   };
 
+  // Everything the TM has waved through, so it's listed rather than simply
+  // absent — an override you can't see is an override you can't undo.
+  const _ov = _gapOverrides(tour);
+  Object.keys(_ov).forEach(key => {
+    const o = _ov[key] || {};
+    const d = o.dateId ? (tour.dates || []).find(x => x.id === o.dateId) : null;
+    scan.overridden.push({ key, label: o.label || key.split('|')[1] || 'gap', note: o.note || '', by: o.by || '', at: o.at || 0, date: d });
+  });
+  scan.overridden.sort((a, b) => (b.at || 0) - (a.at || 0));
+
+  // Placeholders, called out on their own: they're the one gap you clear by
+  // making a decision rather than by typing something in.
+  (tour.dates || []).forEach(d => {
+    const items = (d.schedule || []).filter(x => x && x.pending);
+    if (items.length) scan.pendingItems.push({ date: d, items });
+  });
+
   dates.forEach(d => {
-    const missing = calcLiveDateGaps(d);
+    const missing = calcLiveDateGaps(d, tour);
     if (missing.length === 0) scan.completeDates.push(d);
     else scan.incompleteDates.push({ date: d, missing });
   });
@@ -35385,7 +35522,7 @@ function _renderPushNotificationsModal() {
               <div class="pn-section-lbl">WHEN</div>
               <select class="pn-select" id="pn_when" onchange="_pnDraft.when=this.value">
                 <option value="now" ${_pnDraft.when === 'now' ? 'selected' : ''}>Send now</option>
-                ${(ad?.schedule || []).map(s => {
+                ${(ad?.schedule || []).filter(s => !s || !s.pending).map(s => {
                   const v = `before:${s.id}:30`;
                   return `<option value="${v}" ${_pnDraft.when === v ? 'selected' : ''}>30 min before ${esc(s.what || s.time)}</option>`;
                 }).join('')}
@@ -35747,7 +35884,9 @@ async function downloadDaySheetPDF() {
   ` : '<div class="b-empty">No venue set</div>';
 
   // Schedule rows · alternating background, time on the right
-  const sched = (ad.schedule || []).slice().sort((a, b) => {
+  // A day sheet is a crew document, so placeholders stay off it — the same
+  // rule their phones follow.
+  const sched = (ad.schedule || []).filter(s => s && !s.pending).slice().sort((a, b) => {
     if (a.allDay && !b.allDay) return -1;
     if (b.allDay && !a.allDay) return 1;
     return (a.time || '').localeCompare(b.time || '');
@@ -36139,32 +36278,65 @@ function openTourScan() {
             const tab = _scanGlobalGapToTab(g.what);
             const clickable = !!tab;
             return `
-              <div class="iz-gap tw" ${clickable ? `style="cursor:pointer" onclick="_scanGoTo(null,'${tab}')"` : ''}>
+              <div class="iz-gap tw">
                 <span class="gtag tw">tour-wide</span>
-                <span><b style="color:#fdba74">${esc(g.what)}.</b> <span class="muted" style="font-size:11.5px">${esc(g.fix)}</span></span>
+                <span style="flex:1;min-width:0${clickable ? ';cursor:pointer' : ''}" ${clickable ? `onclick="_scanGoTo(null,'${tab}')"` : ''}><b style="color:#fdba74">${esc(g.what)}.</b> <span class="muted" style="font-size:11.5px">${esc(g.fix)}</span></span>
+                <button type="button" class="gap-waive" onclick="event.stopPropagation();markGapNotNeeded(null, ${JSON.stringify(g.what).replace(/"/g, '&quot;')})">Not needed</button>
               </div>
             `;
           }).join('')}
-          ${scan.incompleteDates.map(({date, missing}) => {
-            // Pick the most relevant tab to jump to based on what's
-            // missing first. The TM can then navigate from that tab
-            // rather than getting stuck in the field-by-field date
-            // modal — the dashboard view shows the whole day at once
-            // and is faster for fixing multiple things.
-            const tab = _scanGapToTab(missing);
+          ${scan.incompleteDates.map(({date, missing}) => missing.map(m => {
+            // One row per gap, so each can be fixed or waived on its own.
+            // The row still jumps to the tab that fixes it; the button on the
+            // right says "this one doesn't apply to us" instead.
+            const tab = _scanGapToTab([m]);
+            const waivable = _gapIsOverridable(m);
             return `
-              <div class="iz-gap" style="cursor:pointer" onclick="_scanGoTo('${date.id}','${tab}')">
+              <div class="iz-gap">
                 <span class="gtag">${esc((date.city || 'date').slice(0,18))}</span>
-                <span>${esc(fmtMD(date.date) || '?')} <span class="muted">— needs:</span> ${esc(missing.join(', '))}</span>
+                <span style="flex:1;min-width:0;cursor:pointer" onclick="_scanGoTo('${date.id}','${tab}')">${esc(fmtMD(date.date) || '?')} <span class="muted">— needs:</span> ${esc(m)}</span>
+                ${waivable
+                  ? `<button type="button" class="gap-waive" onclick="event.stopPropagation();markGapNotNeeded('${date.id}', ${JSON.stringify(m).replace(/"/g, '&quot;')})">Not needed</button>`
+                  : `<span class="gap-waive-no" title="Make the item live, or delete it">placeholder</span>`}
               </div>
             `;
-          }).join('')}
+          }).join('')).join('')}
         </div>
       ` : `
         <div class="iz-tip" style="margin-top:18px;background:rgba(109,207,139,.08);border:1px solid rgba(109,207,139,.4);color:var(--good)">
           <b>✓ Tour fully populated</b> — every date has all required fields filled in. Nothing flagged for manual entry.
         </div>
       `}
+
+      ${scan.pendingItems.length > 0 ? `
+        <div class="iz-gaps" style="margin-top:18px">
+          <h4 style="color:var(--hi)">◷ PENDING — PLACEHOLDERS NOT YET LIVE · ${scan.pendingItems.reduce((n, x) => n + x.items.length, 0)} item${scan.pendingItems.reduce((n, x) => n + x.items.length, 0) === 1 ? '' : 's'}</h4>
+          <div class="iz-tip" style="margin:0 0 10px">These sit on your dashboard only. The band and crew can't see them on their phones, and they keep their date marked incomplete until you open the item and switch <b>PENDING</b> off.</div>
+          ${scan.pendingItems.map(({date, items}) => items.map(it => `
+            <div class="iz-gap" style="cursor:pointer" onclick="_scanGoTo('${date.id}','schedule')">
+              <span class="gtag">${esc((date.city || 'date').slice(0,18))}</span>
+              <span style="flex:1;min-width:0">${esc(fmtMD(date.date) || '?')} <span class="muted">—</span> ${esc(it.what || 'Untitled item')} <span class="muted">${esc(it.allDay ? 'all day' : (it.time || ''))}</span></span>
+              <span class="gap-waive-no">pending</span>
+            </div>
+          `).join('')).join('')}
+        </div>
+      ` : ''}
+
+      ${scan.overridden.length > 0 ? `
+        <div style="margin-top:18px;padding:12px 14px;background:rgba(160,136,104,.05);border:1px solid var(--line-2);border-radius:10px">
+          <h4 style="margin:0 0 4px;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm-mute);font-weight:700">Marked not needed · ${scan.overridden.length}</h4>
+          <div class="muted" style="font-size:11.5px;margin-bottom:8px">These aren't counted as gaps. Undo any of them to put it back on the list.</div>
+          ${scan.overridden.map(o => `
+            <div style="display:flex;align-items:baseline;gap:10px;padding:6px 0;border-top:1px solid var(--line)">
+              <span style="flex:1;min-width:0;font-size:12.5px;color:var(--warm)">
+                ${o.date ? `<span class="mono muted" style="font-size:10.5px;margin-right:6px">${esc(fmtMD(o.date.date))}${o.date.city ? ' · ' + esc(o.date.city) : ''}</span>` : '<span class="mono muted" style="font-size:10.5px;margin-right:6px">TOUR-WIDE</span>'}${esc(o.label)}
+                ${o.note ? `<span class="muted" style="display:block;font-size:11.5px;margin-top:2px">${esc(o.note)}${o.by ? ' — ' + esc(o.by) : ''}</span>` : (o.by ? `<span class="muted" style="display:block;font-size:11.5px;margin-top:2px">${esc(o.by)}</span>` : '')}
+              </span>
+              <button type="button" class="gap-waive" onclick="undoGapOverride(${JSON.stringify(o.key).replace(/"/g, '&quot;')})">Undo</button>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
 
       ${scan.completeDates.length > 0 ? `
         <div style="margin-top:22px">
@@ -37540,6 +37712,7 @@ document.addEventListener('touchend', (e) => {
 Object.assign(window, {
   openMyManagerProfile, _phoneProfileCardHtml, _myManagerRecord, _coManagesTour,
   sendSavedProfile, openSavedProfile, _savedProfileGet, _myTourRecords, _autoAcceptInvites,
+  _schedTogglePending, markGapNotNeeded, undoGapOverride, _gapKey, _gapOverrides, _gapIsOverridable,
   _openMapSheet, _mapAct, _closeMapSheet, _addrHTML, _mapsDest, _cityStateZip, _stayDest, _mapsCanTryScheme, _mapsOpensInAppBrowser,
   onbChooseSample, onbChooseCSV, onbChooseScratch, downloadCSVTemplate,
   izAddFiles, izRemoveFile, izStartAnalyze, izApply, izBack,
