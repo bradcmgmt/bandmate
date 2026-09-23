@@ -1499,27 +1499,25 @@ body.mobile .god-search{min-width:0;width:100%}
 /* LIVE / PENDING. Live is the quiet default; a held item reads in ember,
    because a placeholder on a run of show is worth noticing. */
 /* Confirmed / Pending is a STATE, so it stops looking like a second Edit
-   button sitting next to the first one: no box, a lit dot, and the word in
-   sentence case. Confirmed is quiet — most rows are — so a glance down the
-   list only turns up the ones still on hold. */
+   button sitting next to the first one: no box, a dot, and the word.
+   It reads like a lamp — lit means confirmed and on the crew's phones,
+   unlit means it hasn't happened yet. A pending row goes dim with it, so
+   scanning the day, the holds are the gaps in the light. */
 .tbl-actions .sched-state,.sched-state{display:inline-flex;align-items:center;gap:7px;padding:5px 8px;border:0;border-radius:6px;
   background:none;cursor:pointer;transition:background .12s ease,color .12s ease}
 .tbl-actions .sched-state:hover{border-color:transparent;background:rgba(232,148,58,.08)}
-.sched-state .ss-dot{width:7px;height:7px;border-radius:50%;flex:none;background:#463d33;
-  box-shadow:inset 0 0 0 1px rgba(255,220,170,.12)}
+.sched-state .ss-dot{width:7px;height:7px;border-radius:50%;flex:none;
+  background:var(--hi);box-shadow:0 0 9px rgba(232,148,58,.85)}
 .sched-state .ss-lbl{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:700;
-  letter-spacing:.16em;text-transform:uppercase;color:#8a8076}
+  letter-spacing:.16em;text-transform:uppercase;color:var(--hi)}
 .sched-state:hover{background:rgba(232,148,58,.08)}
-.sched-state:hover .ss-lbl{color:var(--warm)}
-.sched-state.pending .ss-dot{background:var(--hi);box-shadow:0 0 9px rgba(232,148,58,.85);
-  animation:schedHold 2.2s ease-in-out infinite}
-.sched-state.pending .ss-lbl{color:var(--hi)}
-.sched-state.pending:hover .ss-lbl{color:var(--hi-bright)}
-@keyframes schedHold{0%,100%{opacity:1}50%{opacity:.45}}
-@media (prefers-reduced-motion:reduce){.sched-state.pending .ss-dot{animation:none}}
-/* the whole row carries it, so the exceptions stand out while scanning */
-.item-row.is-pending{background:rgba(232,148,58,.05)}
-.item-row.is-pending .t,.item-row.is-pending .what{opacity:.82}
+.sched-state:hover .ss-lbl{color:var(--hi-bright)}
+/* not yet confirmed: the lamp is off */
+.sched-state.pending .ss-dot{background:#443c33;box-shadow:inset 0 0 0 1px rgba(255,220,170,.1)}
+.sched-state.pending .ss-lbl{color:#877d73}
+.sched-state.pending:hover .ss-lbl{color:var(--warm)}
+/* and the row sits back until it is */
+.item-row.is-pending .t,.item-row.is-pending .what{opacity:.6}
 
 /* schedule columns */
 .sch-row{grid-template-columns:90px 1fr 1.2fr 1fr 110px}
