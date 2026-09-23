@@ -718,6 +718,12 @@ input,select,textarea{font:inherit;color:inherit;
   border:1px solid var(--line-2);border-radius:14px;overflow:hidden;position:relative;
   box-shadow:inset 0 1px 0 rgba(232,148,58,.06),0 0 0 1px rgba(232,148,58,.04),0 1px 0 rgba(255,200,140,.04),0 12px 32px rgba(0,0,0,.55);
 }
+/* The frame was only ever as tall as the open tab needed, so on a tall window
+   its bottom edge landed somewhere in the middle of the screen — and jumped
+   a few hundred pixels every time you switched tabs, with the page's dotted
+   background showing through below it. Reaching the bottom of the window
+   holds it still; a tab with more content than that still grows past it. */
+@media (min-width:901px){ .console{min-height:calc(100vh - 240px)} }
 .console::before{content:"";position:absolute;inset:0;border-radius:14px;pointer-events:none;
   background:radial-gradient(800px 200px at 50% -50%,rgba(232,148,58,.1),transparent 60%)}
 .console > *{position:relative;z-index:1}
@@ -1492,13 +1498,28 @@ body.mobile .god-search{min-width:0;width:100%}
 .tbl-actions-mid{align-self:center;gap:6px}
 /* LIVE / PENDING. Live is the quiet default; a held item reads in ember,
    because a placeholder on a run of show is worth noticing. */
-.sched-pending{padding:5px 9px;border:1px solid var(--line-2);border-radius:5px;background:rgba(232,148,58,.04);
-  color:var(--warm-mute);font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:700;letter-spacing:.16em;
-  cursor:pointer;transition:color .12s ease,border-color .12s ease,background .12s ease}
-.sched-pending:hover{color:var(--warm);border-color:var(--warm-mute)}
-.sched-pending.on{color:var(--hi);border-color:rgba(232,148,58,.55);background:rgba(232,148,58,.12);
-  box-shadow:0 0 10px rgba(232,148,58,.18)}
-.sched-pending.on:hover{color:var(--hi-bright);border-color:var(--hi)}
+/* Confirmed / Pending is a STATE, so it stops looking like a second Edit
+   button sitting next to the first one: no box, a lit dot, and the word in
+   sentence case. Confirmed is quiet — most rows are — so a glance down the
+   list only turns up the ones still on hold. */
+.tbl-actions .sched-state,.sched-state{display:inline-flex;align-items:center;gap:7px;padding:5px 8px;border:0;border-radius:6px;
+  background:none;cursor:pointer;transition:background .12s ease,color .12s ease}
+.tbl-actions .sched-state:hover{border-color:transparent;background:rgba(232,148,58,.08)}
+.sched-state .ss-dot{width:7px;height:7px;border-radius:50%;flex:none;background:#463d33;
+  box-shadow:inset 0 0 0 1px rgba(255,220,170,.12)}
+.sched-state .ss-lbl{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:700;
+  letter-spacing:.16em;text-transform:uppercase;color:#8a8076}
+.sched-state:hover{background:rgba(232,148,58,.08)}
+.sched-state:hover .ss-lbl{color:var(--warm)}
+.sched-state.pending .ss-dot{background:var(--hi);box-shadow:0 0 9px rgba(232,148,58,.85);
+  animation:schedHold 2.2s ease-in-out infinite}
+.sched-state.pending .ss-lbl{color:var(--hi)}
+.sched-state.pending:hover .ss-lbl{color:var(--hi-bright)}
+@keyframes schedHold{0%,100%{opacity:1}50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.sched-state.pending .ss-dot{animation:none}}
+/* the whole row carries it, so the exceptions stand out while scanning */
+.item-row.is-pending{background:rgba(232,148,58,.05)}
+.item-row.is-pending .t,.item-row.is-pending .what{opacity:.82}
 
 /* schedule columns */
 .sch-row{grid-template-columns:90px 1fr 1.2fr 1fr 110px}
@@ -2421,10 +2442,12 @@ body.inline-modal .panel{display:none!important}
    empty dark field to the left of Cancel / Save — the same thing that made the
    tour-scan toolbar look off. A hairline is enough to separate it. */
 .modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:16px 20px;border-top:1px solid var(--line)}
-.modal-foot .btn{padding:9px 16px;border:1px solid var(--line-2);border-radius:7px;background:rgba(232,148,58,.04);color:var(--warm-mute);
-  font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase}
-.modal-foot .btn:hover{color:var(--warm);border-color:var(--line-glow)}
-.modal-foot .btn.primary{background:linear-gradient(135deg,var(--hi),var(--hi-2));color:#0a0705;border-color:var(--hi);font-weight:700;
+/* The notification composer's footer sits outside .modal-foot, so its Cancel
+   and Send were getting none of this and rendered as bare browser buttons. */
+.modal-foot .btn,.pn-actions .btn{padding:9px 16px;border:1px solid var(--line-2);border-radius:7px;background:rgba(232,148,58,.04);color:var(--warm-mute);
+  font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;cursor:pointer}
+.modal-foot .btn:hover,.pn-actions .btn:hover{color:var(--warm);border-color:var(--line-glow)}
+.modal-foot .btn.primary,.pn-actions .btn.primary{background:linear-gradient(135deg,var(--hi),var(--hi-2));color:#0a0705;border-color:var(--hi);font-weight:700;
   box-shadow:0 0 16px rgba(232,148,58,.3)}
 .modal-foot .btn.danger{color:var(--red);border-color:rgba(232,69,69,.4)}
 .modal-foot .btn.danger:hover{background:rgba(232,69,69,.1)}
@@ -4011,7 +4034,21 @@ body.print-tourbook-mode #tourBookArea{display:block!important;position:fixed;in
   padding:7px 10px;font-family:'Inter',sans-serif;font-size:12px;border-radius:6px}
 .pn-select:focus{outline:none;border-color:var(--hi)}
 .pn-actions{display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--line);padding-top:14px;margin-top:14px}
-.pn-send-btn{box-shadow:0 0 16px -4px rgba(232,148,58,.5)}
+/* Send stays a plain button until there's a message AND an audience — it is
+   never disabled, so a click still tells you which of the two is missing.
+   Once both are there it catches light and burns like the rest of the app. */
+.pn-actions .btn.pn-send-btn{background:rgba(232,148,58,.04);color:var(--warm-mute);border-color:var(--line-2);
+  box-shadow:none;font-weight:700;transition:color .18s ease,border-color .18s ease,box-shadow .18s ease}
+.pn-actions .btn.pn-send-btn.ready{
+  border:1px solid rgba(232,148,58,.62);color:#1a0d03;
+  background:
+    radial-gradient(circle at 24% 78%,rgba(255,150,45,.45),transparent 46%),
+    radial-gradient(circle at 72% 26%,rgba(255,90,25,.32),transparent 42%),
+    linear-gradient(135deg,var(--hi),var(--hi-2));
+  background-size:230% 230%,210% 210%,100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 7s ease-in-out infinite alternate;
+  box-shadow:0 0 18px rgba(232,148,58,.45),inset 0 1px 0 rgba(255,220,170,.25)}
+@media (prefers-reduced-motion:reduce){.pn-actions .btn.pn-send-btn.ready{animation:none}}
 /* Custom priority picker — native <select> options can't be highlighted in
    Safari, so the priority is a set of styled rows instead. The selected row
    (Important by default) gets the orange border + a DEFAULT badge. */
@@ -12568,7 +12605,7 @@ function toggleSchedPending(dateId, itemId) {
   item.pending = !item.pending;
   saveState();
   renderAll();
-  toast(item.pending ? 'Pending — hidden from band and crew' : 'Live — visible to everyone assigned', 'good');
+  toast(item.pending ? 'Pending — hidden from band and crew' : 'Confirmed — visible to everyone assigned', 'good');
 }
 
 /* ── Marking a gap "not needed" ──────────────────────────────────────── */
@@ -12578,7 +12615,7 @@ function markGapNotNeeded(dateId, label) {
   const tour = T();
   if (!tour || !label) return;
   if (!_gapIsOverridable(label)) {
-    toast('Pending items can’t be waived — make them live, or delete them', 'error');
+    toast('Pending items can’t be waived — confirm them, or delete them', 'error');
     return;
   }
   const where = dateId ? (() => { const d = (tour.dates || []).find(x => x.id === dateId); return d ? ` on ${fmtMD(d.date)}` : ''; })() : ' for this tour';
@@ -16658,7 +16695,7 @@ function _flashGapTarget(focus) {
   if (!panel) return;
   let targets = [];
   if (focus === 'flight-audience') targets = [...panel.querySelectorAll('.travel-needs-audience')];
-  else if (focus === 'pending')    targets = [...panel.querySelectorAll('.sched-pending.on')].map(b => b.closest('.item-row') || b);
+  else if (focus === 'pending')    targets = [...panel.querySelectorAll('.sched-state.pending')].map(b => b.closest('.item-row') || b);
   if (!targets.length) {
     // Nothing specific to point at — the tab is empty, which IS the gap. The
     // empty state, or failing that the first row, stands in for it.
@@ -16967,7 +17004,7 @@ function renderDashboard() {
         <div class="bm-sched-row">
           <div class="time">${s.allDay ? 'ALL DAY' : esc(_scheduleTimeDisplay(s, ad))}</div>
           <div>
-            <div class="what">${esc(s.what)}${s.pending ? `<span class="who" style="color:var(--hi);margin-left:6px" title="Hidden from band and crew until you make it live">PENDING</span>` : ''}</div>
+            <div class="what">${esc(s.what)}${s.pending ? `<span class="who" style="color:var(--hi);margin-left:6px" title="Hidden from band and crew until you confirm it">PENDING</span>` : ''}</div>
             ${(() => { const a = _scheduleAudience(s); return a.text ? `<div class="who">${esc(a.text)}</div>` : ''; })()}
           </div>
         </div>
@@ -17608,12 +17645,12 @@ function renderSchedule() {
           const pendingBtn = isTravel ? '' : (() => {
             const owner = s._carryover ? s._sourceDate : ad.id;
             const on = !!s.pending;
-            return `<button type="button" class="sched-pending${on ? ' on' : ''}" aria-pressed="${on ? 'true' : 'false'}"
-              title="${on ? 'Pending — hidden from band and crew. Click to make it live.' : 'Live — everyone assigned can see it. Click to hold it as pending.'}"
-              onclick="event.stopPropagation();toggleSchedPending('${owner}','${s.id}')">${on ? 'PENDING' : 'LIVE'}</button>`;
+            return `<button type="button" class="sched-state${on ? ' pending' : ''}" aria-pressed="${on ? 'true' : 'false'}"
+              title="${on ? 'Pending — the band and crew can\'t see this. Click to confirm it.' : 'Confirmed — everyone assigned can see it. Click to hold it as pending.'}"
+              onclick="event.stopPropagation();toggleSchedPending('${owner}','${s.id}')"><span class="ss-dot"></span><span class="ss-lbl">${on ? 'Pending' : 'Confirmed'}</span></button>`;
           })();
           return `
-          <div class="item-row" style="grid-template-columns:minmax(110px,140px) minmax(160px,1fr) minmax(140px,220px) auto;align-items:flex-start">
+          <div class="item-row${(!isTravel && s.pending) ? ' is-pending' : ''}" style="grid-template-columns:minmax(110px,140px) minmax(160px,1fr) minmax(140px,220px) auto;align-items:flex-start">
             <span class="t" style="padding-top:8px">${esc(_scheduleTimeDisplay(s, ad))}</span>
             <span class="what" style="padding-top:6px;min-width:0">${esc(s.what)}${travelBadge}${nextDayBadge}${carryoverBadge}${s.notes ? `<span class="note">${esc(s.notes)}</span>` : ''}${isTravel ? '' : _whoBlockHTML(s, 'Who', true)}</span>
             ${isTravel
@@ -34076,7 +34113,10 @@ async function completePasswordReset() {
 
 async function logout() {
   closeAccountMenu();
-  if (!confirm('Sign out? Your tour data stays on this device.')) return;
+  // This used to say the data stays on this device, which stopped being true
+  // once tours started syncing — it read as a warning that signing out would
+  // strand your work here.
+  if (!confirm('Sign out?\n\nYour tours are saved to your account. Sign back in on any device and everything is still there.')) return;
   // signOut() below fires SIGNED_OUT while currentUserId is still set, which
   // the auth listener reads as a session dying mid-use. Tell it this one is
   // on purpose so it doesn't toast "Session expired".
@@ -35901,10 +35941,22 @@ function _renderPushNotificationsModal() {
   setTimeout(() => {
     const ta = document.getElementById('pn_body');
     if (ta) {
-      ta.addEventListener('input', () => { _pnDraft.body = ta.value; });
+      ta.addEventListener('input', () => { _pnDraft.body = ta.value; _pnSyncSend(); });
       ta.focus();
     }
+    _pnSyncSend();
   }, 30);
+}
+
+// Does the draft have both halves yet — something to say, and someone to say
+// it to? Audience changes re-render the whole composer, so this only has to
+// keep up with typing; the render calls it once on the way in.
+function _pnSyncSend() {
+  const btn = document.querySelector('.pn-send-btn');
+  if (!btn) return;
+  const body = (document.getElementById('pn_body')?.value || '').trim();
+  const audience = _pnDraft.groups.length > 0 || _pnDraft.individuals.length > 0;
+  btn.classList.toggle('ready', !!body && audience);
 }
 
 function _pnClose() { if (_toolOpen === 'push') _toolClose(); else closeModal(); }
@@ -36652,8 +36704,8 @@ function openTourScan() {
 
       ${scan.pendingItems.length > 0 ? `
         <div class="iz-gaps" style="margin-top:18px">
-          <h4 style="color:var(--hi)">◷ PENDING — PLACEHOLDERS NOT YET LIVE · ${scan.pendingItems.reduce((n, x) => n + x.items.length, 0)} item${scan.pendingItems.reduce((n, x) => n + x.items.length, 0) === 1 ? '' : 's'}</h4>
-          <div class="iz-tip" style="margin:0 0 10px">These sit on your dashboard only. The band and crew can't see them on their phones, and they keep their date marked incomplete until you open the item and switch <b>PENDING</b> off.</div>
+          <h4 style="color:var(--hi)">◷ PENDING — NOT YET CONFIRMED · ${scan.pendingItems.reduce((n, x) => n + x.items.length, 0)} item${scan.pendingItems.reduce((n, x) => n + x.items.length, 0) === 1 ? '' : 's'}</h4>
+          <div class="iz-tip" style="margin:0 0 10px">These sit on your dashboard only. The band and crew can't see them on their phones, and they keep their date marked incomplete until you confirm them on the Schedule tab.</div>
           ${scan.pendingItems.map(({date, items}) => items.map(it => `
             <div class="iz-gap" style="cursor:pointer" onclick="_scanGoTo('${date.id}','schedule')">
               <span class="gtag">${esc((date.city || 'date').slice(0,18))}</span>
@@ -38055,7 +38107,7 @@ Object.assign(window, {
   openMyManagerProfile, _phoneProfileCardHtml, _myManagerRecord, _coManagesTour,
   sendSavedProfile, openSavedProfile, _savedProfileGet, _myTourRecords, _autoAcceptInvites,
   toggleSchedPending, markGapNotNeeded, undoGapOverride, _gapKey, _gapOverrides, _gapIsOverridable,
-  _fixNow, _flashGapTarget,
+  _fixNow, _flashGapTarget, _pnSyncSend,
   _openMapSheet, _mapAct, _closeMapSheet, _addrHTML, _mapsDest, _cityStateZip, _stayDest, _mapsCanTryScheme, _mapsOpensInAppBrowser,
   onbChooseSample, onbChooseCSV, onbChooseScratch, downloadCSVTemplate,
   izAddFiles, izRemoveFile, izStartAnalyze, izApply, izBack,
