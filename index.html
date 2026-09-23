@@ -788,6 +788,24 @@ input,select,textarea{font:inherit;color:inherit;
   background-size:230% 230%, 210% 210%, 100% 100%;background-repeat:no-repeat;
   animation:tabFlame 6.9s ease-in-out infinite alternate}
 .ch-status .chs-act:hover{color:#a7ecbb;text-shadow:0 0 10px rgba(109,207,139,.45);filter:brightness(1.3)}
+/* Fix Now, pressed: a light runs across the button while the page moves, so
+   the jump reads as an answer rather than a glitch. */
+.ch-status .chs-act.working{position:relative;overflow:hidden;filter:brightness(1.35)}
+.ch-status .chs-act.working::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(100deg,transparent 12%,rgba(255,214,164,.42) 48%,transparent 84%);
+  transform:translateX(-120%);animation:fixNowSweep .85s cubic-bezier(.4,0,.2,1) 1}
+@keyframes fixNowSweep{to{transform:translateX(120%)}}
+/* …and whatever was actually wrong answers back once you land on it. */
+@keyframes gapFlash{
+  0%   {box-shadow:0 0 0 0 rgba(232,148,58,0),   inset 0 0 0 0 rgba(232,148,58,0)}
+  14%  {box-shadow:0 0 24px 3px rgba(232,148,58,.5), inset 0 0 0 1px rgba(232,148,58,.7)}
+  100% {box-shadow:0 0 0 0 rgba(232,148,58,0),   inset 0 0 0 0 rgba(232,148,58,0)}
+}
+.gap-flash{animation:gapFlash 1.15s ease-out 2;border-radius:9px}
+@media (prefers-reduced-motion:reduce){
+  .ch-status .chs-act.working::after{animation:none}
+  .gap-flash{animation:none;box-shadow:0 0 0 1px rgba(232,148,58,.7)}
+}
 .ch-status.warn .chs-act{border-left-color:rgba(253,186,116,.34);color:#fdba74;
   background:
     radial-gradient(circle at 24% 76%, rgba(255,122,31,.34), transparent 46%),
@@ -939,11 +957,48 @@ body.mobile .ch-status .chs-t em{display:none}
   text-shadow:0 0 10px rgba(138,169,216,.35);font-weight:700}
 .tab.tab-fixed.active::before{background:linear-gradient(180deg,transparent,#b1c8ee 30%,#b1c8ee 70%,transparent);box-shadow:0 0 12px rgba(138,169,216,.5)}
 .tab.tab-fixed.active .num{color:#b1c8ee}
-/* Local Recs gets a slightly cooler, lighter blue tint so it visually
-   reads as the "extras / nice-to-have" tab — sitting at the bottom of
-   the tour-wide group, separate from the operational ones above it. */
-.tab.tab-recs{color:#b8d4f5}
-.tab.tab-recs .num{color:rgba(184,212,245,.5)}
+/* Edit History panel — a record, set quieter than the working tabs. */
+.hist-note{font-size:12.5px;color:var(--warm-mute);line-height:1.55;margin:-4px 0 16px;max-width:70ch}
+.hist-loading{font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--warm-mute);padding:26px 0}
+.hist-log{border-top:1px solid var(--line)}
+.hist-day{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:700;letter-spacing:.24em;
+  text-transform:uppercase;color:#7d7a74;padding:16px 0 7px}
+.hist-row{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:14px;align-items:baseline;width:100%;
+  padding:9px 10px;margin:0 -10px;background:none;border:0;border-radius:7px;text-align:left;cursor:pointer;
+  border-bottom:1px solid rgba(160,158,152,.09);transition:background .12s ease}
+.hist-row:hover{background:rgba(160,158,152,.07)}
+.hist-row .hr-time{font-family:'Bricolage Grotesque',monospace;font-size:11px;color:#7d7a74;font-variant-numeric:tabular-nums}
+.hist-row .hr-what{display:block;font-size:13.5px;color:#cfcac2;line-height:1.35}
+.hist-row .hr-where{display:block;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;color:#79766f;margin-top:3px}
+.hist-row .hr-who{font-family:'Bricolage Grotesque',monospace;font-size:10.5px;color:#918d86;white-space:nowrap}
+.hist-foot{font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  color:#6f6c66;padding:16px 0 4px}
+/* change detail */
+.hd-head{padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid var(--line)}
+.hd-who{font-size:15px;font-weight:600;color:var(--warm)}
+.hd-who span{display:block;font-family:'Bricolage Grotesque',monospace;font-size:11px;color:var(--warm-mute);margin-top:2px}
+.hd-when,.hd-scope{font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.08em;color:var(--warm-mute);margin-top:4px}
+.hd-sec{padding:11px 0;border-bottom:1px solid rgba(160,158,152,.1)}
+.hd-lbl{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:700;letter-spacing:.22em;
+  text-transform:uppercase;color:#8d8b86}
+.hd-count{font-family:'Bricolage Grotesque',monospace;font-size:12px;color:var(--warm);margin-top:4px;font-variant-numeric:tabular-nums}
+.hd-line{font-size:13px;line-height:1.6;color:#b8b3ab;margin-top:5px;word-break:break-word}
+.hd-line.add,.hd-line .add{color:#8fc9a1}
+.hd-line.rem,.hd-line .rem{color:#c49a9a}
+.hd-line b{color:var(--warm);font-weight:600}
+.hd-foot{font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.1em;color:#6f6c66;padding-top:14px}
+
+/* Edit History is a record, not a tool — nothing on it changes the tour. It
+   sits in plain grey so it never competes with the tabs you actually work in. */
+.tab.tab-history{color:#8d8b86}
+.tab.tab-history .num{color:rgba(141,139,134,.5)}
+.tab.tab-history:hover{color:#b4b1aa;background:rgba(160,158,152,.06)}
+.tab.tab-history.active{color:#c6c3bc;background:linear-gradient(90deg,rgba(160,158,152,.14),transparent);
+  text-shadow:none;box-shadow:none}
+.tab.tab-history.active::before{background:linear-gradient(180deg,transparent,#8d8b86 30%,#8d8b86 70%,transparent);
+  box-shadow:0 0 10px rgba(160,158,152,.35)}
+.tab.tab-history.active .num{color:#c6c3bc}
 /* ADMIN PANEL — god-only tab, deliberately OFF-palette (electric violet) with
    a constant pulse so it reads as "not part of the normal app". */
 .tab.tab-god{color:#c9b3ff;background:linear-gradient(90deg,rgba(140,120,255,.1),transparent);
@@ -1431,10 +1486,10 @@ body.mobile .god-search{min-width:0;width:100%}
 }
 .tbl-actions button:hover{color:var(--hi);border-color:var(--hi)}
 .tbl-actions button.del:hover{color:var(--red);border-color:var(--red);background:rgba(232,69,69,.06)}
-/* Schedule row actions sit centred against the row, however tall the
-   audience column grows — a passenger list wrapping to three lines used to
-   leave Edit stranded at the top. */
-.sched-actions{align-self:center;gap:6px}
+/* Row actions sit centred against the row, however tall the rest of it grows
+   — a passenger list wrapping to three lines used to leave Edit stranded up
+   at the top. Used by the schedule and travel tabs. */
+.tbl-actions-mid{align-self:center;gap:6px}
 /* LIVE / PENDING. Live is the quiet default; a held item reads in ember,
    because a placeholder on a run of show is worth noticing. */
 .sched-pending{padding:5px 9px;border:1px solid var(--line-2);border-radius:5px;background:rgba(232,148,58,.04);
@@ -2819,13 +2874,17 @@ html.mac-app .login-signup-link{display:none}
 .iz-gap:last-child{border-bottom:none}
 .iz-gap:hover{background:rgba(232,148,58,.08);box-shadow:inset 0 0 0 1px rgba(232,148,58,.25)}
 .iz-gap[onclick]:hover{background:rgba(232,148,58,.12);cursor:pointer}
-/* "This one doesn't apply to us." Quiet until the row is under the cursor —
-   waiving a gap should never be easier than fixing it. */
-.gap-waive{flex:none;align-self:center;padding:3px 9px;background:none;border:1px solid var(--line-2);border-radius:5px;
-  color:var(--warm-mute);font-family:'Bricolage Grotesque',monospace;font-size:9px;font-weight:700;letter-spacing:.14em;
-  text-transform:uppercase;cursor:pointer;opacity:.55;transition:opacity .12s ease,color .12s ease,border-color .12s ease}
+/* "This one doesn't apply to us." Legible on its own so it can be found
+   without hunting, but still quieter than the gap it dismisses — overriding
+   should never look easier than fixing. */
+.gap-waive{flex:none;align-self:center;padding:3px 9px;background:rgba(232,148,58,.06);
+  border:1px solid rgba(232,148,58,.28);border-radius:5px;
+  color:#c2a980;font-family:'Bricolage Grotesque',monospace;font-size:9px;font-weight:700;letter-spacing:.14em;
+  text-transform:uppercase;cursor:pointer;opacity:.9;
+  transition:opacity .12s ease,color .12s ease,border-color .12s ease,background .12s ease}
 .iz-gap:hover .gap-waive,.gap-waive:hover{opacity:1}
-.gap-waive:hover{color:var(--warm);border-color:var(--hi)}
+.gap-waive:hover{color:var(--hi-bright);border-color:var(--hi);background:rgba(232,148,58,.16);
+  box-shadow:0 0 10px rgba(232,148,58,.2)}
 .gap-waive-no{flex:none;align-self:center;font-family:'Bricolage Grotesque',monospace;font-size:9px;font-weight:700;
   letter-spacing:.14em;text-transform:uppercase;color:var(--hi);opacity:.7}
 .iz-gap.tw:hover{background:rgba(249,115,22,.10);box-shadow:inset 0 0 0 1px rgba(249,115,22,.3)}
@@ -6177,7 +6236,7 @@ setTimeout(window._hideAppBoot,6000);
           <button type="button" class="tab tab-fixed" data-tab="files"><span class="num">13</span> Attachments</button>
           <button type="button" class="tab tab-fixed" data-tab="tasks"><span class="num">14</span> Tasks</button>
           <button type="button" class="tab tab-fixed" data-tab="profiles"><span class="num">15</span> Crew</button>
-          <button type="button" class="tab tab-fixed tab-recs" data-tab="tags"><span class="num">16</span> Local Recs</button>
+          <button type="button" class="tab tab-fixed tab-history" data-tab="history"><span class="num">16</span> Edit History</button>
           <button type="button" class="tab tab-god" data-tab="admin" id="tabGod" hidden><span class="num">◆</span> Admin Panel</button>
         </nav>
 
@@ -6200,7 +6259,7 @@ setTimeout(window._hideAppBoot,6000);
           <div class="panel" data-panel="venues" id="p-venues"></div>
           <div class="panel" data-panel="contacts" id="p-contacts"></div>
           <div class="panel" data-panel="tasks" id="p-tasks"></div>
-          <div class="panel" data-panel="tags" id="p-tags"></div>
+          <div class="panel" data-panel="history" id="p-history"></div>
           <div class="panel" data-panel="profiles" id="p-profiles"></div>
           <div class="panel" data-panel="admin" id="p-admin"></div>
         </div><!-- /.panels-wrap -->
@@ -6759,6 +6818,17 @@ const db = {
   // Every tour id this user has deleted on ANY device. Merged into the local
   // tombstone list at hydrate so deletions are global. Empty on any error
   // (e.g. table not created yet) so the app degrades gracefully.
+  // The edit log for a tour, newest first, with each author's name already
+  // resolved server-side (patch-054) so someone who has since left the roster
+  // still reads as a person rather than a uuid.
+  async fetchEditHistory(tourId, limit) {
+    if (!sb || !tourId || !_isUuid(tourId)) return null;
+    try {
+      const { data, error } = await sb.rpc('tour_edit_history', { p_tour_id: tourId, p_limit: limit || 300 });
+      if (error) { console.warn('[db.fetchEditHistory]', error.message || error); return null; }
+      return Array.isArray(data) ? data : [];
+    } catch (e) { console.warn('[db.fetchEditHistory] threw', e); return null; }
+  },
   async fetchDeletedTourIds() {
     if (!sb) return [];
     try {
@@ -8479,6 +8549,10 @@ function saveUIPrefs() {
 }
 function loadUIPrefs() {
   if (!state || !state.ui) return;
+  // 'tags' was the Local Recs tab, removed in favour of Edit History. A
+  // browser that had it open last would otherwise restore a tab that no
+  // longer exists and land on a blank panel.
+  if (state.ui.activeTab === 'tags') state.ui.activeTab = 'dashboard';
   if (state.ui.activeTab) activeTab = state.ui.activeTab;
   if (state.ui.phoneScreen) phoneScreen = state.ui.phoneScreen;
   if (state.ui.viewerKey) viewerKey = state.ui.viewerKey;
@@ -12519,7 +12593,7 @@ function markGapNotNeeded(dateId, label) {
     dateId: dateId || null,
   };
   saveState();
-  toast('Marked not needed', 'good');
+  toast('Gap overridden', 'good');
   try { closeModal(); openTourScan(); } catch (e) { try { renderAll(); } catch (_) {} }
 }
 function undoGapOverride(key) {
@@ -16563,6 +16637,44 @@ function renderConsoleHead() {
 // The date-review notice. It used to be a full-width banner sitting on top of
 // the dashboard, which cost a whole row of vertical space on every screen;
 // it's one line in the console header now — same four states, same actions.
+/* Fix Now used to jump and say nothing. On a full Travel tab you arrive with
+   no idea which row it meant, so it was easy to read the jump as the page not
+   having reacted at all. Now the button visibly takes the press, and whatever
+   is actually wrong lights up for a couple of beats once you land. */
+function _fixNow(btn, where, focus) {
+  try {
+    btn.classList.remove('working');
+    void btn.offsetWidth;                      // restart it on a second click
+    btn.classList.add('working');
+    setTimeout(() => { try { btn.classList.remove('working'); } catch (e) {} }, 900);
+  } catch (e) {}
+  if (where === 'form') { try { openDateModal(getActiveDate()?.id); } catch (e) {} return; }
+  try { _dashGoTab(where); } catch (e) { return; }
+  // after the panel has painted
+  setTimeout(() => { try { _flashGapTarget(focus); } catch (e) {} }, 150);
+}
+function _flashGapTarget(focus) {
+  const panel = document.querySelector('.panel.active');
+  if (!panel) return;
+  let targets = [];
+  if (focus === 'flight-audience') targets = [...panel.querySelectorAll('.travel-needs-audience')];
+  else if (focus === 'pending')    targets = [...panel.querySelectorAll('.sched-pending.on')].map(b => b.closest('.item-row') || b);
+  if (!targets.length) {
+    // Nothing specific to point at — the tab is empty, which IS the gap. The
+    // empty state, or failing that the first row, stands in for it.
+    const stand = panel.querySelector('.empty') || panel.querySelector('.item-row') || panel.querySelector('.section-title');
+    if (stand) targets = [stand];
+  }
+  if (!targets.length) return;
+  targets.forEach(el => {
+    el.classList.remove('gap-flash');
+    void el.offsetWidth;
+    el.classList.add('gap-flash');
+    setTimeout(() => { try { el.classList.remove('gap-flash'); } catch (e) {} }, 2400);
+  });
+  try { targets[0].scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {}
+}
+
 function renderConsoleStatus() {
   const el = document.getElementById('consoleStatus');
   if (!el) return;
@@ -16576,7 +16688,7 @@ function renderConsoleStatus() {
     kind = 'info';
     text = 'Needs a hotel or a travel item';
     title = 'This date needs a hotel, a travel item, or a mark saying neither is needed.';
-    action = 'Fix now'; onclick = "_dashGoTab('hotels')";
+    action = 'Fix now'; onclick = "_fixNow(this,'hotels','hotel')";
   } else if (gaps.length) {
     const hard = gaps.filter(g => g !== 'hotel or travel');
     kind = 'warn';
@@ -16589,11 +16701,12 @@ function renderConsoleStatus() {
     // and opening the date editor for those left the tour manager staring at a
     // form with nothing obviously wrong on it.
     const onForm = gaps.some(g => ['date', 'city', 'venue'].includes(g));
-    onclick = onForm ? "openDateModal(getActiveDate()?.id)"
-      : gaps.includes('schedule') ? "_dashGoTab('schedule')"
-      : gaps.includes('hotel or travel') ? "_dashGoTab('hotels')"
-      : gaps.some(g => /^flight audience/.test(g)) ? "_dashGoTab('travel')"
-      : "openDateModal(getActiveDate()?.id)";
+    onclick = onForm ? "_fixNow(this,'form')"
+      : gaps.includes('schedule') ? "_fixNow(this,'schedule','schedule')"
+      : gaps.includes('hotel or travel') ? "_fixNow(this,'hotels','hotel')"
+      : gaps.some(g => /^flight audience/.test(g)) ? "_fixNow(this,'travel','flight-audience')"
+      : /pending schedule item/.test(gaps.join(' ')) ? "_fixNow(this,'schedule','pending')"
+      : "_fixNow(this,'form')";
   } else if (others) {
     text = 'Date complete';
     detail = `${others} to review`;
@@ -16658,7 +16771,7 @@ function renderActivePanel() {
     hotels: renderHotels, guest: renderGuestList, setlist: renderSetList,
     notes: renderDayNotes, advance: renderAdvance,
     acct: renderAccounting, files: renderAttachments, localfiles: renderLocalAttachments, venues: renderVenues,
-    contacts: renderContacts, tasks: renderTasks, tags: renderTags,
+    contacts: renderContacts, tasks: renderTasks, history: renderEditHistory,
     profiles: renderCrewProfiles, admin: renderAdminPanel, tools: renderTools
   }[activeTab];
   if (fn) fn();
@@ -17507,7 +17620,7 @@ function renderSchedule() {
               ? (_whoBlockHTML(s._travelRef, s._travelType === 'flight' ? 'Passengers' : 'Who')
                   || (s._audienceNeeded ? `<div class="travel-share"><span class="viz-chip warn-chip" title="Needs audience — pick who's on this in Travel">! NEEDS AUDIENCE</span></div>` : `<div class="travel-share muted-share">Visible to all</div>`))
               : renderVizPicker(s)}
-            <div class="tbl-actions sched-actions">${pendingBtn}<button type="button" onclick="${editFn}">Edit</button></div>
+            <div class="tbl-actions tbl-actions-mid">${pendingBtn}<button type="button" onclick="${editFn}">Edit</button></div>
           </div>
         `;}).join('')}
       </div>
@@ -17607,7 +17720,7 @@ function renderTravel() {
             <span class="t" style="padding-top:6px">${t.allDay ? 'ALL DAY' : esc(t.time || '—')}${t.type === 'flight' && t.arriveTime ? `<span style="display:block;color:var(--warm-mute);font-weight:400;font-size:10px">↓ ${esc(t.arriveTime)}</span>` : ''}</span>
             <span class="what" style="padding-top:6px">${esc(t.description)}${t.notes ? `<span class="note">${esc(t.notes)}</span>` : ''}${legKick}${sharedHtml}</span>
             <span class="who" style="color:var(--warm-mute);padding-top:6px">${esc(t.conf || '')}</span>
-            <div class="tbl-actions" style="padding-top:6px"><button type="button" onclick="openTravelModal('${t.id}')">Edit</button>${t.type === 'flight' ? `<button type="button" title="Add a connecting flight (layover)" onclick="_tvAddLegAfter('${ad.id}','${t.id}')">+ Leg</button>` : ''}</div>
+            <div class="tbl-actions tbl-actions-mid"><button type="button" onclick="openTravelModal('${t.id}')">Edit</button>${t.type === 'flight' ? `<button type="button" title="Add a connecting flight (layover)" onclick="_tvAddLegAfter('${ad.id}','${t.id}')">+ Leg</button>` : ''}</div>
           </div>`;
         }).join('')}
       </div>
@@ -20635,44 +20748,254 @@ function toggleTask(id) {
 /* =====================================================================
    PANEL: TAGS
    ===================================================================== */
-function renderTags() {
-  const root = $('#p-tags');
-  const tags = T().tags;
-  const ad = getActiveDate();
-  const cityTags = ad ? tags.filter(t => t.city.toLowerCase() === ad.city.toLowerCase()) : tags;
+/* ── Edit History ────────────────────────────────────────────────────────
+   A read-only record of the tour: who changed what, and when. Nothing here
+   edits anything — the one interaction is tapping a line to see the detail
+   behind it.
 
-  root.innerHTML = `
+   The rows come from content_history, which stores each row's content BEFORE
+   every change. So a change is the difference between one snapshot and the
+   NEXT one for the same row — and for the newest snapshot, the difference
+   between it and the tour as it stands right now. That's what _historyEntries
+   below reconstructs. */
+const _histState = { tourId: '', rows: null, inflight: null, error: '', at: 0, entries: [] };
+
+const _HIST_FIELDS = {
+  schedule:    'Schedule',
+  travel:      'Travel',
+  guests:      'Guest list',
+  set_list:    'Set list',
+  hotel:       'Hotel',
+  hotels:      'Hotel',
+  settlement:  'Settlement',
+  advance:     'Advance',
+  allotments:  'Guest allotments',
+  day_notes:   'Day notes',
+  crew:        'Crew roster',
+  contacts:    'Contacts',
+  tasks:       'Tasks',
+  tags:        'Road notes',
+  member_ids:  'Tour members',
+  name:        'Tour name',
+  date:        'Date',
+  city:        'City',
+  venue:       'Venue',
+  status:      'Day type',
+};
+
+// A count only means something for a list. "Settlement 0 -> 5" is the number
+// of keys in an object, which tells a reader nothing.
+function _histCount(v) { return Array.isArray(v) ? v.length : null; }
+// An empty object and an object of empty defaults are the same thing to a
+// person. Without this, saving a date for the first time reported a
+// settlement change, because {} met the app's zero-filled settlement object.
+function _histNorm(v) {
+  if (v === undefined || v === null || v === '' || v === false || v === 0) return null;
+  if (Array.isArray(v)) return v.length ? v.map(_histNorm) : null;
+  if (typeof v === 'object') {
+    const o = {};
+    Object.keys(v).forEach(k => { const n = _histNorm(v[k]); if (n !== null) o[k] = n; });
+    return Object.keys(o).length ? o : null;
+  }
+  if (typeof v === 'string') { const t = v.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); return t || null; }
+  return v;
+}
+function _histSame(a, b) { try { return JSON.stringify(_histNorm(a)) === JSON.stringify(_histNorm(b)); } catch (e) { return false; } }
+// A short, human label for one item inside an array field.
+function _histItemLabel(field, it) {
+  if (it == null) return '';
+  if (typeof it === 'string') return it;
+  return String(it.what || it.name || it.title || it.description || it.label || it.flightNumber || it.email || it.id || '').trim();
+}
+function _histWhen(ts) {
+  const d = new Date(ts);
+  if (isNaN(d)) return '';
+  const z = n => String(n).padStart(2, '0');
+  return `${fmtMD(`${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`)} · ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+}
+
+// What the live tour looks like right now, in the same shape the snapshots
+// use — so the newest snapshot has something to be compared against.
+function _histCurrent(row, tour) {
+  if (row.table_name === 'tours') {
+    return { name: tour.name || '', crew: tour.crew || [], member_ids: tour.memberIds || [],
+             contacts: tour.contacts || [], tasks: tour.tasks || [], tags: tour.tags || [] };
+  }
+  const d = (tour.dates || []).find(x => x.id === row.row_id);
+  if (!d) return null;                       // the date was deleted since
+  return { date: d.date, city: d.city, venue: d.venue, status: d.status,
+           schedule: d.schedule || [], travel: d.travel || [], guests: d.guests || [],
+           set_list: d.setList || [], hotel: (d.hotels && d.hotels[0]) || d.hotel || null,
+           settlement: d.settlement || {}, advance: d.advance || {},
+           allotments: d.allotments || {}, day_notes: d.dayNotes || '' };
+}
+
+// Turn raw snapshots into changes, newest first.
+function _historyEntries(rows, tour) {
+  const byRow = {};
+  rows.forEach(r => { (byRow[r.table_name + ':' + r.row_id] = byRow[r.table_name + ':' + r.row_id] || []).push(r); });
+  const out = [];
+  Object.keys(byRow).forEach(key => {
+    const list = byRow[key].slice().sort((a, b) => Date.parse(a.changed_at) - Date.parse(b.changed_at));
+    list.forEach((r, i) => {
+      const before = r.old_data || {};
+      const after = i + 1 < list.length ? (list[i + 1].old_data || {}) : _histCurrent(r, tour);
+      if (!after) return;                    // nothing to compare against
+      const fields = [];
+      Object.keys(_HIST_FIELDS).forEach(f => {
+        if (!(f in before) && !(f in after)) return;
+        if (_histSame(before[f], after[f])) return;
+        fields.push(f);
+      });
+      if (!fields.length) return;            // a write that changed nothing visible
+      const d = r.table_name === 'dates'
+        ? ((tour.dates || []).find(x => x.id === r.row_id) || { date: before.date, city: before.city })
+        : null;
+      out.push({ id: r.id, at: Date.parse(r.changed_at), who: r.author_name || r.author_email || 'Unknown',
+                 email: r.author_email || '', scope: r.table_name, date: d, fields, before, after });
+    });
+  });
+  return out.sort((a, b) => b.at - a.at);
+}
+
+function _histSummary(e) {
+  return e.fields.map(f => {
+    const label = _HIST_FIELDS[f] || f;
+    const bc = _histCount(e.before[f]), ac = _histCount(e.after[f]);
+    if (bc != null && ac != null && bc !== ac) return `${label} ${bc} → ${ac}`;
+    return label;
+  }).join(' · ');
+}
+
+async function renderEditHistory() {
+  const root = $('#p-history');
+  if (!root) return;
+  const tour = T();
+  const head = (inner) => `
     <div class="section-title">
-      <h2>Tags · road notes</h2>
-      <span class="crumb">/ ${tags.length} TAGGED</span>
-      ${ad ? `<span class="stamp">${cityTags.length} IN ${esc(ad.city.toUpperCase())}</span>` : ''}
-      ${ad && ad.city ? `<button type="button" class="tb-btn cool" onclick="scoutNearVenue()">⌖ Scout near ${esc(ad.city)}</button>` : ''}
-      <button type="button" class="tb-btn primary" onclick="openTagModal()">+ Add tag</button>
+      <h2>Edit history</h2>
+      <span class="crumb">/ ${esc(tour.name || 'Untitled')}</span>
     </div>
+    <div class="hist-note">Everything that has changed on this tour, and who changed it. Nothing on this page edits anything — tap a line to see the detail.</div>
+    ${inner}`;
 
-    ${tags.length === 0 ? `
-      <div class="empty">
-        <h3>No tags yet</h3>
-        <p>Tag coffee shops, late-night food, repair techs, places to avoid. Build a private rolodex of road-tested spots.</p>
-        <button type="button" onclick="openTagModal()">+ Add first tag</button>
+  if (!tour || tour.id === '_empty') { root.innerHTML = head(`<div class="empty"><h3>No tour selected</h3></div>`); return; }
+  if (!_isUuid(tour.id)) { root.innerHTML = head(`<div class="empty"><h3>Not synced yet</h3><p>This tour only exists on this computer, so there's no shared history to show.</p></div>`); return; }
+
+  const fresh = _histState.tourId === tour.id && _histState.rows && Date.now() - _histState.at < 45000;
+  if (!fresh) {
+    // One fetch, however many times this is called while it's in flight —
+    // a second caller waits on the same promise instead of skipping past it
+    // and painting from rows that haven't arrived yet.
+    if (!_histState.inflight) {
+      _histState.tourId = tour.id; _histState.error = '';
+      root.innerHTML = head(`<div class="hist-loading">Loading history…</div>`);
+      _histState.inflight = db.fetchEditHistory(tour.id)
+        .then(rows => {
+          _histState.at = Date.now();
+          if (rows === null) { _histState.rows = null; _histState.error = 'Could not load the history. The database needs the Edit History patch.'; }
+          else { _histState.rows = rows; _histState.error = ''; }
+        })
+        .catch(() => { _histState.rows = null; _histState.error = 'Could not load the history.'; })
+        .then(() => { _histState.inflight = null; });
+    }
+    await _histState.inflight;
+    if (activeTab !== 'history') return;                 // they moved on
+  }
+  if (_histState.error) { root.innerHTML = head(`<div class="empty"><h3>History unavailable</h3><p>${esc(_histState.error)}</p></div>`); return; }
+
+  const entries = _historyEntries(_histState.rows || [], tour);
+  _histState.entries = entries;
+  if (!entries.length) {
+    root.innerHTML = head(`<div class="empty"><h3>Nothing logged yet</h3><p>Changes to this tour's schedule, travel, hotels, guests, crew and settlements will appear here as they happen.</p></div>`);
+    return;
+  }
+  // Grouped by day, so a busy afternoon reads as one block.
+  const groups = [];
+  entries.forEach(e => {
+    const day = new Date(e.at); const z = n => String(n).padStart(2, '0');
+    const iso = `${day.getFullYear()}-${z(day.getMonth() + 1)}-${z(day.getDate())}`;
+    const g = groups[groups.length - 1];
+    if (g && g.iso === iso) g.items.push(e); else groups.push({ iso, items: [e] });
+  });
+
+  root.innerHTML = head(`
+    <div class="hist-log">
+      ${groups.map(g => `
+        <div class="hist-day">${esc(fmtDate(g.iso))}</div>
+        ${g.items.map(e => `
+          <button type="button" class="hist-row" onclick="openHistoryDetail(${e.id})">
+            <span class="hr-time">${esc(new Date(e.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))}</span>
+            <span class="hr-body">
+              <span class="hr-what">${esc(_histSummary(e))}</span>
+              <span class="hr-where">${e.date ? esc([fmtMD(e.date.date), e.date.city].filter(Boolean).join(' · ')) : 'Tour-wide'}</span>
+            </span>
+            <span class="hr-who">${esc(e.who)}</span>
+          </button>
+        `).join('')}
+      `).join('')}
+    </div>
+    <div class="hist-foot">${entries.length} change${entries.length === 1 ? '' : 's'} · newest first</div>`);
+}
+
+// The detail behind one line. Read-only.
+function openHistoryDetail(id) {
+  const e = (_histState.entries || []).find(x => x.id === id);
+  if (!e) return;
+  const section = (f) => {
+    const label = _HIST_FIELDS[f] || f;
+    const b = e.before[f], a = e.after[f];
+    if (Array.isArray(b) || Array.isArray(a)) {
+      const ba = Array.isArray(b) ? b : [], aa = Array.isArray(a) ? a : [];
+      const key = it => _histItemLabel(f, it) || JSON.stringify(it);
+      const bKeys = ba.map(key), aKeys = aa.map(key);
+      const added = aa.filter(it => !bKeys.includes(key(it)));
+      const removed = ba.filter(it => !aKeys.includes(key(it)));
+      const changed = !added.length && !removed.length && ba.length === aa.length;
+      return `
+        <div class="hd-sec">
+          <div class="hd-lbl">${esc(label)}</div>
+          <div class="hd-count">${ba.length} → ${aa.length}</div>
+          ${added.length ? `<div class="hd-line add">${added.map(it => '+ ' + esc(_histItemLabel(f, it) || 'item')).join('<br>')}</div>` : ''}
+          ${removed.length ? `<div class="hd-line rem">${removed.map(it => '− ' + esc(_histItemLabel(f, it) || 'item')).join('<br>')}</div>` : ''}
+          ${changed ? `<div class="hd-line">Details edited on ${aa.length} item${aa.length === 1 ? '' : 's'}</div>` : ''}
+        </div>`;
+    }
+    const one = v => {
+      if (v === undefined || v === null || v === '' || v === false) return '(empty)';
+      return String(v).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400) || '(empty)';
+    };
+    // Objects (settlement, advance, allotments): name only the keys that moved.
+    if ((b && typeof b === 'object') || (a && typeof a === 'object')) {
+      const bo = (b && typeof b === 'object') ? b : {}, ao = (a && typeof a === 'object') ? a : {};
+      const keys = [...new Set([...Object.keys(bo), ...Object.keys(ao)])].filter(k => !_histSame(bo[k], ao[k]));
+      return `
+        <div class="hd-sec">
+          <div class="hd-lbl">${esc(label)}</div>
+          ${keys.length
+            ? keys.map(k => `<div class="hd-line"><b>${esc(k)}</b> <span class="rem">${esc(one(bo[k]))}</span> → <span class="add">${esc(one(ao[k]))}</span></div>`).join('')
+            : '<div class="hd-line">Edited</div>'}
+        </div>`;
+    }
+    return `
+      <div class="hd-sec">
+        <div class="hd-lbl">${esc(label)}</div>
+        <div class="hd-line rem">${esc(one(b))}</div>
+        <div class="hd-line add">${esc(one(a))}</div>
+      </div>`;
+  };
+  openModal({
+    title: 'Change detail',
+    hideFooter: true,
+    body: `
+      <div class="hd-head">
+        <div class="hd-who">${esc(e.who)}${e.email ? `<span>${esc(e.email)}</span>` : ''}</div>
+        <div class="hd-when">${esc(_histWhen(e.at))}</div>
+        <div class="hd-scope">${e.date ? esc([fmtDate(e.date.date), e.date.city].filter(Boolean).join(' · ')) : 'Tour-wide'}</div>
       </div>
-    ` : `
-      <div class="tile-grid">
-        ${tags.map(t => {
-          const stars = '★'.repeat(t.rating) + '☆'.repeat(5 - t.rating);
-          return `
-            <div class="tile">
-              <div class="ftype"><div class="left"><span class="dot"></span> ${esc(t.kind.toUpperCase())} · ${stars}</div><span style="color:var(--warm-mute)">${esc(t.city)}${t.scouted?' · ⌖ scouted':''}</span></div>
-              <div class="name">${esc(t.name)}</div>
-              <div class="meta"><span>${esc(t.tags || '')}</span></div>
-              ${t.notes ? `<div style="font-size:12px;color:var(--warm-mute);line-height:1.5">${esc(t.notes)}</div>` : ''}
-              <div class="tile-actions"><button type="button" onclick="openTagModal('${t.id}')">Edit</button></div>
-            </div>
-          `;
-        }).join('')}
-      </div>
-    `}
-  `;
+      ${e.fields.map(section).join('')}
+      <div class="hd-foot">This is a record only — nothing here can be changed or undone from this page.</div>`,
+  });
 }
 
 /* =====================================================================
@@ -28916,7 +29239,9 @@ function scoutNearVenue() {
     added++;
   });
   saveState();
-  renderTags();
+  // The Local Recs tab that used to show these is gone; the data still rides
+  // with the tour, so just repaint whatever is on screen.
+  renderAll();
   if (added) toast(`Added ${added} scouted spot${added===1?'':'s'} for ${ad.city}${skipped?` · ${skipped} already known`:''}`, 'good');
   else toast(`All ${skipped} scouted spots already in your tags`, '');
 }
@@ -36298,7 +36623,7 @@ function openTourScan() {
               <div class="iz-gap tw">
                 <span class="gtag tw">tour-wide</span>
                 <span style="flex:1;min-width:0${clickable ? ';cursor:pointer' : ''}" ${clickable ? `onclick="_scanGoTo(null,'${tab}')"` : ''}><b style="color:#fdba74">${esc(g.what)}.</b> <span class="muted" style="font-size:11.5px">${esc(g.fix)}</span></span>
-                <button type="button" class="gap-waive" onclick="event.stopPropagation();markGapNotNeeded(null, ${JSON.stringify(g.what).replace(/"/g, '&quot;')})">Not needed</button>
+                <button type="button" class="gap-waive" onclick="event.stopPropagation();markGapNotNeeded(null, ${JSON.stringify(g.what).replace(/"/g, '&quot;')})">Override</button>
               </div>
             `;
           }).join('')}
@@ -36313,7 +36638,7 @@ function openTourScan() {
                 <span class="gtag">${esc((date.city || 'date').slice(0,18))}</span>
                 <span style="flex:1;min-width:0;cursor:pointer" onclick="_scanGoTo('${date.id}','${tab}')">${esc(fmtMD(date.date) || '?')} <span class="muted">— needs:</span> ${esc(m)}</span>
                 ${waivable
-                  ? `<button type="button" class="gap-waive" onclick="event.stopPropagation();markGapNotNeeded('${date.id}', ${JSON.stringify(m).replace(/"/g, '&quot;')})">Not needed</button>`
+                  ? `<button type="button" class="gap-waive" onclick="event.stopPropagation();markGapNotNeeded('${date.id}', ${JSON.stringify(m).replace(/"/g, '&quot;')})">Override</button>`
                   : `<span class="gap-waive-no" title="Make the item live, or delete it">placeholder</span>`}
               </div>
             `;
@@ -36341,7 +36666,7 @@ function openTourScan() {
 
       ${scan.overridden.length > 0 ? `
         <div style="margin-top:18px;padding:12px 14px;background:rgba(160,136,104,.05);border:1px solid var(--line-2);border-radius:10px">
-          <h4 style="margin:0 0 4px;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm-mute);font-weight:700">Marked not needed · ${scan.overridden.length}</h4>
+          <h4 style="margin:0 0 4px;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm-mute);font-weight:700">Overridden · ${scan.overridden.length}</h4>
           <div class="muted" style="font-size:11.5px;margin-bottom:8px">These aren't counted as gaps. Undo any of them to put it back on the list.</div>
           ${scan.overridden.map(o => `
             <div style="display:flex;align-items:baseline;gap:10px;padding:6px 0;border-top:1px solid var(--line)">
@@ -37730,6 +38055,7 @@ Object.assign(window, {
   openMyManagerProfile, _phoneProfileCardHtml, _myManagerRecord, _coManagesTour,
   sendSavedProfile, openSavedProfile, _savedProfileGet, _myTourRecords, _autoAcceptInvites,
   toggleSchedPending, markGapNotNeeded, undoGapOverride, _gapKey, _gapOverrides, _gapIsOverridable,
+  _fixNow, _flashGapTarget,
   _openMapSheet, _mapAct, _closeMapSheet, _addrHTML, _mapsDest, _cityStateZip, _stayDest, _mapsCanTryScheme, _mapsOpensInAppBrowser,
   onbChooseSample, onbChooseCSV, onbChooseScratch, downloadCSVTemplate,
   izAddFiles, izRemoveFile, izStartAnalyze, izApply, izBack,
@@ -37742,7 +38068,7 @@ Object.assign(window, {
   openSettleModal, openAttachModal, _attachFilePicked, _attachScopeChange, _attachBackToPick, _attachUpdatePrimaryLabel, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport, renderLocalAttachments, renderAttachments, renderTrialBadge, openSubscriptionPortal, _trialBadgeClick, _fxManualRefresh,
   openChatsModal, openNewChatModal, setActiveChat, _chatComposeOnInput, _chatComposeOnKeydown, _chatComposeSend, _chatMentionPick, _chatReactToggle, _chatReactPicker, _chatSendBroadcastPrompt, _chatToggleGroup, _chatUpdatePickCount,
   openPhoneSearch, _phoneSearchRender,
-  openTaskModal, openTagModal, toggleTask,
+  openTaskModal, openTagModal, toggleTask, renderEditHistory, openHistoryDetail,
   setActive, closeModal, _modalSubmit, goToTab,
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
   setCrewView, revokeCoManager, openCoManagerModal, _coManagerLookup, openManageGroupsModal, addGroup, renameGroup, deleteGroup, toggleGroupPick, toggleGroupExpand, toggleCrewInGroup, setAllInGroup,
