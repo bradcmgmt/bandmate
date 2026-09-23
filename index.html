@@ -1431,6 +1431,19 @@ body.mobile .god-search{min-width:0;width:100%}
 }
 .tbl-actions button:hover{color:var(--hi);border-color:var(--hi)}
 .tbl-actions button.del:hover{color:var(--red);border-color:var(--red);background:rgba(232,69,69,.06)}
+/* Schedule row actions sit centred against the row, however tall the
+   audience column grows — a passenger list wrapping to three lines used to
+   leave Edit stranded at the top. */
+.sched-actions{align-self:center;gap:6px}
+/* LIVE / PENDING. Live is the quiet default; a held item reads in ember,
+   because a placeholder on a run of show is worth noticing. */
+.sched-pending{padding:5px 9px;border:1px solid var(--line-2);border-radius:5px;background:rgba(232,148,58,.04);
+  color:var(--warm-mute);font-family:'Bricolage Grotesque',monospace;font-size:9.5px;font-weight:700;letter-spacing:.16em;
+  cursor:pointer;transition:color .12s ease,border-color .12s ease,background .12s ease}
+.sched-pending:hover{color:var(--warm);border-color:var(--warm-mute)}
+.sched-pending.on{color:var(--hi);border-color:rgba(232,148,58,.55);background:rgba(232,148,58,.12);
+  box-shadow:0 0 10px rgba(232,148,58,.18)}
+.sched-pending.on:hover{color:var(--hi-bright);border-color:var(--hi)}
 
 /* schedule columns */
 .sch-row{grid-template-columns:90px 1fr 1.2fr 1fr 110px}
@@ -10976,12 +10989,6 @@ function openScheduleModal(itemId) {
           </div>
         </div>
         <div class="field full"><label>What *</label><input id="s_what" value="${esc(i.what)}" placeholder="e.g. Soundcheck, Lobby call, Doors"></div>
-        <div class="field full">
-          <label>Status</label>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <button type="button" id="s_pending_btn" class="allday-btn ${i.pending ? 'on' : ''}" onclick="_schedTogglePending()" title="A pending item is a placeholder. It stays on your dashboard and off the band and crew's phones until you make it live.">PENDING</button>
-            <span class="muted mono" id="s_pending_note" style="font-size:10.5px;letter-spacing:.04em">${i.pending ? 'Placeholder \u2014 hidden from band and crew, and this date counts as incomplete.' : 'Live \u2014 everyone assigned to it can see this item.'}</span>
-          </div>
         </div>
         <div class="field full"><div class="lbl-row"><label>Visible to groups <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span></label><button type="button" class="ember-mini" onclick="_manageGroupsFromForm()">Manage groups</button></div>
           ${renderGroupPicker('s_grp', i.groups && i.groups.length ? i.groups : ['All'], true)}
@@ -11028,10 +11035,10 @@ function openScheduleModal(itemId) {
       // see all "this show's wrap-up" items together; rendering logic
       // (dashboard + crew mobile) merges them onto the appropriate day.
       const nextDay = document.getElementById('s_nextday_btn')?.classList.contains('on') || false;
-      // pending: a placeholder the TM hasn't committed to. Default is live —
-      // an item is only pending if it was deliberately toggled.
-      const pending = document.getElementById('s_pending_btn')?.classList.contains('on') || false;
-      const baseData = { time, endTime, allDay, what, notes: $('#s_notes').value.trim(), groups, individuals, nextDay, pending };
+      // `pending` is NOT read here. It is toggled on the schedule row itself,
+      // and leaving it out of baseData is what stops an edit from silently
+      // making a held item live again.
+      const baseData = { time, endTime, allDay, what, notes: $('#s_notes').value.trim(), groups, individuals, nextDay };
       // Resolve the date and the item as they are NOW, not as they were when
       // this form opened — a refresh in between can have replaced them.
       const live = _liveDate(ad.id) || ad;
@@ -12478,14 +12485,16 @@ function _whoBlockHTML(item, paxLabel, namesOnly) {
 // pickers. Disables/clears BOTH start (s_time) and end (s_end)
 // pickers so an all-day item can't accidentally retain a stale
 // end time after the toggle.
-function _schedTogglePending() {
-  const btn = document.getElementById('s_pending_btn');
-  if (!btn) return;
-  btn.classList.toggle('on');
-  const note = document.getElementById('s_pending_note');
-  if (note) note.textContent = btn.classList.contains('on')
-    ? 'Placeholder — hidden from band and crew, and this date counts as incomplete.'
-    : 'Live — everyone assigned to it can see this item.';
+// Hold an item, or let it go live. Takes the date id because a row can be a
+// carryover from yesterday's "+1 NEXT DAY", which lives on that date.
+function toggleSchedPending(dateId, itemId) {
+  const d = _liveDate(dateId) || (T().dates || []).find(x => x.id === dateId);
+  const item = d && (d.schedule || []).find(x => x.id === itemId);
+  if (!item) { toast('That item is no longer on this day', 'error'); return; }
+  item.pending = !item.pending;
+  saveState();
+  renderAll();
+  toast(item.pending ? 'Pending — hidden from band and crew' : 'Live — visible to everyone assigned', 'good');
 }
 
 /* ── Marking a gap "not needed" ──────────────────────────────────────── */
@@ -17478,19 +17487,27 @@ function renderSchedule() {
           const carryoverBadge = s._carryover
             ? `<span class="who" style="color:#fdba74;font-size:10px;letter-spacing:.16em;margin-left:6px">← PREV DAY</span>`
             : '';
-          // Only the TM sees this row at all, so the marker can be plain.
-          const pendingBadge = s.pending
-            ? `<span class="who" style="color:var(--hi);font-size:10px;letter-spacing:.16em;margin-left:6px" title="Hidden from band and crew until you make it live">PENDING</span>`
-            : '';
+          // The status lives on the row itself, next to Edit — a schedule is
+          // read as a list, and confirming a hold is a one-tap decision, not a
+          // reason to open a form. Travel is excluded on purpose: a flight with
+          // a confirmation number, or a booked hotel, is already confirmed —
+          // there is nothing there to hold.
+          const pendingBtn = isTravel ? '' : (() => {
+            const owner = s._carryover ? s._sourceDate : ad.id;
+            const on = !!s.pending;
+            return `<button type="button" class="sched-pending${on ? ' on' : ''}" aria-pressed="${on ? 'true' : 'false'}"
+              title="${on ? 'Pending — hidden from band and crew. Click to make it live.' : 'Live — everyone assigned can see it. Click to hold it as pending.'}"
+              onclick="event.stopPropagation();toggleSchedPending('${owner}','${s.id}')">${on ? 'PENDING' : 'LIVE'}</button>`;
+          })();
           return `
           <div class="item-row" style="grid-template-columns:minmax(110px,140px) minmax(160px,1fr) minmax(140px,220px) auto;align-items:flex-start">
             <span class="t" style="padding-top:8px">${esc(_scheduleTimeDisplay(s, ad))}</span>
-            <span class="what" style="padding-top:6px;min-width:0">${esc(s.what)}${travelBadge}${nextDayBadge}${carryoverBadge}${pendingBadge}${s.notes ? `<span class="note">${esc(s.notes)}</span>` : ''}${isTravel ? '' : _whoBlockHTML(s, 'Who', true)}</span>
+            <span class="what" style="padding-top:6px;min-width:0">${esc(s.what)}${travelBadge}${nextDayBadge}${carryoverBadge}${s.notes ? `<span class="note">${esc(s.notes)}</span>` : ''}${isTravel ? '' : _whoBlockHTML(s, 'Who', true)}</span>
             ${isTravel
               ? (_whoBlockHTML(s._travelRef, s._travelType === 'flight' ? 'Passengers' : 'Who')
                   || (s._audienceNeeded ? `<div class="travel-share"><span class="viz-chip warn-chip" title="Needs audience — pick who's on this in Travel">! NEEDS AUDIENCE</span></div>` : `<div class="travel-share muted-share">Visible to all</div>`))
               : renderVizPicker(s)}
-            <div class="tbl-actions" style="padding-top:6px"><button type="button" onclick="${editFn}">Edit</button></div>
+            <div class="tbl-actions sched-actions">${pendingBtn}<button type="button" onclick="${editFn}">Edit</button></div>
           </div>
         `;}).join('')}
       </div>
@@ -37712,7 +37729,7 @@ document.addEventListener('touchend', (e) => {
 Object.assign(window, {
   openMyManagerProfile, _phoneProfileCardHtml, _myManagerRecord, _coManagesTour,
   sendSavedProfile, openSavedProfile, _savedProfileGet, _myTourRecords, _autoAcceptInvites,
-  _schedTogglePending, markGapNotNeeded, undoGapOverride, _gapKey, _gapOverrides, _gapIsOverridable,
+  toggleSchedPending, markGapNotNeeded, undoGapOverride, _gapKey, _gapOverrides, _gapIsOverridable,
   _openMapSheet, _mapAct, _closeMapSheet, _addrHTML, _mapsDest, _cityStateZip, _stayDest, _mapsCanTryScheme, _mapsOpensInAppBrowser,
   onbChooseSample, onbChooseCSV, onbChooseScratch, downloadCSVTemplate,
   izAddFiles, izRemoveFile, izStartAnalyze, izApply, izBack,
