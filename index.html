@@ -6877,12 +6877,16 @@ const db = {
   // resolved server-side (patch-054) so someone who has since left the roster
   // still reads as a person rather than a uuid.
   async fetchEditHistory(tourId, limit) {
-    if (!sb || !tourId || !_isUuid(tourId)) return null;
+    if (!sb) return { rows: null, error: 'Not connected to the server.' };
+    if (!tourId || !_isUuid(tourId)) return { rows: null, error: 'This tour has not synced to the cloud yet.' };
     try {
       const { data, error } = await sb.rpc('tour_edit_history', { p_tour_id: tourId, p_limit: limit || 300 });
-      if (error) { console.warn('[db.fetchEditHistory]', error.message || error); return null; }
-      return Array.isArray(data) ? data : [];
-    } catch (e) { console.warn('[db.fetchEditHistory] threw', e); return null; }
+      if (error) { console.warn('[db.fetchEditHistory]', error.message || error); return { rows: null, error: _histErrorText(error) }; }
+      return { rows: Array.isArray(data) ? data : [], error: '' };
+    } catch (e) {
+      console.warn('[db.fetchEditHistory] threw', e);
+      return { rows: null, error: 'Could not reach the server. Check the connection and try again.' };
+    }
   },
   async fetchDeletedTourIds() {
     if (!sb) return [];
@@ -20820,6 +20824,21 @@ function toggleTask(id) {
    below reconstructs. */
 const _histState = { tourId: '', rows: null, inflight: null, error: '', at: 0, entries: [] };
 
+// Say what actually went wrong. Every failure used to read as "the database
+// needs the Edit History patch", which sent people back to the SQL editor
+// when the real answer was usually that the account doesn't manage the tour.
+function _histErrorText(error) {
+  const msg  = String((error && (error.message || error.hint)) || '').trim();
+  const code = String((error && error.code) || '');
+  if (/not your tour/i.test(msg))     return 'This tour belongs to another account. Only its owner and co-managers can read its history.';
+  if (/not authenticated/i.test(msg)) return 'You have been signed out. Sign in again to read the history.';
+  if (code === 'PGRST202' || /could not find the function|does not exist/i.test(msg))
+    return 'The database is missing the Edit History function — run supabase/patch-054-edit-history.sql.';
+  if (/failed to fetch|networkerror|load failed/i.test(msg))
+    return 'Could not reach the server. Check the connection and try again.';
+  return msg ? ('Could not load the history: ' + msg) : 'Could not load the history.';
+}
+
 const _HIST_FIELDS = {
   schedule:    'Schedule',
   travel:      'Travel',
@@ -20951,9 +20970,10 @@ async function renderEditHistory() {
       _histState.tourId = tour.id; _histState.error = '';
       root.innerHTML = head(`<div class="hist-loading">Loading history…</div>`);
       _histState.inflight = db.fetchEditHistory(tour.id)
-        .then(rows => {
+        .then(res => {
           _histState.at = Date.now();
-          if (rows === null) { _histState.rows = null; _histState.error = 'Could not load the history. The database needs the Edit History patch.'; }
+          const rows = res ? res.rows : null;
+          if (!rows) { _histState.rows = null; _histState.error = (res && res.error) || 'Could not load the history.'; }
           else { _histState.rows = rows; _histState.error = ''; }
         })
         .catch(() => { _histState.rows = null; _histState.error = 'Could not load the history.'; })
