@@ -5569,6 +5569,14 @@ html body.tm-mobile .tm-tabbar{display:grid;grid-template-columns:auto minmax(0,
 .tm-tabbar .ttb-item.warn-or::after{background:#8aa9d8}
 .tm-tabbar .ttb-sep{height:1px;margin:5px 8px;background:var(--line)}
 
+/* — the hue: a whisper of teal over everything below the band while TM
+     Mobile is on, so edit mode feels different from the road view at a
+     glance. Above the page (sticky bars, the tab picker, the exit sheet),
+     under the band and under pop-up forms, so fields stay crisp. Never takes
+     a touch. — */
+.tm-hue{display:none}
+html body.tm-mobile .tm-hue{display:block;position:fixed;left:0;right:0;top:var(--tm-banner-h);bottom:0;background:#4fd1c5;opacity:.065;pointer-events:none;z-index:895}
+
 /* — the band across the top — */
 /* padding-top keeps the text clear of a real notch, but not of the few points of
    "safe area" iOS still reports when the app's shell already sits the page below
@@ -9875,6 +9883,25 @@ function _tzDiffers(z) {
   return a.h !== b.h || a.mi !== b.mi || a.d !== b.d;
 }
 
+
+// A city is often typed or imported with its state already on it —
+// "Manchester, NH" — and then the separate state field ("New Hampshire")
+// doubled it up everywhere the two were joined. _stateFor returns the state
+// only when the city doesn't already carry it, comparing codes and full names
+// both ways (NH ≡ New Hampshire, DC ≡ District of Columbia). The city's own
+// first part never counts, so "New York" + "NY" still reads "New York, NY".
+function _placeKey(v) { const t = String(v || '').trim().toLowerCase().replace(/\./g, ''); return String(_TZ_STATE_NAMES[t] || t).toLowerCase(); }
+function _stateFor(city, state) {
+  const st = String(state || '').trim(); if (!st) return '';
+  return String(city || '').split(',').slice(1).map(_placeKey).includes(_placeKey(st)) ? '' : st;
+}
+const _COUNTRY_KEY = { us: 'us', usa: 'us', 'united states': 'us', 'united states of america': 'us', uk: 'uk', gb: 'uk', 'united kingdom': 'uk', 'great britain': 'uk' };
+function _countryFor(text, country) {
+  const c = String(country || '').trim(); if (!c) return '';
+  const k = v => { const t = String(v || '').trim().toLowerCase().replace(/\./g, ''); return _COUNTRY_KEY[t] || t; };
+  return String(text || '').split(',').slice(1).map(k).includes(k(c)) ? '' : c;
+}
+
 // Lookup of common touring-circuit cities to lat/lng so we can give the TM
 // a quick city-to-city mileage estimate without hitting any external API.
 // Coverage is broad strokes: major US/Canadian markets, top European
@@ -11742,7 +11769,7 @@ function _closeTelSheet() { const el = document.getElementById('telSheet'); if (
    picking for them. Apple Maps only appears where it exists. */
 // "Manchester, NH 03103" — the zip belongs to the state, not to its own comma.
 function _cityStateZip(h) {
-  const cs = [h.city, h.state].map(x => String(x || '').trim()).filter(Boolean).join(', ');
+  const cs = [h.city, _stateFor(h.city, h.state)].map(x => String(x || '').trim()).filter(Boolean).join(', ');
   const zip = String(h.zip || '').trim();
   return [cs, zip].filter(Boolean).join(' ');
 }
@@ -16917,7 +16944,7 @@ function renderDayStamp() {
   const parts = [
     `<span class="dot"></span>`,
     `<span>DAY ${(idx+1).toString().padStart(2,'0')} / ${total.toString().padStart(2,'0')}</span>`,
-    `<span class="sep">·</span><span>${todayDay}${esc((ad.city || '').toUpperCase())}${ad.state ? ', ' + esc(ad.state.toUpperCase()) : ''}</span>`,
+    `<span class="sep">·</span><span>${todayDay}${esc((ad.city || '').toUpperCase())}${_stateFor(ad.city, ad.state) ? ', ' + esc(_stateFor(ad.city, ad.state).toUpperCase()) : ''}</span>`,
     ad.venue ? `<span class="sep">·</span><span>${esc(ad.venue.toUpperCase())}</span>` : '',
     `<span class="sep">·</span><span>${fmtDate(ad.date).toUpperCase()}</span>`,
     `<span class="sep">·</span><span>${status}</span>`,
@@ -17436,7 +17463,7 @@ function renderDashboard() {
       : null;
     nextPreviewMeta = `<div class="m hop-preview">
       <div class="l">Tomorrow · ${fmtMD(nextDate.date)} · ${dow(nextDate.date)}</div>
-      <div class="v" style="line-height:1.25">${esc(nextDate.city)}${nextDate.state ? ', ' + esc(nextDate.state) : ''}</div>
+      <div class="v" style="line-height:1.25">${esc(nextDate.city)}${_stateFor(nextDate.city, nextDate.state) ? ', ' + esc(_stateFor(nextDate.city, nextDate.state)) : ''}</div>
       ${subBits.length ? `<div class="hop-sub">${subBits.join(' · ')}</div>` : ''}
       ${timeBits.length ? `<div class="hop-sub">${timeBits.join(' · ')}</div>` : (statusLabel ? `<div class="hop-sub" style="color:var(--warm-mute);font-style:italic">${statusLabel}</div>` : '')}
     </div>`;
@@ -17508,7 +17535,7 @@ function renderDashboard() {
     <div class="bm-info">
       ${ad.venue ? `<div class="name">${esc(ad.venue)}</div>` : ''}
       ${ad.venueAddress ? `<div class="line">${esc(ad.venueAddress)}</div>` : ''}
-      ${(ad.city || ad.state || ad.country) ? `<div class="line">${esc([ad.city, ad.state, ad.country].filter(Boolean).join(', '))}</div>` : ''}
+      ${(ad.city || ad.state || ad.country) ? `<div class="line">${esc([ad.city, _stateFor(ad.city, ad.state), _countryFor(ad.city, ad.country)].filter(Boolean).join(', '))}</div>` : ''}
       <div style="margin-top:8px">
         ${ad.capacity ? `<div class="pair"><span class="lbl">Capacity</span><span class="val">${esc(ad.capacity)}</span></div>` : ''}
         ${ad.doors ? `<div class="pair"><span class="lbl">Doors</span><span class="val">${esc(fmtClock(ad.doors, ad))}</span></div>` : ''}
@@ -17528,7 +17555,7 @@ function renderDashboard() {
     <div class="bm-info"${i ? ' style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)"' : ''}>
       <div class="name">${esc(hotel.name || 'Hotel')}${tag ? ` <span class="lbl" style="font-weight:400;letter-spacing:.06em">${tag}</span>` : ''}</div>
       ${hotel.address ? `<div class="line">${esc(hotel.address)}</div>` : ''}
-      ${hotel.city ? `<div class="line">${esc([hotel.city, hotel.state, hotel.zip].filter(Boolean).join(', '))}</div>` : ''}
+      ${hotel.city ? `<div class="line">${esc([hotel.city, _stateFor(hotel.city, hotel.state), hotel.zip].filter(Boolean).join(', '))}</div>` : ''}
       <div style="margin-top:8px">
         ${hotel.phone ? `<div class="pair"><span class="lbl">Phone</span><span class="val">${esc(hotel.phone)}</span></div>` : ''}
         ${hotel.checkIn ? `<div class="pair"><span class="lbl">Check-in</span><span class="val">${esc(fmtClock(hotel.checkIn, ad))}</span></div>` : ''}
@@ -17682,7 +17709,7 @@ function renderDashboard() {
       <div class="bm-dash-head">
         <div class="h-left">
           <h2 class="h-city">${esc((ad.status === 'off') ? 'Day off' : (ad.status === 'travel') ? 'Travel day' : (ad.city || ad.venue || 'Untitled'))}</h2>
-          <div class="h-loc">${esc([ad.venue, ad.city, ad.state, ad.country].filter(Boolean).join(' · ')) || '—'}</div>
+          <div class="h-loc">${esc([ad.venue, ad.city, _stateFor(ad.city, ad.state), _countryFor(ad.city, ad.country)].filter(Boolean).join(' · ')) || '—'}</div>
         </div>
         <div class="h-right">
           <span class="h-status ${statusClass}${ad.date === todayISO() ? ' live' : ''}">${status}${ad.date === todayISO() ? ' · LIVE' : ''}</span>
@@ -19439,7 +19466,7 @@ function printSettlementReport() {
     return `
       <tr>
         <td>${esc(d.date || '')}</td>
-        <td>${esc(d.city || '')}${d.state ? ', ' + esc(d.state) : ''}</td>
+        <td>${esc(d.city || '')}${_stateFor(d.city, d.state) ? ', ' + esc(_stateFor(d.city, d.state)) : ''}</td>
         <td>${esc(d.venue || '')}</td>
         <td>${esc(d.promoter || '')}</td>
         <td class="num">${fmt(guar)}</td>
@@ -20935,7 +20962,7 @@ function renderVenues() {
           <div class="contact-row">
             <div class="ini">${esc(initials(v.name))}</div>
             <div class="nm">${esc(v.name)}<span>${v.count > 1 ? v.count + ' shows on this tour' : ''}</span></div>
-            <div class="org">${esc(v.city)}${v.state ? ', ' + esc(v.state) : ''}${v.capacity ? ' · cap ' + esc(v.capacity) : ''}${v.address ? `<span style="display:block;font-size:11px;color:var(--warm-mute);margin-top:2px">${esc(v.address)}</span>` : ''}</div>
+            <div class="org">${esc(v.city)}${_stateFor(v.city, v.state) ? ', ' + esc(_stateFor(v.city, v.state)) : ''}${v.capacity ? ' · cap ' + esc(v.capacity) : ''}${v.address ? `<span style="display:block;font-size:11px;color:var(--warm-mute);margin-top:2px">${esc(v.address)}</span>` : ''}</div>
             <div class="role">${fmtMD(v.lastDate)}</div>
             <div></div>
           </div>
@@ -21892,7 +21919,7 @@ function renderPhone() {
   // The venue's address, tappable for directions — the thing everyone opens
   // the app for on a show day, and what a driver or a cab needs.
   const _venueAddrLine = (() => {
-    const place = [ad.city, ad.state, ad.country].filter(Boolean).join(', ');
+    const place = [ad.city, _stateFor(ad.city, ad.state), _countryFor(ad.city, ad.country)].filter(Boolean).join(', ');
     const street = String(ad.venueAddress || '').trim();
     if (!ad.venue && !street) return '';
     // The street alone is ambiguous — there's a 555 Elm St in every state — so
@@ -22568,8 +22595,8 @@ const PhoneSwipe = (() => {
 function _phoneCityLine(ad) {
   const city = String((ad && ad.city) || '').trim(), st = String((ad && ad.state) || '').trim();
   if (!city) return st || '—';
-  if (!st || city.indexOf(',') > -1 || city.toLowerCase().endsWith(st.toLowerCase())) return city;
-  return city + ', ' + st;
+  const s2 = _stateFor(city, st);
+  return s2 ? city + ', ' + s2 : city;
 }
 // A tap that visibly registers: the row presses in, then the action runs.
 function _phPress(el, fn) {
@@ -26428,7 +26455,7 @@ function renderImportReview() {
                   <div class="review-row ${cls}">
                     <span class="rmono">${esc(d.date || '—')}</span>
                     <span>
-                      <span class="city-name">${esc(d.city || '—')}${d.state?', '+esc(d.state):''}</span>
+                      <span class="city-name">${esc(d.city || '—')}${_stateFor(d.city,d.state)?', '+esc(_stateFor(d.city,d.state)):''}</span>
                       <span class="rsec">${esc(d.venue || '')}${!d.venue ? '<span class="gap-tag r">no venue</span>' : ''}</span>
                     </span>
                     <span class="rmono">
@@ -29343,7 +29370,7 @@ function renderPhoneDateMenu() {
         <div class="phone-date-item ${isCurrent?'current':''} ${isPast?'past':''} ${chipClass}" onclick="setPhoneViewDate('${d.id}')">
           <div class="pdi-date">${fmtMD(d.date)}</div>
           <div class="pdi-info">
-            <div class="pdi-city">${esc(d.city || '—')}${d.state?', '+esc(d.state):''}</div>
+            <div class="pdi-city">${esc(d.city || '—')}${_stateFor(d.city,d.state)?', '+esc(_stateFor(d.city,d.state)):''}</div>
             <div class="pdi-meta">${esc((d.status||'show').toUpperCase())}${d.venue?' · '+esc(d.venue):''}</div>
           </div>
         </div>
@@ -29561,7 +29588,7 @@ function renderTourBook(opts) {
           ${dates.map(d => `
             <div class="r-row">
               <span class="r-d">${fmtMD(d.date)}</span>
-              <span class="r-c">${esc(d.city || '—')}${d.state?', '+esc(d.state):''}</span>
+              <span class="r-c">${esc(d.city || '—')}${_stateFor(d.city,d.state)?', '+esc(_stateFor(d.city,d.state)):''}</span>
               <span class="r-s">${esc((d.status||'show').toUpperCase())}</span>
             </div>
           `).join('')}
@@ -29588,7 +29615,7 @@ function renderTourBook(opts) {
         <div class="tb-head">
           <div>
             <div class="tb-day">DAY ${String(dayN).padStart(2,'0')} / ${String(total).padStart(2,'0')} · ${esc(fmtDate(d.date).toUpperCase())}</div>
-            <div class="tb-city">${esc(d.city || '—')}${d.state?', '+esc(d.state):''}</div>
+            <div class="tb-city">${esc(d.city || '—')}${_stateFor(d.city,d.state)?', '+esc(_stateFor(d.city,d.state)):''}</div>
             <div class="tb-venue">${esc(d.venue || '')}${d.venueAddress ? `<span style="display:block;font-size:11px;font-weight:400;color:#555">${esc(d.venueAddress)}</span>` : ''}</div>
           </div>
           <div class="tb-status">${status}</div>
@@ -35426,6 +35453,7 @@ function _tmEnsureChrome() {
         <button type="button" class="tms-close" onclick="_tmToggleSheet(false)">Keep editing</button>
       </div>
     </div>
+    <div id="tmHue" class="tm-hue" aria-hidden="true"></div>
     <div id="tmCurtain" class="tm-curtain" hidden aria-hidden="true"><div class="tmc-word"><span class="tmc-k"></span><span class="tmc-t"></span></div></div>`;
   document.body.appendChild(host);
 }
@@ -37378,7 +37406,7 @@ async function downloadDaySheetPDF() {
   // — it renders with zero network access (offline, iOS Files preview,
   // AirPrint, email), which a remote /avatar-blk.png URL did not.
   const _DAYSHEET_LOGO = 'data:image/png;base64,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';
-  const venueLine = [ad.city, ad.state, ad.country].filter(Boolean).join(', ');
+  const venueLine = [ad.city, _stateFor(ad.city, ad.state), _countryFor(ad.city, ad.country)].filter(Boolean).join(', ');
   const headerTitle = [ad.venue, venueLine, fmtDate(ad.date)].filter(Boolean).join(' · ');
   const statusBadge = (ad.status || 'show').toUpperCase();
 
@@ -37391,7 +37419,7 @@ async function downloadDaySheetPDF() {
     ${i ? '<div class="b-line" style="height:8px"></div>' : ''}
     <div class="b-name">${esc(hotel.name)}${whoTxt || roleTxt ? ` <span class="b-lbl" style="font-weight:400">${whoTxt}${esc(roleTxt.trim())}</span>` : ''}</div>
     ${hotel.address ? `<div class="b-line">${esc(hotel.address)}</div>` : ''}
-    ${hotel.city ? `<div class="b-line">${esc([hotel.city, hotel.state, hotel.zip].filter(Boolean).join(', '))}</div>` : ''}
+    ${hotel.city ? `<div class="b-line">${esc([hotel.city, _stateFor(hotel.city, hotel.state), hotel.zip].filter(Boolean).join(', '))}</div>` : ''}
     ${hotel.phone ? `<div class="b-line"><span class="b-lbl">Main Number:</span> ${esc(hotel.phone)}</div>` : ''}
     ${hotel.checkIn ? `<div class="b-line"><span class="b-lbl">Check-in:</span> ${esc(fmtClock(hotel.checkIn, ad))}</div>` : ''}
     ${hotel.checkOut ? `<div class="b-line"><span class="b-lbl">Check-out:</span> ${esc(fmtClock(hotel.checkOut, ad))}</div>` : ''}
@@ -37492,7 +37520,7 @@ async function downloadDaySheetPDF() {
     const isOff = (d.status || '').toLowerCase() === 'off';
     const isTravel = (d.status || '').toLowerCase() === 'travel';
     const label = isOff ? 'Day Off' : isTravel ? 'Travel' : (d.venue || '');
-    const loc = [d.city, d.state, d.country].filter(Boolean).join(', ');
+    const loc = [d.city, _stateFor(d.city, d.state), _countryFor(d.city, d.country)].filter(Boolean).join(', ');
     return `
       <td class="fc">
         <div class="fc-head"><b>${esc(dow)}</b><span class="fc-day">${esc(String(dn))}</span></div>
@@ -39090,7 +39118,7 @@ function openPhoneSearch() {
   const idx = [];
   (tour.dates || []).forEach(d => {
     if (d.venue || d.city) {
-      idx.push({ type: 'Show', label: [d.city, d.state].filter(Boolean).join(', '), sub: [d.venue, fmtDate(d.date)].filter(Boolean).join(' · '), dateId: d.id });
+      idx.push({ type: 'Show', label: [d.city, _stateFor(d.city, d.state)].filter(Boolean).join(', '), sub: [d.venue, fmtDate(d.date)].filter(Boolean).join(' · '), dateId: d.id });
     }
     (d.hotels || []).forEach(s => {
       if (!s.name) return;
