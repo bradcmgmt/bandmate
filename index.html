@@ -802,15 +802,26 @@ input,select,textarea{font:inherit;color:inherit;
   transform:translateX(-120%);animation:fixNowSweep .85s cubic-bezier(.4,0,.2,1) 1}
 @keyframes fixNowSweep{to{transform:translateX(120%)}}
 /* …and whatever was actually wrong answers back once you land on it. */
+/* The target is often a row inside a table that clips overflow, so an outer
+   glow alone can vanish. The tint and the inset ring live inside the box
+   and always show; the glow is a bonus where there's room. The panel behind
+   it pulses softly at the same beat, so the flash reads at any size. */
 @keyframes gapFlash{
-  0%   {box-shadow:0 0 0 0 rgba(232,148,58,0),   inset 0 0 0 0 rgba(232,148,58,0)}
-  14%  {box-shadow:0 0 24px 3px rgba(232,148,58,.5), inset 0 0 0 1px rgba(232,148,58,.7)}
-  100% {box-shadow:0 0 0 0 rgba(232,148,58,0),   inset 0 0 0 0 rgba(232,148,58,0)}
+  0%   {box-shadow:0 0 0 0 rgba(232,148,58,0),   inset 0 0 0 0 rgba(232,148,58,0);background-color:rgba(232,148,58,0)}
+  14%  {box-shadow:0 0 24px 3px rgba(232,148,58,.5), inset 0 0 0 2px rgba(232,148,58,.85);background-color:rgba(232,148,58,.18)}
+  100% {box-shadow:0 0 0 0 rgba(232,148,58,0),   inset 0 0 0 0 rgba(232,148,58,0);background-color:rgba(232,148,58,0)}
 }
 .gap-flash{animation:gapFlash 1.15s ease-out 2;border-radius:9px}
+@keyframes gapFlashPanel{
+  0%   {box-shadow:inset 0 0 0 0 rgba(232,148,58,0)}
+  14%  {box-shadow:inset 0 0 0 2px rgba(232,148,58,.7),inset 0 0 90px rgba(232,148,58,.2)}
+  100% {box-shadow:inset 0 0 0 0 rgba(232,148,58,0)}
+}
+.gap-flash-panel{animation:gapFlashPanel 1.15s ease-out 2}
 @media (prefers-reduced-motion:reduce){
   .ch-status .chs-act.working::after{animation:none}
-  .gap-flash{animation:none;box-shadow:0 0 0 1px rgba(232,148,58,.7)}
+  .gap-flash{animation:none;box-shadow:inset 0 0 0 2px rgba(232,148,58,.85);background-color:rgba(232,148,58,.12)}
+  .gap-flash-panel{animation:none}
 }
 .ch-status.warn .chs-act{border-left-color:rgba(253,186,116,.34);color:#fdba74;
   background:
@@ -2002,6 +2013,11 @@ body.phone-collapsed:not(.crew-mobile-only):not(.tm-crew-tour):not(.phone-app):n
    screen rubber-band the whole page instead, and until that bounce settles
    the screen under your finger won't scroll at all. */
 html.native-app,html.native-app body{height:100%;overflow:hidden;overscroll-behavior:none}
+html.native-app.tm-mobile-doc{height:auto;overflow:hidden auto;overscroll-behavior:auto}
+/* body stays overflow:visible so the viewport is the scroller — a body with
+   overflow of its own becomes the scrollport for position:sticky and the
+   tab strip below would never stick. */
+html.native-app.tm-mobile-doc body{height:auto;overflow:visible!important;overscroll-behavior:auto}
 
 /* ── a window, as a page inside the phone ── */
 .ph-page{position:absolute;left:0;right:0;z-index:30;display:flex;flex-direction:column;
@@ -5387,6 +5403,245 @@ html body.phone-app .phone .nav {
 }
 
 
+
+/* ============ TM MOBILE ============
+   The dashboard, in its narrow-screen form, inside the phone app. A tour
+   manager (owner or co-manager) opens it from the phone's More tab by
+   pressing and holding EDIT THIS TOUR for four seconds; a thin teal band
+   sits across the top the whole time they're in it, and the same hold on
+   EXIT TM MOBILE takes them back to the road view. While it's on, the tour
+   is locked — changing tours means leaving and coming back in.
+
+   body.tm-mobile is set by applyRoleMode() in place of body.phone-app, with
+   body.mobile alongside so the dashboard's own ≤768px rules do the layout.
+   Nothing here touches the desktop. */
+:root{--tm-teal:#4fd1c5;--tm-teal-deep:#2fb8ab;--tm-ink:#0b1614;--tm-banner-h:calc(22px + env(safe-area-inset-top,0px))}
+
+/* — the hold button (both directions share it) — */
+.tm-hold{position:relative;display:flex;align-items:center;gap:12px;width:100%;margin-top:10px;padding:14px 16px;min-height:74px;
+  background:linear-gradient(180deg,rgba(24,17,11,.96),rgba(15,11,8,.96));border:1px solid rgba(79,209,197,.42);border-radius:12px;
+  color:var(--warm);text-align:left;cursor:pointer;overflow:hidden;isolation:isolate;font:inherit;
+  -webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:none;
+  box-shadow:inset 0 1px 0 rgba(79,209,197,.12);transition:border-color .25s ease,box-shadow .25s ease,transform .12s ease,background .2s ease}
+.tm-hold:focus-visible{outline:2px solid rgba(79,209,197,.7);outline-offset:2px}
+.tm-hold-fill{position:absolute;inset:0;z-index:-1;transform:scaleX(0);transform-origin:left center;
+  background:linear-gradient(90deg,rgba(79,209,197,.34),rgba(79,209,197,.16) 70%,rgba(79,209,197,.28));
+  box-shadow:2px 0 14px rgba(79,209,197,.55);transition:transform .3s cubic-bezier(.2,.8,.2,1)}
+.tm-hold-body{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.tm-hold-k{font-family:'Bricolage Grotesque',monospace;font-size:9px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#5fd6c8}
+.tm-hold-t{font-weight:800;font-size:15px;letter-spacing:.14em;text-transform:uppercase;color:#d2efe9;line-height:1.2;transition:color .2s ease,text-shadow .2s ease}
+.tm-hold-s{font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.06em;color:var(--warm-mute)}
+.tm-hold-n{flex:none;width:34px;text-align:center;font-family:'Bricolage Grotesque',monospace;font-size:22px;font-weight:800;line-height:1;
+  color:rgba(79,209,197,.28);font-variant-numeric:tabular-nums;transition:color .2s ease,transform .2s ease}
+.tm-hold-n svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px}
+.tm-hold.holding{border-color:rgba(79,209,197,.85);box-shadow:0 0 22px rgba(79,209,197,.22),inset 0 1px 0 rgba(79,209,197,.2);transform:scale(.985)}
+.tm-hold.holding .tm-hold-fill{transform:scaleX(1);transition:transform 2s linear}
+.tm-hold.holding .tm-hold-t{color:#eafffb;text-shadow:0 0 12px rgba(79,209,197,.55)}
+.tm-hold.holding .tm-hold-n{color:#7fe3d3;transform:scale(1.08)}
+.tm-hold.released .tm-hold-fill{transition:transform .26s cubic-bezier(.2,.8,.2,1)}
+.tm-hold.done{border-color:#7fe3d3;background:linear-gradient(180deg,#4fd1c5,#2fb8ab);transform:scale(1);box-shadow:0 0 34px rgba(79,209,197,.55)}
+.tm-hold.done .tm-hold-fill{opacity:0;transition:none}
+.tm-hold.done .tm-hold-k,.tm-hold.done .tm-hold-s{color:rgba(11,22,20,.7)}
+.tm-hold.done .tm-hold-t{color:var(--tm-ink);text-shadow:none}
+.tm-hold.done .tm-hold-n{color:var(--tm-ink);transform:scale(1.15)}
+.tm-card .tm-card-sub{font-size:12.5px;line-height:1.5;color:var(--warm)}
+
+/* — panels at phone width —
+   The dashboard's tables were laid out for a desktop; below ~600px their
+   right-hand columns (the Edit buttons among them) fall off the edge. The
+   rows people edit most reflow to two lines; the wide data grids (guest
+   list, settlements) keep their columns and scroll sideways inside the
+   table, with a fade on the trailing edge so the scroll is discoverable.
+   Inline grid templates are !important-overridden on purpose. */
+html body.tm-mobile #p-schedule .item-row{grid-template-columns:62px minmax(0,1fr) auto!important;grid-auto-rows:auto;gap:4px 10px!important;align-items:start!important}
+html body.tm-mobile #p-schedule .item-row>:nth-child(1){grid-column:1;grid-row:1}
+html body.tm-mobile #p-schedule .item-row>:nth-child(2){grid-column:2;grid-row:1;min-width:0}
+html body.tm-mobile #p-schedule .item-row>:nth-child(3){grid-column:1/4;grid-row:2;min-width:0}
+html body.tm-mobile #p-schedule .item-row>:nth-child(4){grid-column:3;grid-row:1}
+html body.tm-mobile #p-travel .item-row{grid-template-columns:62px minmax(0,1fr) auto!important;gap:2px 10px!important;align-items:start!important}
+html body.tm-mobile #p-travel .item-row>:nth-child(1){grid-column:1;grid-row:1}
+html body.tm-mobile #p-travel .item-row>:nth-child(2){grid-column:1;grid-row:2;font-size:11px}
+html body.tm-mobile #p-travel .item-row>:nth-child(3){grid-column:2;grid-row:1/3;min-width:0}
+html body.tm-mobile #p-travel .item-row>:nth-child(4){grid-column:2;grid-row:3;font-size:10.5px}
+html body.tm-mobile #p-travel .item-row>:nth-child(5){grid-column:3;grid-row:1/4}
+html body.tm-mobile .tbl-actions-mid,html body.tm-mobile #p-travel .tbl-actions,html body.tm-mobile #p-profiles .tbl-actions{flex-direction:column;align-items:flex-end;gap:6px}
+html body.tm-mobile .contact-row{grid-template-columns:38px minmax(0,1fr) auto!important;gap:4px 10px!important}
+html body.tm-mobile .contact-row>:nth-child(1){grid-column:1;grid-row:1/3}
+html body.tm-mobile .contact-row>:nth-child(2){grid-column:2;grid-row:1;min-width:0}
+html body.tm-mobile .contact-row>:nth-child(3){grid-column:2;grid-row:2;min-width:0;font-size:11.5px}
+html body.tm-mobile .contact-row>:nth-child(4){grid-column:2;grid-row:3;font-size:11px}
+html body.tm-mobile .contact-row>:nth-child(5){grid-column:3;grid-row:1/4;flex-direction:column!important;align-items:flex-end}
+html body.tm-mobile .contact-row .nm span,html body.tm-mobile .contact-row .org{white-space:normal;overflow:visible;text-overflow:clip}
+html body.tm-mobile .advance-grid{grid-template-columns:1fr!important}
+html body.tm-mobile .tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:relative}
+html body.tm-mobile .tbl::-webkit-scrollbar{display:none}
+html body.tm-mobile #p-guest .tbl,html body.tm-mobile #p-acct .tbl{
+  -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
+html body.tm-mobile #p-guest .gl-grid{min-width:560px}
+html body.tm-mobile #p-acct .settle-row{min-width:660px}
+
+/* — the header, the console head and the crew toolbar at phone width —
+   The topbar's right cluster and the status chip were built to sit beside
+   things; alone on a phone they truncate. Give them the row. */
+/* No account pill in TM Mobile: switching accounts or tours, and starting
+   new ones, happen outside edit mode (exit, then sign out / pick on desktop). */
+html body.tm-mobile .right-cluster{display:none!important}
+html body.tm-mobile .uni-dropdown{width:100%}
+html body.tm-mobile .account-pill{width:100%;box-sizing:border-box;padding:8px 14px 8px 8px!important;border-radius:12px}
+html body.tm-mobile .account-pill .uni-label{flex:1;min-width:0}
+html body.tm-mobile .account-pill .ap-name,html body.tm-mobile .uni-pill .uni-tour{max-width:none!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+html body.tm-mobile .account-pill .ap-name{font-size:12px!important}
+html body.tm-mobile .console-head .ch-status{max-width:none!important;width:100%;margin:0!important;justify-content:space-between}
+html body.tm-mobile .console-head .ch-status .chs-main{flex:1;min-width:0}
+html body.tm-mobile .console-head .ch-status .chs-t{white-space:normal;overflow:visible;text-overflow:clip}
+html body.tm-mobile .console-head .actions{width:100%;justify-content:center}
+html body.tm-mobile .console-head .title{width:100%;justify-content:center;text-align:center}
+/* The city is painted through background-clip:text, so any glyph that runs
+   past its box goes unpainted — the clipped S. Give the title the whole row
+   and drop the status + Scan beneath it. */
+html body.tm-mobile .bm-dash-head .h-left{flex:1 1 100%!important}
+html body.tm-mobile .bm-dash-head .h-right{flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:space-between;width:100%;min-width:0!important}
+html body.tm-mobile .bm-dash-head .h-city{font-size:32px;overflow:visible!important;white-space:normal;padding-right:.12em}
+html body.tm-mobile .bm-dash-head .h-right button[onclick="openImportData()"],html body.tm-mobile #p-tools button[onclick="openImportData()"]{display:none!important}
+html body.tm-mobile .profiles-toolbar{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+html body.tm-mobile .profiles-toolbar .stat{grid-column:1/-1;border:0;padding:0 0 2px;font-size:10.5px;letter-spacing:.14em}
+html body.tm-mobile .profiles-toolbar .stat+.stat{margin-top:-6px}
+html body.tm-mobile .profiles-toolbar .view-toggle{grid-column:1/-1;justify-self:stretch;display:grid;grid-template-columns:1fr 1fr;margin-top:4px}
+html body.tm-mobile .profiles-toolbar .sp{display:none}
+html body.tm-mobile .profiles-toolbar .tb-btn{width:100%;box-sizing:border-box;text-align:center;padding:10px 8px!important}
+html body.tm-mobile .profiles-toolbar .tb-btn[onclick="downloadProfilesCSV()"],html body.tm-mobile .profiles-toolbar .tb-btn[onclick="downloadProfilesJSON()"]{display:none}
+html body.tm-mobile .adv-foot{justify-content:center!important}
+html body.tm-mobile .adv-foot .tb-btn{flex:1;text-align:center}
+/* The date pills are the desktop's scroller; on the phone the grid is the
+   date picker, behind the Tour Dates button. Two buttons, the full row. */
+html body.tm-mobile .day-strip{display:none!important}
+html body.tm-mobile .day-strip-wrap{display:block!important;padding:8px 12px 8px!important}
+html body.tm-mobile .day-strip-actions{flex-direction:row!important;gap:8px;padding:0!important}
+html body.tm-mobile .day-strip-actions .day-add-btn{flex:1;text-align:center;padding:10px 8px!important;font-size:10.5px!important}
+/* The artist logo shows if one has been uploaded; the upload nudge is a
+   desktop job and stays there. */
+html body.tm-mobile #tourRange:has(.logo-upload-cta),html body.tm-mobile #tourRange:has(.logo-upload-cta)+.pip{display:none!important}
+.tm-desk-only{margin-top:14px;padding:22px 18px;border:1px dashed rgba(79,209,197,.4);border-radius:14px;text-align:center;background:rgba(79,209,197,.05)}
+.tm-desk-only .tdo-k{font-family:'Bricolage Grotesque',monospace;font-size:9px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#5fd6c8}
+.tm-desk-only .tdo-t{margin-top:8px;font-size:14px;line-height:1.5;color:var(--warm)}
+.tm-desk-only .tdo-t b{color:#7fe3d3;font-weight:600}
+.tm-desk-only .tdo-s{margin-top:6px;font-size:12px;color:var(--warm-mute)}
+
+/* — the pixel rabbit's canvas — */
+.tm-grid{position:fixed;inset:0;z-index:1200;pointer-events:none}
+.tm-grid[hidden]{display:none!important}
+
+/* — the tab picker, in place of the sideways strip — */
+.tm-tabbar{display:none}
+html body.tm-mobile #tabs{display:none!important}
+html body.tm-mobile .tm-tabbar{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;position:sticky;top:var(--tm-banner-h);z-index:26;
+  padding:8px 12px;background:var(--ink);border-bottom:1px solid var(--line)}
+.tm-tabbar button{font-family:'Bricolage Grotesque',monospace;font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;cursor:pointer}
+.tm-tabbar .ttb-tools{display:flex;align-items:center;gap:7px;padding:11px 14px;border:1px solid rgba(138,169,216,.35);border-radius:10px;background:rgba(138,169,216,.07);color:#b1c8ee}
+.tm-tabbar .ttb-tools.on{background:rgba(138,169,216,.2);border-color:rgba(138,169,216,.75);color:#e2ebfb}
+.tm-tabbar .ttb-tools .ic{font-size:11px;opacity:.8}
+.tm-tabbar .ttb-badge[hidden]{display:none}
+.tm-tabbar .ttb-badge{min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--hi);color:#1a0f05;font-size:9px;display:inline-flex;align-items:center;justify-content:center;letter-spacing:0}
+.tm-tabbar .ttb-cur{display:flex;align-items:center;gap:9px;min-width:0;padding:11px 14px;border:1px solid rgba(232,148,58,.4);border-radius:10px;background:rgba(232,148,58,.07);color:var(--hi-bright);text-align:left}
+.tm-tabbar .ttb-cur .n{color:rgba(232,148,58,.6);font-size:9.5px}
+.tm-tabbar .ttb-cur .l{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tm-tabbar .ttb-cur .chev{flex:none;transition:transform .2s ease}
+.tm-tabbar .ttb-cur.dash{color:#f5d76e;border-color:rgba(245,215,110,.45);background:rgba(245,215,110,.07)}
+.tm-tabbar .ttb-cur.dash .n{color:rgba(245,215,110,.55)}
+.tm-tabbar .ttb-cur.hist{color:var(--warm-mute);border-color:var(--line-2);background:transparent}
+.tm-tabbar .ttb-cur.dim{color:var(--warm-mute);border-color:var(--line-2);background:transparent}
+.tm-tabbar .ttb-cur.dim .n{color:var(--warm-mute)}
+.tm-tabbar.open .ttb-cur .chev{transform:rotate(180deg)}
+.tm-tabbar .ttb-menu{position:absolute;left:12px;right:12px;top:calc(100% - 2px);max-height:min(64vh,540px);overflow:auto;-webkit-overflow-scrolling:touch;
+  padding:6px;background:#17110b;border:1px solid var(--line-2);border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,.6);z-index:30}
+.tm-tabbar .ttb-menu[hidden]{display:none}
+.tm-tabbar .ttb-item{display:flex;align-items:center;gap:12px;width:100%;padding:12px;border:0;border-radius:8px;background:none;color:var(--warm);font-size:11px;text-align:left}
+.tm-tabbar .ttb-item .n{width:20px;flex:none;color:var(--warm-mute);font-size:10px}
+.tm-tabbar .ttb-item .l{flex:1;min-width:0}
+.tm-tabbar .ttb-item.dash{color:#f5d76e}
+.tm-tabbar .ttb-item.hist{color:var(--warm-mute)}
+.tm-tabbar .ttb-item.on{background:rgba(232,148,58,.12);color:var(--hi-bright)}
+.tm-tabbar .ttb-item.warn::after,.tm-tabbar .ttb-item.warn-or::after{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:var(--hi)}
+.tm-tabbar .ttb-item.warn-or::after{background:#8aa9d8}
+.tm-tabbar .ttb-sep{height:1px;margin:5px 8px;background:var(--line)}
+
+/* — the band across the top — */
+.tm-banner{position:fixed;top:0;left:0;right:0;z-index:900;height:var(--tm-banner-h);padding-top:env(safe-area-inset-top,0px);
+  display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;column-gap:10px;box-sizing:border-box;
+  padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px));
+  background:linear-gradient(90deg,#2fb8ab,#4fd1c5 50%,#2fb8ab);color:var(--tm-ink);cursor:pointer;
+  font-family:'Bricolage Grotesque',monospace;font-size:9px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.tm-banner[hidden]{display:none!important}
+.tm-banner .tmb-dot{width:6px;height:6px;border-radius:50%;background:var(--tm-ink);animation:tmPulse 3.2s ease-in-out infinite}
+/* The band breathes: a touch brighter and a faint glow onto what's below,
+   once every 3.2s, on the same beat as the dot. Kept low on purpose — it
+   should read as "live", not as something asking for attention. */
+.tm-banner{animation:tmBandGlow 3.2s ease-in-out infinite}
+.tm-banner::after{content:"";position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;animation:tmBandLift 3.2s ease-in-out infinite}
+@keyframes tmBandLift{0%,100%{opacity:0}50%{opacity:.13}}
+@keyframes tmBandGlow{0%,100%{box-shadow:0 0 0 rgba(79,209,197,0)}50%{box-shadow:0 1px 12px rgba(79,209,197,.32)}}
+.tm-banner .tmb-c{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.tm-banner .tmb-x{justify-self:end;font-size:8.5px;letter-spacing:.18em;opacity:.7;white-space:nowrap}
+/* Beta: a small printed tag, square-cornered — a stamp, not a pill. */
+.tm-banner .tmb-beta{font-size:6px;font-weight:800;letter-spacing:.2em;line-height:1;padding:1.6px 3.2px 1.6px 4px;border:1px solid rgba(11,22,20,.55);border-radius:1.8px;opacity:.85}
+@keyframes tmPulse{0%,100%{opacity:.35}50%{opacity:1}}
+/* `html body` so these outrank the dashboard's own body.mobile rules, which
+   come later in the file and carry !important of their own. */
+html body.tm-mobile{padding-top:var(--tm-banner-h);touch-action:manipulation}
+/* The tour header scrolls away (room to work); the tab strip sticks under
+   the band so any section is one tap away wherever you are. */
+html body.tm-mobile .sticky-header{position:static}
+html body.tm-mobile .tabs{position:sticky;top:var(--tm-banner-h);z-index:25;background:var(--ink)}
+/* sticky needs a clear line of sight to the viewport: no clipping ancestors */
+html body.tm-mobile .console,html body.tm-mobile .console-body,html body.tm-mobile .panels-wrap,html body.tm-mobile #app{overflow:visible!important}
+html body.tm-mobile .laminate-wrap{display:none!important}
+html body.tm-mobile .uni-menu .tour-switcher{display:none!important}
+html body.tm-mobile .crew-mode-banner,html body.tm-mobile .footnote{display:none!important}
+html body.tm-mobile .phone-rig{display:none!important}
+/* The stage is a two-column grid (console | phone rig) and nothing at ≤768px
+   collapses it — the narrow web dashboard relies on the hide-phone toggle.
+   Here the rig is gone for good, so the console takes the whole width. */
+html body.tm-mobile .stage{display:block!important;grid-template-columns:none!important;padding:0!important;margin:0!important;max-width:100vw!important}
+html body.tm-mobile .panel{padding-bottom:calc(60px + env(safe-area-inset-bottom,0px))!important}
+
+/* — the sheet that drops from the band (tour name + the way out) — */
+.tm-sheet{position:fixed;inset:0;z-index:890}
+.tm-sheet[hidden]{display:none!important}
+.tm-sheet-scrim{position:absolute;inset:0;background:rgba(0,0,0,.55);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+.tm-sheet-card{position:absolute;left:0;right:0;top:var(--tm-banner-h);padding:16px 16px 18px;
+  background:linear-gradient(180deg,rgba(24,17,11,.98),rgba(15,11,8,.98));
+  border-bottom:1px solid rgba(79,209,197,.35);border-radius:0 0 18px 18px;box-shadow:0 18px 40px rgba(0,0,0,.5);
+  transform:translateY(-14px);opacity:0;transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .28s ease}
+.tm-sheet.open .tm-sheet-card{transform:none;opacity:1}
+.tm-sheet .tms-k{font-family:'Bricolage Grotesque',monospace;font-size:9px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#5fd6c8}
+.tm-sheet .tms-n{font-weight:800;font-size:17px;color:var(--hi-bright);margin-top:4px}
+.tm-sheet .tms-s{font-size:12.5px;line-height:1.5;color:var(--warm);margin-top:6px}
+.tm-sheet .tms-close{width:100%;margin-top:10px;padding:12px;background:none;border:1px solid var(--line-2);border-radius:11px;color:var(--warm-mute);
+  font-family:'Bricolage Grotesque',monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
+
+/* — the curtain: teal drops over the screen, the mode swaps beneath it, and
+     it draws back up into the band (entering) or falls away (leaving) — */
+.tm-curtain{position:fixed;inset:0;z-index:1200;background:linear-gradient(180deg,#4fd1c5,#2fb8ab 60%,#25a89c);
+  display:flex;align-items:center;justify-content:center;pointer-events:none;
+  clip-path:inset(0 0 100% 0);transition:clip-path .5s cubic-bezier(.7,0,.2,1)}
+.tm-curtain[hidden]{display:none!important}
+.tm-curtain.tmc-instant{transition:none!important}
+.tm-curtain.tmc-open{clip-path:inset(0 0 0 0)}
+.tm-curtain.tmc-from-banner{clip-path:inset(0 0 calc(100% - var(--tm-banner-h)) 0)}
+.tm-curtain.tmc-to-banner{clip-path:inset(0 0 calc(100% - var(--tm-banner-h)) 0)}
+.tm-curtain.tmc-off-down{clip-path:inset(100% 0 0 0)}
+.tmc-word{display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--tm-ink);opacity:0;transform:translateY(8px);
+  transition:opacity .35s ease .18s,transform .45s cubic-bezier(.2,.8,.2,1) .18s}
+.tm-curtain.tmc-open .tmc-word{opacity:1;transform:none}
+.tm-curtain.tmc-to-banner .tmc-word,.tm-curtain.tmc-off-down .tmc-word{opacity:0;transition:opacity .2s ease}
+.tmc-k{font-family:'Bricolage Grotesque',monospace;font-size:10px;font-weight:700;letter-spacing:.3em;text-transform:uppercase;opacity:.75}
+.tmc-t{font-weight:900;font-size:34px;letter-spacing:.2em;text-transform:uppercase;line-height:1}
+@media (prefers-reduced-motion:reduce){
+  .tm-curtain,.tmc-word,.tm-sheet-card,.tm-hold-fill,.tm-hold{transition:none!important}
+  .tm-banner,.tm-banner::after,.tm-banner .tmb-dot{animation:none}
+}
+
 /* ============ ROUTE PANEL (DASHBOARD) ============ */
 /* Expands to fit all dates — no internal scroll. The page scrolls instead,
    which feels right for a route list and avoids nested-scroll awkwardness. */
@@ -8626,6 +8881,7 @@ function loadUIPrefs() {
   }
 }
 function applyTabFromState() {
+  try { _tmTabBarSync(); } catch (e) {}
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === activeTab));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.dataset.panel === activeTab));
   // On the god Admin Panel, drop the phone preview so the tables get full width.
@@ -8749,13 +9005,13 @@ const BMIdle = (() => {
   }
 
   function statusOf(d) {
-    const today = todayISO();
+    const at = _nowAt(d), today = at.iso;                  // the venue's day, not this device's
     if (d.date < today) return kind === 'SHOW' ? 'PLAYED' : 'PAST';
     if (d.date > today) { const n = Math.round((noon(d.date) - noon(today)) / 864e5); return n === 1 ? 'TOMORROW' : 'IN ' + n + ' DAYS'; }
     if (d.status !== 'show') return 'TODAY';
-    // Show day: a live clock to the next thing that happens. Times are
-    // wall-clock local to the venue, and on show day so is this laptop.
-    const now = new Date(), m = now.getHours() * 60 + now.getMinutes();
+    // Show day: a live clock to the next thing that happens, on the venue's
+    // clock — times are wall-clock local to the venue, wherever this screen is.
+    const m = at.mins;
     const doors = mins(d.doors), set = mins(d.setTime); let curfew = mins(d.curfew);
     if (doors != null && m < doors) return 'DOORS IN ' + span(doors - m);
     if (set != null && m < set) return (doors != null ? 'DOORS OPEN · ' : '') + 'SET IN ' + span(set - m);
@@ -8770,10 +9026,12 @@ const BMIdle = (() => {
   // A touring day doesn't end at midnight: the 1 AM bus call belongs to
   // tonight's show. The display's "today" rolls over at 4 AM, and minutes are
   // counted from that day's midnight (so 1:00 AM is minute 1500).
-  function dayNow() {
-    const n = new Date(), base = new Date(n.getTime() - 4 * 3600e3);
-    const iso = base.getFullYear() + '-' + pad(base.getMonth() + 1) + '-' + pad(base.getDate());
-    return { iso, now: Math.floor((n - new Date(iso + 'T00:00:00')) / 60000) };
+  // Counted on the venue's clock (tz '' = this device's).
+  function dayNow(tz) {
+    const p = _tzParts(tz || ''), m = p.h * 60 + p.mi;
+    if (p.h >= 4) return { iso: _tzIso(p), now: m };
+    const prev = new Date(Date.UTC(p.y, p.mo - 1, p.d - 1));
+    return { iso: prev.getUTCFullYear() + '-' + pad(prev.getUTCMonth() + 1) + '-' + pad(prev.getUTCDate()), now: m + 1440 };
   }
   function boardItems(d) {
     const items = [];
@@ -8811,19 +9069,25 @@ const BMIdle = (() => {
     return items.sort((a, b) => a.at - b.at);
   }
   function boardToday() {
-    const { iso, now } = dayNow();
-    const d = all.find(x => x.date === iso) || null;
+    // The date whose venue is on that date right now — each checked on its own clock.
+    const d = all.find(x => x.date === dayNow(_dateTz(x)).iso) || null;
+    const { now } = dayNow(d ? _dateTz(d) : '');
     const items = d ? boardItems(d) : [];
     const next = items.find(i => i.at > now) || null;
     return { d, items, next, now };
   }
 
   function fmtNow() {
-    const n = new Date(); let h24 = false;
-    try { h24 = _dateIs24h(focus || _clockCtx()); } catch (e) {}
+    const n = new Date(); let h24 = false, ctx = null;
+    try { ctx = focus || _clockCtx(); h24 = _dateIs24h(ctx); } catch (e) {}
+    // The venue's time, so the clock agrees with the countdowns under it.
+    // When that isn't this device's time, the zone is named.
+    const z = _dateTz(ctx), p = _tzParts(z), H = p.h, M = p.mi;
+    let zn = '';
+    if (_tzDiffers(z)) { try { zn = ' ' + new Intl.DateTimeFormat('en-US', { timeZone: z, timeZoneName: 'short' }).formatToParts(n).find(x => x.type === 'timeZoneName').value; } catch (e) {} }
     const sec = mode === 'display' ? '' : ':' + pad(n.getSeconds());       // a wall clock across a room doesn't need seconds
-    if (h24) return pad(n.getHours()) + ':' + pad(n.getMinutes()) + sec;
-    return (n.getHours() % 12 || 12) + ':' + pad(n.getMinutes()) + sec + (n.getHours() < 12 ? ' AM' : ' PM');
+    if (h24) return pad(H) + ':' + pad(M) + sec + zn;
+    return (H % 12 || 12) + ':' + pad(M) + sec + (H < 12 ? ' AM' : ' PM') + zn;
   }
 
   function fit() {
@@ -9447,6 +9711,162 @@ function todayISO() {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
+
+/* ── a date's own clock ──────────────────────────────────────────────
+   Tour times are wall-clock local to where they happen (7:00 PM doors in
+   Chicago is 7:00 PM Chicago time) and are shown exactly as entered. The one
+   place that needs the actual time zone is a live countdown — "Doors in 2h",
+   "Set in 40m", a reminder suggestion — which compares "now" against those
+   times. Using the device clock there is only right when the device is in
+   the venue's zone; someone watching a Chicago show from Los Angeles would
+   be two hours off.
+   _dateTz(d) works the zone out from what a date already carries — state or
+   province, country, city, and the venue pin to settle the states that are
+   split between two zones — so nothing new has to be stored or fetched. The
+   device's own tz database then handles daylight saving. Anything it can't
+   place returns '' and callers fall back to the device clock, exactly as
+   before. */
+const _TZ_US = { AL:'America/Chicago', AK:'America/Anchorage', AZ:'America/Phoenix', AR:'America/Chicago', CA:'America/Los_Angeles', CO:'America/Denver',
+  CT:'America/New_York', DE:'America/New_York', DC:'America/New_York', FL:'America/New_York', GA:'America/New_York', HI:'Pacific/Honolulu', ID:'America/Boise',
+  IL:'America/Chicago', IN:'America/Indiana/Indianapolis', IA:'America/Chicago', KS:'America/Chicago', KY:'America/New_York', LA:'America/Chicago', ME:'America/New_York',
+  MD:'America/New_York', MA:'America/New_York', MI:'America/Detroit', MN:'America/Chicago', MS:'America/Chicago', MO:'America/Chicago', MT:'America/Denver',
+  NE:'America/Chicago', NV:'America/Los_Angeles', NH:'America/New_York', NJ:'America/New_York', NM:'America/Denver', NY:'America/New_York', NC:'America/New_York',
+  ND:'America/Chicago', OH:'America/New_York', OK:'America/Chicago', OR:'America/Los_Angeles', PA:'America/New_York', RI:'America/New_York', SC:'America/New_York',
+  SD:'America/Chicago', TN:'America/Chicago', TX:'America/Chicago', UT:'America/Denver', VT:'America/New_York', VA:'America/New_York', WA:'America/Los_Angeles',
+  WV:'America/New_York', WI:'America/Chicago', WY:'America/Denver', PR:'America/Puerto_Rico' };
+const _TZ_CA = { BC:'America/Vancouver', AB:'America/Edmonton', SK:'America/Regina', MB:'America/Winnipeg', ON:'America/Toronto', QC:'America/Toronto',
+  NB:'America/Moncton', NS:'America/Halifax', PE:'America/Halifax', NL:'America/St_Johns', YT:'America/Whitehorse', NT:'America/Yellowknife', NU:'America/Iqaluit' };
+const _TZ_AU = { NSW:'Australia/Sydney', ACT:'Australia/Sydney', VIC:'Australia/Melbourne', QLD:'Australia/Brisbane', SA:'Australia/Adelaide',
+  WA:'Australia/Perth', TAS:'Australia/Hobart', NT:'Australia/Darwin' };
+const _TZ_STATE_NAMES = { alabama:'AL', alaska:'AK', arizona:'AZ', arkansas:'AR', california:'CA', colorado:'CO', connecticut:'CT', delaware:'DE',
+  'district of columbia':'DC', florida:'FL', georgia:'GA', hawaii:'HI', idaho:'ID', illinois:'IL', indiana:'IN', iowa:'IA', kansas:'KS', kentucky:'KY',
+  louisiana:'LA', maine:'ME', maryland:'MD', massachusetts:'MA', michigan:'MI', minnesota:'MN', mississippi:'MS', missouri:'MO', montana:'MT', nebraska:'NE',
+  nevada:'NV', 'new hampshire':'NH', 'new jersey':'NJ', 'new mexico':'NM', 'new york':'NY', 'north carolina':'NC', 'north dakota':'ND', ohio:'OH', oklahoma:'OK',
+  oregon:'OR', pennsylvania:'PA', 'rhode island':'RI', 'south carolina':'SC', 'south dakota':'SD', tennessee:'TN', texas:'TX', utah:'UT', vermont:'VT',
+  virginia:'VA', washington:'WA', 'west virginia':'WV', wisconsin:'WI', wyoming:'WY', 'puerto rico':'PR',
+  'british columbia':'BC', alberta:'AB', saskatchewan:'SK', manitoba:'MB', ontario:'ON', quebec:'QC', 'québec':'QC', 'new brunswick':'NB', 'nova scotia':'NS',
+  'prince edward island':'PE', 'newfoundland and labrador':'NL', newfoundland:'NL', yukon:'YT', 'northwest territories':'NT', nunavut:'NU',
+  'new south wales':'NSW', 'australian capital territory':'ACT', victoria:'VIC', queensland:'QLD', 'south australia':'SA', 'western australia':'WA',
+  tasmania:'TAS', 'northern territory':'NT' };
+const _TZ_COUNTRY = { GB:'Europe/London', UK:'Europe/London', 'UNITED KINGDOM':'Europe/London', ENGLAND:'Europe/London', SCOTLAND:'Europe/London', WALES:'Europe/London',
+  'NORTHERN IRELAND':'Europe/London', IE:'Europe/Dublin', IRELAND:'Europe/Dublin', FR:'Europe/Paris', FRANCE:'Europe/Paris', DE:'Europe/Berlin', GERMANY:'Europe/Berlin',
+  DEUTSCHLAND:'Europe/Berlin', NL:'Europe/Amsterdam', NETHERLANDS:'Europe/Amsterdam', HOLLAND:'Europe/Amsterdam', BE:'Europe/Brussels', BELGIUM:'Europe/Brussels',
+  LU:'Europe/Luxembourg', LUXEMBOURG:'Europe/Luxembourg', CH:'Europe/Zurich', SWITZERLAND:'Europe/Zurich', AT:'Europe/Vienna', AUSTRIA:'Europe/Vienna',
+  IT:'Europe/Rome', ITALY:'Europe/Rome', ES:'Europe/Madrid', SPAIN:'Europe/Madrid', PT:'Europe/Lisbon', PORTUGAL:'Europe/Lisbon', DK:'Europe/Copenhagen',
+  DENMARK:'Europe/Copenhagen', NO:'Europe/Oslo', NORWAY:'Europe/Oslo', SE:'Europe/Stockholm', SWEDEN:'Europe/Stockholm', FI:'Europe/Helsinki', FINLAND:'Europe/Helsinki',
+  IS:'Atlantic/Reykjavik', ICELAND:'Atlantic/Reykjavik', PL:'Europe/Warsaw', POLAND:'Europe/Warsaw', CZ:'Europe/Prague', CZECHIA:'Europe/Prague',
+  'CZECH REPUBLIC':'Europe/Prague', SK:'Europe/Bratislava', SLOVAKIA:'Europe/Bratislava', HU:'Europe/Budapest', HUNGARY:'Europe/Budapest', GR:'Europe/Athens',
+  GREECE:'Europe/Athens', HR:'Europe/Zagreb', CROATIA:'Europe/Zagreb', SI:'Europe/Ljubljana', SLOVENIA:'Europe/Ljubljana', RS:'Europe/Belgrade', SERBIA:'Europe/Belgrade',
+  RO:'Europe/Bucharest', ROMANIA:'Europe/Bucharest', BG:'Europe/Sofia', BULGARIA:'Europe/Sofia', EE:'Europe/Tallinn', ESTONIA:'Europe/Tallinn', LV:'Europe/Riga',
+  LATVIA:'Europe/Riga', LT:'Europe/Vilnius', LITHUANIA:'Europe/Vilnius', UA:'Europe/Kiev', UKRAINE:'Europe/Kiev', TR:'Europe/Istanbul', TURKEY:'Europe/Istanbul',
+  IL:'Asia/Jerusalem', ISRAEL:'Asia/Jerusalem', AE:'Asia/Dubai', UAE:'Asia/Dubai', 'UNITED ARAB EMIRATES':'Asia/Dubai', JP:'Asia/Tokyo', JAPAN:'Asia/Tokyo',
+  KR:'Asia/Seoul', 'SOUTH KOREA':'Asia/Seoul', KOREA:'Asia/Seoul', CN:'Asia/Shanghai', CHINA:'Asia/Shanghai', HK:'Asia/Hong_Kong', 'HONG KONG':'Asia/Hong_Kong',
+  TW:'Asia/Taipei', TAIWAN:'Asia/Taipei', SG:'Asia/Singapore', SINGAPORE:'Asia/Singapore', PH:'Asia/Manila', PHILIPPINES:'Asia/Manila', TH:'Asia/Bangkok',
+  THAILAND:'Asia/Bangkok', IN:'Asia/Kolkata', INDIA:'Asia/Kolkata', NZ:'Pacific/Auckland', 'NEW ZEALAND':'Pacific/Auckland', ZA:'Africa/Johannesburg',
+  'SOUTH AFRICA':'Africa/Johannesburg', AR:'America/Argentina/Buenos_Aires', ARGENTINA:'America/Argentina/Buenos_Aires', CL:'America/Santiago', CHILE:'America/Santiago',
+  CO:'America/Bogota', COLOMBIA:'America/Bogota', PE:'America/Lima', PERU:'America/Lima', UY:'America/Montevideo', URUGUAY:'America/Montevideo',
+  CR:'America/Costa_Rica', 'COSTA RICA':'America/Costa_Rica', PA:'America/Panama', PANAMA:'America/Panama', GT:'America/Guatemala', GUATEMALA:'America/Guatemala',
+  JM:'America/Jamaica', JAMAICA:'America/Jamaica', DO:'America/Santo_Domingo', 'DOMINICAN REPUBLIC':'America/Santo_Domingo', PR:'America/Puerto_Rico',
+  'PUERTO RICO':'America/Puerto_Rico', MX:'America/Mexico_City', MEXICO:'America/Mexico_City', 'MÉXICO':'America/Mexico_City', BR:'America/Sao_Paulo',
+  BRAZIL:'America/Sao_Paulo', BRASIL:'America/Sao_Paulo', RU:'Europe/Moscow', RUSSIA:'Europe/Moscow', ID:'Asia/Jakarta', INDONESIA:'Asia/Jakarta',
+  MY:'Asia/Kuala_Lumpur', MALAYSIA:'Asia/Kuala_Lumpur', VN:'Asia/Ho_Chi_Minh', VIETNAM:'Asia/Ho_Chi_Minh', EG:'Africa/Cairo', EGYPT:'Africa/Cairo',
+  MA:'Africa/Casablanca', MOROCCO:'Africa/Casablanca', NG:'Africa/Lagos', NIGERIA:'Africa/Lagos', KE:'Africa/Nairobi', KENYA:'Africa/Nairobi' };
+// Cities that often appear without a state or country on a routing sheet.
+const _TZ_CITY = { london:'Europe/London', manchester:'Europe/London', birmingham:'Europe/London', glasgow:'Europe/London', leeds:'Europe/London', bristol:'Europe/London',
+  nottingham:'Europe/London', liverpool:'Europe/London', edinburgh:'Europe/London', cardiff:'Europe/London', belfast:'Europe/London', dublin:'Europe/Dublin',
+  paris:'Europe/Paris', lyon:'Europe/Paris', berlin:'Europe/Berlin', hamburg:'Europe/Berlin', cologne:'Europe/Berlin', 'köln':'Europe/Berlin', munich:'Europe/Berlin',
+  'münchen':'Europe/Berlin', frankfurt:'Europe/Berlin', amsterdam:'Europe/Amsterdam', utrecht:'Europe/Amsterdam', brussels:'Europe/Brussels', antwerp:'Europe/Brussels',
+  madrid:'Europe/Madrid', barcelona:'Europe/Madrid', lisbon:'Europe/Lisbon', milan:'Europe/Rome', rome:'Europe/Rome', zurich:'Europe/Zurich', 'zürich':'Europe/Zurich',
+  vienna:'Europe/Vienna', prague:'Europe/Prague', warsaw:'Europe/Warsaw', copenhagen:'Europe/Copenhagen', stockholm:'Europe/Stockholm', oslo:'Europe/Oslo',
+  helsinki:'Europe/Helsinki', tokyo:'Asia/Tokyo', osaka:'Asia/Tokyo', seoul:'Asia/Seoul', sydney:'Australia/Sydney', melbourne:'Australia/Melbourne',
+  brisbane:'Australia/Brisbane', perth:'Australia/Perth', adelaide:'Australia/Adelaide', auckland:'Pacific/Auckland', wellington:'Pacific/Auckland',
+  'mexico city':'America/Mexico_City', 'ciudad de méxico':'America/Mexico_City', monterrey:'America/Monterrey', guadalajara:'America/Mexico_City',
+  'são paulo':'America/Sao_Paulo', 'sao paulo':'America/Sao_Paulo', 'rio de janeiro':'America/Sao_Paulo', 'buenos aires':'America/Argentina/Buenos_Aires',
+  santiago:'America/Santiago', 'bogotá':'America/Bogota', bogota:'America/Bogota', lima:'America/Lima', toronto:'America/Toronto', montreal:'America/Toronto',
+  'montréal':'America/Toronto', ottawa:'America/Toronto', vancouver:'America/Vancouver', calgary:'America/Edmonton', edmonton:'America/Edmonton',
+  winnipeg:'America/Winnipeg', halifax:'America/Halifax' };
+// States split between two zones: the venue pin decides (without one, the
+// zone most of the state is in).
+function _tzSplitUS(st, lat, lng) {
+  if (lng == null || lat == null) return null;
+  switch (st) {
+    case 'FL': return lng < -85.0 ? 'America/Chicago' : null;                             // the panhandle west of the Apalachicola
+    case 'IN': return ((lat > 40.9 && lng < -86.65) || (lat < 38.3 && lng < -86.6)) ? 'America/Chicago' : null;   // the Gary / LaPorte and Evansville / Tell City corners
+    case 'KY': {                                                                           // west of a stepped line: Owensboro, Bowling Green, Paducah (Louisville stays Eastern)
+      const edge = lat >= 37.45 ? -86.1 : lat >= 37.15 ? -85.45 : -84.75;
+      return lng < edge ? 'America/Chicago' : null;
+    }
+    case 'TN': {                                                                           // east of the Cumberland Plateau line: Knoxville, Chattanooga, Tri-Cities
+      const edge = lat <= 35.0 ? -85.47 : lat <= 35.6 ? -85.47 + (lat - 35.0) / 0.6 * 0.37 : lat <= 36.0 ? -85.1 + (lat - 35.6) / 0.4 * 0.2 : -84.9;
+      return lng > edge ? 'America/New_York' : null;
+    }
+    case 'MI': return (lng < -87.6 && lat > 45.0) ? 'America/Menominee' : null;             // the Upper Peninsula's Wisconsin border
+    case 'TX': return lng < -104.9 ? 'America/Denver' : null;                               // El Paso
+    case 'KS': return lng < -101.5 ? 'America/Denver' : null;
+    case 'NE': return lng < -101.2 ? 'America/Denver' : null;                               // the panhandle
+    case 'ND': return (lng < -101.3 && lat < 47.5) ? 'America/Denver' : null;
+    case 'SD': return lng < -100.6 ? 'America/Denver' : null;                               // west river — Rapid City
+    case 'ID': return lat > 45.6 ? 'America/Los_Angeles' : null;                            // the panhandle — Coeur d'Alene
+    case 'OR': return (lng > -117.8 && lat < 44.6) ? 'America/Boise' : null;                // Ontario, Malheur County
+    case 'NV': return lng > -114.1 ? 'America/Denver' : null;                               // West Wendover
+  }
+  return null;
+}
+function _tzOk(z) {
+  if (!z) return '';
+  try { new Intl.DateTimeFormat('en-US', { timeZone: z }); return z; } catch (e) { return ''; }
+}
+function _dateTz(d) {
+  if (!d) return '';
+  if (d.tz) return _tzOk(d.tz);
+  const lat = (typeof d.venueLat === 'number' && isFinite(d.venueLat)) ? d.venueLat : null;
+  const lng = (typeof d.venueLng === 'number' && isFinite(d.venueLng)) ? d.venueLng : null;
+  const rawState = String(d.state || '').trim(), rawCountry = String(d.country || '').trim().replace(/\./g, '');
+  const st = (_TZ_STATE_NAMES[rawState.toLowerCase()] || rawState).toUpperCase();
+  const co = rawCountry.toUpperCase();
+  const isUS = /^(US|USA|UNITED STATES|UNITED STATES OF AMERICA|AMERICA)$/.test(co);
+  const isCA = /^(CA|CAN|CANADA)$/.test(co), isAU = /^(AU|AUS|AUSTRALIA)$/.test(co);
+  let z = '';
+  if (isAU || (!co && _TZ_AU[st] && !_TZ_US[st] && !_TZ_CA[st])) z = _TZ_AU[st] || '';
+  else if (isCA || (!co && _TZ_CA[st] && !_TZ_US[st])) {
+    z = _TZ_CA[st] || '';
+    if (st === 'ON' && lng != null && lng < -89.9) z = 'America/Winnipeg';               // Kenora and the northwest
+    if (st === 'BC' && lng != null && lng > -120.1 && lat != null && lat > 55.3) z = 'America/Dawson_Creek';
+  }
+  else if ((isUS || !co) && _TZ_US[st]) z = _tzSplitUS(st, lat, lng) || _TZ_US[st];
+  if (!z && co && !isUS && !isCA && !isAU) {
+    z = _TZ_COUNTRY[co] || '';
+    if (z === 'America/Mexico_City' && lng != null && lng < -114.5) z = 'America/Tijuana';
+  }
+  if (!z) z = _TZ_CITY[String(d.city || '').trim().toLowerCase()] || '';
+  // A US date with a pin but no state: rough longitude bands beat nothing.
+  if (!z && (isUS || !co) && lat != null && lng != null && lat > 24 && lat < 50 && lng > -125 && lng < -66) {
+    z = lng > -86.5 ? 'America/New_York' : lng > -101.5 ? 'America/Chicago' : lng > -114.5 ? 'America/Denver' : 'America/Los_Angeles';
+  }
+  return _tzOk(z);
+}
+// The wall clock right now in zone z ('' = this device), as parts.
+const _tzFmt = {};
+function _tzParts(z, ms) {
+  const t = ms == null ? Date.now() : ms;
+  if (!z) { const n = new Date(t); return { y: n.getFullYear(), mo: n.getMonth() + 1, d: n.getDate(), h: n.getHours(), mi: n.getMinutes() }; }
+  const f = _tzFmt[z] || (_tzFmt[z] = new Intl.DateTimeFormat('en-US', { timeZone: z, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' }));
+  const o = {}; f.formatToParts(new Date(t)).forEach(p => { o[p.type] = p.value; });
+  return { y: +o.year, mo: +o.month, d: +o.day, h: (+o.hour) % 24, mi: +o.minute };
+}
+const _tzIso = p => p.y + '-' + String(p.mo).padStart(2, '0') + '-' + String(p.d).padStart(2, '0');
+// "Now" at a date's venue: its calendar day and minutes since midnight.
+function _nowAt(d) {
+  const z = _dateTz(d), p = _tzParts(z);
+  return { iso: _tzIso(p), mins: p.h * 60 + p.mi, h: p.h, mi: p.mi, tz: z };
+}
+// Is the venue on a different clock from this device right now?
+function _tzDiffers(z) {
+  if (!z) return false;
+  const a = _tzParts(z), b = _tzParts('');
+  return a.h !== b.h || a.mi !== b.mi || a.d !== b.d;
+}
+
 // Lookup of common touring-circuit cities to lat/lng so we can give the TM
 // a quick city-to-city mileage estimate without hitting any external API.
 // Coverage is broad strokes: major US/Canadian markets, top European
@@ -9820,7 +10240,14 @@ function onbChooseSample() {
   }
 }
 
+// New tours are started on the desktop, never from the phone app.
+function _newToursDeskOnly() {
+  if (!_isPhoneApp()) return false;
+  toast('Start new tours from the desktop app or bandmate.art', 'error');
+  return true;
+}
 function onbChooseScratch() {
+  if (_newToursDeskOnly()) return;
   openModal({
     title: 'Tour basics',
     body: `
@@ -16332,6 +16759,7 @@ function renderAll() {
   $('#app').hidden = false;
 
   applyRoleMode();
+  _tmRenderChrome();
   renderTopBar();
   renderAccountPill();
   renderTourSwitcher();
@@ -16730,6 +17158,10 @@ function _flashGapTarget(focus) {
     if (stand) targets = [stand];
   }
   if (!targets.length) return;
+  // The panel pulses with the target, so the answer reads even when the
+  // target is small or partly clipped by its table.
+  panel.classList.remove('gap-flash-panel'); void panel.offsetWidth; panel.classList.add('gap-flash-panel');
+  setTimeout(() => { try { panel.classList.remove('gap-flash-panel'); } catch (e) {} }, 2400);
   targets.forEach(el => {
     el.classList.remove('gap-flash');
     void el.offsetWidth;
@@ -16838,7 +17270,32 @@ function renderActivePanel() {
     contacts: renderContacts, tasks: renderTasks, history: renderEditHistory,
     profiles: renderCrewProfiles, admin: renderAdminPanel, tools: renderTools
   }[activeTab];
+  // TM Mobile: the desktop-only panels never build their desktop content —
+  // if that content throws on real data, the notice would never be drawn.
+  if (_tmDesktopOnlyPanel()) return;
   if (fn) fn();
+}
+
+// On TM Mobile a few panels stand down: file attachments (cloud and local)
+// belong to the desktop, where the files are. Their tabs stay in the strip
+// so the map of the tour is the same everywhere; the panel says so and
+// points home.
+function _tmDesktopOnlyPanel() {
+  if (!document.body.classList.contains('tm-mobile')) return false;
+  const map = { files: ['Attachments', 'Riders, contracts, stage plots and the rest of the tour\'s files'],
+                localfiles: ['Local attachments', 'Files kept on one computer'] };
+  const hit = map[activeTab];
+  if (!hit) return false;
+  const root = document.getElementById('p-' + activeTab);
+  if (!root) return false;
+  root.innerHTML = `
+    <div class="section-title"><h2>${hit[0]}</h2><span class="crumb">/ ${esc(T().name || 'Untitled')}</span></div>
+    <div class="tm-desk-only">
+      <div class="tdo-k">Desktop only</div>
+      <div class="tdo-t">${hit[1]} live on the desktop app and at <b>bandmate.art</b>.</div>
+      <div class="tdo-s">Everything else on this tour can be edited right here.</div>
+    </div>`;
+  return true;
 }
 
 // Show the god-only Admin Panel tab only for the god account; if a non-god
@@ -17326,6 +17783,8 @@ function _dashGoTab(tabName) {
   activeTab = tabName;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.dataset.panel === tabName));
+  try { _tmTabBarSync(); } catch (e) {}
+  if (_tmDesktopOnlyPanel()) return;
   try {
     const fn = window['render' + tabName.charAt(0).toUpperCase() + tabName.slice(1)];
     if (typeof fn === 'function') fn();
@@ -19163,7 +19622,7 @@ function renderAdvance() {
         </div>
       </div>
 
-      <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:18px;border-top:1px solid var(--line);margin-top:8px">
+      <div class="adv-foot" style="display:flex;justify-content:flex-end;gap:8px;padding-top:18px;border-top:1px solid var(--line);margin-top:8px">
         <button type="button" class="tb-btn primary" onclick="_advanceSaveAndReturn()" style="padding:9px 18px;font-size:11px">✓ Save & Return to Dashboard</button>
       </div>
     </div>
@@ -21860,7 +22319,16 @@ function renderPhone() {
   let tmEditNoticeHtml = '';
   {
     const _u = U();
-    if (isTM && _u && _u.role === 'tm' && _isTourManager(T(), state.currentUserId)) {
+    const _manages = isTM && _u && _isTourManager(T(), state.currentUserId);
+    if (_manages && _isPhoneApp()) {
+      // On the phone itself, editing is one hold away: TM Mobile.
+      tmEditNoticeHtml = `
+        <div class="p-card tm-card">
+          <div class="lbl" style="color:#5fd6c8">TOUR MANAGER</div>
+          <div class="tm-card-sub">You manage this tour. Open TM Mobile to edit it from here — every save goes live to the crew's phones.</div>
+          ${_tmHoldHTML('enter')}
+        </div>`;
+    } else if (_manages && _u.role === 'tm') {
       tmEditNoticeHtml = `
         <div class="ph-tm-notice">
           <span class="ic"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.5"></rect><path d="M8 20h8M12 16v4"></path></svg></span>
@@ -27518,10 +27986,10 @@ function renderCrewProfiles() {
       <span class="stat"><b>${submitted.length}</b> / ${people.length} profiles submitted</span>
       ${pendingForm.length ? `<span class="stat" style="color:var(--hi)">⚠ ${pendingForm.length} pending</span>` : ''}
       ${awaiting.length ? `<span class="stat" style="color:var(--warm-mute)">○ ${awaiting.length} not accepted</span>` : ''}
-      <div class="view-toggle">
+      ${_tmMobileOn() ? '' : `<div class="view-toggle">
         <button type="button" class="${crewView==='grid'?'on':''}" onclick="setCrewView('grid')">Grid</button>
         <button type="button" class="${crewView==='list'?'on':''}" onclick="setCrewView('list')">List</button>
-      </div>
+      </div>`}
       <span class="sp"></span>
       <button type="button" class="tb-btn cool flame" onclick="openManageGroupsModal()">Manage groups</button>
       <button type="button" class="tb-btn" onclick="downloadProfilesCSV()">↓ CSV</button>
@@ -27529,7 +27997,7 @@ function renderCrewProfiles() {
       <button type="button" class="tb-btn" onclick="remindAllPending()">Remind pending</button>
     </div>
 
-    ${crewView === 'list' ? renderCrewListTable() : `<div class="profiles-grid">
+    ${(crewView === 'list' && !_tmMobileOn()) ? renderCrewListTable() : `<div class="profiles-grid">
       ${people.map(_profileTileHtml).join('')}
     </div>`}
   `;
@@ -30352,6 +30820,7 @@ function _taTravelResults(d, pl) {
 }
 
 function switchToTourFromPhone(tourId) {
+  if (_tmLocked(tourId)) return;
   const target = state.tours[tourId];
   if (!target) return;
   // Resolve the viewer from the LOGGED-IN USER, not the viewer in the tour
@@ -30555,6 +31024,7 @@ function toggleTourSwitcher() { toggleUniMenu(); }
 function closeTourSwitcher() { closeUniMenu(); }
 
 function switchToTour(tourId) {
+  if (_tmLocked(tourId)) return;
   if (!state.tours[tourId]) { toast('Tour not found', 'error'); return; }
   state.currentTourId = tourId;
   tsMenuOpen = false;
@@ -30570,6 +31040,7 @@ function switchToTour(tourId) {
 }
 
 function newTourFlow() {
+  if (_newToursDeskOnly()) return;
   closeTourSwitcher();
   openModal({
     title: 'New tour — choose how to start',
@@ -34229,6 +34700,7 @@ async function logout() {
   }
   _sentrySetUser(null);
   state.currentUserId = null;
+  if (state.ui) state.ui.tmMobileTourId = null;          // next sign-in starts on the road view
   saveState();
   // The god hard-block class is only re-evaluated inside renderAll(), which
   // logout never calls — so it used to survive sign-out and keep #app on
@@ -34858,6 +35330,553 @@ function _isPhoneApp() {
   catch (e) { return true; }
 }
 
+
+/* =====================================================================
+   TM MOBILE
+   The dashboard on the phone, for the people who manage the tour. See the
+   TM MOBILE CSS block for the shape of it. Entry and exit are both a
+   four-second hold, and the tour is locked while it's on.
+   ===================================================================== */
+const TM_HOLD_MS = 2000;
+
+// A nudge through the glass. The iOS shell answers the `haptic` message
+// with UIKit feedback; Android Chrome has navigator.vibrate; everywhere
+// else this is a no-op.
+function _haptic(kind) {
+  kind = kind || 'light';
+  try {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.haptic) {
+      window.webkit.messageHandlers.haptic.postMessage(kind); return true;
+    }
+  } catch (e) {}
+  try {
+    if (navigator.vibrate) {
+      const p = { tick: 6, light: 8, medium: 16, heavy: [24, 30, 24], success: [12, 40, 28] }[kind] || 10;
+      navigator.vibrate(p); return true;
+    }
+  } catch (e) {}
+  return false;
+}
+
+// Is TM Mobile on, and for which tour. The lock lives in state.ui (this
+// device only — it never syncs), and it only counts while the account still
+// manages that tour and it's still there. Anything else drops out quietly
+// to the road view rather than leaving the phone stuck in a mode it can't
+// draw. Called from applyRoleMode, which also pins the current tour to it.
+function _tmMobileResolve(u, installed) {
+  const lock = state && state.ui && state.ui.tmMobileTourId;
+  if (!lock) return false;
+  const t = state.tours && state.tours[lock];
+  const ok = installed && u && t && t.id !== '_empty' && !_isTombstoned(lock) && _isTourManager(t, u.id);
+  if (!ok) { state.ui.tmMobileTourId = null; return false; }
+  if (state.currentTourId !== lock) state.currentTourId = lock;
+  return true;
+}
+function _tmMobileOn() { return !!(state && state.ui && state.ui.tmMobileTourId); }
+// Tour switching is refused while TM Mobile is on — leave first, then pick.
+function _tmLocked(tourId) {
+  const lock = state && state.ui && state.ui.tmMobileTourId;
+  if (!lock || tourId === lock) return false;
+  toast('Exit TM Mobile to change tours', 'error');
+  return true;
+}
+
+function _tmHoldHTML(kind) {
+  const enter = kind !== 'exit';
+  return `<button type="button" class="tm-hold" data-tm-hold="${enter ? 'enter' : 'exit'}" data-noswipe
+      aria-label="${enter ? 'Edit this tour. Press and hold for two seconds.' : 'Exit TM Mobile. Press and hold for two seconds.'}">
+    <span class="tm-hold-fill" aria-hidden="true"></span>
+    <span class="tm-hold-body">
+      <span class="tm-hold-k">${enter ? 'TM Mobile · Beta' : 'Leave edit mode'}</span>
+      <span class="tm-hold-t">${enter ? 'Edit this tour' : 'Exit TM Mobile'}</span>
+      <span class="tm-hold-s">Press and hold for two seconds</span>
+    </span>
+    <span class="tm-hold-n" aria-hidden="true">3</span>
+  </button>`;
+}
+
+// The band, the sheet under it, and the curtain — built once, on demand.
+let _tmChromeReady = false;
+function _tmEnsureChrome() {
+  if (_tmChromeReady || !document.body) return;
+  _tmChromeReady = true;
+  const host = document.createElement('div');
+  host.id = 'tmChrome';
+  host.innerHTML = `
+    <div id="tmBanner" class="tm-banner" hidden role="button" tabindex="0" aria-label="TM Mobile, edit mode. Tap for options." onclick="_tmToggleSheet()">
+      <span class="tmb-l" aria-hidden="true"></span>
+      <span class="tmb-c"><span class="tmb-dot" aria-hidden="true"></span><span class="tmb-t">TM Mobile — Edit mode</span><span class="tmb-beta">Beta</span></span>
+      <span class="tmb-x" aria-hidden="true">Exit</span>
+    </div>
+    <div id="tmSheet" class="tm-sheet" hidden>
+      <div class="tm-sheet-scrim" onclick="_tmToggleSheet(false)"></div>
+      <div class="tm-sheet-card" role="dialog" aria-label="TM Mobile">
+        <div class="tms-k">Editing live</div>
+        <div class="tms-n" id="tmSheetTour">—</div>
+        <div class="tms-s">Every save goes straight to the crew's phones. To work on a different tour, exit TM Mobile and pick it from the road view.</div>
+        ${_tmHoldHTML('exit')}
+        <button type="button" class="tms-close" onclick="_tmToggleSheet(false)">Keep editing</button>
+      </div>
+    </div>
+    <div id="tmCurtain" class="tm-curtain" hidden aria-hidden="true"><div class="tmc-word"><span class="tmc-k"></span><span class="tmc-t"></span></div></div>`;
+  document.body.appendChild(host);
+}
+// Keep the band in step with the mode on every render.
+function _tmRenderChrome() {
+  _tmEnsureChrome();
+  const on = document.body.classList.contains('tm-mobile');
+  const b = document.getElementById('tmBanner'); if (b) b.hidden = !on;
+  const sh = document.getElementById('tmSheet'); if (sh && !on) { sh.hidden = true; sh.classList.remove('open'); }
+  const nm = document.getElementById('tmSheetTour'); if (nm && on) nm.textContent = T().name || 'Untitled tour';
+  // The day strip's pills are gone on the phone; the grid IS the date picker,
+  // so the button says what it opens.
+  const gb = document.getElementById('dateGridBtn');
+  if (gb) gb.textContent = on ? 'Tour Dates' : 'Grid View';
+  try { _tmTabBarSync(); } catch (e) {}
+}
+
+// TM Mobile's tab picker, in place of the desktop's sideways tab strip: Tools
+// on the left, the section you're in on the right, and that button opens the
+// full list. It drives the real tabs (clicks them), so every tab behaves
+// exactly as it does on the desktop — this is only a different way to reach
+// them. Warning dots mirror the strip's gap indicators.
+let _tmTabMenuOpen = false, _tmLastTab = 'dashboard';
+function _tmTabBarEnsure() {
+  let bar = document.getElementById('tmTabBar');
+  if (bar) return bar;
+  const tabs = document.getElementById('tabs');
+  if (!tabs || !tabs.parentNode) return null;
+  bar = document.createElement('div'); bar.id = 'tmTabBar'; bar.className = 'tm-tabbar';
+  bar.innerHTML = `
+    <button type="button" class="ttb-tools" onclick="_tmTabPick('tools')"><span class="ic" aria-hidden="true">◇</span><span>Tools</span><span class="ttb-badge" hidden></span></button>
+    <button type="button" class="ttb-cur" aria-haspopup="true" aria-expanded="false" onclick="_tmTabMenu()">
+      <span class="n"></span><span class="l"></span>
+      <svg class="chev" viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg>
+    </button>
+    <div class="ttb-menu" hidden></div>`;
+  tabs.parentNode.insertBefore(bar, tabs);
+  document.addEventListener('click', (e) => { if (_tmTabMenuOpen && !(e.target.closest && e.target.closest('#tmTabBar'))) _tmTabMenu(false); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && _tmTabMenuOpen) _tmTabMenu(false); });
+  return bar;
+}
+function _tmTabList() {
+  return [...document.querySelectorAll('#tabs .tab')]
+    .filter(t => t.dataset.tab !== 'tools' && !t.hidden && t.style.display !== 'none')
+    .map(t => ({ key: t.dataset.tab, num: ((t.querySelector('.num') || {}).textContent || '').trim(),
+                 label: [...t.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim(),
+                 fixed: t.classList.contains('tab-fixed'), warn: t.classList.contains('tab-warn'), warnOr: t.classList.contains('tab-warn-or') }));
+}
+function _tmTabBarSync() {
+  if (!document.body.classList.contains('tm-mobile')) { if (_tmTabMenuOpen) _tmTabMenu(false); return; }
+  const bar = _tmTabBarEnsure(); if (!bar) return;
+  const onTools = activeTab === 'tools';
+  if (!onTools) _tmLastTab = activeTab;
+  const list = _tmTabList(), cur = list.find(i => i.key === _tmLastTab) || list[0];
+  bar.querySelector('.ttb-tools').classList.toggle('on', onTools);
+  const cb = bar.querySelector('.ttb-cur');
+  cb.classList.toggle('dim', onTools);
+  cb.classList.toggle('hist', !!cur && cur.key === 'history');
+  cb.classList.toggle('dash', !!cur && cur.key === 'dashboard');
+  cb.querySelector('.n').textContent = cur ? cur.num : '';
+  cb.querySelector('.l').textContent = cur ? cur.label : '';
+  const src = document.getElementById('toolsTabUnread'), badge = bar.querySelector('.ttb-badge');
+  if (src && badge) { const v = src.textContent.trim(); badge.hidden = src.hidden || !v || v === '0'; badge.textContent = v; }
+  if (_tmTabMenuOpen) _tmTabMenuRender();
+}
+function _tmTabMenuRender() {
+  const bar = document.getElementById('tmTabBar'); if (!bar) return;
+  let html = '', fixedStarted = false;
+  _tmTabList().forEach(i => {
+    if (i.fixed && !fixedStarted) { fixedStarted = true; html += '<div class="ttb-sep" role="separator"></div>'; }
+    const cls = 'ttb-item' + (i.key === activeTab ? ' on' : '') + (i.warn ? ' warn' : i.warnOr ? ' warn-or' : '') + (i.key === 'history' ? ' hist' : '') + (i.key === 'dashboard' ? ' dash' : '');
+    html += `<button type="button" class="${cls}" onclick="_tmTabPick('${i.key}')"><span class="n">${esc(i.num)}</span><span class="l">${esc(i.label)}</span></button>`;
+  });
+  bar.querySelector('.ttb-menu').innerHTML = html;
+}
+function _tmTabMenu(open) {
+  const bar = document.getElementById('tmTabBar'); if (!bar) return;
+  _tmTabMenuOpen = open === undefined ? !_tmTabMenuOpen : !!open;
+  if (_tmTabMenuOpen) _tmTabMenuRender();
+  bar.classList.toggle('open', _tmTabMenuOpen);
+  bar.querySelector('.ttb-menu').hidden = !_tmTabMenuOpen;
+  bar.querySelector('.ttb-cur').setAttribute('aria-expanded', String(_tmTabMenuOpen));
+}
+function _tmTabPick(key) {
+  _tmTabMenu(false);
+  const t = document.querySelector('#tabs .tab[data-tab="' + key + '"]');
+  if (t) t.click();
+  // Land at the top of the new section, just under the picker.
+  try {
+    const bar = document.getElementById('tmTabBar'), wrap = document.querySelector('.panels-wrap');
+    const band = document.getElementById('tmBanner'), bh = band ? band.getBoundingClientRect().height : 0;
+    const y = wrap.getBoundingClientRect().top + window.scrollY - bar.getBoundingClientRect().height - bh;
+    if (window.scrollY > y) window.scrollTo(0, Math.max(0, y));
+  } catch (e) {}
+}
+function _tmToggleSheet(open) {
+  _tmEnsureChrome();
+  const sh = document.getElementById('tmSheet'); if (!sh) return;
+  const want = (open === undefined) ? sh.hidden : !!open;
+  if (want) {
+    const nm = document.getElementById('tmSheetTour'); if (nm) nm.textContent = T().name || 'Untitled tour';
+    sh.hidden = false; void sh.offsetWidth; sh.classList.add('open');
+  } else { sh.classList.remove('open'); sh.hidden = true; }
+}
+
+// The fallback transition (reduced motion, or the mark failed to load): teal
+// drops over the screen, the mode swaps beneath it, then it draws back up
+// into the band (entering) or falls off the bottom (leaving).
+function _tmCurtain(kind, apply) {
+  _tmEnsureChrome();
+  const c = document.getElementById('tmCurtain');
+  if (!c) { try { apply(); } catch (e) { console.error('[tm mobile]', e); } return; }
+  let reduced = false; try { reduced = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  const enter = kind === 'enter';
+  c.querySelector('.tmc-k').textContent = enter ? 'Edit mode' : 'Edit mode off';
+  c.querySelector('.tmc-t').textContent = enter ? 'TM Mobile' : 'Road view';
+  c.className = 'tm-curtain tmc-instant' + (enter ? '' : ' tmc-from-banner');
+  c.hidden = false;
+  void c.offsetWidth;                                   // commit the start state
+  c.classList.remove('tmc-instant');
+  const t1 = reduced ? 60 : 520, t2 = reduced ? 380 : 1050, t3 = reduced ? 420 : 1600;
+  setTimeout(() => { c.classList.remove('tmc-from-banner'); c.classList.add('tmc-open'); }, 20);
+  setTimeout(() => { try { apply(); } catch (e) { console.error('[tm mobile]', e); } _haptic('success'); }, t1);
+  setTimeout(() => { c.classList.add(enter ? 'tmc-to-banner' : 'tmc-off-down'); }, t2);
+  setTimeout(() => { c.hidden = true; c.className = 'tm-curtain'; }, t3);
+}
+
+
+/* ── the monogram countdown ──
+   Holding the button covers the screen in a grid of the mark: a few hundred
+   small rabbits, each cell flickering between versions of it (solid,
+   outlined, ears, face, knocked out of a block, turned, a pair), with the odd
+   cell writing the current number another way (3, III, 三, ३…). The count is
+   carved into the grid as negative space — 3, 2, 1 across the two seconds —
+   each change a glitch: cells pop on and off, a few swell, rows slip sideways
+   and snap back. The last shape carved is the rabbit itself, whose eyes are
+   the cells left lit inside it, and it blinks. Then a soft-edged wave rolls
+   out from the rabbit turning the grid ember → teal (teal → ember on the way
+   out); the mode swaps underneath while the grid is opaque, and the glyphs
+   blink out in a scatter as the dark fades onto the new view.
+   The button shows through a window cut in the grid, so its fill and its own
+   count run alongside. Drawing is requestAnimationFrame; the swap and the
+   clean-up are setTimeout, so neither depends on a frame being painted. */
+const _tmGr = { cv: null, ctx: null, mode: '', theme: 'e', t0: 0, h0: 0, rt: 0, go: false, raf: 0, timers: [], warm: [],
+                w: 0, h: 0, dpr: 1, cs: 0, cols: 15, rows: 0, cells: null, masks: null, eye: null, shape: null, gT: 0,
+                rowShift: null, hole: null, spr: {}, cx: 0, cy: 0, maxD: 0, band: 0 };
+const _TMG_RP = 'M0 109 A109 109 0 0 1 218 109 L218 620 A109 109 0 0 0 437 620 L437 109 A109 109 0 0 1 655 109 L655 1059 A190 190 0 0 1 465 1249 L410 1249 A78 97 0 0 1 332 1152 L323 1152 A78 97 0 0 1 245 1249 L190 1249 A190 190 0 0 1 0 1059 Z M108 971 A82 82 0 1 0 272 971 A82 82 0 1 0 108 971 Z M381 971 A82 82 0 1 0 545 971 A82 82 0 1 0 381 971 Z M307 1067 L348 1067 A22 22 0 0 1 370 1089 L370 1110 A42 42 0 0 1 328 1152 A42 42 0 0 1 285 1110 L285 1089 A22 22 0 0 1 307 1067 Z';
+const _TMG_PAL = { e: [[110, 69, 32], [184, 115, 44], [232, 148, 58], [255, 201, 138]], t: [[29, 92, 87], [47, 151, 141], [79, 209, 197], [176, 243, 234]] };
+const _TMG_DOT = { e: [58, 40, 25], t: [23, 56, 53] }, _TMG_BG = { e: [10, 7, 6], t: [5, 12, 11] };
+const _TMG_DIG = { '3': ['3', 'III', '三', '३', '٣', '๓'], '2': ['2', 'II', '二', '२', '٢', '๒'], '1': ['1', 'I', '一', '१', '١', '๑'] };
+const _TMG_FONT = 'Inter, -apple-system, "Helvetica Neue", Arial, sans-serif';
+let _TMG_PATH = null;
+const _tmEase = u => u < .5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+const _tmClamp = v => v < 0 ? 0 : v > 1 ? 1 : v;
+const _tmMixRGB = (a, b, m) => [0, 1, 2].map(k => Math.round(a[k] + (b[k] - a[k]) * m));
+function _tmGrPath() { return _TMG_PATH || (_TMG_PATH = new Path2D(_TMG_RP)); }
+// The silhouette alone — the first subpath, before the eyes and nose are cut.
+let _TMG_OUTER = null;
+function _tmGrOuter() { return _TMG_OUTER || (_TMG_OUTER = new Path2D(_TMG_RP.slice(0, _TMG_RP.indexOf('Z') + 1))); }
+function _tmGrReduced() { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
+function _tmGrInit() { try { if (document.fonts) document.fonts.load('900 100px Inter'); } catch (e) {} }
+
+// One cell's glyph, drawn once per theme/level/variant and cached. Laid out
+// on a 20-unit cell and scaled to the real one.
+function _tmGrBunny(x, v) {
+  const P = _tmGrPath();
+  const mk = (cx, cy, h, rot) => { const sc = h / 1249; x.save(); x.translate(cx, cy); if (rot) x.rotate(rot); x.scale(sc, sc); x.translate(-327.5, -624.5); };
+  switch (v) {
+    case 0: mk(10, 10, 16); x.fill(P, 'evenodd'); x.restore(); break;                 // solid
+    case 1: mk(10, 10, 15.5); x.lineWidth = 75; x.stroke(P); x.restore(); break;      // outline
+    case 2: mk(10, 11, 10); x.fill(P, 'evenodd'); x.restore(); break;                 // small
+    case 3: mk(10, 10, 16, Math.PI / 2); x.fill(P, 'evenodd'); x.restore(); break;    // on its side
+    case 4: mk(10, 10, 16, Math.PI); x.fill(P, 'evenodd'); x.restore(); break;        // upside down
+    case 5: x.save(); x.beginPath(); x.rect(0, 0, 20, 15); x.clip(); mk(10, 15, 24); x.fill(P, 'evenodd'); x.restore(); x.restore(); break;   // ears
+    case 6: x.beginPath(); x.arc(6.5, 9, 2.7, 0, 6.283); x.fill(); x.beginPath(); x.arc(13.5, 9, 2.7, 0, 6.283); x.fill(); x.fillRect(9, 12.5, 2, 2.6); break;   // face
+    case 7: mk(6, 10, 11); x.fill(P, 'evenodd'); x.restore(); mk(14, 10, 11); x.fill(P, 'evenodd'); x.restore(); break;   // a pair
+    case 8: x.fillRect(2, 2, 16, 16); x.globalCompositeOperation = 'destination-out'; mk(10, 10, 14); x.fill(P, 'evenodd'); x.restore(); x.globalCompositeOperation = 'source-over'; break;   // knocked out of a block
+  }
+}
+function _tmGrSprite(th, lvl, v, num) {
+  const G = _tmGr, key = th + lvl + (num ? 'd' + num + v : 'b' + v);
+  let c = G.spr[key]; if (c) return c;
+  const px = Math.max(8, Math.round(G.cs * G.dpr));
+  c = document.createElement('canvas'); c.width = c.height = px;
+  const x = c.getContext('2d'), col = 'rgb(' + _TMG_PAL[th][lvl].join(',') + ')';
+  x.scale(px / 20, px / 20); x.fillStyle = col; x.strokeStyle = col;
+  if (num) { const g = _TMG_DIG[num][v]; x.font = (g.length > 1 ? '500 9px ' : '500 13px ') + _TMG_FONT; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(g, 10, 10.5); }
+  else _tmGrBunny(x, v);
+  return (G.spr[key] = c);
+}
+// Which cells a shape covers, sampled from a drawing the size of the screen.
+function _tmGrMask(draw) {
+  const G = _tmGr, w = G.w, h = G.h, cs = G.cs;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d'); x.fillStyle = '#fff'; draw(x);
+  const d = x.getImageData(0, 0, w, h).data, m = new Uint8Array(G.cols * G.rows);
+  for (let r = 0; r < G.rows; r++) for (let k = 0; k < G.cols; k++) {
+    let a = 0, n = 0;
+    for (let yy = .15; yy < 1; yy += .2) for (let xx = .15; xx < 1; xx += .2) {
+      const px = Math.floor((k + xx) * cs), py = Math.floor((r + yy) * cs);
+      if (px >= w || py >= h) continue;
+      a += d[(py * w + px) * 4 + 3]; n++;
+    }
+    m[r * G.cols + k] = n && a / (n * 255) > .45 ? 1 : 0;
+  }
+  return m;
+}
+// Canvas, grid, shapes and cells for this screen size; rebuilt only when it changes.
+function _tmGrSetup() {
+  const G = _tmGr, w = window.innerWidth, h = window.innerHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
+  if (!G.cv) {
+    const c = document.createElement('canvas'); c.id = 'tmGrid'; c.className = 'tm-grid'; c.hidden = true; c.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(c); G.cv = c; G.ctx = c.getContext('2d');
+  }
+  const c = G.cv;
+  if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+  c.style.width = w + 'px'; c.style.height = h + 'px'; G.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (G.cells && G.w === w && G.h === h && G.dpr === dpr) return;
+  G.w = w; G.h = h; G.dpr = dpr; G.cs = w / G.cols; G.rows = Math.ceil(h / G.cs); G.spr = {};
+  const N = G.cols * G.rows, cs = G.cs;
+  const fs = Math.round(Math.min(h * .62, w * 1.33));
+  const digit = d => _tmGrMask(x => { x.font = '900 ' + fs + 'px ' + _TMG_FONT; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(d, w / 2, h * .53); });
+  const bh = Math.min(h * .72, w * .77 * 1249 / 655), bsc = bh / 1249, bx = (w - 655 * bsc) / 2, by = (h - bh) / 2 + cs * .3;
+  const mark = path => _tmGrMask(x => { x.setTransform(bsc, 0, 0, bsc, bx, by); x.fill(path, 'evenodd'); });
+  G.masks = { '3': digit('3'), '2': digit('2'), '1': digit('1'), B: mark(_tmGrPath()) };
+  // The eyes: inside the outline but not the shape, and above the nose.
+  const nz = mark(_tmGrOuter()), eyeLine = by + bh * .848;
+  G.eye = new Uint8Array(N);
+  for (let i = 0; i < N; i++) G.eye[i] = nz[i] && !G.masks.B[i] && (Math.floor(i / G.cols) + .5) * cs < eyeLine ? 1 : 0;
+  G.cx = w / 2; G.cy = by + bh * .5;
+  G.maxD = Math.max(Math.hypot(G.cx, G.cy), Math.hypot(G.cx, h - G.cy));
+  G.band = w * .55;                                      // the soft edge of the colour wave
+  G.cells = Array.from({ length: N }, (_, i) => {
+    const r = Math.floor(i / G.cols), k = i % G.cols;
+    return { r, c: k, v: 0, lvl: 2, dig: false, next: 0, on: false, target: false, tc: 0, big: 0, dz: Math.random(),
+             d: Math.hypot((k + .5) * cs - G.cx, (r + .5) * cs - G.cy) };
+  });
+  G.rowShift = new Array(G.rows).fill(0);
+}
+function _tmGrPick(ce, allowDig) {
+  ce.dig = allowDig && Math.random() < .12;
+  if (ce.dig) ce.v = Math.floor(Math.random() * 6);
+  else { const wts = [.28, .12, .08, .06, .06, .08, .08, .06, .18]; let a = Math.random(), k = 0; while (k < wts.length - 1 && a > wts[k]) { a -= wts[k]; k++; } ce.v = k; }
+  const l = Math.random(); ce.lvl = l < .2 ? 0 : l < .55 ? 1 : l < .9 ? 2 : 3;
+}
+// A new shape: every cell picks its new state after a random beat, some
+// swell, some rows slip sideways — the glitch between numbers.
+function _tmGrShape(key, now, spread) {
+  const G = _tmGr, m = G.masks[key];
+  G.shape = key; G.gT = now;
+  G.cells.forEach((ce, i) => { ce.target = !m[i]; ce.tc = now + Math.random() * spread; if (Math.random() < .28) ce.big = now + 50 + Math.random() * 190; ce.next = now + Math.random() * 60; });
+  for (let r = 0; r < G.rows; r++) G.rowShift[r] = Math.random() < .32 ? (Math.floor(Math.random() * 5) - 2) : 0;
+  if (key !== '3' && key !== 'B') _haptic('tick');
+}
+function _tmGrLoop() {
+  cancelAnimationFrame(_tmGr.raf);
+  const step = () => { if (!_tmGr.mode) return; try { _tmGrFrame(performance.now()); } catch (e) { console.warn('[tm grid]', e); _tmGrStop(); return; } _tmGr.raf = requestAnimationFrame(step); };
+  _tmGr.raf = requestAnimationFrame(step);
+}
+function _tmGrStop() {
+  const G = _tmGr;
+  cancelAnimationFrame(G.raf); G.raf = 0; G.mode = ''; G.go = false;
+  G.timers.forEach(clearTimeout); G.timers = [];
+  if (G.cv) { G.cv.hidden = true; try { G.ctx.clearRect(0, 0, G.w, G.h); } catch (e) {} }
+}
+function _tmGrFrame(now) {
+  const G = _tmGr, x = G.ctx, w = G.w, h = G.h, cs = G.cs, th = G.theme, ot = th === 'e' ? 't' : 'e';
+  if (G.mode === 'hold') {
+    const t = now - G.h0, key = t < TM_HOLD_MS / 3 ? '3' : t < TM_HOLD_MS * 2 / 3 ? '2' : '1';
+    if (key !== G.shape) _tmGrShape(key, now, G.shape ? 170 : 260);
+  }
+  // Colour for the other side is drawn a few glyphs a frame, ahead of the wave.
+  for (let k = 0; k < 8 && G.warm.length; k++) { const a = G.warm.pop(); _tmGrSprite(a[0], a[1], a[2], a[3]); }
+  let bgA = .94, dotA = 1, wp = 0, waveR = -1, dp = -1, blink = false, holeCover = 0;
+  if (G.mode === 'hold') bgA = .94 * _tmClamp((now - G.h0) / 220);
+  else if (G.mode === 'release') { const u = _tmClamp((now - G.rt) / 300); bgA = .94 * (1 - u); dotA = 1 - u; }
+  else if (G.mode === 'fin') {
+    const f = now - G.t0;
+    blink = f >= 240 && f < 330; holeCover = _tmClamp((f - 120) / 200);
+    if (G.go) {
+      // 380–1130 the wave · 1150 the swap, under an opaque grid · 1180–1560 the glyphs blink out
+      const u = _tmClamp((f - 380) / 750);
+      wp = _tmEase(u); waveR = (G.maxD + G.band) * wp; bgA = .94 + .06 * u;
+      if (f >= 1180) { bgA = 1 - _tmEase(_tmClamp((f - 1180) / 380)); dotA = 1 - _tmClamp((f - 1180) / 300); dp = _tmClamp((f - 1180) / 340); }
+    }
+  }
+  x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1;
+  x.clearRect(0, 0, w, h);
+  x.fillStyle = 'rgba(' + _tmMixRGB(_TMG_BG[th], _TMG_BG[ot], wp).join(',') + ',' + bgA.toFixed(3) + ')';
+  x.fillRect(0, 0, w, h);
+  const flash = now - G.gT < 55, gl = _tmClamp(1 - (now - G.gT) / 220), num = (G.shape && G.shape !== 'B') ? G.shape : null;
+  const dotSz = Math.max(1.5, cs * .1);
+  for (let i = 0; i < G.cells.length; i++) {
+    const ce = G.cells[i];
+    if (now >= ce.tc) ce.on = ce.target;
+    if (now >= ce.next) { _tmGrPick(ce, !!num); ce.next = now + (gl > 0 ? 35 : 110) + Math.random() * (gl > 0 ? 80 : 260); }
+    if (dp >= 0 && ce.dz < dp) continue;
+    let px = ce.c * cs + G.rowShift[ce.r] * cs * gl; px = ((px % w) + w) % w;
+    const py = ce.r * cs, m = waveR < 0 ? 0 : _tmClamp((waveR - ce.d) / G.band);
+    if (!ce.on || (blink && G.eye[i])) {
+      x.globalAlpha = .9 * dotA; x.fillStyle = 'rgb(' + _tmMixRGB(_TMG_DOT[th], _TMG_DOT[ot], m).join(',') + ')';
+      x.fillRect(px + (cs - dotSz) / 2, py + (cs - dotSz) / 2, dotSz, dotSz);
+      continue;
+    }
+    const lvl = (flash || (dp >= 0 && ce.dz < dp + .07)) ? 3 : ce.lvl, dig = (ce.dig && num) ? num : null;
+    const sz = now < ce.big ? cs * 1.6 : cs, ox = px + (cs - sz) / 2, oy = py + (cs - sz) / 2;
+    if (m < 1) { x.globalAlpha = 1; x.drawImage(_tmGrSprite(th, lvl, ce.v, dig), ox, oy, sz, sz); }
+    if (m > 0) { x.globalAlpha = m; x.drawImage(_tmGrSprite(ot, lvl, ce.v, dig), ox, oy, sz, sz); }
+  }
+  x.globalAlpha = 1;
+  // The window the button shows through, closing once the count is done.
+  if (G.hole && holeCover < 1) {
+    const r = G.hole;
+    x.save(); x.globalCompositeOperation = 'destination-out'; x.globalAlpha = 1 - holeCover;
+    x.beginPath(); if (x.roundRect) x.roundRect(r.x, r.y, r.w, r.h, 12); else x.rect(r.x, r.y, r.w, r.h); x.fill();
+    x.restore();
+  }
+}
+
+// ── the hold ──
+function _tmGrHoldStart(el) {
+  if (_tmGrReduced()) return;
+  _tmGrStop(); _tmGrSetup();
+  const G = _tmGr, r = el.getBoundingClientRect(), now = performance.now();
+  G.theme = el.dataset.tmHold === 'exit' ? 't' : 'e';
+  G.hole = { x: r.left, y: r.top, w: r.width, h: r.height };
+  G.cells.forEach(ce => { ce.on = false; ce.target = false; ce.big = 0; ce.next = 0; });
+  G.shape = null; G.go = false; G.mode = 'hold'; G.h0 = now; G.gT = now;
+  const ot = G.theme === 'e' ? 't' : 'e';
+  G.warm = [];
+  for (let l = 0; l < 4; l++) for (let v = 0; v < 9; v++) { _tmGrSprite(G.theme, l, v, null); G.warm.push([ot, l, v, null]); }
+  G.cv.hidden = false;
+  _tmGrFrame(now); _tmGrLoop();
+}
+function _tmGrHoldRelease() {
+  const G = _tmGr; if (G.mode !== 'hold') return;
+  G.mode = 'release'; G.rt = performance.now();
+  G.cells.forEach(ce => { ce.target = false; ce.tc = G.rt + Math.random() * 250; });
+  // Gone on time even if frames are throttled.
+  G.timers.push(setTimeout(() => { if (G.mode === 'release') _tmGrStop(); }, 330));
+}
+function _tmGrHoldComplete() {
+  const G = _tmGr; if (G.mode !== 'hold') return;
+  G.mode = 'fin'; G.t0 = performance.now();
+  _tmGrShape('B', G.t0, 160);
+  // If nothing follows the blink (the entry was refused), don't linger.
+  G.timers.push(setTimeout(() => { if (G.mode === 'fin' && !G.go) _tmGrStop(); }, 1000));
+}
+// The switch, on the same clock as the blink that started it.
+function _tmGrGo(kind, apply) {
+  const G = _tmGr, el = performance.now() - G.t0;
+  G.go = true; G.timers.forEach(clearTimeout); G.timers = [];
+  G.timers.push(setTimeout(() => { try { apply(); } catch (e) { console.error('[tm mobile]', e); } _haptic('success'); }, Math.max(0, 1150 - el)));
+  G.timers.push(setTimeout(_tmGrStop, Math.max(0, 1600 - el)));
+}
+
+// The mode swap, dressed. The pixel rabbit when it's loaded and motion is
+// welcome; the plain curtain otherwise.
+function _tmTransition(kind, apply) {
+  if (_tmGr.mode === 'fin' && !_tmGrReduced()) { _tmGrGo(kind, apply); return; }
+  _tmCurtain(kind, apply);
+}
+
+function _tmEnter() {
+  const u = U(), t = T();
+  if (!u || !t || t.id === '_empty' || !_isTourManager(t, u.id)) { toast('Only the tour manager or a co-manager can edit this tour', 'error'); return; }
+  if (!_isPhoneApp()) { toast('TM Mobile is part of the phone app', 'error'); return; }
+  if (!state.ui) state.ui = {};
+  state.ui.tmMobileTourId = t.id;
+  activeTab = 'dashboard';
+  _phToursOpen = false;
+  try { closePhoneDateMenu(); } catch (e) {}
+  try { _phPageClose(true); } catch (e) {}
+  saveUIPrefs();
+  _tmTransition('enter', () => {
+    renderAll();
+    try { applyTabFromState(); } catch (e) {}
+    try { window.scrollTo(0, 0); } catch (e) {}
+  });
+}
+function _tmExit() {
+  _tmToggleSheet(false);
+  try { if (document.querySelector('.modal-overlay')) closeModal(); } catch (e) {}
+  // The lock holds until the switch itself, so nothing redraws the road view
+  // while the dashboard is still leaving.
+  _tmTransition('exit', () => {
+    if (state && state.ui) state.ui.tmMobileTourId = null;
+    phoneScreen = 'more';                                // back to where the way in lives
+    saveUIPrefs();
+    renderAll();
+    try { applyPhoneScreenFromState(); } catch (e) {}
+  });
+}
+
+// The hold. Pointer events delegated from the document, since both buttons
+// live in markup that re-renders. The fill is a 4s CSS transition started
+// by the .holding class; completion is a timer, and letting go before it
+// fires snaps the fill back. A light tick on each number, a heavy one at the
+// end. Capture keeps the gesture on the button even if the finger drifts.
+const _tmHold = { el: null, kind: '', t: null, iv: null, n: 4 };
+function _tmHoldStart(el) {
+  if (_tmHold.el) return;
+  _tmHold.el = el; _tmHold.kind = el.dataset.tmHold || 'enter'; _tmHold.n = 3;
+  el.classList.remove('released', 'done'); el.classList.add('holding');
+  const num = el.querySelector('.tm-hold-n'); if (num) num.textContent = '3';
+  _haptic('light');
+  try { _tmGrHoldStart(el); } catch (e) { console.warn('[tm grid]', e); }
+  // 3 · 2 · 1 in step with the grid — three beats across the hold.
+  _tmHold.iv = setInterval(() => {
+    _tmHold.n -= 1;
+    if (_tmHold.n > 0 && num) num.textContent = String(_tmHold.n);
+  }, TM_HOLD_MS / 3);
+  _tmHold.t = setTimeout(_tmHoldDone, TM_HOLD_MS);
+}
+function _tmHoldCancel() {
+  const el = _tmHold.el; if (!el) return;
+  clearTimeout(_tmHold.t); clearInterval(_tmHold.iv); _tmHold.el = null;
+  try { _tmGrHoldRelease(); } catch (e) {}
+  el.classList.remove('holding'); el.classList.add('released');
+  const num = el.querySelector('.tm-hold-n'); if (num) num.textContent = '3';
+  setTimeout(() => { try { el.classList.remove('released'); } catch (e) {} }, 320);
+}
+function _tmHoldDone() {
+  clearInterval(_tmHold.iv);
+  const kind = _tmHold.kind;
+  // Re-find it: a render during the hold may have replaced the node.
+  const el = document.querySelector('.tm-hold[data-tm-hold="' + kind + '"]') || _tmHold.el;
+  _tmHold.el = null;
+  if (el) {
+    el.classList.remove('holding'); el.classList.add('done');
+    const num = el.querySelector('.tm-hold-n');
+    if (num) num.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  }
+  _haptic('heavy');
+  try { _tmGrHoldComplete(); } catch (e) {}
+  setTimeout(() => { if (kind === 'exit') _tmExit(); else _tmEnter(); }, 220);
+}
+function _tmBindHold() {
+  document.addEventListener('pointerdown', (e) => {
+    const el = e.target && e.target.closest ? e.target.closest('.tm-hold') : null;
+    if (!el) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    try { el.setPointerCapture(e.pointerId); } catch (x) {}
+    _tmHoldStart(el);
+  }, { passive: false });
+  ['pointerup', 'pointercancel'].forEach(t => document.addEventListener(t, () => { if (_tmHold.el) _tmHoldCancel(); }));
+  document.addEventListener('keydown', (e) => {
+    if (e.repeat || (e.key !== ' ' && e.key !== 'Enter')) return;
+    const el = e.target && e.target.closest ? e.target.closest('.tm-hold') : null;
+    if (!el) return;
+    e.preventDefault(); _tmHoldStart(el);
+  });
+  document.addEventListener('keyup', (e) => { if ((e.key === ' ' || e.key === 'Enter') && _tmHold.el) _tmHoldCancel(); });
+  document.addEventListener('contextmenu', (e) => { if (e.target && e.target.closest && e.target.closest('.tm-hold')) e.preventDefault(); });
+  // Losing the page (a call, the app switcher) ends the hold cleanly.
+  document.addEventListener('visibilitychange', () => { if (document.hidden && _tmHold.el) _tmHoldCancel(); });
+}
+
 function applyRoleMode() {
   const u = U();
   // Installed app: force the crew-mobile phone experience for EVERY
@@ -34871,7 +35890,19 @@ function applyRoleMode() {
   // phone screen up to fill the whole device, edge to edge — no phone
   // mockup bezel, since we're already on a phone. See the
   // "NATIVE PHONE APP" CSS block.
-  document.body.classList.toggle('phone-app', installed);
+  // TM MOBILE: the dashboard in its narrow-screen form, in place of the
+  // phone rig. body.mobile does the layout; body.tm-mobile adds the band and
+  // the lock. See the TM MOBILE block.
+  const tmMobile = _tmMobileResolve(u, installed);
+  document.body.classList.toggle('tm-mobile', tmMobile);
+  document.documentElement.classList.toggle('tm-mobile-doc', tmMobile);   // lets the page scroll again
+  document.body.classList.toggle('phone-app', installed && !tmMobile);
+  if (tmMobile) {
+    document.body.classList.add('mobile');
+    document.body.classList.remove('crew-mobile-only', 'tm-crew-tour');
+    viewerKey = 'tm';
+    return;
+  }
   if (!u) {
     document.body.classList.toggle('crew-mobile-only', installed);
     document.body.classList.remove('tm-crew-tour');
@@ -36135,10 +37166,8 @@ function _pnOpenIndividualPicker() {
 function _pnSmartSuggest(ad) {
   if (!ad || !ad.schedule) return null;
   // Find the next non-passed schedule item in the day; if it's within 45 min,
-  // suggest a reminder. We use the device clock as a proxy for "now".
-  const now = new Date();
-  const hh = now.getHours(), mm = now.getMinutes();
-  const nowMin = hh * 60 + mm;
+  // suggest a reminder. "Now" is the venue's clock, like the times themselves.
+  const nowMin = _nowAt(ad).mins;
   for (const s of ad.schedule) {
     if (!s.time || s.allDay) continue;
     const [h, m] = s.time.split(':').map(Number);
@@ -37055,6 +38084,7 @@ function init() {
   try { _wireAllAutocomplete(document); } catch (e) { console.warn('autocomplete init:', e); }
   try { bindTabs(); } catch (e) { console.error('bindTabs:', e); }
   try { bindPhoneNav(); } catch (e) { console.error('bindPhoneNav:', e); }
+  try { _tmBindHold(); _tmEnsureChrome(); _tmGrInit(); } catch (e) { console.error('tm mobile:', e); }
   try { _initKeyboardInset(); } catch (e) { console.error('keyboard inset:', e); }
   try { PhoneSwipe.init(); } catch (e) { console.error('PhoneSwipe:', e); }
   try { bindAuthEnterKey(); } catch (e) { console.error('bindAuthEnterKey:', e); }
@@ -38214,7 +39244,7 @@ Object.assign(window, {
   openSettleModal, openAttachModal, _attachFilePicked, _attachScopeChange, _attachBackToPick, _attachUpdatePrimaryLabel, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport, renderLocalAttachments, renderAttachments, renderTrialBadge, openSubscriptionPortal, _trialBadgeClick, _fxManualRefresh,
   openChatsModal, openNewChatModal, setActiveChat, _chatComposeOnInput, _chatComposeOnKeydown, _chatComposeSend, _chatMentionPick, _chatReactToggle, _chatReactPicker, _chatSendBroadcastPrompt, _chatToggleGroup, _chatUpdatePickCount,
   openPhoneSearch, _phoneSearchRender,
-  openTaskModal, openTagModal, toggleTask, renderEditHistory, openHistoryDetail,
+  openTaskModal, openTagModal, toggleTask, renderEditHistory, openHistoryDetail, _tmToggleSheet, _tmTabPick, _tmTabMenu,
   setActive, closeModal, _modalSubmit, goToTab,
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
   setCrewView, revokeCoManager, openCoManagerModal, _coManagerLookup, openManageGroupsModal, addGroup, renameGroup, deleteGroup, toggleGroupPick, toggleGroupExpand, toggleCrewInGroup, setAllInGroup,
