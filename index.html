@@ -5435,7 +5435,7 @@ html body.phone-app .phone .nav {
   color:rgba(79,209,197,.28);font-variant-numeric:tabular-nums;transition:color .2s ease,transform .2s ease}
 .tm-hold-n svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px}
 .tm-hold.holding{border-color:rgba(79,209,197,.85);box-shadow:0 0 22px rgba(79,209,197,.22),inset 0 1px 0 rgba(79,209,197,.2);transform:scale(.985)}
-.tm-hold.holding .tm-hold-fill{transform:scaleX(1);transition:transform 2s linear}
+.tm-hold.holding .tm-hold-fill{transform:scaleX(1);transition:transform 1.5s linear}
 .tm-hold.holding .tm-hold-t{color:#eafffb;text-shadow:0 0 12px rgba(79,209,197,.55)}
 .tm-hold.holding .tm-hold-n{color:#7fe3d3;transform:scale(1.08)}
 .tm-hold.released .tm-hold-fill{transition:transform .26s cubic-bezier(.2,.8,.2,1)}
@@ -5495,6 +5495,8 @@ html body.tm-mobile .console-head .ch-status{max-width:none!important;width:100%
 html body.tm-mobile .console-head .ch-status .chs-main{flex:1;min-width:0}
 html body.tm-mobile .console-head .ch-status .chs-t{white-space:normal;overflow:visible;text-overflow:clip}
 html body.tm-mobile .console-head .actions{width:100%;justify-content:center}
+/* No Edit Date on the phone: every section below carries its own edit. */
+html body.tm-mobile .console-head .actions .btn[onclick^="openDateModal"]{display:none!important}
 html body.tm-mobile .console-head .title{width:100%;justify-content:center;text-align:center}
 /* The city is painted through background-clip:text, so any glyph that runs
    past its box goes unpainted — the clipped S. Give the title the whole row
@@ -5502,7 +5504,9 @@ html body.tm-mobile .console-head .title{width:100%;justify-content:center;text-
 html body.tm-mobile .bm-dash-head .h-left{flex:1 1 100%!important}
 html body.tm-mobile .bm-dash-head .h-right{flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:space-between;width:100%;min-width:0!important}
 html body.tm-mobile .bm-dash-head .h-city{font-size:32px;overflow:visible!important;white-space:normal;padding-right:.12em}
-html body.tm-mobile .bm-dash-head .h-right button[onclick="openImportData()"],html body.tm-mobile #p-tools button[onclick="openImportData()"]{display:none!important}
+/* Import data is a desktop job: no way in from anywhere in TM Mobile — the
+   dashboard, Tools, the Tour Scan screen, or any modal. */
+html body.tm-mobile [onclick="openImportData()"]{display:none!important}
 html body.tm-mobile .profiles-toolbar{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 html body.tm-mobile .profiles-toolbar .stat{grid-column:1/-1;border:0;padding:0 0 2px;font-size:10.5px;letter-spacing:.14em}
 html body.tm-mobile .profiles-toolbar .stat+.stat{margin-top:-6px}
@@ -5566,7 +5570,11 @@ html body.tm-mobile .tm-tabbar{display:grid;grid-template-columns:auto minmax(0,
 .tm-tabbar .ttb-sep{height:1px;margin:5px 8px;background:var(--line)}
 
 /* — the band across the top — */
-.tm-banner{position:fixed;top:0;left:0;right:0;z-index:900;height:var(--tm-banner-h);padding-top:env(safe-area-inset-top,0px);
+/* padding-top keeps the text clear of a real notch, but not of the few points of
+   "safe area" iOS still reports when the app's shell already sits the page below
+   the status bar (~8pt on Dynamic Island phones) — that sliver is visible teal, and
+   padding it pushed the text below the band's middle. */
+.tm-banner{position:fixed;top:0;left:0;right:0;z-index:900;height:var(--tm-banner-h);padding-top:max(0px,calc(env(safe-area-inset-top,0px) - 12px));
   display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;column-gap:10px;box-sizing:border-box;
   padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px));
   background:linear-gradient(90deg,#2fb8ab,#4fd1c5 50%,#2fb8ab);color:var(--tm-ink);cursor:pointer;
@@ -6110,16 +6118,16 @@ html body.tm-mobile .panel{padding-bottom:calc(60px + env(safe-area-inset-bottom
      (showLandingScreen / showLoginScreen / postLoginRouting), with a 6s hard
      cap so it can never get stuck. -->
 <style>
-#appBoot{position:fixed;inset:0;z-index:99999;background:#0a0705;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;perspective:600px;transition:opacity .45s ease}
+#appBoot{position:fixed;inset:0;z-index:99999;background:#0a0705;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;perspective:600px;transition:opacity .27s ease}
 #appBoot.hide{opacity:0;pointer-events:none}
-#appBoot img{height:104px;width:auto;filter:drop-shadow(0 0 16px rgba(232,148,58,.45));animation:bootSpin 3s linear infinite;transform-origin:50% 50%}
+#appBoot img{height:104px;width:auto;filter:drop-shadow(0 0 16px rgba(232,148,58,.45));animation:bootSpin 1.8s linear infinite;transform-origin:50% 50%}
 #appBoot .bm{font-family:'Bricolage Grotesque','SFMono-Regular',ui-monospace,monospace;font-size:14px;letter-spacing:.36em;color:#f4e4cf;font-weight:500}
 @keyframes bootSpin{0%{transform:rotateY(0)}50%{transform:rotateY(180deg)}100%{transform:rotateY(360deg)}}
 </style>
 <div id="appBoot"><img src="avatar.png" alt="Bandmate"><span class="bm">BANDMATE</span></div>
 <script>
 var _bootShownAt=Date.now();
-window._hideAppBoot=function(){var b=document.getElementById('appBoot');if(!b||b._hiding)return;b._hiding=true;var wait=Math.max(0,1000-(Date.now()-_bootShownAt));setTimeout(function(){b.classList.add('hide');setTimeout(function(){try{b.remove();}catch(e){}},480);},wait);};
+window._hideAppBoot=function(){var b=document.getElementById('appBoot');if(!b||b._hiding)return;b._hiding=true;var wait=Math.max(0,600-(Date.now()-_bootShownAt));setTimeout(function(){b.classList.add('hide');setTimeout(function(){try{b.remove();}catch(e){}},290);},wait);};
 setTimeout(window._hideAppBoot,6000);
 </script>
 
@@ -10941,10 +10949,10 @@ function openDateModal(id) {
         <div class="field full" data-show-day data-press-day><label>Venue address</label><input id="d_vaddr" autocomplete="off" value="${esc(d.venueAddress || '')}" placeholder="e.g. 2420 Larimer St, Denver, CO 80205"></div>
         <div class="field" data-show-day><label>Capacity <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional)</span></label><input type="number" id="d_cap" value="${esc(d.capacity)}"></div>
         <div class="field" data-show-day><label>Promoter</label><input id="d_prom" value="${esc(d.promoter)}"></div>
-        <div class="field" data-show-day><label>Doors</label>${renderTime12Picker('d_doors', d.doors, { h24: _dateIs24h(d) })}</div>
-        <div class="field" data-show-day><label>Set time</label>${renderTime12Picker('d_set', d.setTime, { h24: _dateIs24h(d) })}</div>
         <div class="field" data-show-day><label>Load-in</label>${renderTime12Picker('d_load', d.loadIn, { h24: _dateIs24h(d) })}</div>
         <div class="field" data-show-day><label>Soundcheck</label>${renderTime12Picker('d_sc', d.soundcheck, { h24: _dateIs24h(d) })}</div>
+        <div class="field" data-show-day><label>Doors</label>${renderTime12Picker('d_doors', d.doors, { h24: _dateIs24h(d) })}</div>
+        <div class="field" data-show-day><label>Set time</label>${renderTime12Picker('d_set', d.setTime, { h24: _dateIs24h(d) })}</div>
         ${editing ? _dateModalTemplatesHTML(editing) : ''}
       </div>
     `,
@@ -35337,7 +35345,7 @@ function _isPhoneApp() {
    TM MOBILE CSS block for the shape of it. Entry and exit are both a
    four-second hold, and the tour is locked while it's on.
    ===================================================================== */
-const TM_HOLD_MS = 2000;
+const TM_HOLD_MS = 1500;
 
 // A nudge through the glass. The iOS shell answers the `haptic` message
 // with UIKit feedback; Android Chrome has navigator.vibrate; everywhere
@@ -35384,12 +35392,12 @@ function _tmLocked(tourId) {
 function _tmHoldHTML(kind) {
   const enter = kind !== 'exit';
   return `<button type="button" class="tm-hold" data-tm-hold="${enter ? 'enter' : 'exit'}" data-noswipe
-      aria-label="${enter ? 'Edit this tour. Press and hold for two seconds.' : 'Exit TM Mobile. Press and hold for two seconds.'}">
+      aria-label="${enter ? 'Edit this tour. Press and hold for a second and a half.' : 'Exit TM Mobile. Press and hold for a second and a half.'}">
     <span class="tm-hold-fill" aria-hidden="true"></span>
     <span class="tm-hold-body">
       <span class="tm-hold-k">${enter ? 'TM Mobile · Beta' : 'Leave edit mode'}</span>
       <span class="tm-hold-t">${enter ? 'Edit this tour' : 'Exit TM Mobile'}</span>
-      <span class="tm-hold-s">Press and hold for two seconds</span>
+      <span class="tm-hold-s">Press and hold</span>
     </span>
     <span class="tm-hold-n" aria-hidden="true">3</span>
   </button>`;
@@ -35550,11 +35558,12 @@ function _tmCurtain(kind, apply) {
    Holding the button covers the screen in a grid of the mark: a few hundred
    small rabbits, each cell flickering between versions of it (solid,
    outlined, ears, face, knocked out of a block, turned, a pair), with the odd
-   cell writing the current number another way (3, III, 三, ३…). The count is
-   carved into the grid as negative space — 3, 2, 1 across the two seconds —
-   each change a glitch: cells pop on and off, a few swell, rows slip sideways
-   and snap back. The last shape carved is the rabbit itself, whose eyes are
-   the cells left lit inside it, and it blinks. Then a soft-edged wave rolls
+   cell writing the current number another way (3, III, 三, ३…) — digit cells
+   only appear while a number is carved, so the rabbit's grid is all rabbits.
+   The rabbit itself is carved into the grid as negative space from the first
+   moment of the hold and held there, steady — the 3 · 2 · 1 count runs on the
+   button. Its eyes are the cells left lit inside it, and when the hold
+   completes it blinks. Then a soft-edged wave rolls
    out from the rabbit turning the grid ember → teal (teal → ember on the way
    out); the mode swaps underneath while the grid is opaque, and the glyphs
    blink out in a scatter as the dark fades onto the new view.
@@ -35665,12 +35674,11 @@ function _tmGrPick(ce, allowDig) {
 }
 // A new shape: every cell picks its new state after a random beat, some
 // swell, some rows slip sideways — the glitch between numbers.
-function _tmGrShape(key, now, spread) {
+function _tmGrShape(key, now, spread, calm) {
   const G = _tmGr, m = G.masks[key];
-  G.shape = key; G.gT = now;
-  G.cells.forEach((ce, i) => { ce.target = !m[i]; ce.tc = now + Math.random() * spread; if (Math.random() < .28) ce.big = now + 50 + Math.random() * 190; ce.next = now + Math.random() * 60; });
-  for (let r = 0; r < G.rows; r++) G.rowShift[r] = Math.random() < .32 ? (Math.floor(Math.random() * 5) - 2) : 0;
-  if (key !== '3' && key !== 'B') _haptic('tick');
+  G.shape = key; G.gT = calm ? now - 1000 : now;          // calm: no flash, no fast shuffle
+  G.cells.forEach((ce, i) => { ce.target = !m[i]; ce.tc = now + Math.random() * spread; if (!calm && Math.random() < .28) ce.big = now + 50 + Math.random() * 190; ce.next = now + Math.random() * 60; });
+  for (let r = 0; r < G.rows; r++) G.rowShift[r] = (!calm && Math.random() < .32) ? (Math.floor(Math.random() * 5) - 2) : 0;
 }
 function _tmGrLoop() {
   cancelAnimationFrame(_tmGr.raf);
@@ -35685,10 +35693,9 @@ function _tmGrStop() {
 }
 function _tmGrFrame(now) {
   const G = _tmGr, x = G.ctx, w = G.w, h = G.h, cs = G.cs, th = G.theme, ot = th === 'e' ? 't' : 'e';
-  if (G.mode === 'hold') {
-    const t = now - G.h0, key = t < TM_HOLD_MS / 3 ? '3' : t < TM_HOLD_MS * 2 / 3 ? '2' : '1';
-    if (key !== G.shape) _tmGrShape(key, now, G.shape ? 170 : 260);
-  }
+  // The hold carves the rabbit from the first moment and holds it — the
+  // count is on the button, not in the grid.
+  if (G.mode === 'hold' && G.shape !== 'B') _tmGrShape('B', now, 260, true);
   // Colour for the other side is drawn a few glyphs a frame, ahead of the wave.
   for (let k = 0; k < 8 && G.warm.length; k++) { const a = G.warm.pop(); _tmGrSprite(a[0], a[1], a[2], a[3]); }
   let bgA = .94, dotA = 1, wp = 0, waveR = -1, dp = -1, blink = false, holeCover = 0;
@@ -35761,8 +35768,7 @@ function _tmGrHoldRelease() {
 }
 function _tmGrHoldComplete() {
   const G = _tmGr; if (G.mode !== 'hold') return;
-  G.mode = 'fin'; G.t0 = performance.now();
-  _tmGrShape('B', G.t0, 160);
+  G.mode = 'fin'; G.t0 = performance.now();              // the rabbit's already carved: straight to the blink
   // If nothing follows the blink (the entry was refused), don't linger.
   G.timers.push(setTimeout(() => { if (G.mode === 'fin' && !G.go) _tmGrStop(); }, 1000));
 }
@@ -35828,7 +35834,7 @@ function _tmHoldStart(el) {
   // 3 · 2 · 1 in step with the grid — three beats across the hold.
   _tmHold.iv = setInterval(() => {
     _tmHold.n -= 1;
-    if (_tmHold.n > 0 && num) num.textContent = String(_tmHold.n);
+    if (_tmHold.n > 0) { if (num) num.textContent = String(_tmHold.n); _haptic('tick'); }
   }, TM_HOLD_MS / 3);
   _tmHold.t = setTimeout(_tmHoldDone, TM_HOLD_MS);
 }
@@ -36505,6 +36511,7 @@ function rbReflectReset() {
 let _importStaging = []; // { file, status: 'queued'|'analyzing'|'done'|'error', result }
 
 function openImportData() {
+  if (_tmMobileOn()) { toast('Import data from the desktop app or bandmate.art', 'error'); return; }
   if (!T() || T().id === '_empty') {
     toast('Open a tour first', 'error');
     return;
