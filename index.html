@@ -109,6 +109,10 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
   z-index:251;pointer-events:none;display:block;
   opacity:0;transition:opacity 700ms ease-out}
 #bgLogoCanvas.ready{opacity:.083}
+/* Quieter on the phone, where the watermark sits right behind the cards you
+   read: about a third dimmer than the desktop's. Not on the sign-in screen,
+   where the rabbit is the background (bg-mark-on, below). */
+body.phone-app:not(.bg-mark-on) #bgLogoCanvas.ready,body.tm-mobile:not(.bg-mark-on) #bgLogoCanvas.ready{opacity:.055}
 body.bg-logo-hidden #bgLogoCanvas{opacity:0}
 @media (prefers-reduced-motion:reduce){#bgLogoCanvas{opacity:0!important}}
 
