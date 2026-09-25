@@ -7447,6 +7447,11 @@ const db = {
       mentions, is_broadcast: !!opts.isBroadcast,
     }).select().single();
     if (error) { this._err('chatSendMessage', error); return null; }
+    // Ping the other members' phones. The app only names the message; the
+    // send-push function checks this account really sent it and works out who
+    // gets it (the chat's members, minus anyone who muted it unless they were
+    // @mentioned). Not awaited — a slow push never holds up the conversation.
+    try { sb.functions.invoke('send-push', { body: { kind: 'chat', messageId: data.id } }).catch(e => console.warn('[chat push]', e)); } catch (e) {}
     return data;
   },
   async chatMarkRead(chatId) {
@@ -37317,6 +37322,44 @@ function _pnSend() {
 // The iOS/Android shell calls window.bandmatePush(token, platform) once it has
 // the device's APNs/FCM token; we store it against the signed-in user so the
 // send-push edge function can target them.
+// A tapped chat notification: the iOS shell calls this with the ids the push
+// carried. Opens that conversation — switching to its tour first if needed —
+// once the app is signed in and loaded. A cold start from the notification
+// calls this before either has happened, so it waits (up to ~30s) for them.
+let _pendingChatOpen = null;
+window.bandmateOpenChat = function (chatId, tourId) {
+  if (!chatId) return false;
+  _pendingChatOpen = { chatId: String(chatId), tourId: String(tourId || ''), tries: 0 };
+  _tryPendingChatOpen();
+  return true;
+};
+function _tryPendingChatOpen() {
+  const p = _pendingChatOpen; if (!p) return;
+  const app = document.getElementById('app');
+  const ready = !!(state && state.currentUserId && state.tours && (!p.tourId || state.tours[p.tourId]) && app && !app.hidden);
+  if (!ready) {
+    if (++p.tries > 40) { _pendingChatOpen = null; return; }
+    setTimeout(_tryPendingChatOpen, 750);
+    return;
+  }
+  _pendingChatOpen = null;
+  if (p.tourId && T().id !== p.tourId) {
+    if (_tmMobileOn()) { toast('Exit TM Mobile to open a chat on another tour', 'error'); return; }
+    try { if (_isPhoneApp()) switchToTourFromPhone(p.tourId); else switchToTour(p.tourId); } catch (e) {}
+  }
+  _chatState.activeChatId = p.chatId;          // openChatsModal keeps it when that chat is the user's
+  openChatsModal();
+}
+// Which chat is on screen right now ('' if none). The shell asks before it
+// shows a banner, so a message in the conversation you're reading doesn't
+// pop a notification over it.
+window.bandmateChatOpen = function () {
+  try {
+    if (document.visibilityState !== 'visible') return '';
+    const root = document.getElementById('chatModalRoot');
+    return (root && root.isConnected && root.offsetParent !== null && _chatState.activeChatId) ? String(_chatState.activeChatId) : '';
+  } catch (e) { return ''; }
+};
 window.bandmatePush = function (token, platform) {
   try { _registerPushToken(token, platform || 'ios'); } catch (e) { console.warn('[push] bridge', e); }
 };
