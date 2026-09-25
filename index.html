@@ -2171,6 +2171,8 @@ html body.phone-app .ph-page-head{padding-top:calc(12px + env(safe-area-inset-to
 .act-sheet button svg{width:17px;height:17px;flex:none}
 .act-sheet .ts-sub{font-family:'Bricolage Grotesque',monospace;font-size:11px;color:var(--warm-mute);letter-spacing:.04em;text-align:center;margin:-8px 0 12px;line-height:1.45;white-space:pre-line}
 /* An address you can tap for directions. A line of text with a pin, not a button. */
+/* A single long word in an address wraps inside the card rather than running past its edge. */
+.ph-addr,.ph-addr .tx{min-width:0;max-width:100%;overflow-wrap:anywhere}
 .ph-addr{display:inline-flex;align-items:flex-start;gap:5px;background:none;border:0;padding:0;margin:0;text-align:left;
   font:inherit;color:inherit;letter-spacing:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .ph-addr .pin{width:11px;height:11px;flex:none;margin-top:1.5px;color:var(--hi);opacity:.85}
@@ -3840,12 +3842,16 @@ body.print-stage-mode #stagePrintArea{
 @media (prefers-reduced-motion:reduce){.phone-avatar{animation:none;filter:drop-shadow(0 0 6px rgba(232,148,58,.25))}}
 /* The date menu's arrow: its own small well, so it reads as a control and
    stays put and visible however long (or wrapped) the city is. */
-.phone-trigger-chev{flex:none;align-self:center;display:grid;place-items:center;width:28px;height:28px;margin-left:2px;
+.phone-trigger-chev{flex:none;align-self:center;display:grid;place-items:center;width:28px;height:28px;margin:0;
   border:1px solid rgba(232,148,58,.38);border-radius:8px;background:rgba(232,148,58,.08);color:var(--hi);
   box-shadow:0 0 10px rgba(232,148,58,.14);transition:transform .18s ease,color .15s,border-color .15s,background .15s}
 .phone-trigger-chev svg{display:block}
 .phone-date-trigger:active .phone-trigger-chev{background:rgba(232,148,58,.2)}
 .phone-app-bar .city{min-width:0;flex:0 1 auto}
+/* A single long word (a long city name) breaks onto the second line instead
+   of being cut mid-letter; the day line stays on one line with an ellipsis. */
+.phone-app-bar .ph-city-name{overflow-wrap:anywhere}
+.phone-app-bar .city small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* The gradient lives on the clamped element itself. On the parent, a
    background-clip:text mask still paints lines the clamp has hidden — the
    cut-off third line used to ghost over the "DAY 02 / 07" row beneath. */
@@ -5691,7 +5697,7 @@ html body.tm-mobile .panel{padding-bottom:calc(60px + env(safe-area-inset-bottom
    chats use the cool blue we use for crew/peer surfaces.            */
 /* Action cluster on the right of the crew phone header — holds the
    search and chat buttons side-by-side. */
-.phone-app-bar-actions{display:flex;align-items:center;gap:4px}
+.phone-app-bar-actions{display:flex;align-items:center;gap:4px;flex:none;margin-left:12px}
 .ic-search,.ic-chat{position:relative;display:flex;align-items:center;justify-content:center;
   width:36px;height:36px;border:none;background:transparent;color:var(--warm);cursor:pointer;
   border-radius:10px;transition:background .15s,color .15s;padding:0}
@@ -6619,8 +6625,8 @@ setTimeout(window._hideAppBoot,6000);
           <div class="phone-app-bar">
             <button type="button" class="phone-date-trigger" onclick="togglePhoneDateMenu()">
               <img src="avatar.png" class="phone-avatar" alt="" />
-              <div class="city" id="phCity">—<small id="phSub">—</small></div>
               <span class="phone-trigger-chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+              <div class="city" id="phCity">—<small id="phSub">—</small></div>
             </button>
             <div class="phone-app-bar-actions">
               <button type="button" class="ic ic-search" onclick="openPhoneSearch()" title="Search tour data" aria-label="Search">
