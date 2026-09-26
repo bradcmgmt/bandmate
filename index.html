@@ -108,7 +108,7 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
 #bgLogoCanvas{position:fixed;inset:0;width:100vw;height:100vh;
   z-index:251;pointer-events:none;display:block;
   opacity:0;transition:opacity 700ms ease-out}
-#bgLogoCanvas.ready{opacity:.083}
+#bgLogoCanvas.ready{opacity:.075}
 /* Quieter on the phone, where the watermark sits right behind the cards you
    read: about a third dimmer than the desktop's. Not on the sign-in screen,
    where the rabbit is the background (bg-mark-on, below). */
@@ -2743,18 +2743,34 @@ html.mac-app .login-signup-link{display:none}
 .lg-sw-b{display:flex;align-items:center;justify-content:center;min-height:84px;padding:10px}
 .lg-sw-dark{background:#0a0807}.lg-sw-dark .lg-sw-k{color:var(--warm-mute)}
 .lg-sw-paper{background:#fff}.lg-sw-paper .lg-sw-k{color:#777}
-.toast-container{position:fixed;right:20px;top:20px;z-index:1100;display:flex;flex-direction:column;gap:8px;pointer-events:none}
-.toast{
-  pointer-events:auto;padding:12px 16px;
-  background:linear-gradient(135deg,#1a1209,#110c08);
-  border:1px solid var(--hi);border-radius:9px;color:var(--warm);
-  font-family:'Bricolage Grotesque',monospace;font-size:11.5px;letter-spacing:.06em;
-  box-shadow:0 0 24px rgba(232,148,58,.25),0 12px 32px rgba(0,0,0,.4);
-  animation:toastIn .25s ease-out;max-width:340px;
-}
-.toast.error{border-color:var(--red);box-shadow:0 0 24px rgba(232,69,69,.25),0 12px 32px rgba(0,0,0,.4)}
-.toast.good{border-color:var(--good);box-shadow:0 0 24px rgba(109,207,139,.25),0 12px 32px rgba(0,0,0,.4)}
-@keyframes toastIn{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
+.toast-container{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
+  z-index:1100;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;
+  width:max-content;max-width:calc(100vw - 32px)}
+/* Where the phone's bottom tab bar is on screen, sit just above it. */
+html body.phone-app .toast-container,
+html body.mobile.crew-mobile-only .toast-container,
+html body.mobile.tm-crew-tour .toast-container{bottom:calc(64px + env(safe-area-inset-bottom,0px) + 14px)}
+html body.kb-open .toast-container{bottom:14px}
+/* Ticket stub: a short label (OK / Error / Note) torn off the message by a
+   perforated line with a notch punched top and bottom. The notches are cut
+   with a mask so they show whatever is behind the toast; the shadow sits on
+   the outer element so it follows the cut shape. */
+.toast{pointer-events:auto;max-width:min(460px,calc(100vw - 32px));
+  filter:drop-shadow(0 10px 22px rgba(0,0,0,.55));animation:toastIn .25s ease-out}
+.toast-t{--nx:61.5px;display:flex;align-items:stretch;background:var(--ink-4);border:1px solid var(--line-2);border-radius:8px;
+  -webkit-mask:radial-gradient(circle 6px at var(--nx) 0,#0000 94%,#000) top/100% 51% no-repeat,
+               radial-gradient(circle 6px at var(--nx) 100%,#0000 94%,#000) bottom/100% 51% no-repeat;
+          mask:radial-gradient(circle 6px at var(--nx) 0,#0000 94%,#000) top/100% 51% no-repeat,
+               radial-gradient(circle 6px at var(--nx) 100%,#0000 94%,#000) bottom/100% 51% no-repeat}
+.toast-k{flex:none;width:62px;display:flex;align-items:center;justify-content:center;padding:12px 0;
+  border-right:1px dashed var(--line-2);color:var(--hi);
+  font-family:'Bricolage Grotesque',monospace;font-size:10.5px;font-weight:600;letter-spacing:.22em;text-transform:uppercase}
+.toast-m{min-width:0;padding:11px 16px;color:var(--warm);overflow-wrap:anywhere;
+  font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:13.5px;line-height:1.35}
+.toast.good .toast-k{color:var(--good)}
+.toast.error .toast-k{color:var(--red)}
+@keyframes toastIn{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
+@media (prefers-reduced-motion:reduce){.toast{animation:none}}
 
 /* footnote */
 .footnote{margin-top:30px;text-align:center;color:var(--warm-mute);
@@ -6115,7 +6131,7 @@ html body.tm-mobile .panel{padding-bottom:calc(60px + env(safe-area-inset-bottom
   body.mobile #loginScreen, body.mobile #landingScreen, body.mobile #pricingScreen, body.mobile #welcomeScreen { padding: 14px 12px }
 
   /* Toast */
-  body.mobile .toast { left: 12px; right: 12px; max-width: none; font-size: 12px }
+  body.mobile .toast-m { font-size: 13px }
 
   body.mobile .tb-btn { padding: 6px 10px; font-size: 10px }
 
@@ -9774,11 +9790,22 @@ const BMCal = (() => {
 })();
 
 /* ---------- toast ---------- */
+const _TOAST_LABEL = { good: 'OK', error: 'Error' };
 function toast(msg, kind = '') {
   const root = $('#toastRoot');
   const el = document.createElement('div');
   el.className = 'toast ' + (kind || '');
-  el.textContent = msg;
+  el.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+  const stub = document.createElement('div');
+  stub.className = 'toast-t';
+  const k = document.createElement('span');
+  k.className = 'toast-k';
+  k.textContent = _TOAST_LABEL[kind] || 'Note';
+  const m = document.createElement('span');
+  m.className = 'toast-m';
+  m.textContent = msg;
+  stub.append(k, m);
+  el.appendChild(stub);
   root.appendChild(el);
   setTimeout(() => el.style.transition = 'opacity .3s', 2400);
   setTimeout(() => { el.style.opacity = '0'; }, 2500);
