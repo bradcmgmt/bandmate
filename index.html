@@ -7245,6 +7245,58 @@ const db = {
   _sigDate(tourId, d) {
     try { return JSON.stringify(dbMap.dateToRow(tourId, d, 0)); } catch (e) { return null; }
   },
+  // Order-insensitive JSON. Postgres jsonb re-orders object keys, so a row
+  // coming back from the cloud never string-matches what we sent; compare
+  // content with this instead.
+  _canon(v) {
+    if (Array.isArray(v)) return '[' + v.map(x => this._canon(x)).join(',') + ']';
+    if (v && typeof v === 'object') return '{' + Object.keys(v).filter(k => v[k] !== undefined).sort()
+      .map(k => JSON.stringify(k) + ':' + this._canon(v[k])).join(',') + '}';
+    return v === undefined ? 'null' : JSON.stringify(v);
+  },
+  // The last few date contents this device pushed, so their realtime echoes
+  // can be recognised as our own save coming back.
+  _recentPush: {},
+  _notePush(dateId, canon) {
+    const a = this._recentPush[dateId] || (this._recentPush[dateId] = []);
+    a.push(canon);
+    if (a.length > 4) a.shift();
+  },
+  // Three-way merge of one date: `base` is the last copy both sides agreed on,
+  // `local` has this device's unsent edits, `incoming` (mutated) is the cloud
+  // copy. A field only we changed keeps our value; a field only they changed
+  // takes theirs; the guest list, if both changed it, merges guest by guest.
+  _mergeDateFields(base, local, incoming) {
+    const empty = v => v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length)
+      || (typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).length);
+    const C = v => this._canon(empty(v) ? null : v);
+    Object.keys(incoming).forEach(k => {
+      if (k === 'id' || k === 'attachments') return;
+      const b = C(base[k]), l = C(local[k]), r = C(incoming[k]);
+      if (l === b || l === r) return;
+      if (r === b) { incoming[k] = local[k]; return; }
+      if (k === 'guests') incoming[k] = this._mergeGuestLists(base[k] || [], local[k] || [], incoming[k] || []);
+    });
+  },
+  _mergeGuestLists(base, local, remote) {
+    if ([...base, ...local, ...remote].some(g => !g || !g.id)) return remote;
+    const B = new Map(base.map(g => [g.id, g])), L = new Map(local.map(g => [g.id, g]));
+    const R = new Set(remote.map(g => g.id));
+    const same = (a, b) => this._canon(a) === this._canon(b);
+    const out = [];
+    remote.forEach(r => {
+      const l = L.get(r.id), b = B.get(r.id);
+      if (!l) { if (!b) out.push(r); return; }        // new from them / we removed it
+      if (b && same(l, b)) { out.push(r); return; }  // untouched here → theirs
+      out.push({ ...r, ...l });                      // added or edited here → ours, keeping server stamps
+    });
+    local.forEach(l => {
+      if (R.has(l.id)) return;
+      const b = B.get(l.id);
+      if (!b || !same(l, b)) out.push(l);            // added here (or edited here after they dropped it)
+    });
+    return out;
+  },
   seedSyncShadow(tour) {
     if (!tour || !tour.id) return;
     const shadow = { tour: this._sigTour(tour), dates: {} };
@@ -7338,6 +7390,7 @@ const db = {
         }
       });
       if (changed.length) {
+        changed.forEach(c => { try { this._notePush(c.id, this._canon(JSON.parse(c.sig))); } catch (e) {} });
         const { error: dErr } = await sb.from('dates')
           .upsert(changed.map(c => c.row), { onConflict: 'id' });
         if (dErr) {
@@ -8053,6 +8106,29 @@ _onTourChange(payload) {
         newDate.advance = { ...incomingAdv, techPack: localAdv.techPack };
       }
     }
+    // ── Unsent local edits ───────────────────────────────────────────────
+    // Saves go out on a 600ms debounce, and the realtime echo of an EARLIER
+    // save can land in between. Replacing the date wholesale then rolled back
+    // everything changed since — and because the shadow was reset to the echo,
+    // those edits counted as synced and were never sent. That's how guests
+    // added and approved in quick succession disappeared. When this device has
+    // unsent edits to the date, merge instead: against our own push when the
+    // echo is our save coming back, otherwise against the last cloud copy.
+    const incomingSig = this._sigDate(row.tour_id, newDate);
+    let _keepLocal = false;
+    if (existing) {
+      const _sh = this._syncShadow[row.tour_id];
+      const baseSig = _sh && _sh.dates[row.id];
+      if (baseSig && incomingSig && this._sigDate(row.tour_id, existing) !== baseSig) {
+        try {
+          const inCanon = this._canon(JSON.parse(incomingSig));
+          const ownEcho = (this._recentPush[row.id] || []).includes(inCanon);
+          const base = ownEcho ? JSON.parse(JSON.stringify(newDate)) : dbMap.rowToDate(JSON.parse(baseSig));
+          this._mergeDateFields(base, existing, newDate);
+          _keepLocal = this._canon(JSON.parse(this._sigDate(row.tour_id, newDate))) !== inCanon;
+        } catch (e) { console.warn('[realtime] date merge skipped:', e); }
+      }
+    }
     // Merge INTO the existing date object rather than swapping it out — see
     // the note on identity above. Keys absent from the incoming row are
     // already carried over by the guards above, so a plain assign is safe.
@@ -8062,11 +8138,15 @@ _onTourChange(payload) {
       tour.dates = (tour.dates || []).concat(newDate);
     }
     tour.dates.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-    // Refresh this date's shadow signature so our next save won't re-push (and
-    // clobber) the value we just received from the cloud.
+    // Refresh this date's shadow to what the cloud now holds, so our next save
+    // won't re-push (and clobber) what we just received — but still sends any
+    // local edits the merge kept.
     {
       const sh = this._syncShadow[row.tour_id] || (this._syncShadow[row.tour_id] = { tour: null, dates: {} });
-      sh.dates[row.id] = this._sigDate(row.tour_id, newDate);
+      sh.dates[row.id] = incomingSig;
+    }
+    if (_keepLocal && row.tour_id === state.currentTourId) {
+      try { this.scheduleActiveTourSync(); } catch (e) {}
     }
     this._safeRenderAll();
   },
