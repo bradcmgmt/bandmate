@@ -2145,14 +2145,11 @@ html body.phone-app .ph-page-head{padding-top:calc(12px + env(safe-area-inset-to
    even though the text itself is uniform. Backdrop is now a flat dark
    fill — the card still reads as "highlighted" via its top accent
    line, inset border ring, copper eyebrow, and overall glow shadow. */
-.p-card.hi{background:#150e08;
-  color:var(--warm);border:1px solid var(--line-2);position:relative;overflow:hidden;
-  /* No outer glow — it was the only card on the phone that cast one, so it
-     sat oddly among the rest. The inner highlights stay, so it still reads
-     as the day's headline card. */
-  box-shadow:inset 0 1px 0 rgba(232,148,58,.15),inset 0 0 0 1px rgba(232,148,58,.06)}
-.p-card.hi::before{content:"";position:absolute;left:50%;top:-1px;transform:translateX(-50%);width:60%;height:1px;background:linear-gradient(90deg,transparent,var(--hi),transparent)}
-.p-card.hi::after{content:"";position:absolute;inset:6px;border:1px solid rgba(232,148,58,.12);border-radius:10px;pointer-events:none}
+/* The day's headline card uses the same box as every other phone card (it
+   used to add a brighter border, an inset ring and a top accent line, which
+   made it look like a different kind of box). It still leads via its copper
+   kicker and larger headline. */
+.p-card.hi{color:var(--warm);position:relative}
 .p-card .lbl{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--warm-mute)}
 .p-card.hi .lbl{color:var(--hi);position:relative;z-index:1}
 .p-card .h{font-weight:800;font-size:16px;line-height:1.2;color:var(--warm)}
@@ -22443,7 +22440,22 @@ function renderPhone() {
   renderPhoneDateMenu();
   const onToday = isPhoneOnToday();
   const todayBtn = document.querySelector('.phone .nav button[data-go="today"]');
-  if (todayBtn) todayBtn.classList.toggle('alert', !onToday);
+  if (todayBtn) {
+    todayBtn.classList.toggle('alert', !onToday);
+    const lbl = todayBtn.querySelector('span:not(.gly)');
+    if (lbl) lbl.textContent = _phoneDayTabLabel(getPhoneDate());
+  }
+}
+
+// Bottom-left tab label for the date being viewed, by the calendar: "Today"
+// on today's date, "Tmrw" on tomorrow's, "Day" on any other. Double-tapping
+// it always comes back to today (see the touchend handler).
+function _phoneDayTabLabel(d) {
+  if (!d || !d.date) return 'Today';
+  const today = todayISO();
+  if (d.date === today) return 'Today';
+  if (d.date === addDaysISO(today, 1)) return 'Tmrw';
+  return 'Day';
 }
 
 function goToTab(name){activeTab=name;bindTabsClick();renderActivePanel();}
@@ -39380,19 +39392,26 @@ document.addEventListener('visibilitychange', () => {
 // touch-action on some iOS builds by cancelling a second tap within
 // 300ms of the first.
 let _lastTouchEnd = 0;
+let _lastDayTabTap = -1e9;
 document.addEventListener('touchend', (e) => {
   try {
     if (!_isPhoneApp()) return;
     const now = Date.now();
-    if (now - _lastTouchEnd <= 300) {
+    // Double-tap the bottom-left Today / Tmrw / Day tab → back to the current
+    // day, from any date or screen. (A single tap just shows that screen on
+    // whatever date you're viewing.) Timed on the events' own timestamps, so
+    // a slow re-render after the first tap can't stretch the gap between
+    // the two taps past the window.
+    const onDayTab = !!(e.target.closest && e.target.closest('.phone .nav button[data-go="today"]'));
+    if (onDayTab && e.timeStamp - _lastDayTabTap <= 400) {
       e.preventDefault();
-      // Double-tap the bottom-left "Today" tab → jump to the current day.
-      // (A single tap just shows the Today screen on whatever date you're
-      // viewing; double-tapping is the explicit "take me back to today".)
-      if (e.target.closest && e.target.closest('.phone .nav button[data-go="today"]')) {
-        try { jumpPhoneToToday(); } catch (err) {}
-      }
+      _lastDayTabTap = -1e9;
+      _lastTouchEnd = now;
+      try { jumpPhoneToToday(); } catch (err) {}
+      return;
     }
+    _lastDayTabTap = onDayTab ? e.timeStamp : -1e9;
+    if (now - _lastTouchEnd <= 300) e.preventDefault();
     _lastTouchEnd = now;
   } catch (err) {}
 }, { passive: false });
