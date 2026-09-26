@@ -2082,6 +2082,16 @@ html body.phone-app .ph-page-head{padding-top:calc(12px + env(safe-area-inset-to
 .phone .nav button .gly .mic-ic{width:17px;height:17px;display:block;margin:0 auto}
 /* hotel actions */
 .ph-hotel-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;padding-top:12px;border-top:1px dashed rgba(232,148,58,.1)}
+/* Phone Hotel tab: the stay's full rooming list (same list the tour book prints). */
+.ph-rooming{margin-top:12px;padding-top:10px;border-top:1px dashed rgba(232,148,58,.1)}
+.ph-rooming .lbl{margin-bottom:2px}
+.ph-rm{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px dashed rgba(232,148,58,.07)}
+.ph-rm:last-child{border-bottom:none;padding-bottom:0}
+.ph-rm .n{font-family:'Bricolage Grotesque',monospace;font-weight:700;font-size:13px;color:var(--warm);font-variant-numeric:tabular-nums}
+.ph-rm .p{font-size:13.5px;font-weight:600;color:var(--warm);overflow-wrap:anywhere}
+.ph-rm .t{max-width:9em;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--warm-mute);text-align:right}
+.ph-rm.me .n,.ph-rm.me .p{color:var(--hi)}
+.ph-rm .you{font-weight:500;font-size:11.5px;color:var(--warm-mute)}
 .ph-hotel-actions.one{grid-template-columns:1fr}
 .ph-act{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 10px;border-radius:10px;cursor:pointer;
   background:rgba(232,148,58,.08);border:1px solid rgba(232,148,58,.4);color:var(--hi);
@@ -18674,9 +18684,9 @@ function renderGuestList() {
           return `
             <div class="tbl-row gl-row gl-grid ${isPending?'pending':''}">
               <div class="c name gl-c-truncate"><b style="color:var(--warm)">${esc(g.name)}${g.plus ? ' + ' + g.plus : ''}</b><span style="font-family:'Bricolage Grotesque',monospace;font-size:10.5px;color:var(--warm-mute)">${esc(g.email || '')}</span></div>
-              <div class="c gl-c-truncate" style="color:var(--warm-mute);font-size:12px">${esc(g.submittedBy || '—')}</div>
+              <div class="c gl-c-truncate" style="color:var(--warm-mute);font-size:12px">${esc(_guestSubmitter(g) || '—')}</div>
               <div class="c"><span class="passchip ${passClass}">${esc(g.passType)}</span></div>
-              <div class="c"><span style="font-family:'Bricolage Grotesque',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;white-space:nowrap;color:${isApproved?'var(--good)':isPending?'var(--hi)':'var(--red)'}">${isApproved?'✓ Approved':isPending?'⧖ Pending':'✗ Denied'}</span></div>
+              <div class="c"><span style="font-family:'Bricolage Grotesque',monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;white-space:nowrap;color:${isApproved?'var(--good)':isPending?'var(--hi)':'var(--red)'}"${_guestDecider(g) ? ` title="${isApproved ? 'Approved' : 'Denied'} by ${esc(_guestDecider(g))}"` : ''}>${isApproved?'✓ Approved':isPending?'⧖ Pending':'✗ Denied'}</span></div>
               <div class="c muted mono gl-c-notes" style="font-size:11px">${esc(g.notes || '')}</div>
               <div class="c gl-actions">
                 ${isPending || isDenied ? `<button type="button" class="gl-act-btn approve" title="Approve" onclick="approveGuest('${g.id}')">✓</button>` : ''}
@@ -22212,6 +22222,23 @@ function renderPhone() {
           ${digits ? `<button type="button" class="ph-act" onclick="_dialDirect('${esc(digits)}')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.500 1.500a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg><span>Call hotel</span></button>` : ''}
         </div>`;
       })()}
+      ${(() => {
+        // Rooming list — everyone's room in this stay, as on the desktop and
+        // in the tour book. Crew used to see only their own room number here.
+        const list = (h.rooms || []).map(r => {
+          const p = r.personId ? T().crew.find(c => c.id === r.personId) : null;
+          return { r, name: (p && p.name) || r.personName || 'Unassigned', me: !!r.personId && r.personId === viewerKey };
+        }).sort((a, b) => a.name.localeCompare(b.name));
+        if (!list.length) return '';
+        return `<div class="ph-rooming">
+          <div class="lbl">ROOMING LIST · ${list.length}</div>
+          ${list.map(x => `<div class="ph-rm${x.me ? ' me' : ''}">
+            <span class="n">${esc(x.r.roomNum || '—')}</span>
+            <span class="p">${esc(x.name)}${x.me ? '<span class="you"> · you</span>' : ''}</span>
+            <span class="t">${esc(x.r.roomType || '')}</span>
+          </div>`).join('')}
+        </div>`;
+      })()}
     </div>`;
   }).join('') : `<div class="p-card"><div class="lbl">HOTEL</div><div class="sub">${ad.noHotel ? 'No hotel tonight — none needed for this date.' : 'Not added yet for this date.'}</div></div>`;
 
@@ -22299,7 +22326,12 @@ function renderPhone() {
             <div style="display:flex;justify-content:space-between;gap:8px;padding:9px 11px;background:rgba(232,148,58,.04);border:1px solid var(--line-2);border-radius:9px">
               <div style="min-width:0;flex:1">
                 <div style="font-weight:700;font-size:13px;color:var(--warm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.name)}${g.plus?' + '+g.plus:''}</div>
-                <div class="mono" style="font-size:10px;color:var(--warm-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.passType)} · ${esc(g.status.toUpperCase())}${hasMgmt && g.submittedBy ? ' · by ' + esc(g.submittedBy) : ''}</div>
+                <div class="mono" style="font-size:10px;color:var(--warm-mute);overflow-wrap:anywhere">${esc(g.passType)} · ${esc(g.status.toUpperCase())}${(() => {
+                  if (!hasMgmt) return '';
+                  const dec = _guestDecider(g), sub = _guestSubmitter(g);
+                  const same = dec && sub && sub.split(' · ')[0] === dec;
+                  return (dec ? ' by ' + esc(dec) : '') + (sub && !same ? ' · requested by ' + esc(sub) : '');
+                })()}</div>
               </div>
               ${actions}
             </div>
@@ -28558,17 +28590,67 @@ function deleteGroup(name) {
 
 
 /* ---------- guest list approval helpers ---------- */
+// Guest rows name real people. The phone's TM viewer is a synthesized
+// {name:'Tour Manager'} stand-in, so rows used to read "by Tour Manager ·
+// TOUR MANAGER" whichever account added them, and approvals weren't
+// attributed at all.
+function _guestNameForUid(uid) {
+  if (!uid) return '';
+  const tour = T(), u = U();
+  if (u && u.id === uid && u.name) return u.name;
+  const c = (tour.crew || []).find(x => x.userId === uid);
+  if (c && c.name) return c.name;
+  if (tour.ownerId === uid) {
+    const oi = _tourOwnerInfo(tour);
+    if (oi.name && oi.name !== 'Tour owner') return oi.name;
+  }
+  const su = state.users && state.users[uid];
+  return (su && su.name) || '';
+}
+function _guestActor() {
+  const u = U();
+  return { id: (u && u.id) || '', name: _guestNameForUid(u && u.id) || (u && u.name) || 'Tour Manager' };
+}
+// "Name · ROLE" for a request the TM / a co-manager adds themselves.
+function _guestTmSubmitter() {
+  const a = _guestActor();
+  const c = a.id && (T().crew || []).find(x => x.userId === a.id);
+  return `${a.name} · ${(c && c.role) ? c.role.toUpperCase() : 'TM'}`;
+}
+// Who submitted, for display. Older rows stored the stand-in label; resolve
+// those to the account that actually added the guest.
+function _guestSubmitter(g) {
+  const raw = (g && g.submittedBy) || '';
+  if (!raw || /^tour manager\b/i.test(raw)) {
+    const n = _guestNameForUid(g && g.submittedById);
+    if (n) return raw ? `${n} · TM` : n;
+  }
+  return raw;
+}
+// Who approved or denied it (recorded from this build on).
+function _guestDecider(g) {
+  if (!g) return '';
+  if (g.status === 'approved') return g.approvedBy || '';
+  if (g.status === 'denied') return g.deniedBy || '';
+  return '';
+}
+function _guestMark(g, status) {
+  const a = _guestActor();
+  g.status = status;
+  if (status === 'approved') { g.approvedAt = Date.now(); g.approvedBy = a.name; g.approvedById = a.id; }
+  else { g.deniedAt = Date.now(); g.deniedBy = a.name; g.deniedById = a.id; }
+}
 function approveGuest(id) {
   const ad = getActiveDate(); if (!ad) return;
   const g = ad.guests.find(x => x.id === id); if (!g) return;
-  g.status = 'approved'; g.approvedAt = Date.now();
+  _guestMark(g, 'approved');
   saveState(); renderAll();
   toast(`Approved ${g.name}`, 'good');
 }
 function denyGuest(id) {
   const ad = getActiveDate(); if (!ad) return;
   const g = ad.guests.find(x => x.id === id); if (!g) return;
-  g.status = 'denied'; g.deniedAt = Date.now();
+  _guestMark(g, 'denied');
   saveState(); renderAll();
   toast(`Denied ${g.name}`, '');
 }
@@ -28576,7 +28658,7 @@ function approveAllPending() {
   const ad = getActiveDate(); if (!ad) return;
   const pending = ad.guests.filter(g => g.status === 'pending');
   if (!pending.length) { toast('No pending requests', ''); return; }
-  pending.forEach(g => { g.status = 'approved'; g.approvedAt = Date.now(); });
+  pending.forEach(g => _guestMark(g, 'approved'));
   saveState(); renderAll();
   toast(`Approved ${pending.length} pending guest${pending.length===1?'':'s'}`, 'good');
 }
@@ -28585,7 +28667,7 @@ function denyAllPending() {
   const pending = ad.guests.filter(g => g.status === 'pending');
   if (!pending.length) { toast('No pending requests', ''); return; }
   if (!confirm(`Deny all ${pending.length} pending requests?`)) return;
-  pending.forEach(g => { g.status = 'denied'; g.deniedAt = Date.now(); });
+  pending.forEach(g => _guestMark(g, 'denied'));
   saveState(); renderAll();
   toast(`Denied ${pending.length} guest${pending.length===1?'':'s'}`, '');
 }
@@ -28797,7 +28879,8 @@ function _submitGuestRequest(ad, viewer, fields) {
   const guest = {
     id: uid('gl'),
     ...fields,
-    submittedBy: (viewer && viewer.name) ? `${viewer.name} · ${(viewer.role || '').toUpperCase()}` : 'Crew',
+    submittedBy: (viewer && viewer.id === 'tm') ? _guestTmSubmitter()
+      : (viewer && viewer.name) ? `${viewer.name} · ${(viewer.role || '').toUpperCase()}` : 'Crew',
     submittedById: myUid,
     status: 'pending',
     submittedAt: Date.now(),
@@ -28982,7 +29065,7 @@ function exportGuestListCSV() {
         g.plus || 0,
         1 + (g.plus || 0),
         g.passType || '',
-        g.submittedBy || '',
+        _guestSubmitter(g),
         g.email || '',
         g.notes || '',
       ]);
@@ -29046,7 +29129,7 @@ async function printGuestList() {
       <td class="gp-n">${String(n).padStart(2,'0')}</td>
       <td class="gp-name"><b>${esc(g.name || '—')}</b>${g.plus ? `<span class="gp-plus"> +${g.plus}</span>` : ''}</td>
       <td class="gp-pass">${esc((g.passType || '').toUpperCase())}</td>
-      <td class="gp-by">${esc(g.submittedBy || '')}</td>
+      <td class="gp-by">${esc(_guestSubmitter(g))}</td>
       <td class="gp-sig"></td>
     </tr>
   `;
