@@ -7266,7 +7266,8 @@ const db = {
   // `local` has this device's unsent edits, `incoming` (mutated) is the cloud
   // copy. A field only we changed keeps our value; a field only they changed
   // takes theirs; the guest list, if both changed it, merges guest by guest.
-  _mergeDateFields(base, local, incoming) {
+  // Any other field both sides changed goes to `localWins` ? ours : theirs.
+  _mergeDateFields(base, local, incoming, localWins) {
     const empty = v => v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length)
       || (typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).length);
     const C = v => this._canon(empty(v) ? null : v);
@@ -7276,6 +7277,7 @@ const db = {
       if (l === b || l === r) return;
       if (r === b) { incoming[k] = local[k]; return; }
       if (k === 'guests') incoming[k] = this._mergeGuestLists(base[k] || [], local[k] || [], incoming[k] || []);
+      else if (localWins) incoming[k] = local[k];
     });
   },
   _mergeGuestLists(base, local, remote) {
@@ -7390,6 +7392,32 @@ const db = {
         }
       });
       if (changed.length) {
+        // Merge with the cloud's CURRENT copy first. A device that missed
+        // realtime updates (asleep, backgrounded, offline) still holds an old
+        // copy of the date, and pushing it whole erased everything anyone else
+        // changed since — that's how guests another manager added and approved
+        // vanished when a stale phone saved the same date the next morning.
+        // If the cloud row moved on from our last-known copy, three-way merge:
+        // our edits win, theirs are kept, guest lists merge guest by guest.
+        try {
+          const { data: cur, error: fErr } = await sb.from('dates').select('*').in('id', changed.map(c => c.id));
+          if (fErr) throw fErr;
+          const byId = new Map((cur || []).map(r => [r.id, r]));
+          let mergedAny = false;
+          changed.forEach(c => {
+            const r = byId.get(c.id), baseSig = shadow.dates[c.id];
+            const d = (tour.dates || []).find(x => x.id === c.id);
+            if (!r || !baseSig || !d) return;
+            const remote = dbMap.rowToDate(r);
+            if (this._canon(JSON.parse(this._sigDate(tour.id, remote))) === this._canon(JSON.parse(baseSig))) return;
+            this._mergeDateFields(dbMap.rowToDate(JSON.parse(baseSig)), d, remote, true);
+            Object.keys(remote).forEach(k => { if (k !== 'id' && k !== 'attachments') d[k] = remote[k]; });
+            c.sig = this._sigDate(tour.id, d);
+            c.row = dbMap.dateToRow(tour.id, d, c.row.position);
+            mergedAny = true;
+          });
+          if (mergedAny) { try { saveState_localOnly(); } catch (e) {} this._safeRenderAll(); }
+        } catch (e) { console.warn('[db.syncDates] pre-push merge skipped:', e && e.message || e); }
         changed.forEach(c => { try { this._notePush(c.id, this._canon(JSON.parse(c.sig))); } catch (e) {} });
         const { error: dErr } = await sb.from('dates')
           .upsert(changed.map(c => c.row), { onConflict: 'id' });
@@ -8027,7 +8055,25 @@ _onTourChange(payload) {
     return null;
   },
 
-  _onDateChange(payload) {
+  // Re-read the current tour's dates and apply them like realtime updates
+  // (merging with any unsent edits). Realtime drops while a phone is locked or
+  // a laptop sleeps, and nothing replays what was missed — so a device could
+  // sit on a copy hours old until it was fully reloaded.
+  _catchUpAt: 0,
+  async catchUpActiveTour() {
+    if (!sb || !state || !state.currentUserId) return;
+    const tour = state.tours && state.tours[state.currentTourId];
+    if (!tour || !_isUuid(tour.id)) return;
+    if (Date.now() - this._catchUpAt < 15000) return;
+    this._catchUpAt = Date.now();
+    try {
+      const { data, error } = await sb.from('dates').select('*').eq('tour_id', tour.id);
+      if (error || !Array.isArray(data)) return;
+      data.forEach(row => { try { this._onDateChange({ eventType: 'UPDATE', new: row }, true); } catch (e) {} });
+      this._safeRenderAll();
+    } catch (e) { console.warn('[catchUp]', e && e.message || e); }
+  },
+  _onDateChange(payload, quiet) {
     const { eventType, new: row, old } = payload;
     if (!state) return;
     if (eventType === 'DELETE') {
@@ -8148,7 +8194,7 @@ _onTourChange(payload) {
     if (_keepLocal && row.tour_id === state.currentTourId) {
       try { this.scheduleActiveTourSync(); } catch (e) {}
     }
-    this._safeRenderAll();
+    if (!quiet) this._safeRenderAll();
   },
 
   _onSubscriptionChange(payload) {
@@ -8814,6 +8860,11 @@ function saveState() {
   // of record, and its payload never includes oversized attachment
   // binaries, so it's always safe to attempt.
   try { db.scheduleActiveTourSync(); } catch (e) { console.warn('schedule sync:', e); }
+}
+// Write state to this device only — for applying a merge mid-sync without
+// kicking off another sync.
+function saveState_localOnly() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
 }
 function loadState() {
   let _raw = null;
@@ -28732,26 +28783,53 @@ function _guestMark(g, status) {
   if (status === 'approved') { g.approvedAt = Date.now(); g.approvedBy = a.name; g.approvedById = a.id; }
   else { g.deniedAt = Date.now(); g.deniedBy = a.name; g.deniedById = a.id; }
 }
+// Owners and co-managers save approvals with the rest of the date. Crew with
+// Mgmt / full access can't write a date row, so their approvals used to stay
+// on their own phone and be undone by the next refresh; they go through
+// set_guest_status, which checks that access server-side (patch-057).
+function _guestSetStatus(ad, list, status) {
+  const prev = list.map(g => ({ ...g }));
+  list.forEach(g => _guestMark(g, status));
+  saveState(); renderAll();
+  const tour = T(), u = U();
+  if (!sb || !u || !tour || !_isUuid(tour.id) || !_isUuid(ad.id) || _isGodAccount() || _isTourManager(tour, u.id)) return;
+  const ids = list.map(g => g.id);
+  sb.rpc('set_guest_status', { p_tour_id: tour.id, p_date_id: ad.id, p_guest_ids: ids, p_status: status })
+    .then(({ data, error }) => {
+      if (error) throw error;
+      // Take the server's copy of these guests so this phone matches the cloud.
+      (Array.isArray(data) ? data : []).forEach(sg => {
+        const i = ad.guests.findIndex(x => x.id === sg.id);
+        if (i >= 0 && ids.includes(sg.id)) ad.guests[i] = sg;
+      });
+      saveState(); renderAll();
+    })
+    .catch(e => {
+      console.warn('[set_guest_status]', e);
+      prev.forEach(p => { const i = ad.guests.findIndex(x => x.id === p.id); if (i >= 0) ad.guests[i] = p; });
+      saveState(); renderAll();
+      toast(/not allowed/i.test((e && e.message) || '')
+        ? "Your access on this tour doesn't include approving guests"
+        : "Couldn't save that — check your connection and try again", 'error');
+    });
+}
 function approveGuest(id) {
   const ad = getActiveDate(); if (!ad) return;
   const g = ad.guests.find(x => x.id === id); if (!g) return;
-  _guestMark(g, 'approved');
-  saveState(); renderAll();
+  _guestSetStatus(ad, [g], 'approved');
   toast(`Approved ${g.name}`, 'good');
 }
 function denyGuest(id) {
   const ad = getActiveDate(); if (!ad) return;
   const g = ad.guests.find(x => x.id === id); if (!g) return;
-  _guestMark(g, 'denied');
-  saveState(); renderAll();
+  _guestSetStatus(ad, [g], 'denied');
   toast(`Denied ${g.name}`, '');
 }
 function approveAllPending() {
   const ad = getActiveDate(); if (!ad) return;
   const pending = ad.guests.filter(g => g.status === 'pending');
   if (!pending.length) { toast('No pending requests', ''); return; }
-  pending.forEach(g => _guestMark(g, 'approved'));
-  saveState(); renderAll();
+  _guestSetStatus(ad, pending, 'approved');
   toast(`Approved ${pending.length} pending guest${pending.length===1?'':'s'}`, 'good');
 }
 function denyAllPending() {
@@ -28759,8 +28837,7 @@ function denyAllPending() {
   const pending = ad.guests.filter(g => g.status === 'pending');
   if (!pending.length) { toast('No pending requests', ''); return; }
   if (!confirm(`Deny all ${pending.length} pending requests?`)) return;
-  pending.forEach(g => _guestMark(g, 'denied'));
-  saveState(); renderAll();
+  _guestSetStatus(ad, pending, 'denied');
   toast(`Denied ${pending.length} guest${pending.length===1?'':'s'}`, '');
 }
 
@@ -39453,9 +39530,15 @@ function _flushPendingSync() {
 }
 window.addEventListener('beforeunload', _flushPendingSync);
 window.addEventListener('pagehide', _flushPendingSync);
+let _hiddenSince = 0;
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') _flushPendingSync();
+  if (document.visibilityState === 'hidden') { _hiddenSince = Date.now(); _flushPendingSync(); return; }
+  // Back after 30s+ away (phone locked, app switched, laptop woke): pick up
+  // whatever realtime missed meanwhile.
+  if (_hiddenSince && Date.now() - _hiddenSince > 30000) { try { db.catchUpActiveTour(); } catch (e) {} }
+  _hiddenSince = 0;
 });
+window.addEventListener('online', () => { try { db.catchUpActiveTour(); } catch (e) {} });
 
 // ────────────────────────────────────────────────────────────────────
 // No-zoom in the native app. The CSS touch-action:manipulation kills
