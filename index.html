@@ -97,6 +97,27 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
   background:repeating-linear-gradient(0deg,rgba(232,148,58,.03) 0 1px,transparent 1px 4px);
   mix-blend-mode:overlay;opacity:.4}
 
+/* Phone More tab: one Account card that opens to permissions, settings and
+   sign out. Settings use the app's square check button (.mini-check). */
+.ph-acct-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;padding:0;background:none;border:0;text-align:left;color:inherit;cursor:pointer}
+.ph-acct-chev{color:var(--warm-mute);transition:transform .2s ease}
+.ph-acct.open .ph-acct-chev{transform:rotate(180deg)}
+.ph-acct-body{display:flex;flex-direction:column;gap:14px;margin-top:4px;padding-top:12px;border-top:1px dashed rgba(232,148,58,.12)}
+.ph-acct-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.ph-acct-row .v{font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.06em;color:var(--warm);text-align:right}
+.ph-set{display:flex;flex-direction:column;gap:10px}
+.ph-set-k{font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--warm-mute)}
+.ph-set-name{display:flex;gap:8px;margin-top:-4px}
+.ph-set-name input{flex:1;min-width:0;padding:10px 12px;background:rgba(0,0,0,.3);border:1px solid var(--line-2);border-radius:8px;color:var(--warm);font-size:16px;font-family:inherit}
+.ph-set-name button{flex:none;padding:0 14px;background:transparent;color:var(--hi);border:1px solid rgba(232,148,58,.45);border-radius:8px;font-family:'Bricolage Grotesque',monospace;font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;cursor:pointer}
+.pref-list{display:flex;flex-direction:column;gap:4px}
+.mini-check.pref-toggle{align-items:flex-start;gap:10px;width:100%;padding:6px 0;text-align:left;text-transform:none;letter-spacing:0}
+.mini-check.pref-toggle i{flex:none;width:16px;height:16px;margin-top:1px}
+.mini-check.pref-toggle.on i::after{width:8px;height:4px}
+.pref-toggle .pt-txt{display:flex;flex-direction:column;gap:2px}
+.pref-toggle .pt-t{font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:13px;font-weight:600;letter-spacing:.01em;color:var(--warm)}
+.pref-toggle .pt-h{font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:11px;font-weight:400;letter-spacing:.01em;line-height:1.35;color:var(--warm-mute)}
+
 /* ============ AMBIENT PARTICLE BACKGROUND ============
    Cursor-reactive particle render of avatar.png. Floats ABOVE working
    surfaces (z-index:50) but at very low opacity (.055) so it reads as a
@@ -3952,6 +3973,25 @@ body.print-stage-mode #stagePrintArea{
   background:var(--hot);border-radius:50%;box-shadow:0 0 8px var(--hot)
 }
 .phone .nav button{position:relative}
+/* Today, on today's date: a slow ember INSIDE the half-moon and the word —
+   warm light drifting through the glyphs and breathing on the TM band's 3.2s
+   beat. Fill only: size and spacing don't change, and the tab's usual glow
+   is the same glow, moved from text-shadow to drop-shadow so it doesn't
+   paint over the fill. Not on Tmrw / Day (those show the alert colour). */
+.phone .nav button.is-today .gly,
+.phone .nav button.is-today > span:not(.gly){
+  background-image:linear-gradient(100deg,#b8591a 0%,#e8943a 28%,#ffc674 46%,#ff8a2a 60%,#c8651c 80%,#e8943a 100%);
+  background-size:260% 100%;background-position:0% 50%;
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;
+  text-shadow:none;animation:navEmberDrift 6.4s ease-in-out infinite,navEmberBreath 3.2s ease-in-out infinite}
+.phone .nav button.is-today:not(.on) .gly,
+.phone .nav button.is-today:not(.on) > span:not(.gly){
+  background-image:linear-gradient(100deg,#6f5a43 0%,#a08868 30%,#c8a57a 46%,#b08a60 60%,#7d6549 80%,#a08868 100%)}
+.phone .nav button.is-today.on .gly,
+.phone .nav button.is-today.on > span:not(.gly){filter:drop-shadow(0 0 4px rgba(232,148,58,.45))}
+@keyframes navEmberDrift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+@keyframes navEmberBreath{0%,100%{opacity:.9}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.phone .nav button.is-today .gly,.phone .nav button.is-today > span:not(.gly){animation:none;background-position:40% 50%}}
 
 
 /* ============ EXPORT DROPDOWN ============ */
@@ -6109,14 +6149,24 @@ html body.tm-mobile .panel{padding-bottom:calc(60px + env(safe-area-inset-bottom
     border-radius: 0 !important;
     margin: 0;
   }
-  body.mobile .modal-head { padding: 12px 14px; position: sticky; top: 0; background: rgba(20,15,11,.98); z-index: 5 }
+  /* A column: the title bar stays at the top, only the form scrolls, and the
+     actions sit in a bar pinned to the bottom (clear of the home indicator):
+     Delete as quiet red text on the left, Cancel, then a wide Save. */
+  body.mobile .modal { display: flex; flex-direction: column; overflow: hidden; height: 100dvh !important; max-height: 100dvh !important }
+  body.mobile .modal-head { flex: none; padding: 12px 14px; padding-top: max(12px, env(safe-area-inset-top, 0px)); position: static; background: rgba(20,15,11,.98); z-index: 5 }
   body.mobile .modal-head h3 { font-size: 15px }
-  body.mobile .modal-body { padding: 14px; max-height: calc(100vh - 110px); overflow-y: auto }
-  body.mobile .modal-foot { padding: 10px 14px; position: sticky; bottom: 0; background: rgba(20,15,11,.98); flex-wrap: wrap; gap: 6px }
-  body.mobile .modal-foot button { flex: 1 1 auto; min-width: 100px }
+  body.mobile .modal-body { flex: 1 1 auto; min-height: 0; max-height: none; padding: 14px; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch }
+  body.mobile .modal-foot { flex: none; position: static; display: flex; align-items: center; gap: 10px; flex-wrap: nowrap;
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px)); background: #0f0a06; border-top: 1px solid var(--line-2) }
+  body.mobile .modal-foot .flex1 { display: none }
+  body.mobile .modal-foot .btn { min-width: 0; height: 46px; padding: 0 14px; border-radius: 10px; font-size: 11px; letter-spacing: .16em }
+  body.mobile .modal-foot .btn:not(.danger):not(.primary) { flex: 1 1 0 }
+  body.mobile .modal-foot .btn.primary { flex: 1.6 1 0 }
+  body.mobile .modal-foot .btn.danger { flex: none; margin-right: auto; padding: 0 6px 0 2px; border-color: transparent; background: none }
 
   /* Form fields. 16px input font stops iOS auto-zoom on focus. */
-  body.mobile .form-grid { grid-template-columns: 1fr !important; gap: 10px }
+  body.mobile .form-grid { grid-template-columns: minmax(0, 1fr) !important; gap: 10px }
+  body.mobile .modal-body input, body.mobile .modal-body select, body.mobile .modal-body textarea { max-width: 100% }
   body.mobile .field.full { grid-column: auto !important }
   body.mobile .field input, body.mobile .field select, body.mobile .field textarea { font-size: 16px !important }
 
@@ -6176,7 +6226,15 @@ html body.tm-mobile .panel{padding-bottom:calc(60px + env(safe-area-inset-bottom
 <div id="appBoot"><img src="avatar.png" alt="Bandmate"><span class="bm">BANDMATE</span></div>
 <script>
 var _bootShownAt=Date.now();
-window._hideAppBoot=function(){var b=document.getElementById('appBoot');if(!b||b._hiding)return;b._hiding=true;var wait=Math.max(0,600-(Date.now()-_bootShownAt));setTimeout(function(){b.classList.add('hide');setTimeout(function(){try{b.remove();}catch(e){}},290);},wait);};
+// iOS app builds that draw their own spinner register a "bootDone" handler.
+// On the first load of a session the app's identical native spinner covers
+// this page, so ours stays hidden (two spinners would flip out of step); the
+// app fades its spinner away when we say we're ready. Reloads in the same
+// session (pull to refresh) show this splash as before.
+var _bootMsg=window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.bootDone;
+var _nativeBoot=false;try{_nativeBoot=!!_bootMsg&&!sessionStorage.getItem('bm.nativeBoot');}catch(e){_nativeBoot=!!_bootMsg;}
+if(_nativeBoot){var _b0=document.getElementById('appBoot');if(_b0)_b0.style.visibility='hidden';try{sessionStorage.setItem('bm.nativeBoot','1');}catch(e){}}
+window._hideAppBoot=function(){var b=document.getElementById('appBoot');if(!b||b._hiding)return;b._hiding=true;var wait=Math.max(0,600-(Date.now()-_bootShownAt));setTimeout(function(){if(_bootMsg){try{_bootMsg.postMessage(1);}catch(e){}}b.classList.add('hide');setTimeout(function(){try{b.remove();}catch(e){}},290);},wait);};
 setTimeout(window._hideAppBoot,6000);
 </script>
 
@@ -10102,6 +10160,7 @@ function _tzLongName(z) {
 }
 // The tag itself, for a known zone — flights always carry their airports'.
 function _tzTagZ(z) {
+  if (!_prefs().tzTags) return '';
   const a = _tzAbbr(z);
   return a ? `<span class="tz-tag">${esc(a)}</span>` : '';
 }
@@ -11853,7 +11912,6 @@ function openScheduleModal(itemId) {
           </div>
         </div>
         <div class="field full"><label>What *</label><input id="s_what" value="${esc(i.what)}" placeholder="e.g. Soundcheck, Lobby call, Doors"></div>
-        </div>
         <div class="field full"><div class="lbl-row"><label>Visible to groups <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span></label><button type="button" class="ember-mini" onclick="_manageGroupsFromForm()">Manage groups</button></div>
           ${renderGroupPicker('s_grp', i.groups && i.groups.length ? i.groups : ['All'], true)}
         </div>
@@ -12748,32 +12806,70 @@ function _tvFmt12(value24) {
   return t.hh ? `${t.hh}:${t.mm} ${t.ampm}` : '—';
 }
 
-// ── 12-hour or 24-hour, by where the date is ─────────────────────────
-// North America reads a clock as 7:00 PM; everywhere else reads 19:00.
-// The date's country decides when it's filled in; otherwise the state or
-// province (code or full name), then the city map's suffix. Blank all the
-// way down → North America, which is where most runs in here happen.
-// Times are STORED as 24-hour HH:MM regardless; this only changes what's
-// shown and what the pickers ask for.
-const NA_COUNTRIES = new Set(['us', 'usa', 'united states', 'united states of america', 'america', 'ca', 'can', 'canada', 'mx', 'mex', 'mexico', 'méxico']);
-const US_STATES = new Set(('al|ak|az|ar|ca|co|ct|de|fl|ga|hi|id|il|in|ia|ks|ky|la|me|md|ma|mi|mn|ms|mo|mt|ne|nv|nh|nj|nm|ny|nc|nd|oh|ok|or|pa|ri|sc|sd|tn|tx|ut|vt|va|wa|wv|wi|wy|dc|pr|'
-  + 'alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming|district of columbia|washington dc|puerto rico').split('|'));
-const CA_PROVINCES = new Set('ab|bc|mb|nb|nl|ns|nt|nu|on|pe|pei|qc|sk|yt|alberta|british columbia|manitoba|new brunswick|newfoundland|newfoundland and labrador|nova scotia|northwest territories|nunavut|ontario|prince edward island|quebec|québec|saskatchewan|yukon'.split('|'));
-const MX_HINTS = new Set('mx|cdmx|mexico city|ciudad de méxico|ciudad de mexico|jalisco|nuevo león|nuevo leon|baja california|quintana roo|yucatán|yucatan|guanajuato|puebla'.split('|'));
-function _dateIs24h(d) {
-  if (!d) return false;
-  const norm = v => String(v || '').trim().toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ');
-  const c = norm(d.country);
-  if (c) return !NA_COUNTRIES.has(c);
-  const st = norm(d.state);
-  if (st) return !(US_STATES.has(st) || CA_PROVINCES.has(st) || MX_HINTS.has(st));
-  const city = norm(d.city);
-  if (city) {
-    const hits = Object.keys(CITY_COORDS).filter(k => k.split(',')[0] === city);
-    if (hits.length === 1) { const suf = hits[0].split(',')[1]; return !(US_STATES.has(suf) || CA_PROVINCES.has(suf) || suf === 'mx'); }
-  }
-  return false;
+// ── Personal display settings ────────────────────────────────────────
+// Per account, so they follow the person between the phone app and the
+// website: saved in their auth profile (user_metadata.bm_prefs), with a copy
+// on this device so the first paint is right before the session loads.
+//   tzTags — tiny time zone tags next to times            (default off)
+//   h24    — 24-hour clock                                 (default off, but on
+//            for someone who first opens Bandmate in Europe or the UK)
+// Times are STORED as 24-hour HH:MM regardless; h24 only changes what's shown
+// and what the time pickers ask for.
+const _PREFS_KEY = 'bandmate.prefs';
+let _prefsCache = null;
+function _prefsLocalKey() { const u = U(); return _PREFS_KEY + '.' + ((u && u.id) || 'anon'); }
+function _deviceInEurope() {
+  try {
+    const z = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    return /^Europe\//.test(z) || /^Atlantic\/(Reykjavik|Canary|Madeira|Faroe)$/.test(z);
+  } catch (e) { return false; }
 }
+function _prefs() {
+  const key = _prefsLocalKey();
+  if (_prefsCache && _prefsCache.key === key) return _prefsCache.v;
+  let v = null;
+  try { v = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
+  if (!v || typeof v !== 'object') v = {};
+  let fill = false;
+  if (typeof v.tzTags !== 'boolean') { v.tzTags = false; fill = true; }
+  if (typeof v.h24 !== 'boolean') { v.h24 = _deviceInEurope(); fill = true; }   // decided once, where they first open it
+  if (fill) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
+  _prefsCache = { key, v };
+  return v;
+}
+function _setPref(k, val) {
+  const v = { ..._prefs(), [k]: !!val };
+  try { localStorage.setItem(_prefsLocalKey(), JSON.stringify(v)); } catch (e) {}
+  _prefsCache = null;
+  _prefsPushCloud(v);
+  try { renderAll(); } catch (e) {}
+}
+function _prefsPushCloud(v) {
+  const u = U();
+  if (!sb || !u || !_isUuid(u.id)) return;
+  try { sb.auth.updateUser({ data: { bm_prefs: { tzTags: !!v.tzTags, h24: !!v.h24 } } }).catch(() => {}); } catch (e) {}
+}
+// On sign-in: the account's saved settings win; an account that has none yet
+// takes this device's (including the Europe / UK 24-hour default).
+function _prefsAdoptCloud(meta) {
+  const c = meta && meta.bm_prefs;
+  if (c && typeof c === 'object') {
+    try { localStorage.setItem(_prefsLocalKey(), JSON.stringify({ tzTags: !!c.tzTags, h24: !!c.h24 })); } catch (e) {}
+    _prefsCache = null;
+  } else {
+    _prefsCache = null;
+    _prefsPushCloud(_prefs());
+  }
+}
+function _prefToggle(k, el) {
+  const on = !_prefs()[k];
+  if (el) el.classList.toggle('on', on);
+  _setPref(k, on);
+}
+function _prefToggleHTML(k, title, help) {
+  return `<button type="button" class="mini-check pref-toggle${_prefs()[k] ? ' on' : ''}" onclick="_prefToggle('${k}', this)"><i></i><span class="pt-txt"><span class="pt-t">${title}</span><span class="pt-h">${help}</span></span></button>`;
+}
+function _dateIs24h(d) { return !!_prefs().h24; }
 function _fmt24(t) { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? String(+m[1]).padStart(2, '0') + ':' + m[2] : (t || ''); }
 // The one formatter every surface should use: a stored HH:MM plus the date
 // it belongs to. Anything that isn't a clock time passes through untouched.
@@ -17692,7 +17788,7 @@ function renderDashboard() {
               : a.kind === 'list' ? `<span class="pax">${esc(a.text)}</span>` : ''; })()}
         </div>
       `).join('')
-    : `<div class="row"><span class="what muted" style="grid-column:1/-1">No schedule yet for this day. <a onclick="activeTab='schedule';bindTabs();$$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab==='schedule'));$$('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel==='schedule'));renderSchedule()" style="color:var(--hi);cursor:pointer">Add an item →</a></span></div>`;
+    : `<div class="row"><span class="what muted" style="grid-column:1/-1">No schedule yet for this day. <a onclick="goToTab('schedule')" style="color:var(--hi);cursor:pointer">Add an item →</a></span></div>`;
 
   const _dayHotels = _hotelsForDate(ad);
   const hotelMeta = _dayHotels.length
@@ -17885,7 +17981,7 @@ function renderDashboard() {
   const taskCardHtml = todayTasks.length ? todayTasks.slice(0, 8).map(t => {
     const isOver = t.due && t.due < todayISO();
     return `
-    <div class="bm-task-row" onclick="toggleTaskDone && toggleTaskDone('${t.id}')">
+    <div class="bm-task-row" onclick="toggleTask('${t.id}')">
       <span class="box"></span>
       <span class="lbl">${esc(t.label || t.title || '')}</span>
       <span class="due${isOver ? ' overdue' : ''}">${t.due ? fmtMD(t.due) : ''}</span>
@@ -22667,17 +22763,30 @@ function renderPhone() {
     ${tmEditNoticeHtml}
     ${phTourSwitcherHtml}
     ${profileCardHtml}
-    ${isTM ? `<div class="p-card">
-      <div class="lbl">PERMISSIONS</div>
-      <div class="h" style="font-size:13px">${esc(viewer?.permissions?.toUpperCase() || 'FULL ACCESS')}</div>
-      <div class="sub">Set by Tour Manager</div>
-    </div>` : ''}
     ${U() ? `
-      <div class="p-card">
-        <div class="lbl">ACCOUNT</div>
-        <div class="h" style="font-size:14px">${esc(U().name)}</div>
-        <div class="sub">${esc(U().email || '')}</div>
+      <div class="p-card ph-acct${_phAcctOpen ? ' open' : ''}">
+        <button type="button" class="ph-acct-head" onclick="_phAcctToggle()" aria-expanded="${_phAcctOpen}">
+          <span>
+            <span class="lbl">ACCOUNT</span>
+            <span class="h" style="font-size:14px;display:block;margin-top:6px">${esc(U().name)}</span>
+            <span class="sub" style="display:block;margin-top:4px">${esc(U().email || '')}</span>
+          </span>
+          <svg class="ph-acct-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        ${_phAcctOpen ? `<div class="ph-acct-body">
+          ${isTM ? `<div class="ph-acct-row"><span class="lbl">PERMISSIONS</span><span class="v">${esc(viewer?.permissions?.toUpperCase() || 'FULL ACCESS')} · set by tour manager</span></div>` : ''}
+          <div class="ph-set">
+            <div class="lbl">SETTINGS</div>
+            <label class="ph-set-k" for="ph_as_name">Account name</label>
+            <div class="ph-set-name">
+              <input id="ph_as_name" value="${esc(_phAcctDraft != null ? _phAcctDraft : (U().name || ''))}" oninput="_phAcctDraftSet(this.value)" autocomplete="name">
+              <button type="button" onclick="_phAcctSaveName()">Save</button>
+            </div>
+            ${_prefToggleHTML('tzTags', 'Time zone tags', 'A tiny ET / PT next to times when you’re on a different clock from where they happen.')}
+            ${_prefToggleHTML('h24', '24-hour time', 'Show 19:00 instead of 7:00 PM.')}
+          </div>
         <button type="button" onclick="logout()" style="margin-top:10px;padding:11px;background:transparent;color:var(--red);border:1px solid rgba(232,69,69,.4);border-radius:8px;font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;cursor:pointer">Sign out</button>
+        </div>` : ''}
       </div>
     ` : ''}
   `;
@@ -22690,13 +22799,24 @@ function renderPhone() {
   if (todayBtn) {
     todayBtn.classList.toggle('alert', !onToday);
     const lbl = todayBtn.querySelector('span:not(.gly)');
-    if (lbl) lbl.textContent = _phoneDayTabLabel(getPhoneDate());
+    const dayLbl = _phoneDayTabLabel(getPhoneDate());
+    if (lbl) lbl.textContent = dayLbl;
+    todayBtn.classList.toggle('is-today', dayLbl === 'Today');
   }
 }
 
 // Bottom-left tab label for the date being viewed, by the calendar: "Today"
 // on today's date, "Tmrw" on tomorrow's, "Day" on any other. Double-tapping
 // it always comes back to today (see the touchend handler).
+// Phone Account card: open/closed for this session, and the name being typed
+// (kept across re-renders, which happen whenever live data arrives).
+let _phAcctOpen = false, _phAcctDraft = null;
+function _phAcctToggle() { _phAcctOpen = !_phAcctOpen; renderPhone(); }
+function _phAcctDraftSet(v) { _phAcctDraft = v; }
+async function _phAcctSaveName() {
+  const name = (document.getElementById('ph_as_name')?.value || '').trim();
+  if (await _acctApplyName(name)) _phAcctDraft = null;
+}
 function _phoneDayTabLabel(d) {
   if (!d || !d.date) return 'Today';
   const today = todayISO();
@@ -34644,6 +34764,7 @@ async function loginWithEmail() {
   }
 
   state.currentUserId = userId;
+  try { _prefsAdoptCloud((supaUser || {}).user_metadata); } catch (e) {}
   // Pending Stripe subscription? Attach it now so the existing account
   // gets billing flipped on. Only TMs are billed, so skip for crew.
   const pending = _readPendingSubscription();
@@ -34885,6 +35006,7 @@ async function signUp() {
   });
 
   state.currentUserId = userId;
+  try { _prefsAdoptCloud((data.user || {}).user_metadata); } catch (e) {}
   // If there's a pending Stripe subscription waiting (the user paid
   // before signing up — the most common path), attach it now so the new
   // account starts with active billing on its record.
@@ -35086,6 +35208,7 @@ async function completePasswordReset() {
       };
     }
     state.currentUserId = userId;
+    try { _prefsAdoptCloud((data.user || {}).user_metadata); } catch (e) {}
     saveState();
     await db.hydrateUserData(userId);
     db.subscribeRealtime(userId);
@@ -35486,6 +35609,12 @@ function openAccountSettingsModal() {
       <div class="help" style="margin-top:6px">This is the name your crew and co-managers see — on tours, invites, and the Managers card.</div>
       ${pair('Email', esc(u.email || '—') + ' <span style="color:var(--warm-mute);font-weight:400;font-size:11px">(sign-in — can\'t be changed here)</span>')}
 
+      ${secTitle('Display')}
+      <div class="pref-list">
+        ${_prefToggleHTML('tzTags', 'Time zone tags', 'A tiny ET / PT next to times when you’re on a different clock from where they happen.')}
+        ${_prefToggleHTML('h24', '24-hour time', 'Show 19:00 instead of 7:00 PM.')}
+      </div>
+
       ${secTitle('Idle screen')}
       <div style="display:flex;gap:8px;align-items:flex-end">
         <div class="field" style="flex:1"><label>Cover the dashboard after</label>
@@ -35534,10 +35663,13 @@ function openAccountSettingsModal() {
 //      (owner/co-manager; crew-only tours are read-only and sync next time
 //      the TM saves them).
 async function _acctSaveName() {
-  const u = U();
-  if (!u) return;
   const name = (document.getElementById('as_name')?.value || '').trim();
-  if (!name) { toast('Name can\'t be empty', 'error'); return; }
+  if (await _acctApplyName(name)) openAccountSettingsModal();   // re-open so the header reflects the new name
+}
+async function _acctApplyName(name) {
+  const u = U();
+  if (!u) return false;
+  if (!name) { toast('Name can\'t be empty', 'error'); return false; }
   const email = (u.email || '').toLowerCase();
   u.name = name;
   try { u.avatar = initials(name); } catch (e) {}
@@ -35574,7 +35706,7 @@ async function _acctSaveName() {
     } catch (e) { console.warn('[account] cloud name update failed:', e); }
   }
   renderAll();
-  openAccountSettingsModal();   // re-open so the header reflects the new name
+  return true;
 }
 
 // One-click reset link to the signed-in email (no typing, unlike the login flow).
@@ -39712,7 +39844,7 @@ Object.assign(window, {
   openGuestModal, openAllotmentModal, openSetItemModal, moveSetItem, copySetList,
   openSettleModal, openAttachModal, _attachFilePicked, _attachScopeChange, _attachBackToPick, _attachUpdatePrimaryLabel, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport, renderLocalAttachments, renderAttachments, renderTrialBadge, openSubscriptionPortal, _trialBadgeClick, _fxManualRefresh,
   openChatsModal, openNewChatModal, setActiveChat, _chatComposeOnInput, _chatComposeOnKeydown, _chatComposeSend, _chatMentionPick, _chatReactToggle, _chatReactPicker, _chatSendBroadcastPrompt, _chatToggleGroup, _chatUpdatePickCount,
-  openPhoneSearch, _phoneSearchRender,
+  openPhoneSearch, _phoneSearchRender, _phAcctToggle, _phAcctSaveName, _phAcctDraftSet, _prefToggle,
   openTaskModal, openTagModal, toggleTask, renderEditHistory, openHistoryDetail, _tmToggleSheet, _tmTabPick, _tmTabMenu,
   setActive, closeModal, _modalSubmit, goToTab,
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
@@ -39888,6 +40020,7 @@ window.bandmateInstallPrompt = async function() {
       try { showLandingScreen(); } catch (e) {}
       return;
     }
+    try { _prefsAdoptCloud(session.user.user_metadata); } catch (e) {}
     const result = await db.hydrateUserData(userId);
     if (result.tours > 0) {
       // Hydrate just overwrote activeDateId with the cloud's (TM-followed)
