@@ -3974,8 +3974,7 @@ body.print-stage-mode #stagePrintArea{
 }
 .phone .nav button{position:relative}
 /* Today, on today's date: a slow ember INSIDE the half-moon and the word —
-   warm light drifting through the glyphs and breathing on the TM band's 3.2s
-   beat. Fill only: size and spacing don't change, and the tab's usual glow
+   warm light drifting through the glyphs (3.2s) and breathing (1.6s). Fill only: size and spacing don't change, and the tab's usual glow
    is the same glow, moved from text-shadow to drop-shadow so it doesn't
    paint over the fill. Not on Tmrw / Day (those show the alert colour). */
 .phone .nav button.is-today .gly,
@@ -3983,7 +3982,7 @@ body.print-stage-mode #stagePrintArea{
   background-image:linear-gradient(100deg,#b8591a 0%,#e8943a 28%,#ffc674 46%,#ff8a2a 60%,#c8651c 80%,#e8943a 100%);
   background-size:260% 100%;background-position:0% 50%;
   -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;
-  text-shadow:none;animation:navEmberDrift 6.4s ease-in-out infinite,navEmberBreath 3.2s ease-in-out infinite}
+  text-shadow:none;animation:navEmberDrift 3.2s ease-in-out infinite,navEmberBreath 1.6s ease-in-out infinite}
 .phone .nav button.is-today:not(.on) .gly,
 .phone .nav button.is-today:not(.on) > span:not(.gly){
   background-image:linear-gradient(100deg,#6f5a43 0%,#a08868 30%,#c8a57a 46%,#b08a60 60%,#7d6549 80%,#a08868 100%)}
@@ -35666,47 +35665,76 @@ async function _acctSaveName() {
   const name = (document.getElementById('as_name')?.value || '').trim();
   if (await _acctApplyName(name)) openAccountSettingsModal();   // re-open so the header reflects the new name
 }
-async function _acctApplyName(name) {
-  const u = U();
-  if (!u) return false;
-  if (!name) { toast('Name can\'t be empty', 'error'); return false; }
+// Your name lives in your account (profiles.display_name). Saving goes
+// through set_my_display_name (patch-058), which also renames you in your
+// sign-in details, as the owner of your tours and on the crew lists of tours
+// you run — and the app only says "Name updated" once the account has it.
+// Every other device re-reads it when it opens or comes back to the front
+// (_refreshMyProfile), so a rename on the phone shows on the desktop and
+// the other way round.
+function _acctNameLocal(u, name) {
   const email = (u.email || '').toLowerCase();
   u.name = name;
   try { u.avatar = initials(name); } catch (e) {}
-
-  // Local propagation across every tour on this device
-  const touchedCrewTours = [];
   Object.values((state && state.tours) || {}).forEach(t => {
     if (t.ownerId === u.id) t.ownerName = name;
-    let touched = false;
+    if (!_isTourManager(t, u.id)) return;
     (t.crew || []).forEach(c => {
-      const mine = c.userId === u.id || c.id === u.id || (email && (c.email || '').toLowerCase() === email);
-      if (mine && c.name !== name) { c.name = name; touched = true; }
+      if (c.userId === u.id || c.id === u.id || (email && (c.email || '').toLowerCase() === email)) c.name = name;
     });
-    if (touched) touchedCrewTours.push(t);
   });
-  saveState();
-  toast('Name updated', 'good');
-
-  // Cloud propagation
-  if (sb && typeof _isUuid === 'function' && _isUuid(u.id)) {
-    try {
-      await sb.from('profiles').update({ display_name: name }).eq('id', u.id);
-      await sb.auth.updateUser({ data: { display_name: name } });
-      // Touch every owned tour — the patch-032 BEFORE-UPDATE trigger re-stamps
-      // owner_name/owner_email from profiles, so co-managers and crew see the
-      // new name without you re-saving each tour.
-      await sb.from('tours').update({ owner_name: name }).eq('owner_id', u.id);
-      // Push updated crew rosters where this account is allowed to write
-      // (owner or co-manager). Crew-only tours reject under RLS — that's fine.
-      for (const t of touchedCrewTours) {
-        if (!_isUuid(t.id)) continue;
-        try { await sb.from('tours').update({ crew: t.crew }).eq('id', t.id); } catch (e) {}
-      }
-    } catch (e) { console.warn('[account] cloud name update failed:', e); }
-  }
+}
+let _acctNameSaving = false;
+async function _acctApplyName(name) {
+  const u = U();
+  if (!u) return false;
+  name = String(name || '').trim();
+  if (!name) { toast('Name can\'t be empty', 'error'); return false; }
+  const prev = u.name || '';
+  _acctNameLocal(u, name);
+  saveState_localOnly();
   renderAll();
-  return true;
+  if (!sb || !_isUuid(u.id)) { toast('Name updated', 'good'); return true; }
+
+  _acctNameSaving = true;
+  let saved = false;
+  try {
+    const { error } = await sb.rpc('set_my_display_name', { p_name: name });
+    if (!error) saved = true;
+    else if (/could not find the function|schema cache|does not exist/i.test(error.message || '')) {
+      // patch-058 not run yet: write the profile directly, and check it took.
+      const { data, error: e2 } = await sb.from('profiles').update({ display_name: name }).eq('id', u.id).select('id');
+      saved = !e2 && Array.isArray(data) && data.length > 0;
+      if (saved) { try { await sb.from('tours').update({ owner_name: name }).eq('owner_id', u.id); } catch (e) {} }
+    } else console.warn('[account] set_my_display_name:', error.message);
+    try { await sb.auth.updateUser({ data: { display_name: name } }); } catch (e) {}
+  } catch (e) { console.warn('[account] name save failed:', e); }
+  _acctNameSaving = false;
+  _profileRefreshAt = Date.now();
+
+  if (saved) { toast('Name updated', 'good'); return true; }
+  // The account still has the old name — show that, not a name nobody else sees.
+  _acctNameLocal(u, prev);
+  saveState_localOnly();
+  renderAll();
+  toast('Your new name didn\'t save to your account — check your connection and try again', 'error');
+  return false;
+}
+let _profileRefreshAt = 0;
+async function _refreshMyProfile(force) {
+  const u = U();
+  if (!sb || !u || !_isUuid(u.id) || _acctNameSaving) return;
+  if (!force && Date.now() - _profileRefreshAt < 5000) return;
+  _profileRefreshAt = Date.now();
+  try {
+    const { data, error } = await sb.from('profiles').select('display_name').eq('id', u.id).maybeSingle();
+    const name = (!error && data) ? String(data.display_name || '').trim() : '';
+    if (!name || name === u.name || _acctNameSaving) return;
+    _acctNameLocal(u, name);
+    saveState_localOnly();
+    const typing = document.activeElement && ['as_name', 'ph_as_name'].includes(document.activeElement.id);
+    if (!typing) { try { renderAll(); } catch (e) {} }
+  } catch (e) {}
 }
 
 // One-click reset link to the signed-in email (no typing, unlike the login flow).
@@ -39785,7 +39813,9 @@ document.addEventListener('visibilitychange', () => {
   // whatever realtime missed meanwhile.
   if (_hiddenSince && Date.now() - _hiddenSince > 30000) { try { db.catchUpActiveTour(); } catch (e) {} }
   _hiddenSince = 0;
+  try { _refreshMyProfile(); } catch (e) {}
 });
+window.addEventListener('focus', () => { try { _refreshMyProfile(); } catch (e) {} });
 window.addEventListener('online', () => { try { db.catchUpActiveTour(); } catch (e) {} });
 
 // ────────────────────────────────────────────────────────────────────
@@ -40021,6 +40051,7 @@ window.bandmateInstallPrompt = async function() {
       return;
     }
     try { _prefsAdoptCloud(session.user.user_metadata); } catch (e) {}
+    try { _refreshMyProfile(true); } catch (e) {}
     const result = await db.hydrateUserData(userId);
     if (result.tours > 0) {
       // Hydrate just overwrote activeDateId with the cloud's (TM-followed)
