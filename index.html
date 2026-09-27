@@ -21720,9 +21720,6 @@ const _HIST_FIELDS = {
   status:      'Day type',
 };
 
-// A count only means something for a list. "Settlement 0 -> 5" is the number
-// of keys in an object, which tells a reader nothing.
-function _histCount(v) { return Array.isArray(v) ? v.length : null; }
 // An empty object and an object of empty defaults are the same thing to a
 // person. Without this, saving a date for the first time reported a
 // settlement change, because {} met the app's zero-filled settlement object.
@@ -21800,20 +21797,262 @@ function _historyEntries(rows, tour) {
       const d = r.table_name === 'dates'
         ? ((tour.dates || []).find(x => x.id === r.row_id) || { date: before.date, city: before.city })
         : null;
-      out.push({ id: r.id, at: Date.parse(r.changed_at), who: r.author_name || r.author_email || 'Unknown',
-                 email: r.author_email || '', scope: r.table_name, date: d, fields, before, after });
+      const entry = { id: r.id, at: Date.parse(r.changed_at), who: r.author_name || r.author_email || 'Unknown',
+                      email: r.author_email || '', scope: r.table_name, date: d, fields, before, after };
+      entry.actions = _histActions(entry);
+      out.push(entry);
     });
   });
   return out.sort((a, b) => b.at - a.at);
 }
 
+// ── What actually happened ──────────────────────────────────────────────
+// Each change is read item by item (matched by id) and told as plain actions:
+// "Approved Spencer Lauren", "Soundcheck: 3:30 PM → 4:00 PM", "Removed
+// guests Suzy Day, Spencer Lauren". Bookkeeping keys (timestamps, who-stamps,
+// server marks) never count as a change on their own.
+const _HIST_META = new Set(['id', 'srvAt', 'submittedAt', 'approvedAt', 'approvedBy', 'approvedById', 'deniedAt', 'deniedBy', 'deniedById',
+  'updatedAt', 'createdAt', 'doneAt', 'doneBy', 'doneById', '_ci', '_co', '_role', 'position']);
+const _hWords = k => String(k).replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+const _hTime = (t, d) => /^\d{1,2}:\d{2}/.test(t || '') ? fmtClock(t, d) : (t || '');
+const _hVal = v => {
+  if (v === undefined || v === null || v === '') return '—';
+  if (typeof v === 'boolean') return v ? 'yes' : 'no';
+  if (Array.isArray(v)) return v.length ? v.map(x => (x && typeof x === 'object') ? _histItemLabel('', x) : String(x)).join(', ') : '—';
+  if (typeof v === 'object') return 'details';
+  const t = String(v).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  return t.length > 60 ? t.slice(0, 57) + '…' : (t || '—');
+};
+const _hList = names => names.length <= 3 ? names.join(', ') : names.slice(0, 3).join(', ') + ` and ${names.length - 3} more`;
+// Keys that really differ between two versions of one item.
+function _hChangedKeys(x, y) {
+  return [...new Set([...Object.keys(x || {}), ...Object.keys(y || {})])]
+    .filter(k => !_HIST_META.has(k) && !_histSame((x || {})[k], (y || {})[k]));
+}
+// Match the items of two lists by id (else by their label).
+function _hPair(b, a) {
+  const key = it => (it && typeof it === 'object' && it.id != null) ? 'id:' + it.id : 'k:' + (_histItemLabel('', it) || JSON.stringify(it));
+  const B = new Map(), A = new Map();
+  (Array.isArray(b) ? b : []).forEach(it => B.set(key(it), it));
+  (Array.isArray(a) ? a : []).forEach(it => A.set(key(it), it));
+  const added = [], removed = [], changed = [];
+  A.forEach((it, k) => { if (!B.has(k)) added.push(it); else if (_hChangedKeys(B.get(k), it).length) changed.push([B.get(k), it]); });
+  B.forEach((it, k) => { if (!A.has(k)) removed.push(it); });
+  const order = (arr, keep) => arr.map(key).filter(k => keep.has(k));
+  const reordered = !added.length && !removed.length && JSON.stringify(order([...B.values()], A)) !== JSON.stringify(order([...A.values()], B));
+  return { added, removed, changed, reordered };
+}
+const _hCrewName = id => { const c = (T().crew || []).find(x => x.id === id); return c ? c.name : ''; };
+// Generic line for an edited item: what it is, and which parts moved.
+function _hEdited(label, x, y, keys, d, names) {
+  const parts = keys.map(k => {
+    const n = (names && names[k]) || _hWords(k);
+    const bv = x[k], av = y[k];
+    if ((typeof bv !== 'object' || bv === null) && (typeof av !== 'object' || av === null)) {
+      const f = v => /time$|^time$/i.test(k) ? (_hTime(v, d) || '—') : _hVal(v);
+      return `${n} ${f(bv)} → ${f(av)}`;
+    }
+    return `${n} edited`;
+  });
+  return `${label}: ${parts.join('; ')}`;
+}
+
+const _HIST_DESCRIBE = {
+  guests(b, a, d) {
+    const out = [], { added, removed, changed } = _hPair(b, a);
+    const nm = g => (g.name || 'a guest') + (g.plus ? ' +' + g.plus : '');
+    if (added.length) out.push(`Added guest${added.length > 1 ? 's' : ''} ${_hList(added.map(g => nm(g) + (g.passType ? ` (${g.passType})` : '')))}`);
+    if (removed.length) out.push(`Removed guest${removed.length > 1 ? 's' : ''} ${_hList(removed.map(nm))}`);
+    changed.forEach(([x, y]) => {
+      const keys = _hChangedKeys(x, y);
+      if (keys.includes('status')) out.push(y.status === 'approved' ? `Approved ${nm(y)}` : y.status === 'denied' ? `Denied ${nm(y)}` : `Set ${nm(y)} back to pending`);
+      const rest = keys.filter(k => !['status', 'submittedBy', 'submittedById'].includes(k));
+      if (rest.length) out.push(_hEdited(`Guest ${nm(x)}`, x, y, rest, d, { plus: 'extra tickets', passType: 'pass', email: 'contact' }));
+    });
+    return out;
+  },
+  schedule(b, a, d) {
+    const out = [], { added, removed, changed } = _hPair(b, a);
+    const when = s => s.allDay ? 'all day' : _hTime(s.time, d);
+    added.forEach(s => out.push(`Added ${s.what || 'a schedule item'}${when(s) ? ' at ' + when(s) : ''}`));
+    removed.forEach(s => out.push(`Removed ${s.what || 'a schedule item'}${when(s) ? ' (' + when(s) + ')' : ''}`));
+    changed.forEach(([x, y]) => {
+      const nm = y.what || x.what || 'Schedule item';
+      const keys = _hChangedKeys(x, y);
+      if (keys.includes('time') || keys.includes('allDay')) out.push(`${nm}: ${when(x) || '—'} → ${when(y) || '—'}`);
+      if (keys.includes('endTime')) out.push(`${nm}: ends ${_hTime(x.endTime, d) || '—'} → ${_hTime(y.endTime, d) || '—'}`);
+      if (keys.includes('what')) out.push(`Renamed ${x.what || '—'} → ${y.what || '—'}`);
+      if (keys.includes('pending')) out.push(y.pending ? `Held ${nm} as pending` : `Confirmed ${nm}`);
+      if (keys.includes('nextDay')) out.push(y.nextDay ? `${nm}: moved past midnight (next date)` : `${nm}: back on this date`);
+      if (keys.includes('groups') || keys.includes('individuals') || keys.includes('person')) {
+        let who = ''; try { who = _scheduleItemDisplayLabel(y); } catch (e) {}
+        out.push(`${nm}: now for ${who || 'a different audience'}`);
+      }
+      const rest = keys.filter(k => !['time', 'allDay', 'endTime', 'what', 'pending', 'nextDay', 'groups', 'individuals', 'person', 'label'].includes(k));
+      if (rest.length) out.push(_hEdited(nm, x, y, rest, d));
+    });
+    return out;
+  },
+  travel(b, a, d) {
+    const out = [], { added, removed, changed } = _hPair(b, a);
+    const nm = t => t.type === 'flight' ? `Flight ${t.flightNumber || ''}`.trim()
+      : `${(t.type || 'Travel').replace(/^./, c => c.toUpperCase())}${t.description ? ' ' + t.description : ''}`;
+    const pax = t => { try { return _travelPassengers(t); } catch (e) { return []; } };
+    added.forEach(t => out.push(`Added ${nm(t)}${t.time ? ' at ' + _hTime(t.time, d) : ''}`));
+    removed.forEach(t => out.push(`Removed ${nm(t)}`));
+    changed.forEach(([x, y]) => {
+      const n = nm(y), keys = _hChangedKeys(x, y);
+      if (keys.includes('time')) out.push(`${n}: departs ${_hTime(x.time, d) || '—'} → ${_hTime(y.time, d) || '—'}`);
+      if (keys.includes('arriveTime')) out.push(`${n}: arrives ${_hTime(x.arriveTime, d) || '—'} → ${_hTime(y.arriveTime, d) || '—'}`);
+      if (keys.some(k => ['individuals', 'person', 'groups'].includes(k))) {
+        const bp = pax(x), ap = pax(y);
+        const on = ap.filter(p => !bp.includes(p)), off = bp.filter(p => !ap.includes(p));
+        if (on.length) out.push(`${n}: added ${_hList(on)}`);
+        if (off.length) out.push(`${n}: removed ${_hList(off)}`);
+        if (!on.length && !off.length) out.push(`${n}: passengers changed`);
+      }
+      const rest = keys.filter(k => !['time', 'arriveTime', 'individuals', 'person', 'groups'].includes(k));
+      if (rest.length) out.push(_hEdited(n, x, y, rest, d, { conf: 'confirmation', fromCity: 'from', toCity: 'to', flightNumber: 'flight number' }));
+    });
+    return out;
+  },
+  set_list(b, a) {
+    const out = [], { added, removed, changed, reordered } = _hPair(b, a);
+    const nm = it => `“${it.title || it.what || 'item'}”`;
+    if (added.length) out.push(`Added ${_hList(added.map(nm))} to the set list`);
+    if (removed.length) out.push(`Removed ${_hList(removed.map(nm))} from the set list`);
+    changed.forEach(([x, y]) => out.push(_hEdited(nm(x), x, y, _hChangedKeys(x, y), null, { feat: 'notes' })));
+    if (reordered) out.push('Reordered the set list');
+    return out;
+  },
+  hotels(b, a, d) {
+    const out = [], { added, removed, changed } = _hPair(b, a);
+    const hn = h => h.name || 'a hotel';
+    const room = r => { const who = (r.personId && _hCrewName(r.personId)) || r.personName || 'someone'; return { who, num: r.roomNum || '—' }; };
+    added.forEach(h => out.push(`Added hotel ${hn(h)}`));
+    removed.forEach(h => out.push(`Removed hotel ${hn(h)}`));
+    changed.forEach(([x, y]) => {
+      const n = hn(y), keys = _hChangedKeys(x, y);
+      if (keys.includes('rooms')) {
+        const rp = _hPair(x.rooms, y.rooms);
+        rp.added.forEach(r => { const o = room(r); out.push(`${n}: room ${o.num} for ${o.who}`); });
+        rp.removed.forEach(r => { const o = room(r); out.push(`${n}: removed ${o.who}’s room`); });
+        rp.changed.forEach(([p, q]) => {
+          const o = room(q), k2 = _hChangedKeys(p, q);
+          if (k2.includes('roomNum')) out.push(`${n}: ${o.who} room ${p.roomNum || '—'} → ${q.roomNum || '—'}`);
+          const r2 = k2.filter(k => k !== 'roomNum');
+          if (r2.length) out.push(_hEdited(`${n}: ${o.who}’s room`, p, q, r2, d, { roomType: 'type', personId: 'person', personName: 'person' }));
+        });
+      }
+      const rest = keys.filter(k => k !== 'rooms');
+      if (rest.length) out.push(_hEdited(n, x, y, rest, d, { checkIn: 'check-in time', checkOut: 'check-out time', checkInDate: 'check-in date', checkOutDate: 'check-out date', conf: 'confirmation' }));
+    });
+    return out;
+  },
+  settlement(b, a) {
+    const x = b || {}, y = a || {}, out = [];
+    const keys = _hChangedKeys(x, y);
+    if (keys.includes('settled')) out.push(y.settled ? 'Marked the show settled' : 'Marked the show not settled');
+    const money = v => (v === '' || v == null || !isFinite(+v)) ? _hVal(v) : '$' + (+v).toLocaleString();
+    keys.filter(k => k !== 'settled').forEach(k => out.push(/amount|guarantee|gross|net|fee|total/i.test(k)
+      ? `${_hWords(k).replace(/^./, c => c.toUpperCase())} ${money(x[k])} → ${money(y[k])}`
+      : `Settlement ${_hWords(k)} edited`));
+    return out;
+  },
+  advance(b, a) {
+    const x = b || {}, y = a || {};
+    return _hChangedKeys(x, y).map(k => {
+      const bv = x[k], av = y[k];
+      const simple = v => v == null || typeof v !== 'object';
+      return (simple(bv) && simple(av)) ? `Advance ${_hWords(k)}: ${_hVal(bv)} → ${_hVal(av)}` : `Advance ${_hWords(k)} edited`;
+    });
+  },
+  allotments(b, a) {
+    const x = b || {}, y = a || {};
+    return _hChangedKeys(x, y).map(k => `${k} allotment ${_hVal(x[k])} → ${_hVal(y[k])}`);
+  },
+  day_notes(b, a) {
+    const t = _hVal(a);
+    return [(!b || !String(b).replace(/<[^>]+>/g, '').trim()) ? `Added day notes: “${t}”` : (t === '—' ? 'Cleared the day notes' : `Edited day notes: “${t}”`)];
+  },
+  date(b, a) { return [`Moved the date ${b ? fmtMD(b) : '—'} → ${a ? fmtMD(a) : '—'}`]; },
+  city(b, a) { return [`City ${_hVal(b)} → ${_hVal(a)}`]; },
+  venue(b, a) { return [`Venue ${_hVal(b)} → ${_hVal(a)}`]; },
+  status(b, a) { const n = v => ({ show: 'Show', off: 'Day off', travel: 'Travel', press: 'Press', rehearsal: 'Rehearsal' })[v] || _hVal(v); return [`Day type ${n(b)} → ${n(a)}`]; },
+  name(b, a) { return [`Renamed the tour “${_hVal(b)}” → “${_hVal(a)}”`]; },
+  crew(b, a) {
+    const out = [], { added, removed, changed } = _hPair(b, a);
+    const nm = c => c.name || c.email || 'someone';
+    added.forEach(c => out.push(`Added ${nm(c)}${c.role ? ` (${c.role})` : ''} to the crew`));
+    removed.forEach(c => out.push(`Removed ${nm(c)} from the crew`));
+    changed.forEach(([x, y]) => {
+      const n = nm(y), keys = _hChangedKeys(x, y);
+      if (keys.includes('name')) out.push(`Renamed ${nm(x)} → ${n}`);
+      if (keys.includes('role')) out.push(`${n}: role ${_hVal(x.role)} → ${_hVal(y.role)}`);
+      if (keys.includes('permissions')) out.push(y.permissions === 'all' ? `Gave ${n} full access` : `${n}: access changed to ${_hVal(y.permissions)}`);
+      if (keys.includes('isManager')) out.push(y.isManager ? `Made ${n} a co-manager` : `${n} is no longer a co-manager`);
+      if (keys.includes('groups')) out.push(`${n}: groups ${_hVal(x.groups)} → ${_hVal(y.groups)}`);
+      if (keys.includes('userId') || keys.includes('claimed')) out.push(y.userId || y.claimed ? `${n} joined on the app` : `${n} was unlinked from their account`);
+      if (keys.includes('profile')) out.push(`${n} updated their tour profile`);
+      const rest = keys.filter(k => !['name', 'role', 'permissions', 'isManager', 'groups', 'userId', 'claimed', 'profile', 'avatar'].includes(k));
+      if (rest.length) out.push(_hEdited(n, x, y, rest, null));
+    });
+    return out;
+  },
+  contacts(b, a) {
+    const out = [], { added, removed, changed } = _hPair(b, a);
+    const nm = c => c.name || c.organization || 'a contact';
+    added.forEach(c => out.push(`Added contact ${nm(c)}${c.role ? ` (${c.role})` : ''}`));
+    removed.forEach(c => out.push(`Removed contact ${nm(c)}`));
+    changed.forEach(([x, y]) => out.push(_hEdited(`Contact ${nm(y)}`, x, y, _hChangedKeys(x, y), null)));
+    return out;
+  },
+  tasks(b, a) {
+    const out = [], { added, removed, changed } = _hPair(b, a);
+    const nm = t => `“${t.label || t.title || 'task'}”`;
+    added.forEach(t => out.push(`Added task ${nm(t)}${t.due ? ' due ' + fmtMD(t.due) : ''}`));
+    removed.forEach(t => out.push(`Deleted task ${nm(t)}`));
+    changed.forEach(([x, y]) => {
+      const keys = _hChangedKeys(x, y);
+      if (keys.includes('done')) out.push(y.done ? `Completed ${nm(y)}` : `Reopened ${nm(y)}`);
+      if (keys.includes('archived')) out.push(y.archived ? `Archived ${nm(y)}` : `Restored ${nm(y)}`);
+      const rest = keys.filter(k => !['done', 'archived'].includes(k));
+      if (rest.length) out.push(_hEdited(`Task ${nm(x)}`, x, y, rest, null, { label: 'task', assignee: 'assigned to' }));
+    });
+    return out;
+  },
+  tags(b, a) {
+    const out = [], { added, removed, changed } = _hPair(b, a);
+    const nm = t => `${t.name || 'a spot'}${t.city ? ` (${t.city})` : ''}`;
+    added.forEach(t => out.push(`Added road note ${nm(t)}`));
+    removed.forEach(t => out.push(`Removed road note ${nm(t)}`));
+    changed.forEach(([x, y]) => out.push(_hEdited(`Road note ${nm(y)}`, x, y, _hChangedKeys(x, y), null)));
+    return out;
+  },
+  member_ids(b, a) {
+    const bn = Array.isArray(b) ? b.length : 0, an = Array.isArray(a) ? a.length : 0;
+    return [an > bn ? `${an - bn} ${an - bn === 1 ? 'person' : 'people'} joined the tour` : an < bn ? `${bn - an} ${bn - an === 1 ? 'person' : 'people'} removed from the tour` : 'Tour members changed'];
+  },
+};
+_HIST_DESCRIBE.hotel = (b, a, d) => _HIST_DESCRIBE.hotels(b ? [b] : [], a ? [a] : [], d);
+
+// Every action in one change, in plain words, grouped by what it touched.
+function _histActions(e) {
+  const d = e.date || null;
+  const groups = [];
+  e.fields.forEach(f => {
+    let lines = [];
+    try { lines = (_HIST_DESCRIBE[f] ? _HIST_DESCRIBE[f](e.before[f], e.after[f], d) : []) || []; } catch (err) { lines = []; }
+    if (!lines.length) lines = [`${_HIST_FIELDS[f] || _hWords(f)} edited`];
+    groups.push({ field: f, label: _HIST_FIELDS[f] || _hWords(f), lines });
+  });
+  return groups;
+}
+// The list line: the first actions, then how many more.
 function _histSummary(e) {
-  return e.fields.map(f => {
-    const label = _HIST_FIELDS[f] || f;
-    const bc = _histCount(e.before[f]), ac = _histCount(e.after[f]);
-    if (bc != null && ac != null && bc !== ac) return `${label} ${bc} → ${ac}`;
-    return label;
-  }).join(' · ');
+  const all = (e.actions || _histActions(e)).flatMap(g => g.lines);
+  const shown = all.slice(0, 2).join(' · ');
+  return all.length > 2 ? `${shown} · +${all.length - 2} more` : shown;
 }
 
 async function renderEditHistory() {
@@ -21888,52 +22127,11 @@ async function renderEditHistory() {
     <div class="hist-foot">${entries.length} change${entries.length === 1 ? '' : 's'} · newest first</div>`);
 }
 
-// The detail behind one line. Read-only.
+// The detail behind one line: every action in it, grouped by section. Read-only.
 function openHistoryDetail(id) {
   const e = (_histState.entries || []).find(x => x.id === id);
   if (!e) return;
-  const section = (f) => {
-    const label = _HIST_FIELDS[f] || f;
-    const b = e.before[f], a = e.after[f];
-    if (Array.isArray(b) || Array.isArray(a)) {
-      const ba = Array.isArray(b) ? b : [], aa = Array.isArray(a) ? a : [];
-      const key = it => _histItemLabel(f, it) || JSON.stringify(it);
-      const bKeys = ba.map(key), aKeys = aa.map(key);
-      const added = aa.filter(it => !bKeys.includes(key(it)));
-      const removed = ba.filter(it => !aKeys.includes(key(it)));
-      const changed = !added.length && !removed.length && ba.length === aa.length;
-      return `
-        <div class="hd-sec">
-          <div class="hd-lbl">${esc(label)}</div>
-          <div class="hd-count">${ba.length} → ${aa.length}</div>
-          ${added.length ? `<div class="hd-line add">${added.map(it => '+ ' + esc(_histItemLabel(f, it) || 'item')).join('<br>')}</div>` : ''}
-          ${removed.length ? `<div class="hd-line rem">${removed.map(it => '− ' + esc(_histItemLabel(f, it) || 'item')).join('<br>')}</div>` : ''}
-          ${changed ? `<div class="hd-line">Details edited on ${aa.length} item${aa.length === 1 ? '' : 's'}</div>` : ''}
-        </div>`;
-    }
-    const one = v => {
-      if (v === undefined || v === null || v === '' || v === false) return '(empty)';
-      return String(v).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400) || '(empty)';
-    };
-    // Objects (settlement, advance, allotments): name only the keys that moved.
-    if ((b && typeof b === 'object') || (a && typeof a === 'object')) {
-      const bo = (b && typeof b === 'object') ? b : {}, ao = (a && typeof a === 'object') ? a : {};
-      const keys = [...new Set([...Object.keys(bo), ...Object.keys(ao)])].filter(k => !_histSame(bo[k], ao[k]));
-      return `
-        <div class="hd-sec">
-          <div class="hd-lbl">${esc(label)}</div>
-          ${keys.length
-            ? keys.map(k => `<div class="hd-line"><b>${esc(k)}</b> <span class="rem">${esc(one(bo[k]))}</span> → <span class="add">${esc(one(ao[k]))}</span></div>`).join('')
-            : '<div class="hd-line">Edited</div>'}
-        </div>`;
-    }
-    return `
-      <div class="hd-sec">
-        <div class="hd-lbl">${esc(label)}</div>
-        <div class="hd-line rem">${esc(one(b))}</div>
-        <div class="hd-line add">${esc(one(a))}</div>
-      </div>`;
-  };
+  const groups = e.actions || _histActions(e);
   openModal({
     title: 'Change detail',
     hideFooter: true,
@@ -21943,7 +22141,11 @@ function openHistoryDetail(id) {
         <div class="hd-when">${esc(_histWhen(e.at))}</div>
         <div class="hd-scope">${e.date ? esc([fmtDate(e.date.date), e.date.city].filter(Boolean).join(' · ')) : 'Tour-wide'}</div>
       </div>
-      ${e.fields.map(section).join('')}
+      ${groups.map(g => `
+        <div class="hd-sec">
+          <div class="hd-lbl">${esc(g.label)}</div>
+          ${g.lines.map(l => `<div class="hd-line hd-act${/^(Added|Approved|Completed|Confirmed|Marked the show settled|Made|Gave)/.test(l) ? ' add' : /^(Removed|Deleted|Denied|Cleared)/.test(l) ? ' rem' : ''}">${esc(l)}</div>`).join('')}
+        </div>`).join('')}
       <div class="hd-foot">This is a record only — nothing here can be changed or undone from this page.</div>`,
   });
 }
