@@ -2771,6 +2771,14 @@ html body.kb-open .toast-container{bottom:14px}
 .toast.error .toast-k{color:var(--red)}
 @keyframes toastIn{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
 @media (prefers-reduced-motion:reduce){.toast{animation:none}}
+/* Zone tag: a very small abbreviation after a time ("7:00 PM CT"), shown to
+   anyone whose device is on a different clock from where the time happens.
+   7px on the website, 6px on phones. */
+.tz-tag{margin-left:2px;font-size:7px;font-weight:500;letter-spacing:.06em;color:#c9b08c;white-space:nowrap;text-transform:uppercase}
+html body.phone-app .tz-tag,html body.tm-mobile .tz-tag,html body.mobile .tz-tag{font-size:6px}
+/* Editors: one small line under the time fields naming the clock they use. */
+.tz-note-row{margin-top:-6px}
+.tz-note{font-family:'Bricolage Grotesque',monospace;font-size:10px;font-weight:400;letter-spacing:.04em;line-height:1.4;color:var(--warm-mute);text-transform:none}
 
 /* footnote */
 .footnote{margin-top:30px;text-align:center;color:var(--warm-mute);
@@ -10063,6 +10071,80 @@ function _tzDiffers(z) {
   return a.h !== b.h || a.mi !== b.mi || a.d !== b.d;
 }
 
+// ── Zone tags and notes ──────────────────────────────────────────────
+// Short name for a zone: CT / ET / PT in North America, BST / CEST in Europe,
+// AEST in Australia, else GMT+9 style. Cached per zone per hour (DST).
+const _tzAbbrCache = {};
+function _tzAbbr(z) {
+  if (!z) return '';
+  const key = z + '|' + Math.floor(Date.now() / 3600000);
+  if (_tzAbbrCache[key] !== undefined) return _tzAbbrCache[key];
+  const now = new Date();
+  const pick = (loc, opt) => {
+    try { const p = new Intl.DateTimeFormat(loc, { timeZone: z, timeZoneName: opt }).formatToParts(now).find(x => x.type === 'timeZoneName'); return p ? p.value : ''; }
+    catch (e) { return ''; }
+  };
+  const ok = v => /^[A-Z]{2,5}$/.test(v);
+  let a = pick('en-US', 'shortGeneric');
+  if (!ok(a)) a = [pick('en-GB', 'short'), pick('en-AU', 'short')].find(ok) || pick('en-US', 'short');
+  return (_tzAbbrCache[key] = a || '');
+}
+// Long name for the editors' note: "Central Time", "Central European Time".
+function _tzLongName(z) {
+  if (!z) return '';
+  for (const opt of ['longGeneric', 'long']) {
+    try {
+      const p = new Intl.DateTimeFormat('en-US', { timeZone: z, timeZoneName: opt }).formatToParts(new Date()).find(x => x.type === 'timeZoneName');
+      if (p && p.value && !/^GMT/.test(p.value)) return p.value;
+    } catch (e) {}
+  }
+  return z.split('/').pop().replace(/_/g, ' ') + ' time';
+}
+// The tag itself, for a known zone — flights always carry their airports'.
+function _tzTagZ(z) {
+  const a = _tzAbbr(z);
+  return a ? `<span class="tz-tag">${esc(a)}</span>` : '';
+}
+// A time on date d: tagged only when this device is on a different clock
+// from that date's city. On the road it never shows.
+const _tzDiffMemo = {};
+function _tzTag(d) {
+  const z = _dateTz(d);
+  if (!z) return '';
+  const now = Date.now(), m = _tzDiffMemo[z];
+  let differs;
+  if (m && now - m.at < 60000) differs = m.v;
+  else { differs = _tzDiffers(z); _tzDiffMemo[z] = { at: now, v: differs }; }
+  return differs ? _tzTagZ(z) : '';
+}
+// A schedule/travel row on date d. A flight's time is local to its departure
+// airport, which on a travel day often isn't the date's city — so a flight is
+// only tagged from live flight data (which knows each airport's zone).
+function _tzTagItem(it, d) {
+  if (!it || it.allDay) return '';
+  if (it._travelType === 'flight' || it.type === 'flight') {
+    const live = (typeof _flightLiveFor === 'function') ? _flightLiveFor(it._travelRef || it, it._travelDate || (d && d.date)) : null;
+    return live && live.leg && live.leg.departure && live.leg.departure.timeZone ? _tzTagZ(live.leg.departure.timeZone) : '';
+  }
+  return _tzTag(d);
+}
+// The editors' note: which clock the times on this form are on.
+function _tzNoteText(d, kind, zoneSrc) {
+  const z = _dateTz(zoneSrc) || _dateTz(d);
+  const place = d ? [d.city, _stateFor(d.city, d.state)].filter(Boolean).join(', ') : '';
+  const zone = z ? _tzLongName(z) + (_tzAbbr(z) ? ' (' + _tzAbbr(z) + ')' : '') : '';
+  if (kind === 'travel') return zone
+    ? `Times are local to where each one happens · ${esc(place || 'This date')} is ${esc(zone)}`
+    : 'Times are local to where each one happens';
+  if (kind === 'hotel') return zone ? `Times are local to the hotel · ${esc(zone)}` : 'Times are local to the hotel';
+  if (place && zone) return `Times are local to ${esc(place)} · ${esc(zone)}`;
+  if (place) return `Times are local to ${esc(place)}`;
+  return 'Times are local to this date’s city';
+}
+function _tzNoteRowHTML(d, kind, zoneSrc, extraAttrs, id) {
+  return `<div class="field full tz-note-row"${extraAttrs || ''}><div class="tz-note"${id ? ` id="${id}"` : ''}>${_tzNoteText(d, kind, zoneSrc)}</div></div>`;
+}
+
 
 // A city is often typed or imported with its state already on it —
 // "Manchester, NH" — and then the separate state field ("New Hampshire")
@@ -11160,6 +11242,7 @@ function openDateModal(id) {
         <div class="field" data-show-day><label>Soundcheck</label>${renderTime12Picker('d_sc', d.soundcheck, { h24: _dateIs24h(d) })}</div>
         <div class="field" data-show-day><label>Doors</label>${renderTime12Picker('d_doors', d.doors, { h24: _dateIs24h(d) })}</div>
         <div class="field" data-show-day><label>Set time</label>${renderTime12Picker('d_set', d.setTime, { h24: _dateIs24h(d) })}</div>
+        ${_tzNoteRowHTML(d, '', null, ' data-show-day', 'd_tz_note')}
         ${editing ? _dateModalTemplatesHTML(editing) : ''}
       </div>
     `,
@@ -11761,6 +11844,7 @@ function openScheduleModal(itemId) {
           <label>End time <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional)</span></label>
           ${renderTime12Picker('s_end', i.endTime || '', { disabled: !!i.allDay, h24: _dateIs24h(getActiveDate()) })}
         </div>
+        ${_tzNoteRowHTML(ad)}
         <div class="field full">
           <label>Day <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(toggle if this time happens after midnight on the next date)</span></label>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -12252,7 +12336,8 @@ function _flightTimeHTML(entered24, mv) {
   const was = mv && mv.revisedTime && mv.time && mv.revisedTime !== mv.time ? mv.time
     : (mv && mv.time && entered24 && entered24 !== current ? entered24 : '');
   if (!current) return '—';
-  return was ? `<s>${esc(_fmt12Safe(was))}</s>${esc(_fmt12Safe(current))}` : esc(_fmt12Safe(current));
+  const tag = mv && mv.timeZone ? _tzTagZ(mv.timeZone) : '';
+  return (was ? `<s>${esc(_fmt12Safe(was))}</s>${esc(_fmt12Safe(current))}` : esc(_fmt12Safe(current))) + tag;
 }
 
 async function _flightLiveFetch(t, date, force) {
@@ -12472,7 +12557,7 @@ function _phoneTravelItemHTML(t, viewer, viewerKey, onDate) {
   return `
     <button type="button" class="ph-travel-row ${viewerIsPax ? 'mine' : ''}" onclick="_phoneShowTravel('${esc(t.id)}')">
       <span class="ptr-type">${esc(typeLabel)}</span>
-      <span class="ptr-time">${t.allDay ? 'ALL' : esc(t.time || '—')}</span>
+      <span class="ptr-time">${t.allDay ? 'ALL' : esc(t.time || '—') + (t.time ? _tzTagItem(t, onDate || _clockCtx()) : '')}</span>
       <span class="ptr-desc">${esc(t.description || '—')}<span class="ptr-who"> · ${esc(who)}</span></span>
       ${codeLabel ? `<span class="ptr-code">${esc(codeLabel)}</span>` : ''}
       <span class="ptr-chev">›</span>
@@ -13042,6 +13127,7 @@ function openTravelModal(itemId, opts) {
         <div class="field" data-flight-only ${isFlight ? '' : 'hidden'}><label>Lands <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(optional)</span></label>
           <div class="time-row">${renderTime12Picker('tv_arrive', i.arriveTime || '', { h24: _dateIs24h(ad) })}</div>
         </div>
+        ${_tzNoteRowHTML(ad, 'travel')}
         <div class="field" data-flight-only ${isFlight ? '' : 'hidden'}>
           <label>Departure city <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(auto — edit if different)</span></label>
           <input id="tv_from" data-ac="city" autocomplete="off" value="${esc(i.fromCity || (isFlight ? _travelRoute(ad).from : ''))}" oninput="_travelDescRefresh()" placeholder="e.g. Toronto">
@@ -13437,6 +13523,8 @@ function readTime12Picker(prefix) {
 let _dateModalCountry = '';
 function _dateModalClockSync() {
   const h24 = _dateIs24h({ city: document.getElementById('d_city')?.value || '', state: document.getElementById('d_state')?.value || '', country: _dateModalCountry });
+  const tzNote = document.getElementById('d_tz_note');
+  if (tzNote) tzNote.innerHTML = _tzNoteText({ city: document.getElementById('d_city')?.value || '', state: document.getElementById('d_state')?.value || '', country: _dateModalCountry });
   ['d_doors', 'd_set', 'd_load', 'd_sc'].forEach(pfx => {
     const wrap = document.getElementById(pfx + '_12');
     if (!wrap || !!wrap.dataset.h24 === h24) return;
@@ -13663,6 +13751,7 @@ function openHotelModal(stayId) {
         <div class="field"><label>Check-out date *</label><input id="h_outdate" type="date" value="${esc(h.checkOutDate || h.checkInDate || ad.date)}"></div>
         <div class="field"><label>Check-in time</label><input id="h_in" value="${esc(h.checkIn)}" placeholder="e.g. 15:00"></div>
         <div class="field"><label>Check-out time</label><input id="h_out" value="${esc(h.checkOut)}" placeholder="e.g. 11:00"></div>
+        ${_tzNoteRowHTML(ad, 'hotel', { city: h.city, state: h.state, country: h.country })}
         <div class="field full"><div class="lbl-row"><label>Who's staying here <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span></label><button type="button" class="ember-mini" onclick="_manageGroupsFromForm()">Manage groups</button></div>
           ${renderGroupPicker('h_grp', initGroups, true)}
         </div>
@@ -17128,7 +17217,7 @@ function renderDayStamp() {
     ad.venue ? `<span class="sep">·</span><span>${esc(ad.venue.toUpperCase())}</span>` : '',
     `<span class="sep">·</span><span>${fmtDate(ad.date).toUpperCase()}</span>`,
     `<span class="sep">·</span><span>${status}</span>`,
-    ad.doors ? `<span class="sep">·</span><span>DOORS ${esc(fmtClock(ad.doors, ad))}</span>` : ''
+    ad.doors ? `<span class="sep">·</span><span>DOORS ${esc(fmtClock(ad.doors, ad))}${_tzTag(ad)}</span>` : ''
   ];
   paint(parts.filter(Boolean).join(' '));
 }
@@ -17596,7 +17685,7 @@ function renderDashboard() {
   const scheduleHtml = ad.schedule.length
     ? ad.schedule.map(s => `
         <div class="row">
-          <span class="t">${s.allDay ? 'ALL DAY' : esc(fmtClock(s.time, ad))}</span>
+          <span class="t">${s.allDay ? 'ALL DAY' : esc(fmtClock(s.time, ad)) + _tzTagItem(s, ad)}</span>
           <span class="what">${esc(s.what)}</span>
           ${(() => { const a = _scheduleAudience(s);
             return a.kind === 'tag' ? `<span class="who">${esc(a.text)}</span>`
@@ -17633,8 +17722,8 @@ function renderDashboard() {
     if (nextDate.venue) subBits.push(esc(nextDate.venue));
     if (nextDate.capacity) subBits.push(`Cap ${esc(String(nextDate.capacity))}`);
     const timeBits = [];
-    if (nextDate.doors) timeBits.push(`Doors ${esc(fmtClock(nextDate.doors, nextDate))}`);
-    if (nextDate.setTime) timeBits.push(`Set ${esc(fmtClock(nextDate.setTime, nextDate))}`);
+    if (nextDate.doors) timeBits.push(`Doors ${esc(fmtClock(nextDate.doors, nextDate))}${_tzTag(nextDate)}`);
+    if (nextDate.setTime) timeBits.push(`Set ${esc(fmtClock(nextDate.setTime, nextDate))}${_tzTag(nextDate)}`);
     const nextStatus = (nextDate.status || 'show').toLowerCase();
     const statusLabel = nextStatus === 'off' ? 'Day off'
       : nextStatus === 'travel' ? 'Travel day'
@@ -17701,7 +17790,7 @@ function renderDashboard() {
   const schedCardHtml = sched.length
     ? sched.map(s => `
         <div class="bm-sched-row">
-          <div class="time">${s.allDay ? 'ALL DAY' : esc(_scheduleTimeDisplay(s, ad))}</div>
+          <div class="time">${s.allDay ? 'ALL DAY' : esc(_scheduleTimeDisplay(s, ad)) + _tzTagItem(s, ad)}</div>
           <div>
             <div class="what">${esc(s.what)}${s.pending ? `<span class="who" style="color:var(--hi);margin-left:6px" title="Hidden from band and crew until you confirm it">PENDING</span>` : ''}</div>
             ${(() => { const a = _scheduleAudience(s); return a.text ? `<div class="who">${esc(a.text)}</div>` : ''; })()}
@@ -17718,10 +17807,10 @@ function renderDashboard() {
       ${(ad.city || ad.state || ad.country) ? `<div class="line">${esc([ad.city, _stateFor(ad.city, ad.state), _countryFor(ad.city, ad.country)].filter(Boolean).join(', '))}</div>` : ''}
       <div style="margin-top:8px">
         ${ad.capacity ? `<div class="pair"><span class="lbl">Capacity</span><span class="val">${esc(ad.capacity)}</span></div>` : ''}
-        ${ad.doors ? `<div class="pair"><span class="lbl">Doors</span><span class="val">${esc(fmtClock(ad.doors, ad))}</span></div>` : ''}
-        ${ad.setTime ? `<div class="pair"><span class="lbl">Set time</span><span class="val">${esc(fmtClock(ad.setTime, ad))}</span></div>` : ''}
+        ${ad.doors ? `<div class="pair"><span class="lbl">Doors</span><span class="val">${esc(fmtClock(ad.doors, ad))}${_tzTag(ad)}</span></div>` : ''}
+        ${ad.setTime ? `<div class="pair"><span class="lbl">Set time</span><span class="val">${esc(fmtClock(ad.setTime, ad))}${_tzTag(ad)}</span></div>` : ''}
         ${ad.promoter ? `<div class="pair"><span class="lbl">Promoter</span><span class="val">${esc(ad.promoter)}</span></div>` : ''}
-        ${ad.curfew ? `<div class="pair"><span class="lbl">Curfew</span><span class="val">${esc(fmtClock(ad.curfew, ad))}</span></div>` : ''}
+        ${ad.curfew ? `<div class="pair"><span class="lbl">Curfew</span><span class="val">${esc(fmtClock(ad.curfew, ad))}${_tzTag(ad)}</span></div>` : ''}
       </div>
     </div>
   ` : `<div class="card-empty">No venue set. <a onclick="openDateModal('${ad.id}')">Edit date →</a></div>`;
@@ -17738,8 +17827,8 @@ function renderDashboard() {
       ${hotel.city ? `<div class="line">${esc([hotel.city, _stateFor(hotel.city, hotel.state), hotel.zip].filter(Boolean).join(', '))}</div>` : ''}
       <div style="margin-top:8px">
         ${hotel.phone ? `<div class="pair"><span class="lbl">Phone</span><span class="val">${esc(hotel.phone)}</span></div>` : ''}
-        ${hotel.checkIn ? `<div class="pair"><span class="lbl">Check-in</span><span class="val">${esc(fmtClock(hotel.checkIn, ad))}</span></div>` : ''}
-        ${hotel.checkOut ? `<div class="pair"><span class="lbl">Check-out</span><span class="val">${esc(fmtClock(hotel.checkOut, ad))}</span></div>` : ''}
+        ${hotel.checkIn ? `<div class="pair"><span class="lbl">Check-in</span><span class="val">${esc(fmtClock(hotel.checkIn, ad))}${_tzTag(ad)}</span></div>` : ''}
+        ${hotel.checkOut ? `<div class="pair"><span class="lbl">Check-out</span><span class="val">${esc(fmtClock(hotel.checkOut, ad))}${_tzTag(ad)}</span></div>` : ''}
         ${(hotel.rooms && hotel.rooms.length) ? `<div class="pair"><span class="lbl">Rooms</span><span class="val">${hotel.rooms.length}</span></div>` : ''}
       </div>
     </div>`;
@@ -17848,8 +17937,8 @@ function renderDashboard() {
     ${(effectiveStatus === 'show' || effectiveStatus === 'press') ? `
       <div class="bm-hero-tile">
         <div class="lbl">Doors</div>
-        <div class="val mono">${ad.doors ? esc(fmtClock(ad.doors, ad)) : '—'}</div>
-        ${ad.setTime ? `<div class="sub">Set ${esc(fmtClock(ad.setTime, ad))}</div>` : ''}
+        <div class="val mono">${ad.doors ? esc(fmtClock(ad.doors, ad)) + _tzTag(ad) : '—'}</div>
+        ${ad.setTime ? `<div class="sub">Set ${esc(fmtClock(ad.setTime, ad))}${_tzTag(ad)}</div>` : ''}
       </div>
       <div class="bm-hero-tile">
         <div class="lbl">Capacity</div>
@@ -18352,7 +18441,7 @@ function renderSchedule() {
           })();
           return `
           <div class="item-row${(!isTravel && s.pending) ? ' is-pending' : ''}" style="grid-template-columns:minmax(110px,140px) minmax(160px,1fr) minmax(140px,220px) auto;align-items:flex-start">
-            <span class="t" style="padding-top:8px">${esc(_scheduleTimeDisplay(s, ad))}</span>
+            <span class="t" style="padding-top:8px">${esc(_scheduleTimeDisplay(s, ad))}${isTravel ? '' : _tzTagItem(s, ad)}</span>
             <span class="what" style="padding-top:6px;min-width:0">${esc(s.what)}${travelBadge}${nextDayBadge}${carryoverBadge}${s.notes ? `<span class="note">${esc(s.notes)}</span>` : ''}${isTravel ? '' : _whoBlockHTML(s, 'Who', true)}</span>
             ${isTravel
               ? (_whoBlockHTML(s._travelRef, s._travelType === 'flight' ? 'Passengers' : 'Who')
@@ -20522,7 +20611,7 @@ function _advanceHandsSectionHTML(a) {
   const effective = sets.length ? sets : [{ count: '', inTime: '', outTime: '', allDay: false }];
   const canAdd = effective.length < HANDS_MAX_SETS;
   return `
-    <div class="advance-sub-h">Hands confirmed</div>
+    <div class="advance-sub-h">Hands confirmed <span class="tz-note">· ${_tzNoteText(getActiveDate())}</span></div>
     <div id="adv_hands_rows">
       ${effective.map((s, i) => _advanceHandsSetRowHTML(s, i)).join('')}
     </div>
@@ -21910,7 +21999,7 @@ function _phoneScheduleRowsHTML(items, earlyTomorrow, nextDateLabel, emptyMsg, l
     const status = live ? _shortStatus(live.info.label) : '';
     return `
     <div class="p-row${cls || ''}${_endCh ? ' has-ends' : ''}" style="--tcol:${_tcol}px">
-      <span class="t"><span class="tl"><span class="ts">${esc(tp.start)}</span>${tp.end ? `<span class="te">– ${esc(tp.end)}</span>` : ''}</span>${lands ? `<span class="t2">↓ ${esc(_fmt12Safe(lands))}</span>` : ''}</span>
+      <span class="t"><span class="tl"><span class="ts">${esc(tp.start)}</span>${tp.end ? `<span class="te">– ${esc(tp.end)}</span>` : ''}${/\d/.test(tp.start) ? _tzTagItem(s, _clockCtx()) : ''}</span>${lands ? `<span class="t2">↓ ${esc(_fmt12Safe(lands))}${live && live.leg.arrival.timeZone ? _tzTagZ(live.leg.arrival.timeZone) : ''}</span>` : ''}</span>
       <span class="what">${esc(s.what)}</span>
       ${status ? `<span class="lbl live-${live.info.tone}">${esc(status)}</span>`
         : aud.kind === 'tag' ? `<span class="lbl">${esc(aud.text)}</span>` : ''}
@@ -22090,7 +22179,7 @@ function renderPhone() {
     : `${status}${ad.venue ? ' · ' + esc(ad.venue.toUpperCase()) : ''}`;
   const _heroHeadline = _showVenue ? `<div class="h ph-venue">${esc(ad.venue)}</div>` : `<div class="h">${_heroTitle}</div>`;
   const _heroDoorsSet = ad.status === 'show'
-    ? [ad.doors ? 'Doors ' + esc(fmtClock(ad.doors, ad)) : '', ad.setTime ? 'Set ' + esc(fmtClock(ad.setTime, ad)) : ''].filter(Boolean).join(' · ')
+    ? [ad.doors ? 'Doors ' + esc(fmtClock(ad.doors, ad)) + _tzTag(ad) : '', ad.setTime ? 'Set ' + esc(fmtClock(ad.setTime, ad)) + _tzTag(ad) : ''].filter(Boolean).join(' · ')
     : ad.status === 'travel' ? 'Travel day'
     : ad.status === 'off' ? 'Day off'
     : ad.status === 'rehearsal' ? 'Rehearsal day'
@@ -22172,7 +22261,7 @@ function renderPhone() {
               ${detailPairs.map(p => `
                 <div>
                   <div class="lbl" style="font-size:9px">${esc(p.k)}</div>
-                  <div class="mono" style="font-size:12px;color:var(--warm);font-weight:600">${p.k === 'Phone' ? _telLinkHTML(p.v) : esc(p.v)}</div>
+                  <div class="mono" style="font-size:12px;color:var(--warm);font-weight:600">${p.k === 'Phone' ? _telLinkHTML(p.v) : esc(p.v) + (/^Check/.test(p.k) ? _tzTag(ad) : '')}</div>
                 </div>
               `).join('')}
             </div>
@@ -22335,7 +22424,7 @@ function renderPhone() {
               <div class="mono" style="${d.id===ad.id?'color:var(--hot)':''};font-weight:700;font-size:13px">${fmtMD(d.date)}</div>
               <div>
                 <div style="font-weight:700;font-size:13px;color:var(--warm)">${titleLine}</div>
-                <div class="mono" style="font-size:10.5px;color:var(--warm-mute)">${d.doors ? 'Doors ' + esc(fmtClock(d.doors, d)) : ''} ${d.setTime ? '· Set ' + esc(fmtClock(d.setTime, d)) : ''}${isTravelDay ? `${(d.travel||[]).length} ${(d.travel||[]).length === 1 ? 'move' : 'moves'} · tap for details` : ''}</div>
+                <div class="mono" style="font-size:10.5px;color:var(--warm-mute)">${d.doors ? 'Doors ' + esc(fmtClock(d.doors, d)) + _tzTag(d) : ''} ${d.setTime ? '· Set ' + esc(fmtClock(d.setTime, d)) + _tzTag(d) : ''}${isTravelDay ? `${(d.travel||[]).length} ${(d.travel||[]).length === 1 ? 'move' : 'moves'} · tap for details` : ''}</div>
               </div>
               <div class="mono" style="font-size:10.5px;color:${d.status==='show'?'var(--good)':d.status==='travel'?'var(--cool)':'var(--warm-mute)'}">${esc((d.status||'').toUpperCase())}</div>
             </div>
@@ -22363,8 +22452,8 @@ function renderPhone() {
       })()}
       <div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(232,148,58,.1);display:grid;grid-template-columns:1fr 1fr;gap:10px">
         ${myR ? `<div><div class="lbl">YOUR ROOM</div><div class="mono" style="font-size:22px;font-weight:800;color:var(--hi);text-shadow:0 0 12px rgba(232,148,58,.4)">${esc(myR.roomNum || '—')}</div></div>` : ''}
-        ${h.checkIn ? `<div><div class="lbl">CHECK-IN</div><div class="mono" style="font-size:14px;font-weight:700;color:var(--warm)">${esc(fmtClock(h.checkIn, ad))}</div></div>` : ''}
-        ${h.checkOut ? `<div><div class="lbl">CHECK-OUT</div><div class="mono" style="font-size:14px;font-weight:700;color:var(--warm)">${esc(fmtClock(h.checkOut, ad))}</div></div>` : ''}
+        ${h.checkIn ? `<div><div class="lbl">CHECK-IN</div><div class="mono" style="font-size:14px;font-weight:700;color:var(--warm)">${esc(fmtClock(h.checkIn, ad))}${_tzTag(ad)}</div></div>` : ''}
+        ${h.checkOut ? `<div><div class="lbl">CHECK-OUT</div><div class="mono" style="font-size:14px;font-weight:700;color:var(--warm)">${esc(fmtClock(h.checkOut, ad))}${_tzTag(ad)}</div></div>` : ''}
         ${h.conf ? `<div><div class="lbl">CONF</div><div class="mono" style="font-size:11px;color:var(--warm)">${esc(h.conf)}</div></div>` : ''}
         ${h.phone ? `<div><div class="lbl">PHONE</div><div class="mono" style="font-size:12px;color:var(--warm)">${_telLinkHTML(h.phone)}</div></div>` : ''}
       </div>
@@ -28899,7 +28988,7 @@ function _phoneShowDayTravel(dateId) {
               return `
                 <button type="button" class="ph-travel-row" onclick="closeModal();setTimeout(()=>_phoneShowTravel('${esc(t.id)}','${esc(d.id)}'),50)">
                   <span class="ptr-type">${esc(typeLabel)}</span>
-                  <span class="ptr-time">${t.allDay ? 'ALL' : esc(_fmt12Safe(t.time, d) || '—')}${t.arriveTime ? `<span class="ptr-arr">↓ ${esc(_fmt12Safe(t.arriveTime, d))}</span>` : ''}</span>
+                  <span class="ptr-time">${t.allDay ? 'ALL' : esc(_fmt12Safe(t.time, d) || '—') + (t.time ? _tzTagItem({ ...t, _travelDate: d.date }, d) : '')}${t.arriveTime ? `<span class="ptr-arr">↓ ${esc(_fmt12Safe(t.arriveTime, d))}</span>` : ''}</span>
                   <span class="ptr-desc">${esc(_travelShortDesc(t) || t.description || '—')}${(() => {
                     if (t.type !== 'flight') return '';
                     const li = _legInfo(t), st = _flightStatusBadge(t, d.date);
