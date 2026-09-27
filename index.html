@@ -22518,17 +22518,22 @@ function renderPhone() {
     </div>
   `;
 
-  $('#ph-today').innerHTML = `
-    ${_myFlightCards}${_todayHeroCard}
-
-    ${myTravel.length ? `
+  // The day's Travel card. Today always shows it; the Schedule tab also leads
+  // with it when the day's travel includes a flight.
+  const _travelCardHtml = myTravel.length ? `
       <div class="p-card">
         <div class="lbl">TRAVEL · ${myTravel.length} ${myTravel.length === 1 ? 'move' : 'moves'}</div>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
           ${travelOrdered.map(t => _phoneTravelItemHTML(t, viewer, viewerKey)).join('')}
         </div>
       </div>
-    ` : ''}
+    ` : '';
+  const _travelHasFlight = myTravel.some(t => t.type === 'flight');
+
+  $('#ph-today').innerHTML = `
+    ${_myFlightCards}${_todayHeroCard}
+
+    ${_travelCardHtml}
 
     ${_dayStays.map(h => {
       // One card per hotel stay covering today (a day can have several — band
@@ -22688,6 +22693,7 @@ function renderPhone() {
   const _upIdx = Math.max(0, T().dates.findIndex(d => d.id === ad.id));
   const _upcoming = T().dates.slice(_upIdx);
   $('#ph-schedule').innerHTML = `
+    ${_travelHasFlight ? _travelCardHtml : ''}
     <div class="p-card">
       <div class="lbl">${esc(fmtMD(ad.date))} ${esc(dow(ad.date).slice(0,3).toUpperCase())} · ${status}${ad.city && ad.status !== 'off' ? ' · ' + esc(ad.city.toUpperCase()) : ''}</div>
       <div style="margin-top:8px">
