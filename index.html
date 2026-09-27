@@ -2772,26 +2772,27 @@ html body.phone-app .toast-container,
 html body.mobile.crew-mobile-only .toast-container,
 html body.mobile.tm-crew-tour .toast-container{bottom:calc(64px + env(safe-area-inset-bottom,0px) + 14px)}
 html body.kb-open .toast-container{bottom:14px}
-/* Ticket stub: a short label (OK / Error / Note) torn off the message by a
-   perforated line with a notch punched top and bottom. The notches are cut
-   with a mask so they show whatever is behind the toast; the shadow sits on
-   the outer element so it follows the cut shape. */
+/* Departure board: the label (OK / ERR / NOTE) sits on split-flap tiles, one
+   letter to a dark tile with the fold across its middle, and the letters
+   flick through a couple of others before settling as the notification
+   appears (toast() drives that). */
 .toast{pointer-events:auto;max-width:min(460px,calc(100vw - 32px));
   filter:drop-shadow(0 10px 22px rgba(0,0,0,.55));animation:toastIn .25s ease-out}
-.toast-t{--nx:61.5px;display:flex;align-items:stretch;background:var(--ink-4);border:1px solid var(--line-2);border-radius:8px;
-  -webkit-mask:radial-gradient(circle 6px at var(--nx) 0,#0000 94%,#000) top/100% 51% no-repeat,
-               radial-gradient(circle 6px at var(--nx) 100%,#0000 94%,#000) bottom/100% 51% no-repeat;
-          mask:radial-gradient(circle 6px at var(--nx) 0,#0000 94%,#000) top/100% 51% no-repeat,
-               radial-gradient(circle 6px at var(--nx) 100%,#0000 94%,#000) bottom/100% 51% no-repeat}
-.toast-k{flex:none;width:62px;display:flex;align-items:center;justify-content:center;padding:12px 0;
-  border-right:1px dashed var(--line-2);color:var(--hi);
-  font-family:'Bricolage Grotesque',monospace;font-size:10.5px;font-weight:600;letter-spacing:.22em;text-transform:uppercase}
-.toast-m{min-width:0;padding:11px 16px;color:var(--warm);overflow-wrap:anywhere;
+.toast-t{display:flex;align-items:center;gap:12px;background:#0f0f0f;border:1px solid #262626;border-radius:6px;padding:8px 16px 8px 8px}
+.toast-k{flex:none;display:flex;gap:2px;perspective:120px}
+.toast-k i{position:relative;display:grid;place-items:center;width:15px;height:22px;background:#1d1d1d;border-radius:2px;
+  font-style:normal;font-family:'Bricolage Grotesque',monospace;font-size:13px;font-weight:700;line-height:1;color:var(--hi)}
+.toast-k i::after{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:#0a0a0a}
+.toast-k i.flip{animation:flapIn .12s ease-out}
+@keyframes flapIn{from{transform:rotateX(-80deg)}to{transform:rotateX(0)}}
+.toast-m{min-width:0;color:var(--warm);overflow-wrap:anywhere;
   font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:13.5px;line-height:1.35}
-.toast.good .toast-k{color:var(--good)}
-.toast.error .toast-k{color:var(--red)}
+.toast.good .toast-k i{color:var(--good)}
+.toast.error .toast-k i{color:var(--red)}
+/* A hotel you're checking OUT of today reads as yesterday's: grayed a touch. */
+.is-checkout{filter:grayscale(.75) brightness(.9)}
 @keyframes toastIn{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
-@media (prefers-reduced-motion:reduce){.toast{animation:none}}
+@media (prefers-reduced-motion:reduce){.toast,.toast-k i.flip{animation:none}}
 /* Zone tag: a very small abbreviation after a time ("7:00 PM CT"), shown to
    anyone whose device is on a different clock from where the time happens.
    7px on the website, 6px on phones. */
@@ -9855,7 +9856,21 @@ const BMCal = (() => {
 })();
 
 /* ---------- toast ---------- */
-const _TOAST_LABEL = { good: 'OK', error: 'Error' };
+const _TOAST_LABEL = { good: 'OK', error: 'ERR' };
+// Split-flap settle: each tile flicks through two other letters, left to
+// right, then lands on its own — about half a second for the longest label.
+function _toastFlap(tiles, word) {
+  let reduce = false;
+  try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  if (reduce) return;
+  const A = 'ABCDEFGHJKLMNPRSTUVWXYZ';
+  tiles.forEach((t, i) => {
+    t.textContent = '';
+    [A[Math.floor(Math.random() * A.length)], A[Math.floor(Math.random() * A.length)], word[i]].forEach((ch, step) => {
+      setTimeout(() => { t.textContent = ch; t.classList.remove('flip'); void t.offsetWidth; t.classList.add('flip'); }, 40 + i * 70 + step * 85);
+    });
+  });
+}
 function toast(msg, kind = '') {
   const root = $('#toastRoot');
   const el = document.createElement('div');
@@ -9865,13 +9880,17 @@ function toast(msg, kind = '') {
   stub.className = 'toast-t';
   const k = document.createElement('span');
   k.className = 'toast-k';
-  k.textContent = _TOAST_LABEL[kind] || 'Note';
+  k.setAttribute('aria-hidden', 'true');
+  const word = _TOAST_LABEL[kind] || 'NOTE';
+  const tiles = [...word].map(ch => { const t = document.createElement('i'); t.textContent = ch; return t; });
+  k.append(...tiles);
   const m = document.createElement('span');
   m.className = 'toast-m';
   m.textContent = msg;
   stub.append(k, m);
   el.appendChild(stub);
   root.appendChild(el);
+  _toastFlap(tiles, word);
   setTimeout(() => el.style.transition = 'opacity .3s', 2400);
   setTimeout(() => { el.style.opacity = '0'; }, 2500);
   setTimeout(() => el.remove(), 2900);
@@ -17916,7 +17935,7 @@ function renderDashboard() {
     const whoTxt = (hotel.who && hotel.who !== 'Everyone') ? esc(hotel.who) : '';
     const tag = [whoTxt, roleTxt].filter(Boolean).join(' · ');
     return `
-    <div class="bm-info"${i ? ' style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)"' : ''}>
+    <div class="bm-info${hotel._role === 'out' ? ' is-checkout' : ''}"${i ? ' style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)"' : ''}>
       <div class="name">${esc(hotel.name || 'Hotel')}${tag ? ` <span class="lbl" style="font-weight:400;letter-spacing:.06em">${tag}</span>` : ''}</div>
       ${hotel.address ? `<div class="line">${esc(hotel.address)}</div>` : ''}
       ${hotel.city ? `<div class="line">${esc([hotel.city, _stateFor(hotel.city, hotel.state), hotel.zip].filter(Boolean).join(', '))}</div>` : ''}
@@ -18798,7 +18817,7 @@ function _hotelStayCardHTML(s) {
   const cell = (lbl, val, mono, hi) =>
     `<div><div style="font-family:'Bricolage Grotesque',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.18em;text-transform:uppercase">${lbl}</div><div class="${mono ? 'mono ' : ''}" style="font-size:13px;margin-top:3px${hi ? ';color:var(--hi)' : ''}">${esc(val || '—')}</div></div>`;
   return `
-    <div class="card mb12">
+    <div class="card mb12${s._role === 'out' ? ' is-checkout' : ''}">
       <div class="row-flex" style="align-items:flex-start;gap:10px">
         <div class="flex1">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -22553,7 +22572,7 @@ function renderPhone() {
       const roleTag = h._role === 'out' ? ' · CHECK-OUT' : h._role === 'mid' ? ' · STAYING' : h._role === 'in' ? ' · CHECK-IN' : '';
       const whoTag = (h.who && h.who !== 'Everyone') ? ' · ' + esc(String(h.who).toUpperCase()) : '';
       return `
-        <div class="p-card">
+        <div class="p-card${h._role === 'out' ? ' is-checkout' : ''}">
           <div class="lbl">${myR ? 'YOUR ROOM' + whoTag : 'HOTEL' + whoTag + roleTag}</div>
           <div class="h">${myR ? '#' + esc(myR.roomNum || '—') : esc(h.name)}</div>
           ${myR ? `<div class="sub">${esc(h.name)}${roleTag ? '<span style="color:var(--warm-mute)">' + roleTag + '</span>' : ''}</div>` : ''}
@@ -22744,7 +22763,7 @@ function renderPhone() {
     const roleLbl = h._role === 'out' ? 'CHECK-OUT' : h._role === 'mid' ? 'STAYING' : h._role === 'in' ? 'TONIGHT' : 'TONIGHT';
     const whoLbl = (h.who && h.who !== 'Everyone') ? esc(String(h.who).toUpperCase()) + ' · ' : '';
     return `
-    <div class="p-card">
+    <div class="p-card${h._role === 'out' ? ' is-checkout' : ''}">
       <div class="lbl">${whoLbl}${roleLbl}</div>
       <div class="h">${esc(h.name)}</div>
       ${(() => {
