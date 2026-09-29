@@ -29464,7 +29464,7 @@ function _guestLockPanelHTML(d, variant) {
     : 'Open — band & crew can add names.';
   const link = (fn, label) => `<button type="button" class="gl-link" onclick="${fn}('${d.id}')">${label}</button>`;
   const slider = `
-      <div class="gl-slide${locked ? ' on' : ''}" role="switch" aria-checked="${locked}" tabindex="0" data-date="${d.id}"
+      <div class="gl-slide${locked ? ' on' : ''}" role="switch" aria-checked="${locked}" tabindex="0" data-date="${d.id}" data-noswipe
            aria-label="${locked ? 'Guest requests locked — reopen' : 'Lock guest requests'}"
            onpointerdown="_glSlideDown(event,this)" onkeydown="_glSlideKey(event,this)">
         <span class="gls-text">${locked ? 'Locked · slide back' : 'Slide to lock'}</span>
