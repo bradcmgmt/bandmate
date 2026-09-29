@@ -1414,7 +1414,7 @@ body.mobile .god-search{min-width:0;width:100%}
 .bm-kpis .kpi{display:flex;flex-direction:column;justify-content:flex-start;gap:4px;min-width:0}
 .bm-kpis .kpi .delta{overflow-wrap:anywhere}
 /* Dashboard: the guest list lock, full width under the number tiles */
-.gl-lock-bar.dash{grid-column:1/-1;margin:0;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:rgba(232,148,58,.03)}
+
 @media (min-width:1201px){
   .bm-kpis.tall{grid-column:var(--kc);grid-row:var(--kr) / span 2;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:1fr;gap:12px}
   .bm-kpis.across{grid-column:var(--kc) / span 2;grid-row:var(--kr);gap:12px}
@@ -2098,22 +2098,48 @@ html body.phone-app .ph-page-head{padding-top:calc(12px + env(safe-area-inset-to
 /* DOS quick */
 .dos-quick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .dos-quick.one{grid-template-columns:1fr}
-/* Guest list lock — phone (managers) */
-.gl-lockrow{margin-top:10px;padding-top:10px;border-top:1px dashed rgba(232,148,58,.14);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:baseline}
-.gl-lockrow .glr-k{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm-mute)}
-.gl-lockrow .glr-v{grid-column:1/-1;font-size:13px;font-weight:600;color:var(--good)}
-.gl-lockrow.locked .glr-v{color:var(--hi)}
-.gl-lockrow .glr-acts{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
-.glr-btn{padding:8px 12px;background:transparent;color:var(--hi);border:1px solid rgba(232,148,58,.4);border-radius:8px;font-family:'Bricolage Grotesque',monospace;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
 /* Guest list lock — phone (band & crew) */
 .gl-closed{margin-top:10px;padding:11px 12px;border:1px solid rgba(232,148,58,.3);border-radius:10px;font-size:12.5px;line-height:1.45;color:var(--warm-mute)}
 .gl-closes{margin-top:6px;text-align:center;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--warm-mute)}
-/* Guest list lock — desktop Guest List bar */
-.gl-lock-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 12px;padding:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-.gl-lock-bar .gll-k{font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm-mute)}
-.gl-lock-bar .gll-v{font-size:13.5px;font-weight:600;color:var(--good)}
-.gl-lock-bar.locked .gll-v{color:var(--hi)}
-.gl-lock-bar .gll-acts{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+/* Guest list lock — status + slide-to-lock + scheduled lock */
+.gl-lock{display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px}
+.gl-lock-txt{flex:1 1 240px;min-width:0;display:flex;flex-direction:column;gap:4px}
+.gl-lock-k{font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm-mute)}
+.gl-lock-state{font-size:13.5px;font-weight:600;line-height:1.4;color:var(--good)}
+.gl-lock.locked .gl-lock-state{color:var(--hi)}
+.gl-lock-ctrls{flex:0 1 auto;display:flex;align-items:center;gap:12px 16px;flex-wrap:wrap}
+.gl-why{flex:1 1 100%;font-size:12px;color:var(--warm-mute)}
+.gl-lock-desk{margin:0 0 12px;padding:14px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.gl-lock-dash{grid-column:1/-1;padding:14px 18px;border:1px solid var(--line);border-radius:12px;background:rgba(232,148,58,.03)}
+.gl-lock-phone{flex-direction:column;align-items:stretch;gap:8px;margin-top:12px;padding-top:12px;border-top:1px dashed rgba(232,148,58,.14)}
+.gl-lock-phone .gl-lock-txt{flex:none}
+.gl-lock-phone .gl-lock-ctrls{flex-direction:column;align-items:stretch;gap:10px;margin-top:4px}
+.gl-lock-phone .gl-slide{width:100%;height:46px}
+.gl-lock-phone .gls-knob{width:38px;height:38px}
+.gl-lock-phone .gl-slide.on .gls-knob{left:calc(100% - 42px)}
+.gl-lock-phone .gl-sched{justify-content:center}
+.gl-slide{position:relative;flex:none;width:240px;height:40px;border-radius:10px;border:1px solid rgba(232,148,58,.5);background:#120c07;
+  cursor:pointer;touch-action:none;-webkit-user-select:none;user-select:none;outline:none;-webkit-tap-highlight-color:transparent;overflow:hidden;transition:background .25s,border-color .25s}
+.gl-slide:hover{border-color:var(--hi)}
+.gl-slide:focus-visible{box-shadow:0 0 0 2px rgba(232,148,58,.45)}
+.gl-slide::before{content:"";position:absolute;left:0;top:0;bottom:0;width:calc(var(--gls-p,0) * 100%);background:rgba(232,148,58,.22);pointer-events:none}
+.gls-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding-left:40px;
+  font-family:'Bricolage Grotesque',monospace;font-size:10.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;white-space:nowrap;
+  background:linear-gradient(90deg,#8a7458 0%,#8a7458 38%,#ffd9a0 50%,#8a7458 62%,#8a7458 100%);background-size:260% 100%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;animation:glsShimmer 2.8s linear infinite}
+.gls-knob{position:absolute;top:3px;left:4px;width:32px;height:32px;border-radius:8px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--hi),var(--hi-2));color:#0a0705;box-shadow:0 2px 8px rgba(0,0,0,.45);transition:left .24s cubic-bezier(.3,.8,.3,1)}
+.gl-slide:hover .gls-knob{box-shadow:0 2px 12px rgba(232,148,58,.45)}
+.gl-slide.dragging .gls-knob{transition:none}
+.gl-slide.on{background:linear-gradient(90deg,#b8591a,#e8943a);border-color:#e8943a}
+.gl-slide.on .gls-knob{left:calc(100% - 36px);background:#0a0705;color:var(--hi-bright)}
+.gl-slide.on .gls-text{padding-left:0;padding-right:40px;background:none;color:#1a0d04;animation:none;letter-spacing:.16em}
+@keyframes glsShimmer{0%{background-position:100% 0}100%{background-position:-160% 0}}
+@media (prefers-reduced-motion:reduce){.gls-text{animation:none}}
+.gl-sched{display:flex;align-items:center;gap:14px}
+.gl-link{padding:0;background:none;border:0;border-bottom:1px solid rgba(232,148,58,.35);color:var(--hi);cursor:pointer;
+  font-family:'Bricolage Grotesque',monospace;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;line-height:1.7}
+.gl-link:hover{border-bottom-color:var(--hi)}
 .p-quick{background:linear-gradient(135deg,rgba(232,148,58,.06),rgba(232,148,58,.01));border:1px solid var(--line-2);border-radius:10px;
   padding:13px 6px;display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--warm);cursor:pointer;transition:transform .1s ease,background .12s}
 .p-quick:active{transform:scale(.97);background:rgba(232,148,58,.12)}
@@ -18186,12 +18212,7 @@ function renderDashboard() {
           <div class="kpi ${dueToday?'bad':''}"><div class="label">Open tasks</div><div class="value mono">${openTasks}</div><div class="delta" style="${dueToday?'color:var(--red)':''}">${dueToday} due today</div></div>
           <div class="kpi"><div class="label">Guests today</div><div class="value mono">${todayGuests}</div><div class="delta">${ad.guests.filter(g=>g.status==='pending').length} pending</div></div>
         </div>
-        ${_dayHasGuestListTab(ad) ? `
-        <div class="gl-lock-bar dash${_guestLocked(ad) ? ' locked' : ''}">
-          <span class="gll-k">Guest list · band &amp; crew requests</span>
-          <span class="gll-v">${esc(_guestLockLine(ad))}</span>
-          ${_guestLockCanSet() ? `<span class="gll-acts">${_guestLockActions(ad, 'tb-btn')}</span>` : ''}
-        </div>` : ''}
+        ${_dayHasGuestListTab(ad) ? _guestLockPanelHTML(ad, 'dash') : ''}
       </div>
     </div>
 
@@ -19033,12 +19054,7 @@ function renderGuestList() {
       <button type="button" class="tb-btn" onclick="printGuestList()">↪ Print for venue</button>
     </div>
 
-    ${_noGuestDay ? '' : `
-      <div class="gl-lock-bar${_guestLocked(ad) ? ' locked' : ''}">
-        <span class="gll-k">Band &amp; crew requests</span>
-        <span class="gll-v">${esc(_guestLockLine(ad))}</span>
-        ${_guestLockCanSet() ? `<span class="gll-acts">${_guestLockActions(ad, 'tb-btn')}</span>` : ''}
-      </div>`}
+    ${_noGuestDay ? '' : _guestLockPanelHTML(ad, 'desk')}
 
     ${_noGuestDay ? `
       <div class="review-banner" style="margin-bottom:12px">
@@ -22925,12 +22941,7 @@ function renderPhone() {
       <div class="lbl">${hasMgmt ? 'ALL GUESTS · TONIGHT' : 'YOUR GUEST LIST'}</div>
       <div class="h">${myGuests.length} ${hasMgmt ? 'submitted' : 'used'}</div>
       <div class="sub">${pendingCount} pending</div>
-      ${_guestLockExempt() && !_noGuestDay ? `
-        <div class="gl-lockrow${_guestLocked(ad) ? ' locked' : ''}">
-          <div class="glr-k">Band &amp; crew requests</div>
-          <div class="glr-v">${esc(_guestLockLine(ad))}</div>
-          <div class="glr-acts">${_guestLockActions(ad, 'glr-btn')}</div>
-        </div>` : ''}
+      ${_guestLockExempt() && !_noGuestDay ? _guestLockPanelHTML(ad, 'phone') : ''}
       ${hasMgmt && pendingCount > 0 ? `
         <div style="display:flex;gap:6px;margin-top:10px">
           <button type="button" onclick="approveAllPending()" style="flex:1;padding:9px;background:rgba(122,220,151,.12);color:#7adc97;border:1px solid rgba(122,220,151,.4);border-radius:8px;font-family:'Bricolage Grotesque',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;cursor:pointer">✓ Approve all ${pendingCount}</button>
@@ -29435,16 +29446,72 @@ function _guestLockWatch() {
   const wait = _guestLockAt(ad) - Date.now();
   if (wait > 0 && wait < 864e5) _guestLockTimer = setTimeout(() => { try { renderAll(); } catch (e) {} }, wait + 500);
 }
-// The status line + controls, shared by the desktop Guest List and the phone.
-function _guestLockLine(d) {
-  const at = _guestLockAt(d), locked = _guestLocked(d);
-  return locked ? `Locked · ${_guestLockWhen(d)}${d.guestLockBy ? ' · by ' + d.guestLockBy : ''}`
-    : at ? `Closes ${_guestLockWhen(d)}` : 'Open';
+// The lock control, shared by the phone Show tab, the desktop Guest List and
+// the dashboard: a plain-words status, a slide-to-lock switch (drag the
+// padlock across, or just click / tap it; Enter and Space work too), and the
+// scheduled lock beside it. Anyone who can't lock is told why.
+const _GL_PADLOCK = on => on
+  ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg>'
+  : '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 7.6-1.8"/></svg>';
+function _guestLockPanelHTML(d, variant) {
+  const locked = _guestLocked(d), at = _guestLockAt(d), can = _guestLockCanSet(), when = _guestLockWhen(d);
+  const state = locked ? `Locked ${when}${d.guestLockBy ? ' by ' + d.guestLockBy : ''} — band & crew can't add names.`
+    : at ? `Open until ${when} — then it locks by itself.`
+    : 'Open — band & crew can add names.';
+  const link = (fn, label) => `<button type="button" class="gl-link" onclick="${fn}('${d.id}')">${label}</button>`;
+  const slider = `
+      <div class="gl-slide${locked ? ' on' : ''}" role="switch" aria-checked="${locked}" tabindex="0" data-date="${d.id}"
+           aria-label="${locked ? 'Guest requests locked — reopen' : 'Lock guest requests'}"
+           onpointerdown="_glSlideDown(event,this)" onkeydown="_glSlideKey(event,this)">
+        <span class="gls-text">${locked ? 'Locked · slide back' : 'Slide to lock'}</span>
+        <span class="gls-knob">${_GL_PADLOCK(locked)}</span>
+      </div>`;
+  const sched = locked ? '' : `<span class="gl-sched">${link('_guestLockSchedule', at ? 'Change lock time' : 'Set a lock time')}${at ? link('_guestLockClear', 'Cancel') : ''}</span>`;
+  const why = can ? '' : `<div class="gl-why">${_isGodAccount() ? 'This account is view-only, so it can’t lock requests.' : 'Only the tour’s owner and co-managers can lock requests.'}</div>`;
+  return `
+    <div class="gl-lock gl-lock-${variant}${locked ? ' locked' : ''}">
+      <div class="gl-lock-txt">
+        <div class="gl-lock-k">${variant === 'dash' ? 'Guest list · band &amp; crew requests' : 'Band &amp; crew requests'}</div>
+        <div class="gl-lock-state">${esc(state)}</div>
+      </div>
+      ${can ? `<div class="gl-lock-ctrls">${slider}${sched}</div>` : why}
+    </div>`;
 }
-function _guestLockActions(d, cls) {
-  const at = _guestLockAt(d), b = (fn, label) => `<button type="button" class="${cls}" onclick="${fn}('${d.id}')">${label}</button>`;
-  return _guestLocked(d) ? b('_guestLockClear', 'Reopen')
-    : b('_guestLockNow', 'Lock now') + b('_guestLockSchedule', at ? 'Change lock time' : 'Set a lock time') + (at ? b('_guestLockClear', 'Cancel') : '');
+// Drag the padlock across (past ~60%) — or click / tap anywhere on the track.
+function _glSlideDown(e, el) {
+  if (e.button !== undefined && e.button !== 0) return;
+  const knob = el.querySelector('.gls-knob');
+  if (!knob) return;
+  const max = Math.max(1, el.clientWidth - knob.offsetWidth - 8), on = el.classList.contains('on');
+  const start = e.clientX, from = on ? max : 0;
+  let pos = from, moved = 0;
+  try { el.setPointerCapture(e.pointerId); } catch (err) {}
+  el.classList.add('dragging');
+  const move = ev => {
+    moved = ev.clientX - start;
+    pos = Math.max(0, Math.min(max, from + moved));
+    knob.style.left = (4 + pos) + 'px';
+    el.style.setProperty('--gls-p', (pos / max).toFixed(3));
+  };
+  const up = () => {
+    el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up);
+    el.classList.remove('dragging'); knob.style.left = ''; el.style.removeProperty('--gls-p');
+    const flip = Math.abs(moved) < 5 || (on ? pos < max * 0.4 : pos > max * 0.6);
+    if (flip) _glSlideCommit(el, !on);
+  };
+  el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  e.preventDefault();
+}
+function _glSlideKey(e, el) {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _glSlideCommit(el, !el.classList.contains('on')); }
+}
+function _glSlideCommit(el, lock) {
+  el.classList.toggle('on', lock);
+  const knob = el.querySelector('.gls-knob'); if (knob) knob.innerHTML = _GL_PADLOCK(lock);
+  const tx = el.querySelector('.gls-text'); if (tx) tx.textContent = lock ? 'Locked' : 'Reopening…';
+  try { _haptic(lock ? 'heavy' : 'light'); } catch (e) {}
+  const id = el.dataset.date;
+  setTimeout(() => { if (lock) _guestLockNow(id); else _guestLockClear(id); }, 260);
 }
 
 function approveGuest(id) {
@@ -40378,7 +40445,7 @@ Object.assign(window, {
   openGuestModal, openAllotmentModal, openSetItemModal, moveSetItem, copySetList,
   openSettleModal, openAttachModal, _attachFilePicked, _attachScopeChange, _attachBackToPick, _attachUpdatePrimaryLabel, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport, renderLocalAttachments, renderAttachments, renderTrialBadge, openSubscriptionPortal, _trialBadgeClick, _fxManualRefresh,
   openChatsModal, openNewChatModal, setActiveChat, _chatComposeOnInput, _chatComposeOnKeydown, _chatComposeSend, _chatMentionPick, _chatReactToggle, _chatReactPicker, _chatSendBroadcastPrompt, _chatToggleGroup, _chatUpdatePickCount,
-  openPhoneSearch, _phoneSearchRender, _guestLockNow, _guestLockClear, _guestLockSchedule, openCalendarTool, _calOpen, _calCopy, _calReset, _phAcctToggle, _phAcctSaveName, _phAcctDraftSet, _prefToggle,
+  openPhoneSearch, _phoneSearchRender, _glSlideDown, _glSlideKey, _guestLockNow, _guestLockClear, _guestLockSchedule, openCalendarTool, _calOpen, _calCopy, _calReset, _phAcctToggle, _phAcctSaveName, _phAcctDraftSet, _prefToggle,
   openTaskModal, openTagModal, toggleTask, renderEditHistory, openHistoryDetail, _tmToggleSheet, _tmTabPick, _tmTabMenu,
   setActive, closeModal, _modalSubmit, goToTab,
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
