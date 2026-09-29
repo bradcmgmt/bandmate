@@ -3824,6 +3824,10 @@ body.print-stage-mode #stagePrintArea{
 .sp-foot{text-align:center;margin-top:22px;padding-top:14px;border-top:5px solid #000;
   font-family:'Bricolage Grotesque',monospace;font-size:12px;letter-spacing:.22em;font-weight:700}
 
+/* Everything Bandmate prints (guest list, set list, tour book, day sheet) is an
+   upright Letter page. Said explicitly: some print dialogs keep the last
+   orientation used unless the page asks for portrait. */
+@page{size:letter portrait}
 @media print{
   body.print-stage-mode .sp-controls{display:none!important}
   body.print-stage-mode #stagePrintArea{position:static;overflow:visible}
@@ -4119,7 +4123,7 @@ body.print-tourbook-mode #tourBookArea{display:block!important;position:fixed;in
   /* Tour Book / Day Sheet print polish — Letter page, tight margins, no
      viewport-height overhead, color-accurate fills, and aggressive
      page-break-inside controls so sections never get sliced across pages. */
-  @page{size:Letter;margin:0.5in}
+  @page{size:letter portrait;margin:0.5in}
   html,body{background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
   .tb-controls{display:none!important}
   body.print-tourbook-mode #tourBookArea{position:static;overflow:visible;background:#fff;color:#000}
