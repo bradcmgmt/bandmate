@@ -2095,6 +2095,23 @@ html body.phone-app .ph-page-head{padding-top:calc(12px + env(safe-area-inset-to
 .ph-up-row.pressed,.ph-up-row:active{transform:scale(.972);background:rgba(232,148,58,.13)}
 /* DOS quick */
 .dos-quick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.dos-quick.one{grid-template-columns:1fr}
+/* Guest list lock — phone (managers) */
+.gl-lockrow{margin-top:10px;padding-top:10px;border-top:1px dashed rgba(232,148,58,.14);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:baseline}
+.gl-lockrow .glr-k{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm-mute)}
+.gl-lockrow .glr-v{grid-column:1/-1;font-size:13px;font-weight:600;color:var(--good)}
+.gl-lockrow.locked .glr-v{color:var(--hi)}
+.gl-lockrow .glr-acts{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.glr-btn{padding:8px 12px;background:transparent;color:var(--hi);border:1px solid rgba(232,148,58,.4);border-radius:8px;font-family:'Bricolage Grotesque',monospace;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
+/* Guest list lock — phone (band & crew) */
+.gl-closed{margin-top:10px;padding:11px 12px;border:1px solid rgba(232,148,58,.3);border-radius:10px;font-size:12.5px;line-height:1.45;color:var(--warm-mute)}
+.gl-closes{margin-top:6px;text-align:center;font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--warm-mute)}
+/* Guest list lock — desktop Guest List bar */
+.gl-lock-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 12px;padding:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.gl-lock-bar .gll-k{font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--warm-mute)}
+.gl-lock-bar .gll-v{font-size:13.5px;font-weight:600;color:var(--good)}
+.gl-lock-bar.locked .gll-v{color:var(--hi)}
+.gl-lock-bar .gll-acts{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
 .p-quick{background:linear-gradient(135deg,rgba(232,148,58,.06),rgba(232,148,58,.01));border:1px solid var(--line-2);border-radius:10px;
   padding:13px 6px;display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--warm);cursor:pointer;transition:transform .1s ease,background .12s}
 .p-quick:active{transform:scale(.97);background:rgba(232,148,58,.12)}
@@ -7037,6 +7054,9 @@ const dbMap = {
       no_travel:    !!d.noTravel,
       no_travel_by: d.noTravelBy || null,
       no_travel_at: d.noTravelAt ? new Date(d.noTravelAt).toISOString() : null,
+      // Guest list lock (patch-060): when band/crew requests close for this date.
+      guest_lock_at: d.guestLockAt ? new Date(d.guestLockAt).toISOString() : null,
+      guest_lock_by: d.guestLockBy || null,
       // Nested arrays stored as JSONB on the date row (slice 3). Attachments
       // are intentionally excluded here — their dataUrl binary stays local
       // until slice 4 moves binaries to Supabase Storage.
@@ -7083,6 +7103,8 @@ const dbMap = {
       noTravel: !!row.no_travel,
       noTravelBy: row.no_travel_by || '',
       noTravelAt: row.no_travel_at ? Date.parse(row.no_travel_at) : 0,
+      guestLockAt: row.guest_lock_at ? Date.parse(row.guest_lock_at) : 0,
+      guestLockBy: row.guest_lock_by || '',
       schedule: row.schedule || [],
       travel:   row.travel   || [],
       guests:   row.guests   || [],
@@ -18929,6 +18951,12 @@ function _dayHasGuestListTab(d) {
   const noShowDay = d.status === 'travel' || d.status === 'off';
   return !noShowDay || (d.guests || []).length > 0;
 }
+// Set list: shows and rehearsals only (or any date that already has one, so
+// nothing is ever hidden). Drives the desktop tab and the phone's button.
+function _dayHasSetList(d) {
+  if (!d) return true;
+  return !d.status || d.status === 'show' || d.status === 'rehearsal' || (d.setList || []).length > 0;
+}
 // Show/hide the desktop Guest List tab for the active date; bounce to the
 // Dashboard if the now-hidden tab was the one being viewed. Called from
 // renderAll before renderActivePanel.
@@ -18941,12 +18969,19 @@ function _syncGuestTabVisibility() {
     activeTab = 'dashboard';
     applyTabFromState();
   }
+  const sl = _dayHasSetList(ad), slTab = document.querySelector('.tab[data-tab="setlist"]');
+  if (slTab) slTab.hidden = !sl;
+  if (!sl && activeTab === 'setlist') {
+    activeTab = 'dashboard';
+    applyTabFromState();
+  }
 }
 
 function renderGuestList() {
   const ad = getActiveDate();
   const root = $('#p-guest');
   if (!ad) { root.innerHTML = noDate(); return; }
+  _guestLockWatch();
 
   // Defensive: travel/off day with no guests shouldn't be reachable (tab is
   // hidden + viewer is bounced), but render a clean explainer if it is.
@@ -18989,6 +19024,13 @@ function renderGuestList() {
       <button type="button" class="tb-btn" onclick="exportGuestListPDF()">↓ PDF</button>
       <button type="button" class="tb-btn" onclick="printGuestList()">↪ Print for venue</button>
     </div>
+
+    ${_noGuestDay ? '' : `
+      <div class="gl-lock-bar${_guestLocked(ad) ? ' locked' : ''}">
+        <span class="gll-k">Band &amp; crew requests</span>
+        <span class="gll-v">${esc(_guestLockLine(ad))}</span>
+        ${_guestLockCanSet() ? `<span class="gll-acts">${_guestLockActions(ad, 'tb-btn')}</span>` : ''}
+      </div>`}
 
     ${_noGuestDay ? `
       <div class="review-banner" style="margin-bottom:12px">
@@ -22826,8 +22868,8 @@ function renderPhone() {
   const dosQuickHtml = `
     <div class="p-card">
       <div class="lbl">DAY OF SHOW</div>
-      <div class="dos-quick">
-        <button type="button" class="p-quick" onclick="_phoneShowSetList()"><span class="pq-ic">▤</span><span class="pq-lb">Set list</span></button>
+      <div class="dos-quick${_dayHasSetList(ad) ? '' : ' one'}">
+        ${_dayHasSetList(ad) ? `<button type="button" class="p-quick" onclick="_phoneShowSetList()"><span class="pq-ic">▤</span><span class="pq-lb">Set list</span></button>` : ''}
         <button type="button" class="p-quick" onclick="printDay()"><span class="pq-ic">⎙</span><span class="pq-lb">Day sheet</span></button>
       </div>
     </div>`;
@@ -22869,6 +22911,12 @@ function renderPhone() {
       <div class="lbl">${hasMgmt ? 'ALL GUESTS · TONIGHT' : 'YOUR GUEST LIST'}</div>
       <div class="h">${myGuests.length} ${hasMgmt ? 'submitted' : 'used'}</div>
       <div class="sub">${pendingCount} pending</div>
+      ${_guestLockExempt() && !_noGuestDay ? `
+        <div class="gl-lockrow${_guestLocked(ad) ? ' locked' : ''}">
+          <div class="glr-k">Band &amp; crew requests</div>
+          <div class="glr-v">${esc(_guestLockLine(ad))}</div>
+          <div class="glr-acts">${_guestLockActions(ad, 'glr-btn')}</div>
+        </div>` : ''}
       ${hasMgmt && pendingCount > 0 ? `
         <div style="display:flex;gap:6px;margin-top:10px">
           <button type="button" onclick="approveAllPending()" style="flex:1;padding:9px;background:rgba(122,220,151,.12);color:#7adc97;border:1px solid rgba(122,220,151,.4);border-radius:8px;font-family:'Bricolage Grotesque',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;cursor:pointer">✓ Approve all ${pendingCount}</button>
@@ -22891,7 +22939,7 @@ function renderPhone() {
               ${canApprove ? `<button type="button" onclick="event.stopPropagation();approveGuest('${g.id}')" title="Approve" style="padding:5px 9px;background:rgba(122,220,151,.12);color:#7adc97;border:1px solid rgba(122,220,151,.4);border-radius:5px;font-family:'Bricolage Grotesque',monospace;font-size:11px;font-weight:800;cursor:pointer;line-height:1">✓</button>` : ''}
               ${canDeny ? `<button type="button" onclick="event.stopPropagation();denyGuest('${g.id}')" title="Deny" style="padding:5px 9px;background:rgba(232,69,69,.08);color:var(--red);border:1px solid rgba(232,69,69,.35);border-radius:5px;font-family:'Bricolage Grotesque',monospace;font-size:11px;font-weight:800;cursor:pointer;line-height:1">✗</button>` : ''}
             </div>
-          ` : (g.status === 'pending' ? `
+          ` : (g.status === 'pending' && !(_guestLocked(ad) && !_guestLockExempt()) ? `
             <div style="display:flex;gap:4px;align-self:center">
               <button type="button" onclick="event.stopPropagation();openGuestModalForViewer('${g.id}')" title="Edit request" style="padding:5px 9px;background:rgba(232,148,58,.1);color:var(--hi);border:1px solid rgba(232,148,58,.4);border-radius:5px;font-family:'Bricolage Grotesque',monospace;font-size:11px;font-weight:800;cursor:pointer;line-height:1">✎</button>
               <button type="button" onclick="event.stopPropagation();deleteGuestRequest('${g.id}')" title="Withdraw request" style="padding:5px 9px;background:rgba(232,69,69,.08);color:var(--red);border:1px solid rgba(232,69,69,.35);border-radius:5px;font-family:'Bricolage Grotesque',monospace;font-size:11px;font-weight:800;cursor:pointer;line-height:1">✕</button>
@@ -22913,7 +22961,9 @@ function renderPhone() {
           `;
         }).join('') || `<div class="sub">No guests yet.</div>`}
       </div>
-      ${_noGuestDay ? '' : `<button type="button" onclick="openGuestModalForViewer()" style="margin-top:10px;padding:11px;background:linear-gradient(135deg,var(--hi),var(--hi-2));color:#0a0705;border-radius:10px;font-weight:800;letter-spacing:.06em;border:none;cursor:pointer;font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;box-shadow:0 0 14px rgba(232,148,58,.3)">+ Add Guest Request</button>`}
+      ${_noGuestDay ? '' : (_guestLocked(ad) && !_guestLockExempt())
+        ? `<div class="gl-closed">Guest list closed · ${esc(_guestLockWhen(ad))} — it's gone to production. Ask your tour manager about late additions.</div>`
+        : `<button type="button" onclick="openGuestModalForViewer()" style="margin-top:10px;padding:11px;background:linear-gradient(135deg,var(--hi),var(--hi-2));color:#0a0705;border-radius:10px;font-weight:800;letter-spacing:.06em;border:none;cursor:pointer;font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;box-shadow:0 0 14px rgba(232,148,58,.3)">+ Add Guest Request</button>` + (_guestLockAt(ad) && !_guestLockExempt() ? `<div class="gl-closes">Requests close ${esc(_guestLockWhen(ad))}</div>` : '')}
     </div>
   `;
   }
@@ -23027,6 +23077,7 @@ function renderPhone() {
   `;
 
   try { _phoneFitTimes(); } catch (e) {}
+  try { _guestLockWatch(); } catch (e) {}
   // Sync date menu + today-button alert state
   renderPhoneDateMenu();
   const onToday = isPhoneOnToday();
@@ -29284,6 +29335,103 @@ function _guestSetStatus(ad, list, status) {
         : "Couldn't save that — check your connection and try again", 'error');
     });
 }
+// ── Guest list lock ────────────────────────────────────────────────────
+// A tour manager closes a date's guest list to band and crew once it has gone
+// to production — right now, or at a time they set in the venue's local time.
+// Stored as an instant (guestLockAt, ms since epoch) on the date, and
+// enforced server-side too (patch-060): after it, crew can't submit, edit or
+// withdraw requests for that date. The owner and co-managers are never locked.
+function _guestLockAt(d) { return (d && +d.guestLockAt) || 0; }
+function _guestLocked(d) { const at = _guestLockAt(d); return !!at && Date.now() >= at; }
+// Who may set it: the tour's managers (anyone, in the offline demo).
+function _guestLockCanSet() {
+  const u = U(), t = T();
+  if (!sb || !u || !t || !_isUuid(t.id)) return true;
+  return _isTourManager(t, u.id);
+}
+// Who it doesn't apply to: a manager looking as the tour manager.
+function _guestLockExempt() { return viewerKey === 'tm' && _guestLockCanSet(); }
+// A venue-local wall time → an instant (the same arithmetic as api/calendar.js).
+function _zonedMs(dateIso, hhmm, z) {
+  const [y, mo, dd] = dateIso.split('-').map(Number), [H, M] = hhmm.split(':').map(Number);
+  if (!z) return new Date(y, mo - 1, dd, H, M).getTime();
+  const wall = Date.UTC(y, mo - 1, dd, H, M);
+  let guess = wall;
+  for (let i = 0; i < 3; i++) { const p = _tzParts(z, guess); guess -= (Date.UTC(p.y, p.mo - 1, p.d, p.h, p.mi) - wall); }
+  return guess;
+}
+// "09.29 · 3:00 PM ET" — the lock moment in the venue's own time.
+function _guestLockWhen(d) {
+  const at = _guestLockAt(d);
+  if (!at) return '';
+  const z = _dateTz(d), p = _tzParts(z, at), a = z ? _tzAbbr(z) : '';
+  const hm = String(p.h).padStart(2, '0') + ':' + String(p.mi).padStart(2, '0');
+  return `${fmtMD(_tzIso(p))} · ${fmtClock(hm, d)}${a ? ' ' + a : ''}`;
+}
+function _guestLockErr(e) {
+  return /locked/i.test((e && e.message) || '') ? "This date's guest list is locked — ask your tour manager about late additions." : '';
+}
+function _guestLockDate(dateId) { return (T().dates || []).find(x => x.id === dateId) || null; }
+function _guestLockSet(d, at) {
+  d.guestLockAt = at || 0;
+  d.guestLockBy = at ? _guestActor().name : '';
+  saveState(); renderAll();
+}
+function _guestLockNow(dateId) {
+  const d = _guestLockDate(dateId); if (!d || !_guestLockCanSet()) return;
+  _guestLockSet(d, Date.now());
+  toast('Guest list locked — band and crew can no longer submit names', 'good');
+}
+function _guestLockClear(dateId) {
+  const d = _guestLockDate(dateId); if (!d || !_guestLockCanSet()) return;
+  const was = _guestLocked(d);
+  _guestLockSet(d, 0);
+  toast(was ? 'Guest list reopened' : 'Lock time cancelled', 'good');
+}
+function _guestLockSchedule(dateId) {
+  const d = _guestLockDate(dateId); if (!d || !_guestLockCanSet()) return;
+  const z = _dateTz(d), cur = _guestLockAt(d);
+  let dv = d.date, tv = '15:00';
+  if (cur) { const p = _tzParts(z, cur); dv = _tzIso(p); tv = String(p.h).padStart(2, '0') + ':' + String(p.mi).padStart(2, '0'); }
+  openModal({
+    title: 'Close guest requests at…',
+    body: `
+      <div class="form-grid">
+        <div class="field"><label>Date</label><input type="date" id="gl_lock_date" value="${esc(dv)}"></div>
+        <div class="field"><label>Time</label>${renderTime12Picker('gl_lock', tv, { h24: _dateIs24h(d) })}</div>
+        ${_tzNoteRowHTML(d)}
+        <div class="field full"><div class="help">From then on, band and crew can't submit, edit or withdraw guest requests for ${esc(d.city || 'this date')}. You and your co-managers can still add names.</div></div>
+      </div>`,
+    submitLabel: 'Set lock time',
+    onSubmit: () => {
+      const date = ($('#gl_lock_date') || {}).value || '', t = readTime12Picker('gl_lock');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(t || '')) { toast('Pick a date and a time', 'error'); return false; }
+      const at = _zonedMs(date, t, z);
+      _guestLockSet(d, at);
+      toast(at <= Date.now() ? 'Guest list locked' : 'Requests close ' + _guestLockWhen(d), 'good');
+    },
+  });
+}
+// Re-render the moment the active date's lock time arrives.
+let _guestLockTimer = null;
+function _guestLockWatch() {
+  clearTimeout(_guestLockTimer);
+  let ad = null; try { ad = getActiveDate(); } catch (e) {}
+  const wait = _guestLockAt(ad) - Date.now();
+  if (wait > 0 && wait < 864e5) _guestLockTimer = setTimeout(() => { try { renderAll(); } catch (e) {} }, wait + 500);
+}
+// The status line + controls, shared by the desktop Guest List and the phone.
+function _guestLockLine(d) {
+  const at = _guestLockAt(d), locked = _guestLocked(d);
+  return locked ? `Locked · ${_guestLockWhen(d)}${d.guestLockBy ? ' · by ' + d.guestLockBy : ''}`
+    : at ? `Closes ${_guestLockWhen(d)}` : 'Open';
+}
+function _guestLockActions(d, cls) {
+  const at = _guestLockAt(d), b = (fn, label) => `<button type="button" class="${cls}" onclick="${fn}('${d.id}')">${label}</button>`;
+  return _guestLocked(d) ? b('_guestLockClear', 'Reopen')
+    : b('_guestLockNow', 'Lock now') + b('_guestLockSchedule', at ? 'Change time' : 'Set a time') + (at ? b('_guestLockClear', 'Cancel') : '');
+}
+
 function approveGuest(id) {
   const ad = getActiveDate(); if (!ad) return;
   const g = ad.guests.find(x => x.id === id); if (!g) return;
@@ -29467,6 +29615,7 @@ function openGuestModalForViewer(guestId) {
   // A crew member can only edit a request they submitted and only while it is
   // still pending — once the TM approves or denies it, it is locked.
   if (g && g.status !== 'pending') { toast('That request has already been reviewed', ''); return; }
+  if (_guestLocked(ad) && !_guestLockExempt()) { toast("This date's guest list is locked — ask your tour manager about late additions", 'error'); return; }
   const v = g || { name: '', plus: 0, passType: 'Guest', email: '', notes: '' };
   openModal({
     title: (g ? 'Edit guest · ' : 'Add guest · ') + esc(ad.city),
@@ -29536,7 +29685,7 @@ function _submitGuestRequest(ad, viewer, fields) {
         console.warn('[submit_guest_request]', error);
         ad.guests = ad.guests.filter(x => x.id !== guest.id);   // roll back
         saveState(); renderAll();
-        toast("Couldn't submit that guest — check your connection", 'error');
+        toast(_guestLockErr(error) || "Couldn't submit that guest — check your connection", 'error');
       } else {
         toast('Guest submitted to Tour Manager', 'good');
       }
@@ -29566,7 +29715,7 @@ function _updateGuestRequest(ad, g, fields) {
         console.warn('[update_guest_request]', error);
         Object.assign(g, before);   // roll back
         saveState(); renderAll();
-        toast("Couldn't update that request", 'error');
+        toast(_guestLockErr(error) || "Couldn't update that request", 'error');
       } else {
         toast('Request updated', 'good');
       }
@@ -29584,6 +29733,7 @@ function deleteGuestRequest(id) {
   const ad = getActiveDate(); if (!ad) return;
   const g = ad.guests.find(x => x.id === id); if (!g) return;
   if (g.status !== 'pending') { toast('Only pending requests can be withdrawn', ''); return; }
+  if (_guestLocked(ad) && !_guestLockExempt()) { toast("This date's guest list is locked — ask your tour manager about changes", 'error'); return; }
   if (!confirm(`Withdraw your guest request for ${g.name}?`)) return;
   const tour = T();
   const u = U();
@@ -29600,7 +29750,7 @@ function deleteGuestRequest(id) {
         console.warn('[delete_guest_request]', error);
         ad.guests = snapshot;       // roll back
         saveState(); renderAll();
-        toast("Couldn't withdraw that request", 'error');
+        toast(_guestLockErr(error) || "Couldn't withdraw that request", 'error');
       } else {
         toast('Request withdrawn', '');
       }
@@ -40213,7 +40363,7 @@ Object.assign(window, {
   openGuestModal, openAllotmentModal, openSetItemModal, moveSetItem, copySetList,
   openSettleModal, openAttachModal, _attachFilePicked, _attachScopeChange, _attachBackToPick, _attachUpdatePrimaryLabel, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport, renderLocalAttachments, renderAttachments, renderTrialBadge, openSubscriptionPortal, _trialBadgeClick, _fxManualRefresh,
   openChatsModal, openNewChatModal, setActiveChat, _chatComposeOnInput, _chatComposeOnKeydown, _chatComposeSend, _chatMentionPick, _chatReactToggle, _chatReactPicker, _chatSendBroadcastPrompt, _chatToggleGroup, _chatUpdatePickCount,
-  openPhoneSearch, _phoneSearchRender, openCalendarTool, _calOpen, _calCopy, _calReset, _phAcctToggle, _phAcctSaveName, _phAcctDraftSet, _prefToggle,
+  openPhoneSearch, _phoneSearchRender, _guestLockNow, _guestLockClear, _guestLockSchedule, openCalendarTool, _calOpen, _calCopy, _calReset, _phAcctToggle, _phAcctSaveName, _phAcctDraftSet, _prefToggle,
   openTaskModal, openTagModal, toggleTask, renderEditHistory, openHistoryDetail, _tmToggleSheet, _tmTabPick, _tmTabMenu,
   setActive, closeModal, _modalSubmit, goToTab,
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
