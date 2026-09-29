@@ -2732,6 +2732,12 @@ body.god-account:not(.bg-mark-on) #app[hidden]{display:block!important}
 .bmi-ctl button:hover{border-color:#e8943a;color:#ffb35a}
 /* Display · the setup panel in the Tools tab */
 .dsp-wrap{display:flex;flex-direction:column;gap:26px;max-width:860px}
+.cal-btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+.cal-note{margin-top:10px;font-size:13.5px;color:var(--warm-mute)}
+.cal-note.err{color:var(--red)}
+.cal-facts{margin:10px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:13.5px;line-height:1.55;color:var(--warm-mute);max-width:70ch}
+.cal-facts b{color:var(--warm);font-weight:600}
+.cal-reset{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;font-size:12.5px;color:var(--warm-mute)}
 .dsp-lead{margin:0;font-size:14.5px;line-height:1.65;color:var(--warm-mute);max-width:66ch}
 .dsp-sec{display:flex;flex-direction:column}
 .dsp-now{margin-top:12px;padding:16px 18px;border:1px solid var(--line-2);border-radius:10px;background:#070504}
@@ -22313,13 +22319,16 @@ function _phoneScheduleRowsHTML(items, earlyTomorrow, nextDateLabel, emptyMsg, l
     const live = flt ? _flightLiveFor(flt, s._travelDate) : null;
     const lands = flt ? ((live && (live.leg.arrival.revisedTime || live.leg.arrival.time)) || s._travelArrive || '') : '';
     const status = live ? _shortStatus(live.info.label) : '';
+    // Live status takes the spot beside the item where a short audience tag
+    // ("Joseph", "CREW") would sit, so on those rows the tag moves below with
+    // the longer passenger lists — a one-person flight still names them.
     return `
     <div class="p-row${cls || ''}${_endCh ? ' has-ends' : ''}" style="--tcol:${_tcol}px">
       <span class="t"><span class="tl"><span class="ts">${esc(tp.start)}</span>${tp.end ? `<span class="te">– ${esc(tp.end)}</span>` : ''}${/\d/.test(tp.start) ? _tzTagItem(s, _clockCtx()) : ''}</span>${lands ? `<span class="t2">↓ ${esc(_fmt12Safe(lands))}${live && live.leg.arrival.timeZone ? _tzTagZ(live.leg.arrival.timeZone) : ''}</span>` : ''}</span>
       <span class="what">${esc(s.what)}</span>
       ${status ? `<span class="lbl live-${live.info.tone}">${esc(status)}</span>`
         : aud.kind === 'tag' ? `<span class="lbl">${esc(aud.text)}</span>` : ''}
-      ${aud.kind === 'list' ? `<span class="pax">${esc(aud.text)}</span>` : ''}
+      ${(aud.kind === 'list' || (status && aud.kind === 'tag')) ? `<span class="pax">${esc(aud.text)}</span>` : ''}
     </div>`;
   };
   // The last of today's rows drops its rule when tomorrow's header follows:
@@ -31085,7 +31094,109 @@ const TOOL_TILES = [
   { id: 'chat',   icon: '✉', name: 'Messaging',          desc: 'Group and direct chats with band and crew.', go: 'openChatsModal()', badge: 'toolsChatUnread' },
   { id: 'pdf',    icon: '⌗', name: 'Day sheet · PDF',    desc: "Today's schedule, travel and hotel on one printable page.", go: 'openDaySheetPDF()' },
   { id: 'display', icon: '▣', name: 'Display',           desc: "Today's running order and a live countdown, full screen — for the production office or green-room TV.", go: 'openDisplayTool()' },
+  { id: 'calendar', icon: '▦', name: 'Calendar',         desc: 'The tour in Google, Apple or Outlook Calendar — dates, schedule, flights and hotels, kept up to date.', go: 'openCalendarTool()' },
 ];
+
+// ── Calendar: a private link Google / Apple / Outlook subscribe to ───────
+// The server (api/calendar.js) builds the calendar from the tour every time a
+// calendar app checks it, so edits in Bandmate reach the calendar on their own.
+// The link belongs to this person and this tour (patch-059); "Make a new link"
+// switches the old one off everywhere it was added.
+let _calFeed = { tourId: '', token: '', error: '', loading: false };
+function _calUrls() {
+  const https = `${location.origin}/api/calendar?t=${_calFeed.token}`;
+  const webcal = https.replace(/^https?:/, 'webcal:');
+  const name = ((T().meta && T().meta.tourName) || T().name || 'Tour') + ' · Bandmate';
+  return {
+    https, webcal,
+    google: 'https://calendar.google.com/calendar/r?cid=' + encodeURIComponent(webcal),
+    outlook: 'https://outlook.live.com/calendar/0/addfromweb?url=' + encodeURIComponent(https) + '&name=' + encodeURIComponent(name),
+  };
+}
+async function _calFetch(reset) {
+  const tour = T(), u = U();
+  _calFeed = { tourId: tour.id, token: '', error: '', loading: true };
+  try {
+    const { data, error } = await sb.rpc('get_calendar_feed', { p_tour_id: tour.id, p_reset: !!reset });
+    if (error) throw error;
+    _calFeed = { tourId: tour.id, token: String(data || ''), error: '', loading: false };
+  } catch (e) {
+    const msg = String((e && e.message) || '');
+    _calFeed = { tourId: tour.id, token: '', loading: false,
+      error: /could not find the function|schema cache|does not exist/i.test(msg) ? 'The calendar needs a database update first — run supabase/patch-059-calendar-feeds.sql in Supabase.'
+        : /managers/i.test(msg) ? "Only this tour's owner and co-managers can add its calendar."
+        : "Couldn't get your calendar link — check your connection and try again." };
+  }
+}
+async function openCalendarTool() {
+  const tour = T(), u = U();
+  if (!tour || tour.id === '_empty') { toast('Open a tour first', 'error'); return; }
+  let blocker = '';
+  if (!sb || !_isUuid(tour.id)) blocker = "This tour only lives on this computer so far, so there's nothing for a calendar to follow yet.";
+  else if (!u || !_isTourManager(tour, u.id)) blocker = "Only this tour's owner and co-managers can add its calendar.";
+  if (!blocker && (_calFeed.tourId !== tour.id || (!_calFeed.token && !_calFeed.error && !_calFeed.loading))) {
+    _calFetch(false).then(() => { if (_toolOpen === 'calendar' || document.querySelector('.cal-wrap')) openCalendarTool(); });
+    _calFeed.loading = true;
+  }
+  const f = _calFeed, url = f.token ? _calUrls() : null;
+  const status = blocker ? `<div class="cal-note">${esc(blocker)}</div>`
+    : f.loading ? '<div class="cal-note">Getting your calendar link…</div>'
+    : f.error ? `<div class="cal-note err">${esc(f.error)}</div>` : '';
+  const body = `
+    <div class="dsp-wrap cal-wrap">
+      <p class="dsp-lead">Put this tour in your own calendar. Every date, the schedule, flights and hotel check-ins show up as events, at the right local times — and when anything changes here, your calendar picks it up by itself. Nothing to export, nothing to re-send.</p>
+
+      <section class="dsp-sec">
+        <div class="rt-kicker">Add it to</div>
+        ${status}
+        ${url ? `
+          <div class="cal-btns">
+            <button type="button" class="rt-btn primary" onclick="_calOpen('google')">Google Calendar</button>
+            <button type="button" class="rt-btn primary" onclick="_calOpen('apple')">Apple Calendar</button>
+            <button type="button" class="rt-btn primary" onclick="_calOpen('outlook')">Outlook</button>
+          </div>
+          <div class="help" style="margin-top:10px">Each opens that calendar and asks you to confirm. On a phone, Apple Calendar adds it to the phone's own calendar.</div>` : ''}
+      </section>
+
+      ${url ? `
+      <section class="dsp-sec">
+        <div class="rt-kicker">Or paste the link anywhere</div>
+        <div class="dsp-url"><code id="cal_url">${esc(url.https)}</code><button type="button" class="rt-btn" onclick="_calCopy()">Copy link</button></div>
+        <div class="help" style="margin-top:8px">For work Outlook, Fantastical, or any other calendar app: use its "subscribe" or "add from URL" option and paste this in.</div>
+      </section>
+
+      <section class="dsp-sec">
+        <div class="rt-kicker">Good to know</div>
+        <ul class="cal-facts">
+          <li>The calendar is read-only there — make changes in Bandmate and they follow.</li>
+          <li>Apple and Outlook check for changes about every hour. <b>Google checks less often — a change can take up to a day to appear there.</b></li>
+          <li>This link is private to you and this tour. Anyone who has it can see the tour's dates and times, so keep it to yourself.</li>
+        </ul>
+        <div class="cal-reset"><button type="button" class="rt-btn" onclick="_calReset()">Make a new link</button><span>Switches this one off everywhere it was added — then add the new one again.</span></div>
+      </section>` : ''}
+    </div>`;
+  if (_toolInlineOK() && _toolMount('calendar', 'Calendar', body)) return;
+  openModal({ title: 'Calendar', size: 'lg', hideFooter: true, body });
+}
+function _calOpen(which) {
+  if (!_calFeed.token) return;
+  const u = _calUrls();
+  if (which === 'apple') { location.href = u.webcal; return; }
+  const w = window.open(which === 'google' ? u.google : u.outlook, '_blank', 'noopener');
+  if (!w) location.href = which === 'google' ? u.google : u.outlook;
+}
+function _calCopy() {
+  if (!_calFeed.token) return;
+  const t = _calUrls().https;
+  try { navigator.clipboard.writeText(t).then(() => toast('Calendar link copied', 'good'), () => toast(t, 'good')); }
+  catch (e) { toast(t, 'good'); }
+}
+async function _calReset() {
+  if (!confirm('Make a new calendar link? The current one stops working everywhere it was added, and you add the new one again.')) return;
+  await _calFetch(true);
+  if (_calFeed.token) toast('New calendar link ready — add it to your calendar again', 'good');
+  openCalendarTool();
+}
 
 // ── Display: the setup panel. The screen itself is BMIdle in 'display' mode.
 function openDisplayTool() {
@@ -31148,6 +31259,7 @@ function renderTools() {
   if (_toolOpen === 'push') { if (!root.querySelector('.pn-wrap')) _renderPushNotificationsModal(); return; }
   if (_toolOpen === 'chat') { if (!root.querySelector('#chatModalRoot')) _chatMountInline(); return; }
   if (_toolOpen === 'display') { if (!root.querySelector('.dsp-wrap')) openDisplayTool(); return; }
+  if (_toolOpen === 'calendar') { if (!root.querySelector('.cal-wrap')) openCalendarTool(); return; }
   root.innerHTML = `
     <div class="tools-head"><div class="rt-kicker">Tools</div><h2>Reach for one</h2></div>
     <div class="tools-grid">
@@ -40101,7 +40213,7 @@ Object.assign(window, {
   openGuestModal, openAllotmentModal, openSetItemModal, moveSetItem, copySetList,
   openSettleModal, openAttachModal, _attachFilePicked, _attachScopeChange, _attachBackToPick, _attachUpdatePrimaryLabel, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport, renderLocalAttachments, renderAttachments, renderTrialBadge, openSubscriptionPortal, _trialBadgeClick, _fxManualRefresh,
   openChatsModal, openNewChatModal, setActiveChat, _chatComposeOnInput, _chatComposeOnKeydown, _chatComposeSend, _chatMentionPick, _chatReactToggle, _chatReactPicker, _chatSendBroadcastPrompt, _chatToggleGroup, _chatUpdatePickCount,
-  openPhoneSearch, _phoneSearchRender, _phAcctToggle, _phAcctSaveName, _phAcctDraftSet, _prefToggle,
+  openPhoneSearch, _phoneSearchRender, openCalendarTool, _calOpen, _calCopy, _calReset, _phAcctToggle, _phAcctSaveName, _phAcctDraftSet, _prefToggle,
   openTaskModal, openTagModal, toggleTask, renderEditHistory, openHistoryDetail, _tmToggleSheet, _tmTabPick, _tmTabMenu,
   setActive, closeModal, _modalSubmit, goToTab,
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
