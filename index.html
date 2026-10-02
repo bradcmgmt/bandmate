@@ -2777,6 +2777,26 @@ body.god-account:not(.bg-mark-on) #app[hidden]{display:block!important}
 .bmi-ctl button:hover{border-color:#e8943a;color:#ffb35a}
 /* Display · the setup panel in the Tools tab */
 .dsp-wrap{display:flex;flex-direction:column;gap:26px;max-width:860px}
+/* Artist picker + the artist requirement */
+.artist-sel:not([hidden]) + .artist-new{margin-top:8px}
+.artist-gate-lead{margin:0 0 14px;font-size:14px;line-height:1.6;color:var(--warm-mute)}
+.artist-gate-lead b{color:var(--warm)}
+.artist-gate-out{margin-top:18px;padding:4px 0;background:none;border:0;color:var(--warm-mute);font:inherit;font-size:13px;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+/* Top-right menu: artist groups, Active Only, and the settings gear */
+.ts-section-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.mini-check.ts-active{text-transform:uppercase;letter-spacing:.14em;font-size:9.5px}
+.ts-owner.ts-artist{border-top-color:rgba(232,148,58,.14)}
+.ts-owner.ts-artist .to-nm{color:var(--hi)}
+.ts-owner.ts-artist .to-ct{color:var(--warm-mute)}
+.ts-artist-sub{padding:6px 10px 2px 26px;font-family:'Bricolage Grotesque',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#a99bd8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ts-artist-sub[hidden]{display:none!important}
+.uni-menu.ts-active-only [data-ts-inactive],.uni-menu.ts-active-only [data-ts-allinactive]{display:none!important}
+.uni-pill .ap-name{white-space:nowrap}
+.uni-gear{flex:none;width:36px;height:36px;display:grid;place-items:center;align-self:center;border:1px solid var(--line-2);border-radius:9px;background:rgba(232,148,58,.04);color:var(--warm-mute);cursor:pointer;transition:color .15s,border-color .15s}
+.uni-gear:hover{color:var(--hi);border-color:rgba(232,148,58,.5)}
+body.crew-mobile-only .uni-gear,body.phone-app .uni-gear{display:none}
+body.mobile .uni-gear{width:30px;height:30px;border-radius:8px}
+body.mobile .uni-gear svg{width:15px;height:15px}
 .cal-btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
 .cal-note{margin-top:10px;font-size:13.5px;color:var(--warm-mute)}
 .cal-note.err{color:var(--red)}
@@ -6656,6 +6676,9 @@ setTimeout(window._hideAppBoot,6000);
            signed-in user and the active tour; a red dot appears when the
            trial is about to end. #apAvatar/#apName are populated by
            renderAccountPill(), #tsTourName by renderTourSwitcher(). -->
+      <button type="button" class="uni-gear" onclick="closeUniMenu();openAccountSettingsModal()" title="Account settings" aria-label="Account settings">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
       <div class="uni-dropdown" id="uniDropdown">
         <button type="button" class="account-pill uni-pill" onclick="toggleUniMenu()" title="Account · tours · billing · export">
           <span class="ap-avatar" id="apAvatar">??</span>
@@ -10687,7 +10710,7 @@ function onbChooseScratch() {
     body: `
       <div class="form-grid one">
         <div class="field"><label>Tour name *</label><input id="nb_name" placeholder="e.g. Wayfinder North America Tour"/></div>
-        <div class="field"><label>Artist / Band *</label><input id="nb_artist" placeholder="e.g. The Cartographers"/></div>
+        <div class="field"><label>Artist *</label>${_artistFieldHTML('nb_artist', '')}</div>
         <div class="field"><label>Touring company / presenter</label><input id="nb_pres" placeholder="e.g. Koi Blue Touring"/></div>
         <div class="field"><label>Currency</label>
           <select id="nb_cur">
@@ -10887,9 +10910,11 @@ function _phPageClose(instant) {
   _phPageCloseT = setTimeout(done, 210);
 }
 
-function openModal({ title, body, onSubmit, submitLabel = 'Save', size = '', showDelete = false, onDelete = null, hideFooter = false, deleteLabel = 'Delete' }) {
+function openModal({ title, body, onSubmit, submitLabel = 'Save', size = '', showDelete = false, onDelete = null, hideFooter = false, deleteLabel = 'Delete', locked = false }) {
   _modalOnSubmit = onSubmit;
-  const phoneHost = _modalPhoneHost();
+  // locked: a step that must be completed — always a centred window, with no
+  // close button, no Cancel and no closing by clicking outside it.
+  const phoneHost = locked ? null : _modalPhoneHost();
   if (phoneHost) {
     $('#modalRoot').innerHTML = '';
     _phPageOpen(phoneHost, title, body, { submitLabel, showDelete, deleteLabel, hideFooter });
@@ -10897,19 +10922,19 @@ function openModal({ title, body, onSubmit, submitLabel = 'Save', size = '', sho
     try { _wireAllAutocomplete(phoneHost); } catch (e) {}
     return;
   }
-  const inline = _modalInlineHost();
+  const inline = locked ? null : _modalInlineHost();
   const root = inline || $('#modalRoot');
   const card = `
       <div class="modal ${size}">
         <div class="modal-head">
           <h3>${esc(title)}</h3>
-          <button type="button" class="x" onclick="closeModal()">✕</button>
+          ${locked ? '' : '<button type="button" class="x" onclick="closeModal()">✕</button>'}
         </div>
         <div class="modal-body">${body}</div>
         ${hideFooter ? '' : `
           <div class="modal-foot">
             ${showDelete ? `<button type="button" class="btn danger" onclick="_modalDelete()">${esc(deleteLabel)}</button><div class="flex1"></div>` : ''}
-            <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+            ${locked ? '' : '<button type="button" class="btn" onclick="closeModal()">Cancel</button>'}
             <button type="button" class="btn primary" onclick="_modalSubmit()">${esc(submitLabel)}</button>
           </div>
         `}
@@ -10926,7 +10951,7 @@ function openModal({ title, body, onSubmit, submitLabel = 'Save', size = '', sho
   } else {
     document.body.classList.remove('inline-modal');
     root.innerHTML = `
-    <div class="modal-overlay" onmousedown="_modalBackdropDown(event,this)" onmouseup="_modalBackdropUp(event,this)">${card}
+    <div class="modal-overlay${locked ? ' locked' : ''}"${locked ? '' : ' onmousedown="_modalBackdropDown(event,this)" onmouseup="_modalBackdropUp(event,this)"'}>${card}
     </div>
   `;
   }
@@ -10946,6 +10971,7 @@ function _modalBackdropUp(e, el) {
   if (was && e.target === el) closeModal();
 }
 function closeModal() {
+  const wasInline = document.body.classList.contains('inline-modal');
   try { _phPageClose(); } catch (e) {}
   $('#modalRoot').innerHTML = '';
   const host = document.getElementById('inlineModalHost');
@@ -10953,6 +10979,8 @@ function closeModal() {
   document.body.classList.remove('inline-modal');
   _modalDownOnBackdrop = false;
   _modalOnSubmit = null;
+  // A tour opened while a panel was up waited for it to close before asking for its artist.
+  if (wasInline) setTimeout(() => { try { _artistGateMaybe(); } catch (e) {} }, 0);
 }
 async function _modalSubmit() {
   if (_modalOnSubmit) {
@@ -12911,28 +12939,32 @@ function _prefs() {
   let fill = false;
   if (typeof v.tzTags !== 'boolean') { v.tzTags = false; fill = true; }
   if (typeof v.h24 !== 'boolean') { v.h24 = _deviceInEurope(); fill = true; }   // decided once, where they first open it
+  if (typeof v.activeOnly !== 'boolean') { v.activeOnly = false; fill = true; }
   if (fill) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
   _prefsCache = { key, v };
   return v;
 }
-function _setPref(k, val) {
+function _prefSetQuiet(k, val) {
   const v = { ..._prefs(), [k]: !!val };
   try { localStorage.setItem(_prefsLocalKey(), JSON.stringify(v)); } catch (e) {}
   _prefsCache = null;
   _prefsPushCloud(v);
+}
+function _setPref(k, val) {
+  _prefSetQuiet(k, val);
   try { renderAll(); } catch (e) {}
 }
 function _prefsPushCloud(v) {
   const u = U();
   if (!sb || !u || !_isUuid(u.id)) return;
-  try { sb.auth.updateUser({ data: { bm_prefs: { tzTags: !!v.tzTags, h24: !!v.h24 } } }).catch(() => {}); } catch (e) {}
+  try { sb.auth.updateUser({ data: { bm_prefs: { tzTags: !!v.tzTags, h24: !!v.h24, activeOnly: !!v.activeOnly } } }).catch(() => {}); } catch (e) {}
 }
 // On sign-in: the account's saved settings win; an account that has none yet
 // takes this device's (including the Europe / UK 24-hour default).
 function _prefsAdoptCloud(meta) {
   const c = meta && meta.bm_prefs;
   if (c && typeof c === 'object') {
-    try { localStorage.setItem(_prefsLocalKey(), JSON.stringify({ tzTags: !!c.tzTags, h24: !!c.h24 })); } catch (e) {}
+    try { localStorage.setItem(_prefsLocalKey(), JSON.stringify({ tzTags: !!c.tzTags, h24: !!c.h24, activeOnly: !!c.activeOnly })); } catch (e) {}
     _prefsCache = null;
   } else {
     _prefsCache = null;
@@ -17238,6 +17270,7 @@ function renderAll() {
 
   applyRoleMode();
   _tmRenderChrome();
+  setTimeout(() => { try { _artistGateMaybe(); } catch (e) {} }, 0);
   renderTopBar();
   renderAccountPill();
   renderTourSwitcher();
@@ -17687,7 +17720,7 @@ function renderConsoleStatus() {
     title = `${others} other date${others === 1 ? '' : 's'} on this tour still ${others === 1 ? 'has' : 'have'} gaps.`;
     action = 'Re-scan'; onclick = 'openTourScan()';
   } else {
-    text = 'Tour complete';
+    text = 'Tour ready';
     title = 'Every date is fully populated.';
     action = 'Re-scan'; onclick = 'openTourScan()';
   }
@@ -23453,7 +23486,7 @@ function renderImportStart() {
     body: `
       <div class="form-grid mb12">
         <div class="field"><label>Tour name *</label><input id="iz_name" value="${esc(s.basics.tourName)}"></div>
-        <div class="field"><label>Artist *</label><input id="iz_artist" value="${esc(s.basics.artist)}"></div>
+        <div class="field"><label>Artist *</label>${_artistFieldHTML('iz_artist', s.basics.artist)}</div>
         <div class="field full"><label>Presenter / touring company</label><input id="iz_pres" value="${esc(s.basics.presenter)}"></div>
       </div>
 
@@ -32034,6 +32067,16 @@ function _tourMenuItemsHTML() {
       return (a.name || a.email).localeCompare(b.name || b.email);
     });
 
+    // keeps the order it's given: an artist sits where its first tour sat
+    const _byArtist = (tours) => {
+      const m = new Map();
+      tours.forEach(t => {
+        const a = String((t.meta && t.meta.artist) || '').trim(), k = a.toLowerCase();
+        if (!m.has(k)) m.set(k, { name: a, tours: [] });
+        m.get(k).tours.push(t);
+      });
+      return [...m.values()].sort((a, b) => !a.name - !b.name);
+    };
     const cur = state.tours[state.currentTourId];
     const curRange = cur ? ((tourStartDate(cur) || tourEndDate(cur)) ? `${fmtMD(tourStartDate(cur))} → ${fmtMD(tourEndDate(cur))}` : 'no dates yet') : '';
     const godRow = (t, g) => {
@@ -32044,7 +32087,7 @@ function _tourMenuItemsHTML() {
       const isUnsynced = !_isUuid(t.id);
       const search = `${t.name || ''} ${t.meta?.artist || ''} ${g.name} ${g.email}`.toLowerCase();
       return `
-        <button class="ts-tour-item has-chip ${isCurrent ? 'active' : ''}${stat.cls === 'ended' ? ' past' : ''}" type="button" data-ts-tour data-search="${esc(search)}" onclick="switchToTour('${t.id}')">
+        <button class="ts-tour-item has-chip ${isCurrent ? 'active' : ''}${stat.cls === 'ended' ? ' past' : ''}" type="button"${stat.cls === 'ended' && !isCurrent ? ' data-ts-inactive' : ''} data-ts-tour data-search="${esc(search)}" onclick="switchToTour('${t.id}')">
           <span class="ts-check">${isCurrent ? '✓' : ' '}</span>
           <span class="ts-tour-text">
             <span class="ts-name">${esc(t.name || 'Untitled tour')}${isUnsynced ? ' <span class="ts-unsynced" title="Not synced to cloud — local only">⚠ local</span>' : ''}</span>
@@ -32065,22 +32108,41 @@ function _tourMenuItemsHTML() {
         <div class="tp-nm">${esc(cur.name || 'Untitled tour')}</div>
         <div class="tp-sub">${esc(cur.meta?.artist || '—')} · ${curRange} · ◆ ${esc(cur.ownerEmail || cur.ownerName || 'unknown')}</div>
       </div>` : ''}
+      <div class="ts-section ts-section-row">Every tour${_tsActiveOnlyHTML()}</div>
       ${glist.map(g => `
-        <div class="ts-owner" data-ts-owner>
+        <div class="ts-owner" data-ts-owner${g.tours.every(t => st(t).cls === 'ended' && t.id !== state.currentTourId) ? ' data-ts-allinactive' : ''}>
           <span class="to-d">◆</span>
           <span class="to-nm">${esc(g.name || g.email || 'Unknown owner')}</span>
           ${g.name && g.email ? `<span class="to-em">${esc(g.email)}</span>` : ''}
           <span class="to-ct">${g.tours.length} TOUR${g.tours.length === 1 ? '' : 'S'}</span>
         </div>
-        ${g.tours.map(t => godRow(t, g)).join('')}
+        ${_byArtist(g.tours).map(a => `
+          <div class="ts-artist-sub" data-ts-artist${a.tours.every(t => st(t).cls === 'ended' && t.id !== state.currentTourId) ? ' data-ts-allinactive' : ''}>${esc(a.name || 'No artist yet')}</div>
+          ${a.tours.map(t => godRow(t, g)).join('')}`).join('')}
       `).join('')}
       <div class="ts-godfoot">${glist.length} owner${glist.length === 1 ? '' : 's'} · ${myTours.length} tours · type above to filter</div>
     `;
   }
 
+  const _today = todayISO();
+  const _inactive = t => t.id !== state.currentTourId && !!tourEndDate(t) && tourEndDate(t) < _today;
+  const _groups = new Map();
+  myTours.forEach(t => {
+    const a = String((t.meta && t.meta.artist) || '').trim(), k = a.toLowerCase();
+    if (!_groups.has(k)) _groups.set(k, { name: a, tours: [] });
+    _groups.get(k).tours.push(t);
+  });
+  const _glist = [..._groups.values()].sort((a, b) => !a.name ? 1 : !b.name ? -1 : a.name.localeCompare(b.name));
+  _glist.forEach(g => g.tours.sort((a, b) => (_inactive(a) - _inactive(b))
+    || (_inactive(a) ? ((tourEndDate(b) || '') < (tourEndDate(a) || '') ? -1 : 1) : ((tourStartDate(a) || '9') < (tourStartDate(b) || '9') ? -1 : 1))));
   return `
-    <div class="ts-section">Your tours · ${myTours.length}</div>
-    ${myTours.map(t => {
+    <div class="ts-section ts-section-row">Your tours · ${myTours.length}${_tsActiveOnlyHTML()}</div>
+    ${_glist.map(g => `
+      <div class="ts-owner ts-artist"${g.tours.every(_inactive) ? ' data-ts-allinactive' : ''}>
+        <span class="to-nm">${esc(g.name || 'No artist yet')}</span>
+        <span class="to-ct">${g.tours.length} TOUR${g.tours.length === 1 ? '' : 'S'}</span>
+      </div>
+    ${g.tours.map(t => {
       const isCurrent = t.id === state.currentTourId;
       const startISO = tourStartDate(t);
       const endISO = tourEndDate(t);
@@ -32096,21 +32158,36 @@ function _tourMenuItemsHTML() {
       // to co-manage / crew — a real cloud tour reading as local.)
       const isUnsynced = !!t && !_isUuid(t.id);
       return `
-        <button class="ts-tour-item ${isCurrent?'active':''}" type="button" onclick="switchToTour('${t.id}')" title="${isUnsynced ? 'This tour has not synced to the cloud yet. Edit any field to retry, or refresh the page.' : ''}">
+        <button class="ts-tour-item ${isCurrent?'active':''}${_inactive(t) ? ' past' : ''}" type="button"${_inactive(t) ? ' data-ts-inactive' : ''} onclick="switchToTour('${t.id}')" title="${isUnsynced ? 'This tour has not synced to the cloud yet. Edit any field to retry, or refresh the page.' : ''}">
           <span class="ts-check">${isCurrent ? '✓' : ' '}</span>
           <span class="ts-tour-text">
             <span class="ts-name">${esc(t.name || 'Untitled tour')}${isUnsynced ? ' <span class="ts-unsynced" title="Not synced to cloud — local only">⚠ local</span>' : ''}</span>
-            <span class="ts-meta">${esc(t.meta?.artist || '—')} · ${dateRange}</span>
+            <span class="ts-meta">${dateRange}${_inactive(t) ? ' · ended' : ''}</span>
           </span>
           <span class="ts-count">${(t.dates||[]).length}d</span>
         </button>
       `;
-    }).join('')}
+    }).join('')}`).join('')}
     <div class="ts-section">Actions</div>
     ${u && u.role === 'tm' ? `<button class="ts-action" type="button" onclick="closeUniMenu();newTourFlow()"><span style="text-align:center">+</span><span>New tour</span></button>` : ''}
     ${u && T().ownerId === u.id ? `<button class="ts-action" type="button" onclick="closeUniMenu();renameCurrentTour()"><span style="text-align:center">✎</span><span>Rename current</span></button>` : ''}
     ${u && T().ownerId === u.id ? `<button class="ts-action" type="button" onclick="closeUniMenu();deleteCurrentTour()" style="color:var(--red);border-color:rgba(232,69,69,.35)"><span style="text-align:center">×</span><span>Delete current</span></button>` : ''}
   `;
+}
+
+// "Active Only" — hides tours whose last date has passed (a tour with no dates
+// yet is still being built, so it stays). Saved with the account's settings,
+// toggled in place: rebuilding the menu from inside its own click closes it.
+function _tsActiveOnlyHTML() {
+  const on = !!_prefs().activeOnly;
+  return `<button type="button" class="mini-check ts-active${on ? ' on' : ''}" aria-pressed="${on}" onclick="event.stopPropagation();_tsActiveOnly(this)"><i></i>Active Only</button>`;
+}
+function _tsActiveOnly(btn) {
+  const on = !_prefs().activeOnly;
+  _prefSetQuiet('activeOnly', on);
+  if (btn) { btn.classList.toggle('on', on); btn.setAttribute('aria-pressed', String(on)); }
+  const menu = document.getElementById('uniMenu');
+  if (menu) menu.classList.toggle('ts-active-only', on);
 }
 
 // Live filter for the god switcher — hides tour rows that don't match and
@@ -32121,9 +32198,10 @@ function _tsGodFilterApply(q) {
   document.querySelectorAll('[data-ts-tour]').forEach(r => {
     r.hidden = !!q && !(r.dataset.search || '').includes(q);
   });
-  document.querySelectorAll('[data-ts-owner]').forEach(h => {
+  document.querySelectorAll('[data-ts-owner], [data-ts-artist]').forEach(h => {
+    const owner = h.hasAttribute('data-ts-owner');
     let any = false;
-    for (let n = h.nextElementSibling; n && !n.hasAttribute('data-ts-owner'); n = n.nextElementSibling) {
+    for (let n = h.nextElementSibling; n && !n.hasAttribute('data-ts-owner') && (owner || !n.hasAttribute('data-ts-artist')); n = n.nextElementSibling) {
       if (n.hasAttribute('data-ts-tour') && !n.hidden) { any = true; break; }
     }
     h.hidden = !any;
@@ -32149,6 +32227,85 @@ function switchToTour(tourId) {
   saveState();
   renderAll();
   toast(`Switched to ${tour.name}`, 'good');
+}
+
+// ── Artists ──────────────────────────────────────────────────────────────
+// Every tour belongs to an artist (tour.meta.artist → tours.artist). The menu
+// at the top right groups tours by it; a new tour must pick one; and a tour
+// without one asks its manager to choose before the dashboard opens — every
+// time, until it has one (TM Mobile included).
+// The artists this account works with, from its own tours.
+function _knownArtists() {
+  const u = U(), seen = new Map(), god = _isGodAccount();
+  Object.values((state && state.tours) || {}).forEach(t => {
+    if (!t || t.id === '_empty' || _isTombstoned(t.id)) return;
+    if (u && !god && t.ownerId !== u.id && !(t.managerIds || []).includes(u.id)) return;
+    const a = String((t.meta && t.meta.artist) || '').trim();
+    if (a && !seen.has(a.toLowerCase())) seen.set(a.toLowerCase(), a);
+  });
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+// A list of those artists plus "Add a new artist". The text input keeps the
+// field's id and always holds the chosen name, so the forms read it as before.
+function _artistFieldHTML(id, value) {
+  const list = _knownArtists(), v = String(value || '').trim();
+  const known = list.find(a => a.toLowerCase() === v.toLowerCase()) || '';
+  const isNew = !list.length || (!!v && !known);
+  return `
+    <select id="${id}_sel" class="artist-sel" onchange="_artistSelChange('${id}')"${list.length ? '' : ' hidden'}>
+      ${list.length ? `<option value="" disabled${!v ? ' selected' : ''}>Choose an artist…</option>` : ''}
+      ${list.map(a => `<option value="${esc(a)}"${known === a ? ' selected' : ''}>${esc(a)}</option>`).join('')}
+      <option value="__new"${isNew ? ' selected' : ''}>+ Add a new artist</option>
+    </select>
+    <input id="${id}" class="artist-new" value="${esc(known || v)}" placeholder="${list.length ? 'New artist name' : 'e.g. The Cartographers'}" autocomplete="off"${isNew ? '' : ' hidden'}>`;
+}
+function _artistSelChange(id) {
+  const sel = document.getElementById(id + '_sel'), inp = document.getElementById(id);
+  if (!sel || !inp) return;
+  if (sel.value === '__new') { inp.hidden = false; inp.value = ''; inp.focus(); }
+  else { inp.hidden = true; inp.value = sel.value; }
+  inp.dispatchEvent(new Event('input', { bubbles: true }));   // forms that save as you type
+}
+function _artistGateNeeded() {
+  const t = T(), u = U();
+  if (!t || t.id === '_empty' || !u || _isGodAccount()) return false;
+  if (String((t.meta && t.meta.artist) || '').trim()) return false;
+  let phone = false; try { phone = _isPhoneApp(); } catch (e) {}
+  if (phone && !_tmMobileOn()) return false;                 // the road view isn't where tours are run
+  if (document.body.classList.contains('crew-mobile-only')) return false;
+  return !sb || !_isUuid(t.id) || _isTourManager(t, u.id);
+}
+let _artistGateTour = null;
+function _artistGateMaybe() {
+  if (document.getElementById('ag_artist')) {
+    // Already asking. Keep it unless the answer arrived some other way (another
+    // device, a sync) or the tour underneath changed.
+    if (_artistGateNeeded() && _artistGateTour === T().id) return;
+    closeModal();
+  }
+  if (!_artistGateNeeded()) return;
+  if (document.querySelector('#modalRoot .modal-overlay') || document.body.classList.contains('inline-modal')) return;   // let an open window finish first
+  const t = T();
+  _artistGateTour = t.id;
+  openModal({
+    title: 'Which artist is this tour for?',
+    locked: true,
+    submitLabel: 'Save artist',
+    body: `
+      <p class="artist-gate-lead">Tours are now organised by artist. Choose the artist for <b>${esc(t.name || 'this tour')}</b> — or add a new one — to open it.</p>
+      <div class="form-grid one"><div class="field"><label>Artist *</label>${_artistFieldHTML('ag_artist', '')}</div></div>
+      ${_tmMobileOn() ? '<button type="button" class="artist-gate-out" onclick="_tmExit()">Not now — back to the road view</button>' : ''}`,
+    onSubmit: () => {
+      const a = (document.getElementById('ag_artist')?.value || '').trim();
+      if (!a) { toast('Choose an artist or add a new one', 'error'); return false; }
+      const tour = T();
+      tour.meta = tour.meta || {};
+      tour.meta.artist = a;
+      saveState();
+      setTimeout(() => { try { renderAll(); } catch (e) {} }, 0);
+      toast(`${tour.name || 'Tour'} is filed under ${a}`, 'good');
+    },
+  });
 }
 
 function newTourFlow() {
@@ -32190,7 +32347,7 @@ function newTourManualFlow() {
     body: `
       <div class="form-grid one">
         <div class="field"><label>Tour name *</label><input id="nt_name" placeholder="e.g. Wayfinder North America Tour"></div>
-        <div class="field"><label>Artist *</label><input id="nt_artist" placeholder="e.g. The Cartographers"></div>
+        <div class="field"><label>Artist *</label>${_artistFieldHTML('nt_artist', (_newTourDraft && _newTourDraft.artist) || '')}</div>
         <div class="field"><label>Touring company / presenter</label><input id="nt_pres"></div>
         <div class="field"><label>Currency</label>
           <select id="nt_cur">
@@ -36069,6 +36226,7 @@ function renderUniMenu() {
   }
   dd?.classList.add('open');
   menu.classList.add('open');
+  menu.classList.toggle('ts-active-only', !!_prefs().activeOnly);
   const me = U();
   menu.innerHTML = `
     <div class="am-current">
@@ -36091,9 +36249,6 @@ function renderUniMenu() {
     </button>
     <div class="export-menu uni-inline open" id="uniExportItems" style="${_uniExportOpen ? '' : 'display:none'}">${_exportItemsHTML('closeUniMenu()')}</div>
     <div class="am-section">Account</div>
-    <button class="am-item" type="button" onclick="closeUniMenu();openAccountSettingsModal()">
-      <span class="am-ic">⚙</span><span>Account settings</span>
-    </button>
     <button class="am-item" type="button" onclick="closeUniMenu();openGetAppModal()">
       <span class="am-ic">↧</span><span>Install Bandmate</span>
     </button>
@@ -40449,7 +40604,7 @@ Object.assign(window, {
   openGuestModal, openAllotmentModal, openSetItemModal, moveSetItem, copySetList,
   openSettleModal, openAttachModal, _attachFilePicked, _attachScopeChange, _attachBackToPick, _attachUpdatePrimaryLabel, _viewAttachment, _downloadAttachment, openContactModal, openCrewModal, openCrewMemberModal, resendCrewInvite, sendCrewInvite, refreshCrewAcceptance, exportSettlementReportCSV, printSettlementReport, renderLocalAttachments, renderAttachments, renderTrialBadge, openSubscriptionPortal, _trialBadgeClick, _fxManualRefresh,
   openChatsModal, openNewChatModal, setActiveChat, _chatComposeOnInput, _chatComposeOnKeydown, _chatComposeSend, _chatMentionPick, _chatReactToggle, _chatReactPicker, _chatSendBroadcastPrompt, _chatToggleGroup, _chatUpdatePickCount,
-  openPhoneSearch, _phoneSearchRender, _glSlideDown, _glSlideKey, _guestLockNow, _guestLockClear, _guestLockSchedule, openCalendarTool, _calOpen, _calCopy, _calReset, _phAcctToggle, _phAcctSaveName, _phAcctDraftSet, _prefToggle,
+  openPhoneSearch, _phoneSearchRender, _artistSelChange, _tsActiveOnly, _glSlideDown, _glSlideKey, _guestLockNow, _guestLockClear, _guestLockSchedule, openCalendarTool, _calOpen, _calCopy, _calReset, _phAcctToggle, _phAcctSaveName, _phAcctDraftSet, _prefToggle,
   openTaskModal, openTagModal, toggleTask, renderEditHistory, openHistoryDetail, _tmToggleSheet, _tmTabPick, _tmTabMenu,
   setActive, closeModal, _modalSubmit, goToTab,
   openProfileForm, downloadProfilesCSV, downloadProfilesJSON, downloadOneProfileCSV, remindAllPending,
