@@ -85,16 +85,28 @@ module.exports = async function handler(req, res) {
   }
 
   // ── Cache ────────────────────────────────────────────────────────────
+  let saved = null;                                  // the last good answer, fresh or not
   if (supa) {
     try {
       const { data, error } = await supa.from('flight_cache')
         .select('payload, fetched_at').eq('flight', flightKey).eq('flight_date', date).maybeSingle();
-      if (!error && data && Date.now() - Date.parse(data.fetched_at) < cacheTtlMs(data.payload, date)) {
-        res.status(200).json({ configured: true, flight: display, date, cached: true, fetchedAt: data.fetched_at, flights: data.payload || [] });
+      if (!error && data) saved = data;
+      if (saved && Date.now() - Date.parse(saved.fetched_at) < cacheTtlMs(saved.payload, date)) {
+        res.status(200).json({ configured: true, flight: display, date, cached: true, fetchedAt: saved.fetched_at, flights: saved.payload || [] });
         return;
       }
     } catch (e) { /* no cache table yet — look it up live */ }
   }
+  // When the provider can't answer, hand back the last good answer marked
+  // stale (with its real time) rather than nothing — the app says how old it
+  // is and estimates the flight's phase from its times.
+  const fail = (status, error, message) => {
+    if (saved && Array.isArray(saved.payload) && saved.payload.length) {
+      res.status(200).json({ configured: true, flight: display, date, cached: true, stale: true, error, message, fetchedAt: saved.fetched_at, flights: saved.payload });
+    } else {
+      res.status(status).json({ error, message });
+    }
+  };
 
   // ── Live lookup ──────────────────────────────────────────────────────
   try {
@@ -107,13 +119,15 @@ module.exports = async function handler(req, res) {
       flights = [];                                  // no such flight departing that day
     } else if (r.status === 401 || r.status === 403) {
       console.error('[flight-lookup] provider refused the key:', r.status);
-      res.status(502).json({ error: 'key', message: "Flight lookup isn't set up correctly (the key or subscription was refused)." }); return;
+      fail(502, 'key', "Flight lookup isn't set up correctly (the key or subscription was refused)."); return;
     } else if (r.status === 429) {
-      res.status(429).json({ error: 'quota', message: 'Flight lookups are used up for now. Fill this one in by hand.' }); return;
+      // Logged so a used-up plan shows in Vercel's logs, not only as stale statuses.
+      console.error('[flight-lookup] provider quota / rate limit (429) for', flightKey, date);
+      fail(429, 'quota', 'Flight lookups are used up for now. Fill this one in by hand.'); return;
     } else if (!r.ok) {
       const text = await r.text().catch(() => '');
       console.error('[flight-lookup] provider error:', r.status, text.slice(0, 300));
-      res.status(502).json({ error: 'provider', message: 'The flight service had a problem. Try again, or fill the fields in by hand.' }); return;
+      fail(502, 'provider', 'The flight service had a problem. Try again, or fill the fields in by hand.'); return;
     } else {
       const j = await r.json().catch(() => null);
       const list = Array.isArray(j) ? j : (j && Array.isArray(j.items) ? j.items : []);
@@ -135,15 +149,16 @@ module.exports = async function handler(req, res) {
     res.status(200).json({ configured: true, flight: display, date, cached: false, fetchedAt, flights });
   } catch (err) {
     console.error('[flight-lookup] handler error:', err);
-    res.status(500).json({ error: 'failed', message: 'Lookup failed. Try again, or fill the fields in by hand.' });
+    fail(500, 'failed', 'Lookup failed. Try again, or fill the fields in by hand.');
   }
 };
 
 // How long a saved answer stays fresh. Far-off flights barely change; the day
-// before, hourly is enough to catch schedule changes. From 2 hours before
-// departure until an hour after landing the status moves all the time (gates,
-// delays, takeoff, landing), so it's refreshed every 5 minutes. Once every leg
-// has landed, been canceled or diverted, it freezes.
+// before, hourly is enough to catch schedule changes. Around departure (2 hours
+// before until 30 minutes after) and landing (45 minutes before until an hour
+// after) the status moves all the time — gates, delays, takeoff, touchdown,
+// belt — so it's refreshed every 5 minutes; while cruising, every 10. Once
+// every leg has landed, been canceled or diverted, it freezes.
 function cacheTtlMs(flights, date) {
   const MIN = 60 * 1000, HOUR = 60 * MIN, now = Date.now();
   const legs = Array.isArray(flights) ? flights : [];
@@ -155,7 +170,9 @@ function cacheTtlMs(flights, date) {
     const end = arrs.length ? Math.max(...arrs) + HOUR : dep + 12 * HOUR;
     const done = legs.every(l => /^(Arrived|Canceled|Diverted)$/.test(l.status || ''));
     if (now > end) return done ? 24 * HOUR : 6 * HOUR;
-    if (now >= dep - 2 * HOUR) return 5 * MIN;
+    if (now >= dep - 2 * HOUR && now < dep + 30 * MIN) return 5 * MIN;
+    if (arrs.length && now >= Math.max(...arrs) - 45 * MIN) return 5 * MIN;
+    if (now >= dep + 30 * MIN) return 10 * MIN;
     if (now >= dep - 24 * HOUR) return HOUR;
   }
   const daysAway = Math.abs(Date.parse(date + 'T12:00:00Z') - now) / (24 * HOUR);
