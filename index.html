@@ -2323,6 +2323,7 @@ html body.phone-app .ph-page-head{padding-top:calc(12px + env(safe-area-inset-to
 .phf-status.muted{color:var(--warm-mute)}
 .ph-flight .phf-live{display:flex;flex-wrap:wrap;align-items:baseline;gap:3px 10px;margin:-2px 0 8px;font-family:'Bricolage Grotesque',monospace;font-size:10.5px;color:var(--warm)}
 .ph-flight .phf-upd{margin-left:auto;font-size:9.5px;color:var(--warm-mute)}
+.ph-flight .phf-upd.stale{color:#e0a458}
 .ph-flight s,.ph-myflight s,.pfl s{opacity:.5;font-weight:500;margin-right:5px}
 /* "Your flight" card (Today tab) */
 .p-card.ph-myflight{cursor:pointer;border-color:rgba(232,148,58,.35);background:linear-gradient(180deg,rgba(232,148,58,.08),rgba(232,148,58,.02))}
@@ -12417,9 +12418,36 @@ function _flightLegFor(t, legs) {
   const gap = l => { const v = mins(l.departure.time); return v == null ? 1e9 : Math.abs(v - want); };
   return legs.slice().sort((a, b) => gap(a) - gap(b))[0];
 }
-function _flightStatusInfo(leg) {
+// Where a flight is. The provider's status word can lag behind its own times,
+// and a refresh can fail and leave a status from hours ago on screen. So:
+//   • actual runway times win over the word (took off → in the air; touched
+//     down → landed). AeroDataBox also fills runway times in AHEAD of time as
+//     predictions, so one only counts as actual when the answer was given
+//     after that moment had passed;
+//   • an answer given BEFORE the flight was due to leave stops being believed
+//     15 minutes after it was due — from then on the phase is estimated from
+//     the times (est: true) until a real update arrives.
+const _FL_PRE = /^(Expected|CheckIn|Boarding|GateClosed|Delayed|Unknown|)$/;
+function _flightPhase(leg, fetchedAt) {
+  const st = (leg && leg.status) || '', dep = (leg && leg.departure) || {}, arr = (leg && leg.arrival) || {};
+  if (/^(Canceled|CanceledUncertain|Diverted)$/.test(st)) return { phase: 'bad' };
+  const now = Date.now(), seen = Date.parse(fetchedAt || '');
+  const happened = v => { const x = Date.parse(v || ''); return isFinite(x) && isFinite(seen) && x <= seen; };
+  if (st === 'Arrived' || happened(arr.runwayUtc)) return { phase: 'landed' };
+  if (/^(Departed|EnRoute|Approaching)$/.test(st) || happened(dep.runwayUtc)) return { phase: 'air' };
+  const off = Date.parse(dep.revisedUtc || dep.utc || ''), on = Date.parse(arr.revisedUtc || arr.utc || '');
+  if (isFinite(off) && isFinite(seen) && seen < off && now > off + 15 * 60000) {
+    return { phase: isFinite(on) && now > on ? 'landed' : 'air', est: true };
+  }
+  return { phase: 'pre' };
+}
+function _flightStatusInfo(leg, fetchedAt) {
   const st = (leg && leg.status) || '';
   const dep = (leg && leg.departure) || {};
+  const ph = _flightPhase(leg, fetchedAt);
+  if (ph.est) return ph.phase === 'landed' ? { label: 'Landed', tone: 'good', phase: 'landed', est: true } : { label: 'In the air', tone: 'air', phase: 'air', est: true };
+  if (_FL_PRE.test(st) && ph.phase === 'air') return { label: 'In the air', tone: 'air', phase: 'air' };
+  if (st !== 'Arrived' && ph.phase === 'landed') return { label: 'Landed', tone: 'good', phase: 'landed' };
   const late = dep.utc && dep.revisedUtc ? Math.round((Date.parse(dep.revisedUtc) - Date.parse(dep.utc)) / 60000) : 0;
   const map = {
     Canceled: ['Canceled', 'bad'], CanceledUncertain: ['Possibly canceled', 'bad'], Diverted: ['Diverted', 'bad'],
@@ -12432,7 +12460,19 @@ function _flightStatusInfo(leg) {
     label = 'Delayed ' + (late >= 60 ? `${Math.floor(late / 60)}h ${String(late % 60).padStart(2, '0')}m` : `${late} min`);
     tone = 'warn';
   }
-  return { label, tone };
+  return { label, tone, phase: ph.phase };
+}
+// How old the status is, said plainly when it can't be trusted as current:
+// an estimate, or a refresh that keeps failing.
+function _flightAgeText(live, key, long) {
+  const ago = _agoShort(live.fetchedAt), e = key && _flightLive[key];
+  if (live.info.est) return long ? `Estimated from the schedule · last update ${ago}` : `Est. · ${ago}`;
+  if (e && e.failed) return long ? `Live updates unavailable right now · last update ${ago}` : `Last update ${ago}`;
+  return long ? `Updated ${ago}` : ago;
+}
+function _flightAgeStale(live, key) {
+  const e = key && _flightLive[key];
+  return !!(live.info.est || (e && e.failed));
 }
 // Status wording for a narrow column. "Delayed 45 min" doesn't fit next to
 // an item on a phone; "Delayed 45m" does.
@@ -12450,14 +12490,14 @@ function _flightLiveFor(t, date) {
   const e = key && _flightLive[key];
   if (!e || !Array.isArray(e.legs)) return null;
   const leg = _flightLegFor(t, e.legs);
-  return leg ? { leg, info: _flightStatusInfo(leg), fetchedAt: e.fetchedAt } : null;
+  return leg ? { leg, info: _flightStatusInfo(leg, e.fetchedAt), fetchedAt: e.fetchedAt } : null;
 }
 // One clear status for any flight, live or not. Before tracking starts
 // (the day before departure) a flight still says what it is: Scheduled.
 function _flightStatusBadge(t, date) {
   let label = 'Scheduled', tone = 'muted', note = '';
   const live = _flightLiveFor(t, date);
-  if (live) { label = live.info.label; tone = live.info.tone; note = 'Updated ' + _agoShort(live.fetchedAt); }
+  if (live) { label = live.info.label; tone = live.info.tone; note = _flightAgeText(live, _flightLiveKey(t, date), true); }
   else if (!_flightCode(t.flightNumber)) { label = 'No live status'; note = 'Needs the airline code and flight number'; }
   else if (_flightLiveNoAuth || _flightApiConfigured === false) { label = 'Scheduled'; }
   else if (!_flightTrackable(t, date)) { label = 'Scheduled'; note = 'Live status starts the day before'; }
@@ -12469,14 +12509,14 @@ function _flightStatusBadge(t, date) {
 }
 function _flightFinished(t, date) {
   const live = _flightLiveFor(t, date);
-  if (!live || live.leg.status !== 'Arrived') return false;
-  const arr = Date.parse(live.leg.arrival.revisedUtc || live.leg.arrival.utc || '');
+  if (!live || live.info.phase !== 'landed') return false;
+  const arr = Date.parse(live.leg.arrival.runwayUtc || live.leg.arrival.revisedUtc || live.leg.arrival.utc || '');
   return isFinite(arr) && Date.now() > arr + 60 * 60 * 1000;
 }
 function _flightTrackNote(t, date) {
   if (!_flightCode(t.flightNumber) || _flightLiveNoAuth || _flightApiConfigured === false) return '';
   const live = _flightLiveFor(t, date);
-  if (live) return `Updated ${_agoShort(live.fetchedAt)}`;
+  if (live) return _flightAgeText(live, _flightLiveKey(t, date), true);
   if (!_flightTrackable(t, date)) return 'Live status starts the day before';
   const e = _flightLive[_flightLiveKey(t, date)];
   if (e && Array.isArray(e.legs)) return 'No live status found for this flight number';
@@ -12521,10 +12561,15 @@ async function _flightLiveFetch(t, date, force) {
     });
     const j = await r.json().catch(() => null);
     if (j && j.configured === false) { _flightApiConfigured = false; _flightLiveRedraw(key); return; }
-    if (!j || !r.ok) { _flightLive[key] = { ...(cur || {}), checkedAt: Date.now(), failed: true }; if (!cur) _flightLiveRedraw(key); return; }
+    if (!j || !r.ok) {
+      _flightLive[key] = { ...(cur || {}), checkedAt: Date.now(), failed: true, error: (j && j.error) || 'http' };
+      if (!cur || !cur.failed) _flightLiveRedraw(key);   // the age line changes to say updates stopped
+      return;
+    }
     _flightApiConfigured = true;
     const next = { legs: Array.isArray(j.flights) ? j.flights : [], fetchedAt: j.fetchedAt || new Date().toISOString(), checkedAt: Date.now() };
-    const changed = !cur || JSON.stringify(cur.legs) !== JSON.stringify(next.legs) || cur.fetchedAt !== next.fetchedAt;
+    if (j.stale) { next.failed = true; next.error = j.error || 'stale'; }   // the server's last copy; its refresh failed
+    const changed = !cur || JSON.stringify(cur.legs) !== JSON.stringify(next.legs) || cur.fetchedAt !== next.fetchedAt || !!cur.failed !== !!next.failed;
     _flightLive[key] = next;
     try {
       const t0 = Date.parse(todayISO() + 'T12:00:00Z'), keep = {};
@@ -12588,10 +12633,10 @@ function _phoneMyFlightCardHTML(t, d, when) {
   // Plane sits at the origin before takeoff, moves along the line in the
   // air (by elapsed flight time), and at the destination once landed.
   let prog = .5;
-  if (leg && !/^(Canceled|CanceledUncertain|Diverted)$/.test(leg.status || '')) {
+  if (leg && live.info.phase !== 'bad') {
     const a = Date.parse(dep.runwayUtc || dep.revisedUtc || dep.utc || ''), b = Date.parse(arr.revisedUtc || arr.utc || '');
-    if (leg.status === 'Arrived') prog = .9;
-    else if (/^(Departed|EnRoute|Approaching)$/.test(leg.status) && isFinite(a) && isFinite(b) && b > a) prog = Math.min(.9, Math.max(.1, (Date.now() - a) / (b - a)));
+    if (live.info.phase === 'landed') prog = .9;
+    else if (live.info.phase === 'air' && isFinite(a) && isFinite(b) && b > a) prog = Math.min(.9, Math.max(.1, (Date.now() - a) / (b - a)));
     else prog = .1;
   }
   const depSub = dep ? [dep.terminal ? 'Terminal ' + esc(dep.terminal) : '', dep.gate ? 'Gate ' + esc(dep.gate) : ''].filter(Boolean).join(' · ') : '';
@@ -12697,14 +12742,14 @@ function _phoneTravelItemHTML(t, viewer, viewerKey, onDate) {
     const dep = t.allDay ? 'All day' : _flightTimeHTML(t.time, leg && leg.departure);
     const arrive = (t.arriveTime || (leg && leg.arrival.time)) ? _flightTimeHTML(t.arriveTime, leg && leg.arrival) : '';
     const gateBits = leg ? [leg.departure.terminal && 'Terminal ' + esc(leg.departure.terminal), leg.departure.gate && 'Gate ' + esc(leg.departure.gate),
-      leg.status === 'Arrived' && leg.arrival.baggageBelt && 'Belt ' + esc(leg.arrival.baggageBelt)].filter(Boolean).join(' · ') : '';
+      live.info.phase === 'landed' && leg.arrival.baggageBelt && 'Belt ' + esc(leg.arrival.baggageBelt)].filter(Boolean).join(' · ') : '';
     return `
       <button type="button" class="ph-flight ${viewerIsPax ? 'mine' : ''}" onclick="_phoneShowTravel('${esc(t.id)}')">
         <div class="phf-top">
           <span class="phf-badge">✈ ${esc(flt)}</span>
           ${viewerIsPax ? '<span class="phf-you">Your flight</span>' : ''}
         </div>
-        ${live ? `<div class="phf-live"><span class="phf-status ${live.info.tone}">${esc(live.info.label)}</span>${gateBits ? `<span>${gateBits}</span>` : ''}<span class="phf-upd">${esc(_agoShort(live.fetchedAt))}</span></div>` : ''}
+        ${live ? `<div class="phf-live"><span class="phf-status ${live.info.tone}">${esc(live.info.label)}</span>${gateBits ? `<span>${gateBits}</span>` : ''}<span class="phf-upd${_flightAgeStale(live, _flightLiveKey(t, onDate || (getPhoneDate() || {}).date || '')) ? ' stale' : ''}">${esc(_flightAgeText(live, _flightLiveKey(t, onDate || (getPhoneDate() || {}).date || '')))}</span></div>` : ''}
         ${legSum ? `<div class="phf-leg ${legSum.tone}">${esc(legSum.label)}${legSum.text ? ' · ' + esc(legSum.text) : ''}</div>` : ''}
         ${_travelShortDesc(t) ? `<div class="phf-route">${esc(_travelShortDesc(t))}</div>` : ''}
         <div class="phf-times">
