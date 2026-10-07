@@ -4,10 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Bandmate — Run your tour from one place.</title>
-<meta name="description" content="Bandmate is the shared road book for tour managers and crew. Build your tour once, your whole crew lives in it, change it once and every phone updates. $49.99/mo, crew free." />
+<meta name="description" content="Bandmate is the shared road book for tour managers and crew. Build your tour once and every phone stays current — live flight tracking, guest list lock, TM Mobile, calendar sync. $49.99/mo, crew free." />
 <meta property="og:title" content="Bandmate — Run your tour from one place." />
 <meta property="og:description" content="The road book your whole crew actually opens. Build once, change once, everyone's on the same page. Crew free." />
-<meta property="og:image" content="/logo.png" />
+<meta property="og:image" content="https://www.bandmate.art/logo.png" />
 <meta property="og:type" content="website" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -29,7 +29,8 @@
   --line:#2a1d12;--line-2:#3d2a1a;
   --warm:#f5e9d6;--warm-mute:#a08868;
   --hi:#e8943a;--hi-2:#c47323;--hi-bright:#ffb35a;--hot:#ff7a1f;
-  --good:#6dcf8b;--red:#e84545;--cool:#8aa9d8;--teal:#4fd1c5;
+  --good:#6dcf8b;--red:#e84545;--cool:#8aa9d8;--teal:#4fd1c5;--teal-deep:#2fb8ab;--tm-ink:#0b1614;
+  --mono:'Bricolage Grotesque',ui-monospace,monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:#0a0705}
@@ -43,20 +44,24 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     var(--ink);}
 .bg::after{content:"";position:absolute;inset:0;mix-blend-mode:overlay;opacity:.5;
   background:repeating-linear-gradient(0deg,rgba(232,148,58,.03) 0 1px,transparent 1px 4px);}
-/* Twinkling dots — 3 sparse, offset dot-fields each fading in/out on its own
-   clock, so scattered points shimmer across the whole fixed background at any
-   screen size. Pure CSS (no images/JS); freezes under reduced-motion. */
+/* Twinkling dots — 3 sparse, offset dot-fields each fading in/out on its own clock. */
 .twk{position:fixed;inset:0;z-index:0;pointer-events:none;will-change:opacity}
 .twk1{background:radial-gradient(circle,rgba(255,179,90,.70) .6px,rgba(255,179,90,.22) 1.6px,transparent 2.8px) 10px 22px/128px 110px;animation:twinkle 3.4s ease-in-out infinite}
 .twk2{background:radial-gradient(circle,rgba(255,179,90,.60) .6px,rgba(255,179,90,.20) 1.6px,transparent 2.8px) 64px 74px/150px 132px;animation:twinkle 4.3s ease-in-out infinite;animation-delay:1.3s}
 .twk3{background:radial-gradient(circle,rgba(232,148,58,.60) .7px,rgba(232,148,58,.20) 1.7px,transparent 3px) 104px 40px/182px 148px;animation:twinkle 5.1s ease-in-out infinite;animation-delay:2.5s}
 @keyframes twinkle{0%,100%{opacity:.07}50%{opacity:.92}}
 
+/* ── The Pixel Bunny: one canvas behind everything, posed per slide ── */
+.bunny{position:fixed;inset:0;z-index:2;width:100%;height:100%;display:block;pointer-events:none;opacity:0}
+.mark-fb{display:block}
+body.bunny-live .mark-fb{display:none}
+
 .topbar{position:fixed;top:0;left:0;right:0;z-index:30;display:flex;justify-content:space-between;align-items:center;
   padding:calc(18px + env(safe-area-inset-top)) clamp(20px,5vw,54px) 18px;pointer-events:none}
 .topbar img{height:22px;width:auto;filter:drop-shadow(0 0 8px rgba(232,148,58,.3));opacity:.92}
-.counter{font-family:'Bricolage Grotesque',monospace;font-size:12px;letter-spacing:.22em;color:#7a6647}
+.counter{font-family:var(--mono);font-size:12px;letter-spacing:.22em;color:#7a6647;text-transform:uppercase}
 .counter b{color:var(--hi)}
+.counter .lbl{color:#7a6647;margin-right:14px}
 .rail{position:fixed;right:26px;top:50%;transform:translateY(-50%);z-index:30;display:flex;flex-direction:column;gap:11px}
 .rail button{width:9px;height:9px;border-radius:50%;border:1px solid var(--line-2);background:transparent;padding:0;cursor:pointer;transition:all .3s}
 .rail button.on{background:var(--hi);border-color:var(--hi);box-shadow:0 0 10px rgba(232,148,58,.6)}
@@ -66,30 +71,39 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 .slide{scroll-snap-align:start;scroll-snap-stop:always;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;justify-content:center;
   padding:calc(96px + env(safe-area-inset-top)) clamp(22px,7vw,120px) calc(90px + env(safe-area-inset-bottom));position:relative}
 
-.eyebrow{font-family:'Bricolage Grotesque',monospace;font-size:clamp(11px,1.3vw,13px);font-weight:700;letter-spacing:.34em;text-transform:uppercase;color:var(--hi);margin-bottom:20px}
-/* Typewriter caret — blinks at the end of an eyebrow while it types / sits active */
+/* While the bunny introduces itself, the deck waits underneath. */
+.deck,.topbar,.rail{transition:opacity .9s ease}
+body.intro .deck,body.intro .topbar,body.intro .rail{opacity:0;pointer-events:none}
+#intro{position:fixed;inset:0;z-index:100;cursor:pointer}
+#intro.out{pointer-events:none}
+#intro .intro-hint{position:absolute;left:0;right:0;bottom:calc(30px + env(safe-area-inset-bottom));text-align:center;
+  font-family:var(--mono);font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:#a08868;opacity:0;transition:opacity .8s ease .9s}
+#intro.go .intro-hint{opacity:1;animation:introhint 2.2s ease-in-out 1.7s infinite}
+#intro.out .intro-hint{opacity:0!important;animation:none;transition:opacity .3s}
+#intro .intro-hint .ar{display:inline-block;margin-left:6px}
+@keyframes introhint{0%,100%{opacity:.55}50%{opacity:1}}
+
+.eyebrow{font-family:var(--mono);font-size:clamp(11px,1.3vw,13px);font-weight:700;letter-spacing:.34em;text-transform:uppercase;color:var(--hi);margin-bottom:20px}
 .tw-caret{display:inline-block;width:2px;height:1em;background:currentColor;margin-left:4px;vertical-align:-0.1em;animation:tw-blink .7s step-end infinite}
 @keyframes tw-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
-.display{font-family:'Bebas Neue','Inter',sans-serif;font-weight:400;line-height:.92;letter-spacing:.01em;color:var(--warm);font-size:clamp(46px,8.2vw,110px)}
+.display{font-family:'Bebas Neue','Inter',sans-serif;font-weight:400;line-height:.92;letter-spacing:.01em;color:var(--warm);font-size:clamp(46px,8.2vw,110px);text-wrap:balance}
 .display .amb{color:var(--hi)}
-.lead{font-size:clamp(16px,2.1vw,21px);line-height:1.6;color:var(--warm);max-width:780px;margin-top:24px;font-weight:400}
+.display.md{font-size:clamp(40px,6vw,82px)}
+.lead{font-size:clamp(16px,2.1vw,21px);line-height:1.6;color:var(--warm);max-width:760px;margin-top:24px;font-weight:400}
 .lead .mut{color:var(--warm-mute)}
-.kick{font-family:'Bricolage Grotesque',monospace;font-size:13px;letter-spacing:.06em;color:var(--warm-mute);margin-top:26px}
+.lead.sm{font-size:clamp(15px,1.75vw,18px);line-height:1.58}
 .turn{margin-top:28px;padding:3px 0 3px 22px;border-left:2px solid var(--hi);max-width:760px}
-.turn .tlab{font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--hi);font-weight:700;margin-bottom:8px}
+.turn .tlab{font-family:var(--mono);font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--hi);font-weight:700;margin-bottom:8px}
 .turn .ttxt{font-size:clamp(15.5px,1.95vw,19px);line-height:1.55;color:var(--warm)}
-.turn .ttxt b{color:var(--warm)}
 
 .cta{display:inline-flex;align-items:center;gap:8px;margin-top:32px;padding:15px 26px;border-radius:12px;border:none;cursor:pointer;font-family:inherit;
-  background:linear-gradient(135deg,var(--hi),var(--hi-2));color:#0a0705;text-decoration:none;font-weight:800;
-  letter-spacing:.03em;font-size:clamp(15px,1.8vw,17px);box-shadow:0 0 24px rgba(232,148,58,.28);transition:transform .15s,box-shadow .3s}
+  color:#0a0705;text-decoration:none;font-weight:800;letter-spacing:.03em;font-size:clamp(15px,1.8vw,17px);box-shadow:0 0 24px rgba(232,148,58,.28);transition:transform .15s,box-shadow .3s;align-self:flex-start}
 .cta:hover{transform:translateY(-2px);box-shadow:0 0 38px rgba(232,148,58,.45)}
-.cta.ghost{background:transparent;color:var(--hi);border:1px solid var(--hi-2);box-shadow:none;font-weight:700}
-.cta.ghost:hover{border-color:var(--hi);background:rgba(232,148,58,.06)}
-/* Cover "Continue" — the glowing ember button (flames drift inside, glow breathes). */
-.cta-go{display:inline-flex;align-items:center;gap:9px;margin-top:30px;padding:15px 30px;border-radius:12px;border:1px solid rgba(255,190,90,.55);cursor:pointer;
-  color:#0a0705;font-family:'Inter',sans-serif;font-weight:800;font-size:clamp(16px,2.1vw,18px);letter-spacing:.02em;position:relative;
-  transition:transform .15s,border-color .3s}
+.cta:focus-visible,.cta-go:focus-visible,.rail button:focus-visible{outline:2px solid var(--hi-bright);outline-offset:3px}
+.cta.ghost{color:var(--hi);border:1px solid var(--hi-2);box-shadow:none;font-weight:700}
+.cta.ghost:hover{border-color:var(--hi)}
+.cta-go{display:inline-flex;align-items:center;gap:9px;margin-top:26px;padding:15px 30px;border-radius:12px;border:1px solid rgba(255,190,90,.55);cursor:pointer;
+  color:#0a0705;font-family:'Inter',sans-serif;font-weight:800;font-size:clamp(16px,2.1vw,18px);letter-spacing:.02em;position:relative;transition:transform .15s,border-color .3s}
 .cta-go:hover{transform:translateY(-2px);border-color:#ffd9a0}
 .cta-go .ar{transition:transform .2s}
 .cta-go:hover .ar{transform:translateX(5px)}
@@ -102,164 +116,367 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 .slide.in .reveal:nth-child(4){transition-delay:.24s}
 .slide.in .reveal:nth-child(5){transition-delay:.32s}
 
-.cover{align-items:center;text-align:center;justify-content:center}
+/* ── Cover & close: the bunny takes the top half, the words sit under it ── */
+.cover,.close{align-items:center;text-align:center;justify-content:center}
+body.bunny-live .cover,body.bunny-live .close{justify-content:flex-end;padding-bottom:calc(104px + env(safe-area-inset-bottom))}
 .cover .cmark{display:inline-block;perspective:1000px;animation:float 6s ease-in-out infinite}
-.cover .mark{height:clamp(112px,18vw,184px);width:auto;filter:drop-shadow(0 0 34px rgba(232,148,58,.4));animation:spin 4s linear infinite}
+.cover .mark,.close .mark{height:clamp(112px,18vw,184px);width:auto;filter:drop-shadow(0 0 34px rgba(232,148,58,.4))}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
-.cover .word{height:clamp(44px,6.5vw,70px);width:auto;margin-top:28px;filter:drop-shadow(0 0 18px rgba(232,148,58,.28))}
-.cover .tag{font-family:'Bebas Neue','Inter',sans-serif;font-size:clamp(28px,5.4vw,60px);line-height:.96;letter-spacing:.012em;margin-top:30px;max-width:16ch}
-.cover .sub{font-size:clamp(15px,1.9vw,19px);color:var(--warm-mute);margin-top:14px}
+.cover .word{height:clamp(36px,5.2vw,58px);width:auto;margin-top:26px;filter:drop-shadow(0 0 18px rgba(232,148,58,.28))}
+body.bunny-live .cover .word{margin-top:0}
+/* Wide screens: the homepage layout — words hold the left, the bunny owns the right. */
+@media (min-width:901px) and (min-aspect-ratio:4/5){
+  body.bunny-live .cover{align-items:flex-start;text-align:left;justify-content:center;padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+  body.bunny-live .cover .tag{font-size:clamp(46px,6.6vw,92px);line-height:.94;max-width:12ch;margin-top:26px}
+  body.bunny-live .cover .sub{max-width:40ch}
+  body.bunny-live .cover .meta{justify-content:flex-start;padding-left:clamp(22px,7vw,120px)}
+}
+.cover .tag{font-family:'Bebas Neue','Inter',sans-serif;font-size:clamp(28px,5vw,58px);line-height:.96;letter-spacing:.012em;margin-top:22px;max-width:18ch}
+.cover .sub{font-size:clamp(15px,1.9vw,19px);color:var(--warm-mute);margin-top:12px}
 .cover .meta{position:absolute;left:0;right:0;bottom:calc(38px + env(safe-area-inset-bottom));display:flex;justify-content:center;gap:22px;flex-wrap:wrap;
-  font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#6f5c40}
+  font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#6f5c40}
 .cover .meta b{color:var(--hi);font-weight:700}
-.scrollhint{position:absolute;bottom:calc(12px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.3em;color:#6f5c40;animation:bob 1.8s ease-in-out infinite}
+.scrollhint{position:absolute;bottom:calc(12px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:10px;letter-spacing:.3em;color:#6f5c40;animation:bob 1.8s ease-in-out infinite}
 @keyframes bob{0%,100%{transform:translateX(-50%) translateY(0);opacity:.6}50%{transform:translateX(-50%) translateY(5px);opacity:1}}
+.close .big{font-family:'Bebas Neue','Inter',sans-serif;font-size:clamp(40px,7vw,84px);line-height:.95;color:var(--warm);margin-top:24px}
+body.bunny-live .close .big{margin-top:0}
+.close .em{font-size:clamp(15px,2vw,19px);color:var(--warm-mute);margin-top:18px}
+.close a{color:var(--hi);text-decoration:none;border-bottom:1px solid var(--hi-2)}
 
-.two{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(30px,5vw,70px);align-items:center;width:100%}
+.two{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:clamp(30px,5vw,70px);align-items:center;width:100%}
+.two>*{min-width:0}
 .bul{list-style:none;margin-top:30px;display:flex;flex-direction:column;gap:16px;max-width:760px}
 .bul li{position:relative;padding-left:26px;font-size:clamp(15px,1.8vw,18px);line-height:1.5;color:var(--warm)}
 .bul li::before{content:"";position:absolute;left:0;top:9px;width:8px;height:8px;border-radius:2px;background:var(--hi);box-shadow:0 0 9px rgba(232,148,58,.55)}
-.bul li b{color:var(--warm)}.bul li .mut{color:var(--warm-mute)}
+.bul li .mut{color:var(--warm-mute)}
 
 .pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:36px;width:100%;max-width:980px}
-.pillar{border:1px solid var(--line-2);border-radius:14px;padding:22px 22px 24px;background:linear-gradient(180deg,rgba(31,22,16,.6),rgba(17,12,8,.4))}
-.pillar .pn{font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--hi);font-weight:700}
+.pillar{border:1px solid var(--line-2);border-radius:14px;padding:22px 22px 24px}
+.pillar .pn{font-family:var(--mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--hi);font-weight:700}
 .pillar .ph{font-family:'Bebas Neue','Inter',sans-serif;font-size:30px;color:var(--warm);margin:10px 0 8px;letter-spacing:.01em}
 .pillar .pb{font-size:14px;line-height:1.55;color:var(--warm-mute)}
 
-.features{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:34px;width:100%;max-width:940px}
-.feat{min-width:0;border:1px solid var(--line-2);border-radius:13px;padding:18px 20px;background:linear-gradient(180deg,rgba(31,22,16,.55),rgba(17,12,8,.4))}
-.feat .fh{font-family:'Bricolage Grotesque',monospace;font-size:12px;letter-spacing:.15em;text-transform:uppercase;color:var(--hi);font-weight:700;margin-bottom:7px;overflow-wrap:break-word}
-.feat .fb{font-size:14px;line-height:1.5;color:var(--warm-mute);overflow-wrap:break-word}
+/* Feature grid — a flat line icon beside each, like the app's tabs */
+.features{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:32px;width:100%;max-width:1000px}
+.feat{min-width:0;display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:13px;align-items:start;align-content:start;border:1px solid var(--line-2);border-radius:13px;padding:15px 18px}
+.feat .fi{grid-row:1/3;width:19px;height:19px;margin-top:1px;color:var(--hi)}
+.feat .fh{font-family:var(--mono);font-size:12px;letter-spacing:.15em;text-transform:uppercase;color:var(--hi);font-weight:700;margin-bottom:5px;overflow-wrap:break-word}
+.feat .fb{font-size:13.5px;line-height:1.48;color:var(--warm-mute);overflow-wrap:break-word}
+.feat.new{border-color:rgba(232,148,58,.42)}
+.feat.new .fh::after{content:" · New";color:var(--warm-mute);letter-spacing:.15em}
+@media (min-width:1180px){.features{grid-template-columns:repeat(4,minmax(0,1fr))}.feat{grid-template-columns:1fr}.feat .fi{grid-row:auto;margin-bottom:10px}}
 
-.dash{border:1px solid var(--line-2);border-radius:16px;overflow:hidden;background:linear-gradient(180deg,#1a1209,#0f0a06);box-shadow:0 30px 70px rgba(0,0,0,.55)}
-.dash .top{display:flex;justify-content:space-between;align-items:flex-start;padding:22px 24px 16px}
-.dash .city{font-family:'Bebas Neue','Inter',sans-serif;font-size:clamp(34px,4.6vw,48px);line-height:.9;color:var(--warm);letter-spacing:.01em}
-.dash .loc{font-size:12.5px;color:var(--warm-mute);margin-top:5px}
-.dash .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;font-family:'Bricolage Grotesque',monospace;font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;background:rgba(109,207,139,.12);border:1px solid rgba(109,207,139,.42);color:#7adc97;white-space:nowrap}
-.dash .date{font-family:'Bricolage Grotesque',monospace;font-size:12px;color:var(--warm);text-align:right;margin-bottom:8px;letter-spacing:.06em}
-.dash .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line)}
-.dash .cell{background:var(--ink-3);padding:15px 16px}
-.dash .cl{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--warm-mute);font-weight:700}
-.dash .cv{font-size:18px;color:var(--warm);margin-top:6px;font-weight:600}
-.dash .cv .g{color:var(--hi);margin-right:6px}
+.ic{width:14px;height:14px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mk-k{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--warm-mute)}
+.tz{margin-left:2px;font-size:7px;font-weight:500;letter-spacing:.06em;color:#c9b08c;text-transform:uppercase;vertical-align:1px}
+/* Live status words — the app's flight colours, a dot, no box */
+.st{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;white-space:nowrap}
+.st::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+.st.good{color:#7adc97}.st.air{color:#8aa9d8}.st.warn{color:#fdba74}.st.hi{color:var(--hi)}
 
-.phone{width:clamp(230px,80%,278px);margin:0 auto;background:#0c0805;border:1px solid #2a1d12;border-radius:30px;padding:14px;box-shadow:0 30px 70px rgba(0,0,0,.55)}
-.phone .ph-top{display:flex;justify-content:space-between;align-items:center;padding:2px 8px 12px;font-family:'Bricolage Grotesque',monospace;font-size:10px;color:var(--warm-mute);letter-spacing:.04em}
+/* ── Desktop dashboard mock ── */
+.dsk{border:1px solid var(--line-2);border-radius:16px;overflow:hidden;background:linear-gradient(180deg,#160f09,#0d0905);box-shadow:0 30px 70px rgba(0,0,0,.55)}
+.dsk-top{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--line)}
+.dsk-top img{height:13px;width:auto;opacity:.9}
+.dsk-tour{text-align:center;min-width:0;line-height:1.25}
+.dsk-tour b{display:block;font-family:var(--mono);font-size:11.5px;font-weight:700;letter-spacing:.08em;color:var(--warm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dsk-tour span{display:block;font-family:var(--mono);font-size:8px;letter-spacing:.2em;color:var(--warm-mute);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dsk-acct{display:flex;align-items:center;gap:7px}
+.dsk-gear{width:24px;height:24px;display:grid;place-items:center;border:1px solid var(--line-2);border-radius:7px;color:var(--warm-mute)}
+.dsk-av{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:8.5px;font-weight:800;color:#0a0705;background:radial-gradient(circle at 35% 30%,#ffb35a,#c47323)}
+.tape{height:20px;overflow:hidden;background:linear-gradient(180deg,rgba(232,148,58,.10),rgba(232,148,58,.04)),#0f0a06;border-bottom:1px solid var(--line);
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 22px,#000 calc(100% - 22px),transparent);mask-image:linear-gradient(90deg,transparent,#000 22px,#000 calc(100% - 22px),transparent)}
+.tape-track{display:flex;width:max-content;height:100%;align-items:center;animation:crawl 30s linear infinite;
+  font-family:var(--mono);font-size:8.5px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--hi);white-space:nowrap}
+.tape-track span{padding-right:44px}
+.tape-track i{width:4px;height:4px;border-radius:50%;background:var(--hi);box-shadow:0 0 8px var(--hi);display:inline-block;margin:0 10px 1px 0}
+.tape-track em{font-style:normal;color:var(--line-2);margin:0 6px}
+@keyframes crawl{to{transform:translateX(-50%)}}
+.dsk-days{display:flex;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line);overflow:hidden}
+.dday{flex:1 1 0;min-width:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 9px;align-items:center;padding:7px 9px;border:1px solid var(--line-2);border-radius:9px;background:rgba(0,0,0,.25)}
+.dday.on{border-color:rgba(232,148,58,.6);background:rgba(232,148,58,.08);box-shadow:0 0 14px rgba(232,148,58,.14)}
+.dday .dd{text-align:center;font-family:var(--mono);line-height:1;padding-right:9px;border-right:1px solid var(--line-2)}
+.dday .dd small{display:block;font-size:7px;letter-spacing:.16em;color:var(--warm-mute)}
+.dday .dd b{display:block;font-size:16px;color:var(--hi);margin:3px 0 2px}
+.dday .dd em{font-style:normal;font-size:6.5px;letter-spacing:.14em;color:var(--good)}
+.dday .dd em.off{color:var(--warm-mute)}
+.dday .dw{min-width:0;line-height:1.25}
+.dday .dw small{display:block;font-family:var(--mono);font-size:7px;letter-spacing:.16em;color:var(--warm-mute)}
+.dday .dw b{display:block;font-size:11.5px;color:var(--warm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dday .dw span{display:block;font-size:9.5px;color:var(--warm-mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dsk-body{padding:13px 14px 15px}
+.scanbar{display:flex;align-items:stretch;border:1px solid rgba(109,207,139,.45);border-radius:8px;overflow:hidden;background:rgba(109,207,139,.06)}
+.scanbar .sb-s{flex:1;display:flex;align-items:center;gap:8px;padding:7px 10px;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.2em;color:#7adc97;text-transform:uppercase}
+.scanbar .sb-s::before{content:"";width:6px;height:6px;border-radius:50%;background:#6dcf8b;box-shadow:0 0 8px #6dcf8b}
+.scanbar .sb-r{display:flex;align-items:center;padding:7px 12px;border-left:1px solid rgba(109,207,139,.45);font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.2em;color:#7adc97}
+.dsk-city{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:13px}
+.dsk-city h4{font-family:'Bebas Neue','Inter',sans-serif;font-weight:400;font-size:clamp(30px,3.4vw,42px);line-height:.9;color:var(--warm);letter-spacing:.01em}
+.dsk-city p{font-size:11.5px;color:var(--warm-mute);margin-top:4px}
+.dsk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:12px}
+.dsk-cell{background:#140d08;padding:10px 12px;min-width:0}
+.dsk-cell .v{font-size:15px;font-weight:600;color:var(--warm);margin-top:5px;white-space:nowrap}
+.dsk-cell .v small{font-size:11px;color:var(--warm-mute);font-weight:500}
+
+/* ── Docs → tour ── */
+.docflow{display:flex;flex-direction:column;gap:12px;width:100%}
+.files{border:1px solid var(--line-2);border-radius:12px;overflow:hidden;background:rgba(0,0,0,.28)}
+.file{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:11px;align-items:center;padding:9px 13px;border-top:1px solid var(--line)}
+.file:first-child{border-top:0}
+.file .ic{color:var(--hi);width:15px;height:15px}
+.file b{font-size:13px;color:var(--warm);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file .fs{position:relative;font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--warm-mute);min-width:44px;text-align:right}
+.file .fs .r{position:absolute;right:0;top:0;color:#7adc97;opacity:0;transition:opacity .4s}
+.file .fs .q{transition:opacity .4s}
+.slide.in .file .fs .r{opacity:1}.slide.in .file .fs .q{opacity:0}
+.slide.in .file:nth-child(1) .fs>*{transition-delay:.7s}
+.slide.in .file:nth-child(2) .fs>*{transition-delay:1.2s}
+.slide.in .file:nth-child(3) .fs>*{transition-delay:1.7s}
+.slide.in .file:nth-child(4) .fs>*{transition-delay:2.2s}
+.dflowarrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--hi);font-weight:700;display:flex;align-items:center;gap:8px;padding-left:2px}
+.dresult{border:1px solid rgba(109,207,139,.4);border-radius:14px;padding:16px 18px;box-shadow:0 0 26px rgba(109,207,139,.08)}
+.dresult .drh{font-family:'Bebas Neue','Inter',sans-serif;font-size:30px;color:var(--warm);letter-spacing:.02em;line-height:1;margin-top:8px}
+.dresult .drb{font-size:13.5px;color:var(--warm-mute);line-height:1.5;margin-top:6px}
+.dresult .drl{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--warm);margin-top:11px;line-height:1.7}
+.dresult .drl em{font-style:normal;color:var(--line-2);margin:0 6px}
+.dresult .drl span{white-space:nowrap}
+
+/* ── Phone frame ── */
+.phone{position:relative;width:clamp(230px,80%,280px);margin:0 auto;background:#0c0805;border:1px solid #2a1d12;border-radius:30px;padding:14px;box-shadow:0 30px 70px rgba(0,0,0,.55);overflow:hidden}
+.phone .ph-top{display:flex;justify-content:space-between;align-items:center;padding:2px 8px 12px;font-family:var(--mono);font-size:10px;color:var(--warm-mute);letter-spacing:.04em}
 .phone .ph-city{font-family:'Bebas Neue','Inter',sans-serif;font-size:30px;color:var(--warm);line-height:.95;padding:0 6px}
-.phone .ph-day{font-family:'Bricolage Grotesque',monospace;font-size:10px;letter-spacing:.16em;color:var(--hi);padding:4px 6px 12px}
-.phone .ph-row{display:flex;justify-content:space-between;align-items:center;padding:11px 12px;margin:6px 0;background:rgba(0,0,0,.3);border:1px solid var(--line-2);border-radius:9px}
-.phone .ph-row .l{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--warm-mute)}
-.phone .ph-row .t{font-size:15px;color:var(--warm);font-weight:700}
+.phone .ph-day{font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--hi);padding:4px 6px 10px;text-transform:uppercase}
+.phone .ph-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;margin:6px 0;background:rgba(0,0,0,.3);border:1px solid var(--line-2);border-radius:9px}
+.phone .ph-row .l{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--warm-mute)}
+.phone .ph-row .t{font-size:14.5px;color:var(--warm);font-weight:700}
 .phone .ph-row.now{border-color:rgba(232,148,58,.5);background:rgba(232,148,58,.06)}
 .phone .ph-row.now .t{color:var(--hi-bright)}
+.ph-tabs{display:grid;grid-template-columns:repeat(5,1fr);margin:10px -14px -14px;padding:9px 6px 12px;border-top:1px solid var(--line);background:#0a0705}
+.ph-tabs span{display:flex;flex-direction:column;align-items:center;gap:4px;font-family:var(--mono);font-size:7px;letter-spacing:.14em;color:#6f5c40}
+.ph-tabs span.on{color:var(--hi)}
+.ph-tabs .ic{width:13px;height:13px}
 
-.docflow{display:flex;flex-direction:column;gap:13px;width:100%}
-.docrow{display:flex;flex-wrap:wrap;gap:8px}
-.dchip{font-family:'Bricolage Grotesque',monospace;font-size:12px;letter-spacing:.03em;color:var(--warm);
-  padding:9px 13px;border:1px solid var(--line-2);border-radius:9px;background:rgba(0,0,0,.3)}
-.dflowarrow{font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
-  color:var(--hi);font-weight:700;display:flex;align-items:center;gap:8px;padding-left:2px}
-.dresult{border:1px solid rgba(232,148,58,.4);border-radius:14px;padding:18px 20px;
-  background:linear-gradient(180deg,rgba(232,148,58,.10),rgba(17,12,8,.4));box-shadow:0 0 26px rgba(232,148,58,.12)}
-.dresult .drh{font-family:'Bebas Neue','Inter',sans-serif;font-size:30px;color:var(--warm);letter-spacing:.02em;line-height:1}
-.dresult .drb{font-size:13.5px;color:var(--warm-mute);line-height:1.5;margin-top:7px}
-.dresult .drc{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
-.dresult .drc span{font-family:'Bricolage Grotesque',monospace;font-size:10.5px;letter-spacing:.06em;color:#7adc97;
-  border:1px solid rgba(109,207,139,.4);border-radius:6px;padding:4px 9px}
+/* ── Your flight (the Today card) ── */
+.pmf{border:1px solid rgba(232,148,58,.5);border-radius:13px;padding:12px 13px;background:rgba(232,148,58,.07)}
+.pmf-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pmf-flt{font-size:12.5px;color:var(--warm-mute);margin-top:7px}
+.pmf-flt b{color:var(--warm);font-family:var(--mono);letter-spacing:.04em}
+.pmf-route{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:9px;margin-top:10px}
+.pmf-route .cd{font-family:'Bebas Neue','Inter',sans-serif;font-size:27px;line-height:.9;color:var(--warm);letter-spacing:.02em}
+.pmf-line{position:relative;height:16px}
+.pmf-line::before{content:"";position:absolute;left:0;right:0;top:50%;border-top:1px dashed rgba(138,169,216,.45)}
+.pmf-line .fill{position:absolute;left:0;top:50%;height:1px;margin-top:-.5px;background:#8aa9d8;box-shadow:0 0 6px #8aa9d8;width:var(--p,42%);animation:fly 16s ease-in-out infinite alternate}
+.pmf-line svg{position:absolute;top:50%;left:var(--p,42%);width:16px;height:16px;margin:-8px 0 0 -8px;fill:#b1c8ee;filter:drop-shadow(0 0 5px rgba(138,169,216,.7));animation:flyp 16s ease-in-out infinite alternate}
+@keyframes fly{from{width:34%}to{width:66%}}
+@keyframes flyp{from{left:34%}to{left:66%}}
+.pmf-cities{display:flex;justify-content:space-between;font-size:10px;color:var(--warm-mute);margin-top:3px}
+.pmf-conn{margin-top:9px;font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--warm-mute)}
+.pmf-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;padding-top:10px;border-top:1px dashed rgba(232,148,58,.18)}
+.pmf-grid .v{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--warm);margin-top:3px;white-space:nowrap}
+.pmf-grid .v s{color:var(--warm-mute);font-weight:500;font-size:11px;margin-right:4px}
+.pmf-grid .sub{font-size:9.5px;color:var(--warm-mute);margin-top:3px}
+.pmf-foot{display:flex;justify-content:space-between;gap:8px;margin-top:9px;font-family:var(--mono);font-size:8.5px;letter-spacing:.04em;color:var(--warm-mute)}
+.nextleg{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;padding:9px 12px;border:1px solid var(--line-2);border-radius:10px;background:rgba(138,169,216,.05)}
+.nextleg b{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:#b1c8ee}
+.nextleg span{font-size:11px;color:var(--warm-mute)}
+
+/* ── Guest list lock ── */
+.glk{border:1px solid var(--line-2);border-radius:16px;overflow:hidden;background:linear-gradient(180deg,#160f09,#0d0905);box-shadow:0 30px 70px rgba(0,0,0,.55)}
+.glk-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line)}
+.glk-h b{font-family:var(--mono);font-size:12px;color:var(--warm);letter-spacing:.04em}
+.glk-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;padding:9px 16px;border-bottom:1px solid var(--line)}
+.glk-row b{font-size:13px;color:var(--warm);font-weight:600}
+.glk-row span{grid-column:1;font-size:10.5px;color:var(--warm-mute)}
+.glk-row em{grid-row:1/3;grid-column:2;align-self:center;font-style:normal;font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#7adc97}
+.glk-row em.pend{color:#fdba74}
+.glk-lock{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:14px 16px}
+.glk-txt{flex:1 1 180px;min-width:0;display:flex;flex-direction:column;gap:4px}
+.glk-state{font-size:13px;font-weight:600;line-height:1.4;color:var(--good);transition:color .3s}
+.glk.locked .glk-state{color:var(--hi)}
+.glk-state .lk{display:none}.glk.locked .glk-state .op{display:none}.glk.locked .glk-state .lk{display:inline}
+.glk-ctl{display:flex;flex-direction:column;align-items:center;gap:9px}
+.gl-slide{position:relative;width:214px;height:40px;border-radius:10px;border:1px solid rgba(232,148,58,.5);background:#120c07;overflow:hidden;transition:background .35s,border-color .35s}
+.gl-slide::before{content:"";position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(232,148,58,.22);transition:width .9s cubic-bezier(.3,.8,.3,1)}
+.gls-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding-left:40px;
+  font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;white-space:nowrap;
+  background:linear-gradient(90deg,#8a7458 0%,#8a7458 38%,#ffd9a0 50%,#8a7458 62%,#8a7458 100%);background-size:260% 100%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;animation:glsShimmer 2.8s linear infinite}
+.gls-text .lk{display:none}
+.gls-knob{position:absolute;top:3px;left:4px;width:32px;height:32px;border-radius:8px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--hi),var(--hi-2));color:#0a0705;box-shadow:0 2px 8px rgba(0,0,0,.45);transition:left .9s cubic-bezier(.3,.8,.3,1),background .3s,color .3s}
+.gls-knob .ic{width:15px;height:15px;stroke-width:2}
+.glk.locked .gl-slide{background:linear-gradient(90deg,#b8591a,#e8943a);border-color:#e8943a}
+.glk.locked .gls-knob{left:calc(100% - 36px);background:#0a0705;color:var(--hi-bright)}
+.glk.locked .gls-text{padding-left:0;padding-right:40px;background:none;color:#1a0d04;animation:none;letter-spacing:.16em}
+.glk.locked .gls-text .op{display:none}.glk.locked .gls-text .lk{display:inline}
+@keyframes glsShimmer{0%{background-position:100% 0}100%{background-position:-160% 0}}
+.gl-link{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--hi);border-bottom:1px solid rgba(232,148,58,.35);padding-bottom:1px}
+
+/* ── TM Mobile ── */
+.phone.tmm{padding-top:0}
+.tmm-band{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;margin:0 -14px 12px;padding:9px 14px;
+  background:linear-gradient(90deg,var(--teal-deep),var(--teal) 50%,var(--teal-deep));color:var(--tm-ink);font-family:var(--mono);font-size:8px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;
+  animation:tmGlow 3.2s ease-in-out infinite}
+.tmm-band .c{grid-column:2;display:flex;align-items:center;gap:7px;white-space:nowrap}
+.tmm-band .c i{width:6px;height:6px;border-radius:50%;background:var(--tm-ink)}
+.tmm-band .x{justify-self:end;font-size:7.5px;opacity:.7}
+@keyframes tmGlow{0%,100%{box-shadow:0 0 0 rgba(79,209,197,0)}50%{box-shadow:0 1px 14px rgba(79,209,197,.4)}}
+.tmm-hue{position:absolute;inset:0;background:var(--teal);opacity:.05;pointer-events:none}
+.tmm-h{text-align:center;padding:0 4px}
+.tmm-h b{display:block;font-family:var(--mono);font-size:11.5px;font-weight:700;letter-spacing:.08em;color:var(--warm)}
+.tmm-h span{font-family:var(--mono);font-size:8px;letter-spacing:.18em;color:var(--warm-mute)}
+.tmm-btns{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:11px 0}
+.tmm-btns span{padding:8px 6px;text-align:center;border:1px solid var(--line-2);border-radius:9px;font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.16em;color:var(--warm-mute);text-transform:uppercase}
+.tmm-btns span.add{border-style:dashed;border-color:rgba(232,148,58,.5);color:var(--hi)}
+.tmm-tools{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px;margin:10px 0 12px}
+.tmm-tools>span{padding:8px 10px;border:1px solid var(--line-2);border-radius:9px;font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+.tmm-tools .t{color:#b1c8ee;border-color:rgba(138,169,216,.35);background:rgba(138,169,216,.08)}
+.tmm-tools .d{color:#f0d27a;border-color:rgba(240,210,122,.4);display:flex;justify-content:space-between}
+.tmm-v{font-size:11px;color:var(--warm-mute);padding:3px 6px 0}
+.tmm-edit{display:flex;justify-content:space-between;align-items:center;margin-top:11px;padding:10px 12px;border:1px solid rgba(79,209,197,.4);border-radius:10px;background:rgba(79,209,197,.06)}
+.tmm-edit b{font-size:13px;color:var(--warm);white-space:nowrap}
+.tmm-edit span{font-family:var(--mono);font-size:8.5px;font-weight:800;letter-spacing:.18em;color:var(--teal)}
+
+/* ── Departure board (the app's notifications are split-flap) ── */
+.board{margin-top:30px;display:flex;flex-direction:column;gap:7px;padding:16px 18px;border:1px solid var(--line-2);border-radius:14px;background:rgba(0,0,0,.35);width:max-content;max-width:100%}
+.brow{display:grid;grid-template-columns:118px auto;align-items:center;gap:14px}
+.brow .bk{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:var(--warm-mute)}
+.flaps{display:flex;gap:3px;perspective:200px}
+.flaps i{position:relative;display:grid;place-items:center;width:21px;height:30px;background:#1d1d1d;border-radius:3px;font-style:normal;
+  font-family:var(--mono);font-size:18px;font-weight:700;line-height:1;color:var(--hi);box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.flaps i::after{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:#0a0a0a}
+.flaps i.flip{animation:flapIn .12s ease-out}
+.brow.moved .flaps i{color:var(--hi-bright)}
+@keyframes flapIn{from{transform:rotateX(-80deg)}to{transform:rotateX(0)}}
+.btoast{display:flex;align-items:center;gap:12px;margin-top:14px;background:#0f0f0f;border:1px solid #262626;border-radius:6px;padding:8px 16px 8px 8px;width:max-content;max-width:100%;
+  filter:drop-shadow(0 10px 22px rgba(0,0,0,.55));opacity:0;transform:translateY(8px);transition:opacity .3s,transform .3s}
+.btoast.show{opacity:1;transform:none}
+.btoast .toast-k{display:flex;gap:2px}
+.btoast .toast-k i{position:relative;display:grid;place-items:center;width:15px;height:22px;background:#1d1d1d;border-radius:2px;font-style:normal;font-family:var(--mono);font-size:13px;font-weight:700;color:var(--good)}
+.btoast .toast-k i::after{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:#0a0a0a}
+.btoast .toast-m{font-family:var(--mono);font-size:13px;line-height:1.35;color:var(--warm)}
+
+/* ── Chat ── */
 .chatwrap{height:204px;overflow:hidden;padding:0 6px 2px;display:flex;flex-direction:column;justify-content:flex-end}
 .chatfeed{display:flex;flex-direction:column;gap:7px;will-change:transform}
 .cbub{font-size:12.5px;line-height:1.35;padding:8px 11px;border-radius:11px;max-width:86%;animation:cbubin .5s ease both}
 @keyframes cbubin{from{opacity:0}to{opacity:1}}
-.cbub b{display:block;font-size:9px;font-family:'Bricolage Grotesque',monospace;letter-spacing:.1em;color:var(--warm-mute);margin-bottom:3px}
+.cbub b{display:block;font-size:9px;font-family:var(--mono);letter-spacing:.1em;color:var(--warm-mute);margin-bottom:3px}
 .cbub.them{align-self:flex-start;background:rgba(0,0,0,.35);border:1px solid var(--line-2);color:var(--warm)}
 .cbub.me{align-self:flex-end;background:rgba(232,148,58,.14);border:1px solid rgba(232,148,58,.35);color:#fbe3c4}
-.cbub.alert{align-self:stretch;max-width:none;background:rgba(232,148,58,.12);border:1px solid rgba(232,148,58,.5);color:var(--warm)}
+.cbub.alert{align-self:stretch;max-width:none;background:#0f0f0f;border:1px solid #262626;border-radius:6px;color:var(--warm);font-family:var(--mono)}
 .cbub.alert b{color:var(--hi);letter-spacing:.14em;margin-bottom:4px}
 
 .bigquote{font-family:'Bebas Neue','Inter',sans-serif;font-size:clamp(40px,7vw,90px);line-height:1;color:var(--warm);max-width:18ch}
 .bigquote .amb{color:var(--hi)}
 
-.price{border:1px solid rgba(232,148,58,.4);border-radius:18px;padding:clamp(26px,4vw,40px);width:100%;max-width:560px;margin-top:30px;background:linear-gradient(180deg,rgba(31,22,16,.7),rgba(17,12,8,.5));box-shadow:0 0 32px rgba(232,148,58,.14)}
-.price .pt{font-family:'Bricolage Grotesque',monospace;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--hi);font-weight:700}
+.price{border:1px solid rgba(232,148,58,.4);border-radius:18px;padding:clamp(26px,4vw,40px);width:100%;max-width:560px;margin-top:30px;box-shadow:0 0 32px rgba(232,148,58,.14)}
+.price .pt{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--hi);font-weight:700}
 .price .pa{font-family:'Bebas Neue','Inter',sans-serif;font-size:clamp(56px,10vw,92px);color:var(--warm);line-height:.9;margin:8px 0 4px}
 .price .pa span{font-size:.34em;color:var(--warm-mute);letter-spacing:.04em}
 .price .pp{font-size:15px;color:var(--warm);margin-bottom:18px}
 .price ul{list-style:none;display:flex;flex-direction:column;gap:10px;margin-bottom:18px}
 .price li{position:relative;padding-left:24px;font-size:14.5px;color:var(--warm);line-height:1.4}
-.price li::before{content:"✓";position:absolute;left:0;color:var(--good);font-weight:700}
-.price .pf{font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.05em;color:var(--warm-mute);margin-top:14px}
+.price li::before{content:"";position:absolute;left:2px;top:4px;width:9px;height:5px;border-left:2px solid var(--good);border-bottom:2px solid var(--good);transform:rotate(-45deg)}
+.price .pf{font-family:var(--mono);font-size:11px;letter-spacing:.05em;color:var(--warm-mute);margin-top:14px}
 .price .pf b{color:var(--warm)}
-
-.close{align-items:center;text-align:center;justify-content:center;perspective:1000px}
-.close .mark{height:clamp(92px,14vw,144px);filter:drop-shadow(0 0 30px rgba(232,148,58,.4));animation:spin 4s linear infinite}
-@keyframes spin{from{transform:rotateY(0deg)}to{transform:rotateY(360deg)}}
-.close .big{font-family:'Bebas Neue','Inter',sans-serif;font-size:clamp(40px,7vw,84px);line-height:.95;color:var(--warm);margin-top:24px}
-.close .em{font-size:clamp(15px,2vw,19px);color:var(--warm-mute);margin-top:18px}
-.close a{color:var(--hi);text-decoration:none;border-bottom:1px solid var(--hi-2)}
 
 @media (max-width:820px){
   .rail{display:none}
+  .counter .lbl{display:none}
   .two{grid-template-columns:1fr;gap:26px}
   .pillars{grid-template-columns:1fr}
   .slide{padding:calc(84px + env(safe-area-inset-top)) 22px calc(40px + env(safe-area-inset-bottom))}
 }
 /* Phones — compact every slide so each fits on ONE screen (no in-slide scroll) */
 @media (max-width:560px){
-  /* Newer iPhones: the status bar / Dynamic Island and the home indicator
-     sit INSIDE the viewport (viewport-fit=cover), so pad by the safe-area
-     insets — otherwise the first and last lines of a slide hide under them. */
   .slide{padding:calc(62px + env(safe-area-inset-top)) 20px calc(22px + env(safe-area-inset-bottom))}
-  /* Every slide fits one screen on phones, so snapping stays MANDATORY:
-     a flick always lands on a slide, never between two. */
-  /* flex children default to min-width:auto and won't shrink below content —
-     this is what let the 2-col features grid push past the screen edge. */
+  body.bunny-live .cover,body.bunny-live .close{padding-bottom:calc(66px + env(safe-area-inset-bottom))}
   .slide>*{min-width:0;max-width:100%}
   .slide:not(.cover) .display{font-size:clamp(30px,8.2vw,42px)!important}
   .eyebrow{margin-bottom:12px;letter-spacing:.26em}
-  .lead{font-size:15px;line-height:1.5;margin-top:15px}
+  .lead,.lead.sm{font-size:14.5px;line-height:1.5;margin-top:13px}
+  .ph-hide{display:none}
   .turn{margin-top:18px;padding-left:15px}
   .turn .tlab{margin-bottom:6px;letter-spacing:.22em}
   .turn .ttxt{font-size:14px;line-height:1.5}
   .bul{gap:11px;margin-top:18px}
   .bul li{font-size:14.5px}
   .bigquote{font-size:clamp(31px,8.4vw,46px)}
-  /* how it works — compact pillars */
   .pillars{gap:9px;margin-top:18px}
   .pillar{padding:13px 16px}
   .pillar .pn{font-size:10.5px}
   .pillar .ph{font-size:23px;margin:5px 0}
   .pillar .pb{font-size:12.5px;line-height:1.42}
-  /* features — 2-up via flex-wrap so a card is an explicit half-width and
-     can never push the slide past the screen edge (grid was blowing out). */
-  .features{display:flex;flex-wrap:wrap;gap:9px;margin-top:18px}
-  .feat{width:calc(50% - 4.5px);padding:12px 13px}
-  .feat .fh{font-size:10.5px;margin-bottom:5px;letter-spacing:.1em}
-  .feat .fb{font-size:12px;line-height:1.38}
-  /* app phone mockup — smaller so all rows fit under the copy */
-  .two{gap:16px}
-  .phone{width:clamp(192px,56%,228px);padding:11px}
-  .phone .ph-city{font-size:25px}
-  .phone .ph-day{padding:4px 6px 9px}
-  .phone .ph-row{padding:8px 11px;margin:5px 0}
-  .phone .ph-row .t{font-size:14px}
-  /* pricing card — full width, tighter */
+  .features{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .feat{width:calc(50% - 4px);padding:10px 11px;grid-template-columns:1fr}
+  .feat .fi{grid-row:auto;width:15px;height:15px;margin-bottom:6px}
+  .feat .fh{font-size:9.5px;margin-bottom:4px;letter-spacing:.1em}
+  .feat.new .fh::after{content:""}
+  .feat .fb{font-size:11.5px;line-height:1.36}
+  .two{gap:14px}
+  .phone{width:clamp(200px,64%,236px);padding:10px;border-radius:24px}
+  .phone .ph-city{font-size:24px}
+  .phone .ph-day{padding:3px 6px 7px}
+  .phone .ph-row{padding:7px 11px;margin:4px 0}
+  .phone .ph-row .t{font-size:13.5px}
+  .ph-tabs{margin:8px -10px -10px;padding:7px 4px 9px}
+  .dsk-days .dday:nth-child(3){display:none}
+  .dsk-grid .dsk-cell:nth-child(3){display:none}
+  .dsk-grid{grid-template-columns:1fr 1fr}
+  .dsk-city{margin-top:10px}
+  .dsk-body{padding:11px 12px 12px}
+  .file{padding:7px 12px}
+  .file:nth-child(4){display:none}
+  .dresult{padding:12px 14px}
+  .dresult .drh{font-size:24px}
+  .dresult .drb{display:none}
+  .pmf{padding:10px 11px}
+  .pmf-route .cd{font-size:23px}
+  .pmf-foot,.nextleg{display:none}
+  .glk-row:nth-of-type(n+4){display:none}
+  .glk-h{padding:10px 14px}
+  .glk-row{padding:7px 14px}
+  .glk-lock{padding:11px 14px;gap:9px}
+  .glk-ctl{width:100%;flex-direction:row;justify-content:space-between}
+  .gl-slide{width:190px;height:38px}
+  .gls-knob{width:30px;height:30px}
+  .glk.locked .gls-knob{left:calc(100% - 34px)}
+  .tmm-band{margin:0 -10px 10px;padding:8px 10px;font-size:7px;letter-spacing:.14em;column-gap:6px}
+  .tmm-band .x{font-size:6.5px;letter-spacing:.12em}
+  .tmm-edit b{font-size:12px}
+  .tmm-btns{margin:8px 0}
+  .tmm-tools{margin:8px 0 9px}
+  .tmm-edit{margin-top:8px;padding:8px 11px}
+  .board{margin-top:18px;padding:12px 13px;gap:5px}
+  .brow{grid-template-columns:82px auto;gap:9px}
+  .brow .bk{font-size:9px;letter-spacing:.16em}
+  .flaps{gap:2px}
+  .flaps i{width:15px;height:22px;font-size:13px;border-radius:2px}
+  .btoast{margin-top:10px}
+  .btoast .toast-m{font-size:11.5px}
   .price{padding:20px;margin-top:18px;max-width:none}
   .price .pa{font-size:clamp(46px,13vw,58px)}
   .price .pp{font-size:13.5px;margin-bottom:13px}
   .price ul{gap:8px;margin-bottom:13px}
   .price li{font-size:13.5px;padding-left:22px}
   .price .pf{font-size:10px;margin-top:11px}
-  .cta{margin-top:22px;padding:13px 22px}
+  .cta{margin-top:20px;padding:13px 22px}
+}
+/* Short screens (landscape laptops): tighten the busiest slides */
+@media (max-height:720px) and (min-width:821px){
+  .lead.sm{font-size:15px;margin-top:16px}
+  .display.md{font-size:clamp(36px,5vw,64px)}
 }
 @media (prefers-reduced-motion:reduce){
-  .cover .cmark,.cover .mark,.close .mark{animation:none}.scrollhint{animation:none}.deck{scroll-behavior:auto}
+  .cover .cmark,.scrollhint{animation:none}.deck{scroll-behavior:auto}
   .reveal{transition:none;opacity:1;transform:none}
   .twk{animation:none;opacity:.3}
+  .tape-track,.pmf-line .fill,.pmf-line svg,.gls-text,.tmm-band{animation:none}
+  #intro{display:none}
 }
-/* ── Embers-in-glass — the dashboard's burn effect, ported. Two faint ember
-   blobs drift under each surface's own tint (shares the app's tabFlame
-   keyframes). Durations are staggered so neighbours never move in lockstep. */
+/* ── Embers-in-glass — the dashboard's burn effect. Two faint ember blobs
+   drift under each surface's own tint; durations staggered so neighbours
+   never move in lockstep. ── */
 @keyframes tabFlame{
   0%{background-position:0% 100%, 100% 0%, 0 0}
   50%{background-position:65% 15%, 25% 85%, 0 0}
@@ -283,63 +500,79 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     rgba(232,148,58,.04);
   background-size:230% 230%,210% 210%,100% 100%;background-repeat:no-repeat;
   animation:tabFlame 11s ease-in-out infinite alternate;animation-delay:-4s}
-.cta.ghost:hover{border-color:var(--hi);background:
-    radial-gradient(circle at 25% 75%, rgba(255,150,45,.24), transparent 46%),
-    radial-gradient(circle at 70% 30%, rgba(255,80,25,.16), transparent 42%),
-    rgba(232,148,58,.08);
-  background-size:230% 230%,210% 210%,100% 100%;background-repeat:no-repeat}
 .pillar,.feat{background:
     radial-gradient(circle at 25% 75%, rgba(255,150,45,.11), transparent 46%),
     radial-gradient(circle at 70% 30%, rgba(255,80,25,.08), transparent 42%),
-    linear-gradient(180deg,rgba(31,22,16,.6),rgba(17,12,8,.4));
+    linear-gradient(180deg,rgba(31,22,16,.72),rgba(17,12,8,.6));
   background-size:230% 230%,210% 210%,100% 100%;background-repeat:no-repeat;
   animation:tabFlame 12s ease-in-out infinite alternate}
 .price{background:
     radial-gradient(circle at 25% 75%, rgba(255,150,45,.14), transparent 46%),
     radial-gradient(circle at 70% 30%, rgba(255,80,25,.10), transparent 42%),
-    linear-gradient(180deg,rgba(31,22,16,.7),rgba(17,12,8,.5));
+    linear-gradient(180deg,rgba(31,22,16,.82),rgba(17,12,8,.7));
   background-size:230% 230%,210% 210%,100% 100%;background-repeat:no-repeat;
   animation:tabFlame 10s ease-in-out infinite alternate}
 .dresult{background:
-    radial-gradient(circle at 25% 75%, rgba(255,150,45,.16), transparent 46%),
-    radial-gradient(circle at 70% 30%, rgba(255,80,25,.11), transparent 42%),
-    linear-gradient(180deg,rgba(232,148,58,.10),rgba(17,12,8,.4));
+    radial-gradient(circle at 25% 75%, rgba(109,207,139,.10), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,120,40,.08), transparent 42%),
+    linear-gradient(180deg,rgba(109,207,139,.06),rgba(17,12,8,.6));
   background-size:230% 230%,210% 210%,100% 100%;background-repeat:no-repeat;
   animation:tabFlame 9s ease-in-out infinite alternate;animation-delay:-2s}
 .pillars .pillar:nth-child(2),.features .feat:nth-child(3n+2){animation-duration:9.5s;animation-delay:-3s}
 .pillars .pillar:nth-child(3),.features .feat:nth-child(3n){animation-duration:14s;animation-delay:-6s}
-@media (prefers-reduced-motion:reduce){.cta,.cta.ghost,.cta-go,.pillar,.feat,.price,.dresult{animation:none}}
-
-/* ── Intro: the pixel bunny plays for ~3s on first landing, then fades into the deck ── */
-#intro{position:fixed;inset:0;z-index:100;background:#0a0705;opacity:1;transition:opacity .9s ease;cursor:pointer}
-#intro.out{opacity:0;pointer-events:none}
-#introCanvas{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;transition:opacity .7s ease}
-#introCanvas.ready{opacity:1}
-#intro .intro-hint{position:absolute;left:0;right:0;bottom:calc(30px + env(safe-area-inset-bottom));text-align:center;
-  font-family:'Bricolage Grotesque',monospace;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:#a08868;opacity:0;transition:opacity .8s ease .9s}
-#intro.go .intro-hint{opacity:1;animation:introhint 2.2s ease-in-out 1.7s infinite}
-#intro .intro-hint .ar{display:inline-block;margin-left:6px}
-@keyframes introhint{0%,100%{opacity:.55}50%{opacity:1}}
-@media (prefers-reduced-motion:reduce){#intro{display:none}}
+/* Every primary button glows like the cover's Continue: brighter ember fill,
+   a warm edge, and the same slow breathing halo. */
+.cta:not(.ghost){border:1px solid rgba(255,190,90,.55);background:
+    radial-gradient(circle at 25% 75%, rgba(255,215,130,.48), transparent 46%),
+    radial-gradient(circle at 70% 30%, rgba(255,110,40,.38), transparent 42%),
+    linear-gradient(135deg,var(--hi-bright),var(--hi-2));
+  background-size:230% 230%,210% 210%,100% 100%;background-repeat:no-repeat;
+  animation:tabFlame 7s ease-in-out infinite alternate, ctaGlow 2.6s ease-in-out infinite}
+.cta:not(.ghost):hover{border-color:#ffd9a0}
+@media (prefers-reduced-motion:reduce){.cta,.cta:not(.ghost),.cta.ghost,.cta-go,.pillar,.feat,.price,.dresult{animation:none}}
 </style>
 </head>
 <body>
+<script>document.body.classList.add('intro'); window.__bunnyWant = 'intro'; window.__bunnyPose = function(p){ window.__bunnyWant = p; };</script>
 <div class="bg"></div>
 <div class="twk twk1"></div><div class="twk twk2"></div><div class="twk twk3"></div>
-<div id="intro" aria-hidden="true"><canvas id="introCanvas"></canvas><div class="intro-hint">Tap to continue <span class="ar">↓</span></div></div>
+<canvas id="bunnyCanvas" class="bunny" aria-hidden="true"></canvas>
+<div id="intro" aria-hidden="true"><div class="intro-hint">Tap to continue <span class="ar">↓</span></div></div>
+
+<!-- shared line icons -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-sheet" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2.5h6V4M8.5 10h7M8.5 14h7M8.5 18h4"/></symbol>
+    <symbol id="i-bag" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V4.5h8V7M3 13h18"/></symbol>
+    <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4z"/><path d="M14 7v10"/></symbol>
+    <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></symbol>
+    <symbol id="i-note" viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4M9.5 15l2 2 3.5-3.5"/></symbol>
+    <symbol id="i-stack" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+    <symbol id="i-day" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9.5h16M9.5 4v16"/></symbol>
+    <symbol id="i-bed" viewBox="0 0 24 24"><path d="M3 7v11m0-4h18m0 4v-8a2 2 0 0 0-2-2h-8v6"/><circle cx="7" cy="10" r="1.15"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="18" cy="12" r="1"/></symbol>
+  </defs>
+</svg>
 
 <div class="topbar">
-  <img src="/logo.png" alt="Bandmate" />
-  <div class="counter"><b id="cnum">01</b> / <b id="ctot">16</b></div>
+  <img src="logo.png" alt="Bandmate" />
+  <div class="counter"><span class="lbl" id="clbl">Cover</span><b id="cnum">01</b> / <b id="ctot">18</b></div>
 </div>
 <div class="rail" id="rail"></div>
 
 <main class="deck" id="deck">
 
   <!-- 01 · COVER -->
-  <section class="slide cover" data-label="Cover">
-    <span class="cmark reveal"><img class="mark" src="/avatar.png" alt="" /></span>
-    <img class="word reveal" src="/logo.png" alt="Bandmate" />
+  <section class="slide cover" data-label="Cover" data-bunny="cover">
+    <span class="cmark reveal mark-fb"><img class="mark" src="avatar.png" alt="" /></span>
+    <img class="word reveal" src="logo.png" alt="Bandmate" />
     <h1 class="tag reveal display">Run your tour from one place.</h1>
     <p class="sub reveal">The road book your whole crew actually opens.</p>
     <button type="button" class="cta-go reveal" onclick="document.querySelectorAll('.slide')[1].scrollIntoView({behavior:'smooth'})">Continue <span class="ar">→</span></button>
@@ -348,7 +581,7 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
   </section>
 
   <!-- 02 · PROBLEM → FIX -->
-  <section class="slide" data-label="Problem → fix">
+  <section class="slide" data-label="Problem">
     <div class="eyebrow reveal">Let's be honest</div>
     <h2 class="display reveal">Nobody's on the<br>same <span class="amb">page.</span></h2>
     <p class="lead reveal">Your tour lives in a spreadsheet nobody trusts, a group chat nobody can search, and a day sheet that's wrong by noon — <span class="mut">and you're the one answering “what time's load-in?” forty times a day.</span></p>
@@ -356,7 +589,6 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
       <div class="tlab">So we built the fix</div>
       <p class="ttxt">Bandmate puts the whole run in one place. <b>Build it once, your crew lives in it</b> — change one thing and it's on every phone on the tour, instantly.</p>
     </div>
-    <a class="cta ghost reveal" href="https://bandmate.art">See it on your next tour →</a>
   </section>
 
   <!-- 03 · HOW IT WORKS -->
@@ -364,9 +596,9 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     <div class="eyebrow reveal">How it works</div>
     <h2 class="display reveal">Three steps to<br>on the same page.</h2>
     <div class="pillars reveal">
-      <div class="pillar"><div class="pn">01 · Build</div><div class="ph">On the desktop</div><div class="pb">Lay out the run — dates, schedule, travel, hotels, guests, settlements — in one calm console.</div></div>
-      <div class="pillar"><div class="pn">02 · Invite</div><div class="ph">Your crew, free</div><div class="pb">Add your band and crew with an invite. Their accounts are free, forever.</div></div>
-      <div class="pillar"><div class="pn">03 · Run</div><div class="ph">Update once</div><div class="pb">Change anything and it syncs to every phone in real time. No group-text blast.</div></div>
+      <div class="pillar"><div class="pn">01 · Build</div><div class="ph">From your docs</div><div class="pb">Hand Bandmate your deal memos and itineraries. It drafts the run — dates, schedules, travel, hotels — and you fine-tune it on the desktop.</div></div>
+      <div class="pillar"><div class="pn">02 · Invite</div><div class="ph">Your crew, free</div><div class="pb">Add your band and crew with an invite. Their accounts are free, forever, on iPhone, Android and the web.</div></div>
+      <div class="pillar"><div class="pn">03 · Run</div><div class="ph">Update once</div><div class="pb">Change anything — at the desk or from your phone — and it's on every phone in seconds. No group-text blast.</div></div>
     </div>
   </section>
 
@@ -375,19 +607,36 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     <div class="two">
       <div>
         <div class="eyebrow reveal">The desktop</div>
-        <h2 class="display reveal" style="font-size:clamp(40px,6vw,82px)">Where you<br>build the run.</h2>
-        <p class="lead reveal">Schedules, travel, hotels, guest lists, settlements, crew — one dark, fast console instead of twelve browser tabs and a binder.</p>
+        <h2 class="display md reveal">Where you<br>build the run.</h2>
+        <p class="lead sm reveal">Schedules, travel, hotels, guest lists, settlements, crew — one dark, fast console instead of twelve tabs and a binder. <span class="mut">Running more than one act? Every tour files under its artist, and your tour list sorts itself that way.</span></p>
       </div>
       <div class="reveal">
-        <div class="dash">
-          <div class="top">
-            <div><div class="city">PHILADELPHIA</div><div class="loc">The Fillmore · PA</div></div>
-            <div><div class="date">SAT · JUN 14</div><span class="pill">● Show day</span></div>
+        <div class="dsk" aria-hidden="true">
+          <div class="dsk-top">
+            <img src="logo.png" alt="" />
+            <div class="dsk-tour"><b>Wayfinder North America</b><span>The Cartographers · 42 dates</span></div>
+            <div class="dsk-acct"><span class="dsk-gear"><svg class="ic"><use href="#i-gear"/></svg></span><span class="dsk-av">MR</span></div>
           </div>
-          <div class="grid">
-            <div class="cell"><div class="cl">Load-in</div><div class="cv"><span class="g">◷</span>14:00</div></div>
-            <div class="cell"><div class="cl">Doors</div><div class="cv"><span class="g">◷</span>19:00</div></div>
-            <div class="cell"><div class="cl">Guests</div><div class="cv">12 ✓ · 1 ⧖</div></div>
+          <div class="tape"><div class="tape-track">
+            <span><i></i>Day 14 / 42<em>·</em>Philadelphia, PA<em>·</em>The Fillmore<em>·</em>Sat Jun 14<em>·</em>Show night<em>·</em>Doors 7:00 PM</span>
+            <span><i></i>Day 14 / 42<em>·</em>Philadelphia, PA<em>·</em>The Fillmore<em>·</em>Sat Jun 14<em>·</em>Show night<em>·</em>Doors 7:00 PM</span>
+          </div></div>
+          <div class="dsk-days">
+            <div class="dday"><div class="dd"><small>JUN</small><b>13</b><em>SHOW</em></div><div class="dw"><small>FRI</small><b>Brooklyn</b><span>Brooklyn Steel</span></div></div>
+            <div class="dday on"><div class="dd"><small>JUN</small><b>14</b><em>SHOW</em></div><div class="dw"><small>SAT</small><b>Philadelphia</b><span>The Fillmore</span></div></div>
+            <div class="dday"><div class="dd"><small>JUN</small><b>15</b><em class="off">TRAVEL</em></div><div class="dw"><small>SUN</small><b>Washington</b><span>Bus · 3h 10m</span></div></div>
+          </div>
+          <div class="dsk-body">
+            <div class="scanbar"><span class="sb-s">Tour ready</span><span class="sb-r">Re-scan</span></div>
+            <div class="dsk-city">
+              <div><h4>Philadelphia</h4><p>The Fillmore · Philadelphia · PA</p></div>
+              <span class="st good">Show night</span>
+            </div>
+            <div class="dsk-grid">
+              <div class="dsk-cell"><div class="mk-k">Load-in</div><div class="v">2:00 PM</div></div>
+              <div class="dsk-cell"><div class="mk-k">Doors</div><div class="v">7:00 PM</div></div>
+              <div class="dsk-cell"><div class="mk-k">Guests</div><div class="v">12 <small>approved · 1 pending</small></div></div>
+            </div>
           </div>
         </div>
       </div>
@@ -399,22 +648,23 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     <div class="two">
       <div>
         <div class="eyebrow reveal">Barely any data entry</div>
-        <h2 class="display reveal" style="font-size:clamp(36px,5.6vw,78px)">Build a tour from<br>the docs you<br>already have.</h2>
-        <p class="lead reveal">Your agent sends deal memos from the CAA or Wasserman portal, an itinerary, a rooming list. Hand them to Bandmate and it <b>reads them and drafts the whole run</b> — shows, schedules, travel, hotels, venue contacts. You fine-tune, instead of typing it all in by hand.</p>
+        <h2 class="display md reveal">Build a tour from<br>the docs you<br>already have.</h2>
+        <p class="lead sm reveal">Deal memos from the agency portal, an itinerary, a rooming list. Hand them to Bandmate and it <b>reads them and drafts the whole run</b> — shows, schedules, travel, hotels, venue contacts. <span class="mut">New version of the itinerary? Re-scan and it updates what changed.</span></p>
       </div>
       <div class="reveal">
-        <div class="docflow">
-          <div class="docrow">
-            <span class="dchip">Deal memo.pdf</span>
-            <span class="dchip">Itinerary.xlsx</span>
-            <span class="dchip">Rooming.pdf</span>
-            <span class="dchip">Advance.pdf</span>
+        <div class="docflow" aria-hidden="true">
+          <div class="files">
+            <div class="file"><svg class="ic"><use href="#i-doc"/></svg><b>Deal memos — Wayfinder.pdf</b><span class="fs"><span class="q">Queued</span><span class="r">Read</span></span></div>
+            <div class="file"><svg class="ic"><use href="#i-doc"/></svg><b>Itinerary v4.xlsx</b><span class="fs"><span class="q">Queued</span><span class="r">Read</span></span></div>
+            <div class="file"><svg class="ic"><use href="#i-doc"/></svg><b>Rooming list.pdf</b><span class="fs"><span class="q">Queued</span><span class="r">Read</span></span></div>
+            <div class="file"><svg class="ic"><use href="#i-doc"/></svg><b>Advance — The Fillmore.pdf</b><span class="fs"><span class="q">Queued</span><span class="r">Read</span></span></div>
           </div>
           <div class="dflowarrow">↓&nbsp;&nbsp;Bandmate reads them</div>
           <div class="dresult">
-            <div class="drh">TOUR, DRAFTED</div>
+            <span class="st good">Tour ready</span>
+            <div class="drh">42 shows, drafted</div>
             <div class="drb">Your run, built from your own paperwork.</div>
-            <div class="drc"><span>42 shows</span><span>deal memos</span><span>schedules</span><span>travel</span><span>hotels</span><span>contacts</span></div>
+            <div class="drl"><span>Deal memos</span><em>·</em><span>Schedules</span><em>·</em><span>Travel</span><em>·</em><span>Hotels</span><em>·</em><span>Contacts</span></div>
           </div>
         </div>
       </div>
@@ -425,108 +675,199 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
   <section class="slide" data-label="The app">
     <div class="two">
       <div class="reveal" style="order:2">
-        <div class="phone">
-          <div class="ph-top"><span>9:41</span><span>5G ▰▰▰</span></div>
+        <div class="phone" aria-hidden="true">
+          <div class="ph-top"><span>9:41</span><span>5G</span></div>
           <div class="ph-city">HOUSTON, TX</div>
-          <div class="ph-day">DAY 34 / 42 · 06.11</div>
-          <div class="ph-row"><span class="l">Load-in</span><span class="t">14:00</span></div>
-          <div class="ph-row"><span class="l">Soundcheck</span><span class="t">16:30</span></div>
-          <div class="ph-row now"><span class="l">Doors</span><span class="t">19:00</span></div>
-          <div class="ph-row"><span class="l">Set</span><span class="t">21:15</span></div>
-          <div class="ph-row"><span class="l">Bus call</span><span class="t">00:30</span></div>
+          <div class="ph-day">Day 34 / 42 · Bayou Music Center</div>
+          <div class="ph-row"><span class="l">Load-in</span><span class="t">2:00 PM</span></div>
+          <div class="ph-row"><span class="l">Soundcheck</span><span class="t">4:30 PM</span></div>
+          <div class="ph-row now"><span class="l">Doors</span><span class="t">7:00 PM</span></div>
+          <div class="ph-row"><span class="l">Set</span><span class="t">9:15 PM</span></div>
+          <div class="ph-row"><span class="l">Bus call</span><span class="t">12:30 AM</span></div>
+          <div class="ph-tabs"><span class="on"><svg class="ic"><use href="#i-day"/></svg>DAY</span><span><svg class="ic"><use href="#i-grid"/></svg>SCHED</span><span><svg class="ic"><use href="#i-bed"/></svg>HOTEL</span><span><svg class="ic"><use href="#i-mic"/></svg>SHOW</span><span><svg class="ic"><use href="#i-more"/></svg>MORE</span></div>
         </div>
       </div>
       <div style="order:1">
         <div class="eyebrow reveal">The app</div>
-        <h2 class="display reveal" style="font-size:clamp(40px,6vw,82px)">Their whole day,<br>in their pocket.</h2>
-        <p class="lead reveal">Your crew opens the app and sees <b>just their day</b> — the venue up top, call times, travel, where to be next. Tap any number to call or text. Glanceable from the side of a stage. <span class="mut">Native iOS &amp; Android, and free for them.</span></p>
+        <h2 class="display md reveal">Their whole day,<br>in their pocket.</h2>
+        <p class="lead reveal">Your crew opens the app and sees <b>just their day</b> — the venue up top, call times, travel, where to be next. Tap any number to call or text. <span class="mut">Native iPhone &amp; Android, and free for them.</span></p>
       </div>
     </div>
   </section>
 
-  <!-- 07 · FEATURES -->
+  <!-- 07 · LIVE FLIGHTS (new) -->
+  <section class="slide" data-label="Live flights">
+    <div class="two">
+      <div class="reveal" style="order:2">
+        <div class="phone" aria-hidden="true">
+          <div class="ph-top"><span>9:41</span><span>5G</span></div>
+          <div class="ph-day">Thu · Oct 2 · Travel day</div>
+          <div class="pmf">
+            <div class="pmf-top"><span class="mk-k">Your flight · Today</span><span class="st air">In the air</span></div>
+            <div class="pmf-flt"><b>WN 3415</b> · Southwest</div>
+            <div class="pmf-route"><span class="cd">RDU</span><span class="pmf-line"><i class="fill"></i><svg viewBox="0 0 24 24"><path transform="rotate(90 12 12)" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg></span><span class="cd">PHX</span></div>
+            <div class="pmf-cities"><span>Raleigh/Durham</span><span>Phoenix</span></div>
+            <div class="pmf-conn">Leg 1 of 2 · 1h 21m in Phoenix, then WN 2070</div>
+            <div class="pmf-grid">
+              <div><div class="mk-k">Departs</div><div class="v">1:35 PM<span class="tz">ET</span></div><div class="sub">Terminal 1 · Gate C14</div></div>
+              <div><div class="mk-k">Lands</div><div class="v"><s>3:20</s>2:44 PM<span class="tz">MST</span></div><div class="sub">Terminal 4</div></div>
+            </div>
+            <div class="pmf-foot"><span>Conf C6FECF</span><span>Updated 2 min ago</span></div>
+          </div>
+          <div class="nextleg"><b>WN 2070 · PHX → LAX</b><span class="st good">On time</span></div>
+        </div>
+      </div>
+      <div style="order:1">
+        <div class="eyebrow reveal">New · Live flight tracking</div>
+        <h2 class="display md reveal">Every flight,<br><span class="amb">live.</span></h2>
+        <p class="lead sm reveal">Add a flight number and Bandmate follows it — gate and terminal, delays, takeoff, landing, the baggage belt. <b>Each person sees their own flight</b> at the top of their day. Connections read as one journey, and a tight layover gets flagged before anyone's sprinting through Phoenix. <span class="mut ph-hide">Times stay local to where they happen, with a tiny zone tag when your phone's on another clock.</span></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 08 · GUEST LIST LOCK (new) -->
+  <section class="slide" data-label="Guest list lock">
+    <div class="two">
+      <div>
+        <div class="eyebrow reveal">New · Guest list lock</div>
+        <h2 class="display md reveal">Close the list.<br><span class="amb">Slide to lock.</span></h2>
+        <p class="lead sm reveal">Band and crew request their guests; you or your management crew approve them in a tap. When the list goes to the box office, <b>slide to lock it — or set a time and it locks itself.</b> <span class="mut">After that nobody can add, edit or pull a name, and a phone that hasn't refreshed can't sneak one in. You can still add a late one yourself.</span></p>
+      </div>
+      <div class="reveal">
+        <div class="glk" id="glk" aria-hidden="true">
+          <div class="glk-h"><b>Guest list · Sat Jun 14</b><span class="mk-k">The Fillmore · 14 / 30</span></div>
+          <div class="glk-row"><b>Lena Greco + 1</b><span>AAA · requested by Sam Ortega · Band</span><em>Approved</em></div>
+          <div class="glk-row"><b>Toronto family + 2</b><span>Guest · requested by Maren Holloway · Band</span><em>Approved</em></div>
+          <div class="glk-row"><b>Dev Patel</b><span>Media · requested by Theo Park · Crew</span><em class="pend">Pending</em></div>
+          <div class="glk-lock">
+            <div class="glk-txt"><span class="mk-k">Band &amp; crew requests</span><span class="glk-state"><span class="op">Open — band &amp; crew can add names.</span><span class="lk">Locked — requests closed at 5:00 PM.</span></span></div>
+            <div class="glk-ctl">
+              <div class="gl-slide"><span class="gls-text"><span class="op">Slide to lock</span><span class="lk">Locked · slide back</span></span><span class="gls-knob"><svg class="ic"><use href="#i-lock"/></svg></span></div>
+              <span class="gl-link">Set a lock time</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 09 · TM MOBILE (new) -->
+  <section class="slide" data-label="TM Mobile">
+    <div class="two">
+      <div class="reveal" style="order:2">
+        <div class="phone tmm" aria-hidden="true">
+          <div class="tmm-hue"></div>
+          <div class="tmm-band"><span class="c"><i></i>TM Mobile — Edit mode</span><span class="x">Exit</span></div>
+          <div class="tmm-h"><b>Wayfinder · The Cartographers</b><span>42 DATES · KOI BLUE TOURING</span></div>
+          <div class="tmm-btns"><span class="add">+ Add date</span><span>Tour dates</span></div>
+          <div class="scanbar"><span class="sb-s">Tour ready</span><span class="sb-r">Re-scan</span></div>
+          <div class="tmm-tools"><span class="t">Tools</span><span class="d"><span>01 · Dashboard</span><span>▾</span></span></div>
+          <div class="ph-city">TORONTO</div>
+          <div class="tmm-v">Budweiser Stage · Toronto · ON</div>
+          <div class="tmm-edit"><b>Doors 6:00 PM</b><span>EDIT</span></div>
+          <div class="tmm-edit"><b>Guests · 1 pending</b><span>APPROVE</span></div>
+        </div>
+      </div>
+      <div style="order:1">
+        <div class="eyebrow reveal">New · TM Mobile</div>
+        <h2 class="display md reveal">Run the tour<br>from your phone.</h2>
+        <p class="lead sm reveal">Away from the laptop? <b>Hold “Edit this tour”</b> in the app and your phone becomes the dashboard — add dates, fix times, approve guests, re-scan a new itinerary from a van seat. <span class="mut">Tap Exit and you're back on the crew's view of the day.</span></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 · FEATURES -->
   <section class="slide" data-label="Everything">
     <div class="eyebrow reveal">All in one place</div>
     <h2 class="display reveal">Everything a<br>tour needs.</h2>
     <div class="features reveal">
-      <div class="feat"><div class="fh">Schedule &amp; day sheets</div><div class="fb">Build the day once; print it or push it to every phone.</div></div>
-      <div class="feat"><div class="fh">Travel &amp; hotels</div><div class="fb">Flights, buses, rooms, confirmations — by person, by day.</div></div>
-      <div class="feat"><div class="fh">Guest lists</div><div class="fb">Requests, approvals, allotments, a clean door-ready list.</div></div>
-      <div class="feat"><div class="fh">Settlements &amp; advance</div><div class="fb">Guarantees, deductions, net — plus venue tech packs and advance notes.</div></div>
-      <div class="feat"><div class="fh">Crew profiles &amp; contacts</div><div class="fb">Roster, roles, emergency contacts, dietary and passport details — one form, filled once.</div></div>
-      <div class="feat"><div class="fh">Set lists &amp; files</div><div class="fb">Stage copies, riders, deal memos — every file on the tour, by date.</div></div>
+      <div class="feat"><svg class="ic fi"><use href="#i-sheet"/></svg><div class="fh">Schedule &amp; day sheets</div><div class="fb">Build the day once; print it, save a PDF, or push it to every phone.</div></div>
+      <div class="feat"><svg class="ic fi"><use href="#i-bag"/></svg><div class="fh">Travel &amp; hotels</div><div class="fb">Flights, buses, rooms and confirmations — by person, by day.</div></div>
+      <div class="feat"><svg class="ic fi"><use href="#i-ticket"/></svg><div class="fh">Guest lists</div><div class="fb">Requests, approvals, allotments and a door-ready list.</div></div>
+      <div class="feat"><svg class="ic fi"><use href="#i-receipt"/></svg><div class="fh">Settlements &amp; advance</div><div class="fb">Guarantees, deductions, net — plus tech packs and advance notes.</div></div>
+      <div class="feat"><svg class="ic fi"><use href="#i-user"/></svg><div class="fh">Crew profiles</div><div class="fb">Roles, emergency contacts, dietary and passport details, filled once.</div></div>
+      <div class="feat"><svg class="ic fi"><use href="#i-note"/></svg><div class="fh">Set lists &amp; files</div><div class="fb">Stage copies, riders, deal memos — every file on the tour, by date.</div></div>
+      <div class="feat new"><svg class="ic fi"><use href="#i-cal"/></svg><div class="fh">Calendar sync</div><div class="fb">Subscribe from Google, Apple or Outlook; it keeps itself current.</div></div>
+      <div class="feat new"><svg class="ic fi"><use href="#i-stack"/></svg><div class="fh">Sorted by artist</div><div class="fb">Every tour files under its act — hide finished runs with one tap.</div></div>
     </div>
   </section>
 
-  <!-- 08 · CHANGE ONCE -->
+  <!-- 11 · CHANGE ONCE -->
   <section class="slide" data-label="Change once">
     <div class="eyebrow reveal">The best part</div>
     <p class="bigquote reveal">Change it once.<br>It's on every phone<br><span class="amb">in seconds.</span></p>
-    <p class="lead reveal">Doors moved? Bus call slipped? Update it in one place — no blast text, no “did everyone get the memo?” Everyone just <b>knows.</b></p>
+    <div class="reveal">
+      <div class="board" aria-hidden="true">
+        <div class="brow" data-a="7:00 PM" data-b="8:00 PM"><span class="bk">Doors</span><span class="flaps"></span></div>
+        <div class="brow" data-a="5:30 PM" data-b="6:30 PM"><span class="bk">Soundcheck</span><span class="flaps"></span></div>
+        <div class="brow" data-a="12:30 AM" data-b="12:30 AM"><span class="bk">Bus call</span><span class="flaps"></span></div>
+      </div>
+      <div class="btoast" id="btoast" aria-hidden="true"><span class="toast-k"><i>O</i><i>K</i></span><span class="toast-m">Doors moved to 8:00 PM — sent to 24 phones</span></div>
+    </div>
   </section>
 
-  <!-- 09 · PUSH + MESSAGING -->
+  <!-- 12 · PUSH + MESSAGING -->
   <section class="slide" data-label="Push & chat">
     <div class="two">
       <div class="reveal" style="order:2">
-        <div class="phone">
-          <div class="ph-top"><span>9:41</span><span>5G ▰▰▰</span></div>
+        <div class="phone" aria-hidden="true">
+          <div class="ph-top"><span>9:41</span><span>5G</span></div>
           <div class="chatwrap"><div class="chatfeed" id="chatfeed"></div></div>
         </div>
       </div>
       <div style="order:1">
         <div class="eyebrow reveal">Nobody misses it</div>
-        <h2 class="display reveal" style="font-size:clamp(40px,6vw,82px)">Everyone gets<br>the word.</h2>
+        <h2 class="display md reveal">Everyone gets<br>the word.</h2>
         <p class="lead reveal">Push a change and it <b>pings every band and crew phone</b> — load-in moved, lobby call, bus leaving. And when you need to talk, <b>in-app messaging</b> keeps the whole tour in one thread instead of a hundred lost texts.</p>
       </div>
     </div>
   </section>
 
-  <!-- 10 · CREW FREE -->
+  <!-- 13 · CREW FREE -->
   <section class="slide" data-label="Crew free">
     <div class="eyebrow reveal">Bring the whole crew</div>
     <h2 class="display reveal">Your crew is<br>free. <span class="amb">Always.</span></h2>
     <p class="lead reveal">Put your entire band and crew on Bandmate at no cost — they just need an invite from you. <b>You're the only one who pays,</b> no matter how big the tour or how many people are on it.</p>
   </section>
 
-  <!-- 11 · CO-MANAGE -->
-  <section class="slide" data-label="Second TM">
+  <!-- 14 · CO-MANAGE -->
+  <section class="slide" data-label="Co-managers">
     <div class="eyebrow reveal">Share the wheel</div>
     <h2 class="display reveal">Two hands on<br>the wheel.</h2>
-    <p class="lead reveal">Bring on a second tour manager with full access — split a busy run, hand off legs, cover your days off. <span class="mut">Everyone edits the same live tour, in real time, without stepping on each other.</span></p>
+    <p class="lead reveal">Bring on a co-manager with full access — split a busy run, hand off legs, cover your days off. Give your management crew the power to approve guests. <span class="mut">Everyone edits the same live tour, and the edit history shows who changed what, and when.</span></p>
   </section>
 
-  <!-- 12 · EASY TO START -->
+  <!-- 15 · EASY TO START -->
   <section class="slide" data-label="Easy to start">
     <div class="eyebrow reveal">Easy to start</div>
     <h2 class="display reveal">Switch in<br>an afternoon.</h2>
     <ul class="bul reveal">
-      <li>Coming from spreadsheets or other touring apps? <b>Hand over your tour docs</b> — deal memos, itineraries, rooming lists — and the import wizard + Travel Assistant build the run for you.</li>
-      <li><b>Your data stays yours</b> <span class="mut">— export anytime, no lock-in.</span></li>
-      <li>Works on the web and as <b>native iOS &amp; Android apps.</b></li>
+      <li>Coming from spreadsheets or another touring app? <b>Hand over your tour docs</b> — deal memos, itineraries, rooming lists — and Bandmate builds the run for you.</li>
+      <li><b>Your data stays yours</b> <span class="mut">— export it anytime, no lock-in.</span></li>
+      <li>On the web, on the Mac, and as <b>native iPhone &amp; Android apps.</b> <span class="mut">Your calendar app too.</span></li>
     </ul>
   </section>
 
-  <!-- 13 · PRICING -->
+  <!-- 16 · PRICING -->
   <section class="slide" data-label="Pricing">
     <div class="eyebrow reveal">Pricing</div>
-    <h2 class="display reveal" style="font-size:clamp(40px,6.4vw,86px)">One flat rate.<br>No tour limit.</h2>
+    <h2 class="display md reveal">One flat rate.<br>No tour limit.</h2>
     <div class="price reveal">
       <div class="pt">Tour Manager</div>
       <div class="pa">$49.99<span> / mo</span></div>
       <div class="pp">Every feature. Unlimited tours. Unlimited crew.</div>
       <ul>
         <li>Unlimited tours &amp; band/crew invites</li>
-        <li>Full dashboard, push notifications, day sheets</li>
-        <li>Travel Assistant + import wizard</li>
-        <li>Your tour data stays yours</li>
+        <li>Desktop dashboard, TM Mobile &amp; push notifications</li>
+        <li>Live flight tracking &amp; calendar sync</li>
+        <li>Import from your docs, re-scan anytime</li>
       </ul>
       <a class="cta" href="https://bandmate.art">Start free →</a>
       <div class="pf"><b>Crew always free.</b> &nbsp;·&nbsp; Cancel anytime &nbsp;·&nbsp; 7-day full refund &nbsp;·&nbsp; Agencies? Ask about Business.</div>
     </div>
   </section>
 
-  <!-- 14 · CTA -->
+  <!-- 17 · CTA -->
   <section class="slide" data-label="Get started">
     <div class="eyebrow reveal">Get started</div>
     <h2 class="display reveal">Get your tour on<br>the same page.</h2>
@@ -534,9 +875,9 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     <a class="cta reveal" href="https://bandmate.art">Start free at bandmate.art →</a>
   </section>
 
-  <!-- 15 · CLOSE -->
-  <section class="slide close" data-label="Close">
-    <img class="mark reveal" src="/avatar.png" alt="" />
+  <!-- 18 · CLOSE -->
+  <section class="slide close" data-label="Close" data-bunny="close">
+    <img class="mark reveal mark-fb" src="avatar.png" alt="" />
     <div class="big reveal">Your mate on<br>the road.</div>
     <div class="em reveal"><a href="https://bandmate.art">bandmate.art</a> &nbsp;·&nbsp; <a href="mailto:info@bandmate.art">info@bandmate.art</a></div>
   </section>
@@ -544,20 +885,24 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
 </main>
 
 <script>
-// Intro gate: the pixel bunny is the cover. It plays until the visitor taps,
-// clicks, or presses a key, then fades into the deck. Skipped under
-// reduced-motion or if three.js / WebGL can't start (a 7s cap makes sure a
-// blocked CDN never leaves anyone staring at a black screen).
+// Intro: the Pixel Bunny plays on its own until the visitor taps, clicks or
+// presses a key; then the deck fades in over it and the bunny glides up to
+// sit above the cover. Skipped under reduced motion. If three.js / WebGL
+// can't start, a 7s cap makes sure nobody is left looking at a dark screen.
 window.__pitchIntro = (function(){
   var intro = document.getElementById('intro');
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
-  if (!intro || reduce) { if (intro) intro.remove(); return Promise.resolve(); }
+  function reveal(){ document.body.classList.remove('intro'); }
+  if (!intro || reduce) { reveal(); if (intro) intro.remove(); return Promise.resolve(); }
   return new Promise(function(resolve){
     var done = false, ready = false;
     function finish(){
       if (done) return; done = true;
       intro.classList.add('out');
-      setTimeout(function(){ try { window.__introStop && window.__introStop(); } catch (e) {} intro.remove(); resolve(); }, 950);
+      reveal();
+      window.__bunnyPose('cover');
+      resolve();
+      setTimeout(function(){ intro.remove(); }, 900);
     }
     var cap = setTimeout(function(){ if (!ready) finish(); }, 7000);
     window.__introReady = function(){ ready = true; clearTimeout(cap); intro.classList.add('go'); };
@@ -572,10 +917,13 @@ window.__pitchIntro = (function(){
 })();
 </script>
 <script>
-(function initPitchIntroBunny(){
-  const canvas = document.getElementById('introCanvas');
+// The Pixel Bunny — the same particle engine as the dashboard's watermark.
+// It opens the deck big and bright, then stays: it glides to wherever the
+// current slide wants it (window.__bunnyWant: intro / cover / side / close)
+// and dims to a watermark behind the copy, the way it sits behind the app.
+(function initPitchBunny(){
+  const canvas = document.getElementById('bunnyCanvas');
   if (!canvas) return;
-  if (!document.getElementById('intro')) return;   // intro already skipped (reduced motion / seen this session)
   // Reduced motion: the CSS already forces opacity:0 — don't burn a GPU
   // context or a rAF loop drawing something nobody will see.
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches) { try { window.__introFail && window.__introFail(); } catch (e) {} return; }
@@ -591,7 +939,6 @@ window.__pitchIntro = (function(){
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, canvas });
     } catch (e) { console.warn('[bg] WebGL init failed:', e); return; }
-    window.__introStop = () => { window.__introStopped = true; try { renderer.dispose(); } catch (e) {} };
     renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
     renderer.setSize(innerWidth, innerHeight, false);
 
@@ -624,6 +971,7 @@ window.__pitchIntro = (function(){
     let N = 0, pos, home, vel, alpha, baseA, col, size, erodeKey, boost, seed;
     let dragVX, dragVY;                  // per-particle cursor-drag momentum
     let points, worms = [], headPts, balls = [], ballPts, bbox;
+    let bunnyW = 1.63, bunnyH = 3.1;     // the mark's own size, measured in build()
     const THICK = 0.26;
 
     function build(img){
@@ -648,6 +996,9 @@ window.__pitchIntro = (function(){
       }
       N = pts.length / 3;
       if (!N) return false;
+      let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+      for (let i = 0; i < pts.length; i += 3){ x0 = Math.min(x0, pts[i]); x1 = Math.max(x1, pts[i]); y0 = Math.min(y0, pts[i+1]); y1 = Math.max(y1, pts[i+1]); }
+      bunnyW = x1 - x0; bunnyH = y1 - y0;
       pos = new Float32Array(pts); home = new Float32Array(pts);
       vel = new Float32Array(N*3);
       alpha = new Float32Array(N); baseA = new Float32Array(N);
@@ -678,15 +1029,15 @@ window.__pitchIntro = (function(){
       geo.setAttribute('aSize', new THREE.BufferAttribute(size,1));
       const mat = new THREE.ShaderMaterial({
         transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-        uniforms: { uScale: { value: innerHeight * renderer.getPixelRatio() * 0.5 } },
+        uniforms: { uScale: { value: innerHeight * renderer.getPixelRatio() * 0.5 }, uGS: { value: 1 } },
         vertexShader: `
           attribute vec3 aColor; attribute float aAlpha, aSize;
           varying vec3 vC; varying float vA;
-          uniform float uScale;
+          uniform float uScale, uGS;
           void main(){
             vC = aColor; vA = aAlpha;
             vec4 mv = modelViewMatrix * vec4(position, 1.0);
-            gl_PointSize = aSize * uScale / (280.0 * -mv.z) * 4.6;
+            gl_PointSize = aSize * uScale / (280.0 * -mv.z) * 4.6 * uGS;
             gl_Position = projectionMatrix * mv;
           }`,
         fragmentShader: `
@@ -817,10 +1168,54 @@ window.__pitchIntro = (function(){
     // Battery guard: this now runs on the phone app too, so skip all work
     // whenever the watermark is invisible (auth screens) or backgrounded.
     function isVisible(){
-      return !document.hidden && !window.__introStopped;
+      return !document.hidden;
+    }
+    // ---------- poses ----------
+    // x / y: where the mark's centre sits, as a fraction of the half-screen
+    // (0 = middle, 1 = edge). h / w: the most of the screen's height / width
+    // it may fill. o: how bright it is. Phones in portrait get their own set:
+    // there's no room beside the copy, so the watermark sits behind it, faint.
+    const POSES = {
+      intro: { x: 0,    y: 0.02,  h: 0.66, w: 0.86, o: 1 },
+      cover: { x: 0,    y: 0.42,  h: 0.40, w: 0.70, o: 1 },
+      close: { x: 0,    y: 0.40,  h: 0.40, w: 0.70, o: 1 },
+      side:  { x: 0.58, y: -0.04, h: 0.80, w: 0.55, o: 0.17 },
+      // The homepage's hero: right of centre (centre ~¾ across), sized off the
+      // width so it runs taller than the screen and bleeds off top and bottom,
+      // full brightness. h caps it on very wide windows.
+      hero:  { x: 0.46, y: 0,     h: 1.45, w: 0.375, o: 1 },
+    };
+    const PHONE = {
+      intro: { x: 0, y: 0.04,  h: 0.52, w: 0.86, o: 1 },
+      cover: { x: 0, y: 0.40,  h: 0.34, w: 0.78, o: 1 },
+      close: { x: 0, y: 0.38,  h: 0.34, w: 0.78, o: 1 },
+      side:  { x: 0, y: -0.10, h: 0.62, w: 0.92, o: 0.09 },
+    };
+    const cur = { ...POSES.intro, o: 0 };
+    function placeMark(dt){
+      const portrait = innerWidth / innerHeight < 0.8;
+      const want = window.__bunnyWant || 'side';
+      let tp = (portrait ? PHONE : POSES)[want] || (portrait ? PHONE : POSES).side;
+      // Cover and close: fit the mark into the free space above the words,
+      // measured live, so it never sits on the wordmark whatever the screen.
+      const wide = !portrait && innerWidth > 900;
+      if (want === 'cover' && wide) tp = POSES.hero;     // cover, wide screens: the homepage layout
+      const room = !(want === 'cover' && wide) && (want === 'cover' || want === 'close') && window.__bunnyRoom && window.__bunnyRoom();
+      if (room && room.bottom - room.top > 60){
+        const H = innerHeight;
+        tp = { x: 0, y: 1 - (room.top + room.bottom) / H, h: (room.bottom - room.top) / H, w: tp.w, o: tp.o };
+      }
+      const k = 1 - Math.pow(0.12, dt);              // glide, not jump
+      for (const key in tp) cur[key] += (tp[key] - cur[key]) * k;
+      const halfH = camera.position.z * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+      const halfW = halfH * camera.aspect;
+      const sc = Math.min(cur.h * 2 * halfH / bunnyH, cur.w * 2 * halfW / bunnyW);
+      group.scale.setScalar(sc);
+      group.position.set(cur.x * halfW, cur.y * halfH, 0);
+      if (points) points.material.uniforms.uGS.value = Math.pow(sc, 0.7);
+      canvas.style.opacity = cur.o.toFixed(3);
     }
     function animate(){
-      if (window.__introStopped) return;
       requestAnimationFrame(animate);
       const now = performance.now();
       if (!isVisible()){ last = now; return; }
@@ -957,6 +1352,7 @@ window.__pitchIntro = (function(){
         points.geometry.attributes.position.needsUpdate = true;
         points.geometry.attributes.aAlpha.needsUpdate = true;
       }
+      placeMark(dt);
       renderer.render(scene, camera);
     }
 
@@ -965,13 +1361,21 @@ window.__pitchIntro = (function(){
       try {
         if (build(img)){
           canvas.classList.add('ready');
+          document.body.classList.add('bunny-live');
           try { window.__introReady && window.__introReady(); } catch (e) {}
           animate();
+        } else {
+          // The image couldn't be read (e.g. the page opened as a local file):
+          // skip the intro; the cover shows the plain rabbit instead.
+          try { window.__introFail && window.__introFail(); } catch (_) {}
         }
-      } catch (e) { console.warn('[bg] particle build failed:', e); }
+      } catch (e) { console.warn('[bg] particle build failed:', e); try { window.__introFail && window.__introFail(); } catch (_) {} }
     };
     img.onerror = (e) => { console.warn('[intro] avatar failed to load:', e); try { window.__introFail && window.__introFail(); } catch (_) {} };
-    img.src = '/avatar.png';
+    // The rabbit's shape travels inside the page (a small copy of avatar.png),
+    // so the bunny can read it however the page is opened — from the site, or
+    // straight from a folder, where browsers won't let it read a file image.
+    img.src = 'data:image/png;base64,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';
   }).catch((e) => {
     // three.js unavailable (offline first load / blocked CDN) — no
     // watermark this session. Everything else is unaffected.
@@ -986,9 +1390,23 @@ window.__pitchIntro = (function(){
   var deck = document.getElementById('deck');
   var slides = Array.prototype.slice.call(deck.querySelectorAll('.slide'));
   var cnum = document.getElementById('cnum');
+  var clbl = document.getElementById('clbl');
   var rail = document.getElementById('rail');
   var pad = function(n){ return (n<10?'0':'')+n; };
   var ctot = document.getElementById('ctot'); if (ctot) ctot.textContent = pad(slides.length);
+  window.__pitchCurrent = slides[0];
+  // The space the bunny may fill on the cover / close: under the top bar,
+  // above the first line of words.
+  window.__bunnyRoom = function(){
+    var s = window.__pitchCurrent;
+    if (!s || !s.dataset.bunny) return null;
+    var first = s.querySelector('.word, .big');
+    if (!first) return null;
+    var bar = document.querySelector('.topbar');
+    var top = (bar ? bar.getBoundingClientRect().bottom : 60) + 8;
+    var bottom = first.getBoundingClientRect().top - (innerWidth < 560 ? 14 : 22);
+    return { top: top, bottom: bottom };
+  };
 
   slides.forEach(function(s, i){
     var b = document.createElement('button');
@@ -1015,8 +1433,7 @@ window.__pitchIntro = (function(){
       else { clearInterval(el._twTimer); el._twTimer = null; }
     }, 42);
   }
-  // Type EVERY copper-mono header in a slide (eyebrow + section/card labels),
-  // staggered top-to-bottom so multi-label slides cascade like a console booting.
+  // Type every copper header in a slide, staggered top to bottom, like a console booting.
   function typeHeaders(slide){
     if (slide._twT) slide._twT.forEach(clearTimeout);
     slide._twT = [];
@@ -1027,15 +1444,19 @@ window.__pitchIntro = (function(){
       });
   }
 
+  function arrive(i){
+    var s = slides[i];
+    window.__pitchCurrent = s;
+    cnum.textContent = pad(i+1);
+    if (clbl) clbl.textContent = s.dataset.label || '';
+    dots.forEach(function(d,di){ d.classList.toggle('on', di===i); });
+    window.__bunnyPose(s.dataset.bunny || 'side');
+  }
   var io = new IntersectionObserver(function(entries){
     entries.forEach(function(e){
       if (e.isIntersecting){
         e.target.classList.add('in');
-        var i = slides.indexOf(e.target);
-        cnum.textContent = pad(i+1);
-        dots.forEach(function(d,di){ d.classList.toggle('on', di===i); });
-        // Don't retype headers that were typed a moment ago (the hand-off
-        // below marks the first slide before the observer's first delivery).
+        arrive(slides.indexOf(e.target));
         if (!(e.target._twAt && Date.now() - e.target._twAt < 1500)) typeHeaders(e.target);
       }
     });
@@ -1043,20 +1464,17 @@ window.__pitchIntro = (function(){
   var startObserving = function(){
     slides.forEach(function(s){ io.observe(s); });
     // Reveal whichever slide is on screen right now, without waiting on the
-    // observer's first delivery — so the cover appears the instant the intro fades.
+    // observer — so the cover appears the instant the intro hands over.
     var i = Math.max(0, Math.min(slides.length - 1, Math.round(deck.scrollTop / (deck.clientHeight || 1))));
     if (!slides[i].classList.contains('in')){
       slides[i].classList.add('in');
-      cnum.textContent = pad(i+1);
-      dots.forEach(function(d,di){ d.classList.toggle('on', di===i); });
+      arrive(i);
       typeHeaders(slides[i]);
     }
   };
   (window.__pitchIntro || Promise.resolve()).then(startObserving);
 
-  // Belt-and-braces for touch: if a scroll ever comes to rest between two
-  // slides (a slow half-drag, a rubber-band, a momentum edge case), glide to
-  // the nearest slide once the scrolling has settled.
+  // Touch: if a scroll ever comes to rest between two slides, glide to the nearest.
   var settleT = null, touching = false;
   function settle(){
     if (touching) return;
@@ -1080,6 +1498,7 @@ window.__pitchIntro = (function(){
     slides[n].scrollIntoView({behavior:'smooth'});
   }
   window.addEventListener('keydown', function(e){
+    if (document.body.classList.contains('intro')) return;
     if (['ArrowDown','PageDown',' '].indexOf(e.key) > -1){ e.preventDefault(); go(1); }
     else if (['ArrowUp','PageUp'].indexOf(e.key) > -1){ e.preventDefault(); go(-1); }
     else if (e.key === 'Home'){ e.preventDefault(); slides[0].scrollIntoView({behavior:'smooth'}); }
@@ -1087,49 +1506,102 @@ window.__pitchIntro = (function(){
   });
 })();
 
-// Live chat ticker (slide 10) — a new message slides in every few seconds and
-// the thread scrolls up, like a tour group chat in motion. FLIP: drop the feed
-// down by the new bubble's height with no transition, then animate back to 0 so
-// the whole stack glides up while the newest rises into view. Freezes (static)
-// for reduced-motion.
+// Small mock animations. Each only runs while its own slide is the one on
+// screen, and none run under reduced motion (they show their resting state).
 (function(){
-  var feed = document.getElementById('chatfeed');
-  if (!feed) return;
-  var POOL = [
-    {s:'alert', w:'BANDMATE · NOW', t:'Doors moved to 8:00 — soundcheck pushed to 6:30.'},
-    {w:'MAYA · TM', s:'them', t:'Bus call is 30 after load-out tonight'},
-    {s:'me', t:'Copy — telling the band now'},
-    {w:'DEV · FOH', s:'them', t:'👍 see you at the dock'},
-    {w:'SAM · MERCH', s:'them', t:'Need 2 more reps for load-in'},
-    {s:'me', t:'On it — sending Theo + Priya'},
-    {s:'alert', w:'BANDMATE · NOW', t:'Lobby call updated to 4:15 — pushed to everyone.'},
-    {w:'JJ · DRUMS', s:'them', t:'Got it, thanks'},
-    {w:'MAYA · TM', s:'them', t:'Hotel keys at front desk under Atlas'},
-    {w:'DEV · FOH', s:'them', t:'Stage power confirmed — we\'re good'}
-  ];
-  var i = 0;
-  function mk(m){
-    var b = document.createElement('div');
-    b.className = 'cbub ' + (m.s === 'me' ? 'me' : m.s === 'alert' ? 'alert' : 'them');
-    b.innerHTML = (m.w ? '<b>' + m.w + '</b>' : '') + m.t;
-    return b;
-  }
-  for (var k = 0; k < 3; k++) { feed.appendChild(mk(POOL[i % POOL.length])); i++; }
   var reduce = false;
   try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
-  if (reduce) return;
-  function tick(){
-    var b = mk(POOL[i % POOL.length]); i++;
-    feed.appendChild(b);
-    while (feed.children.length > 7) feed.removeChild(feed.firstChild);
-    var h = b.offsetHeight + 7;
-    feed.style.transition = 'none';
-    feed.style.transform = 'translateY(' + h + 'px)';
-    void feed.offsetHeight;
-    feed.style.transition = 'transform .55s cubic-bezier(.22,.61,.36,1)';
-    feed.style.transform = 'translateY(0)';
+  var onScreen = function(el){ return !document.hidden && window.__pitchCurrent && window.__pitchCurrent.contains(el); };
+
+  // Departure board — the app's notifications are split-flap; here the day's
+  // times flip as a change goes out, and the notification follows.
+  var rows = Array.prototype.slice.call(document.querySelectorAll('.board .brow'));
+  var toastEl = document.getElementById('btoast');
+  var GLYPHS = '0123456789:APM ';
+  function lay(row, text){
+    var f = row.querySelector('.flaps'); f.innerHTML = '';
+    text.split('').forEach(function(ch){ var i = document.createElement('i'); i.textContent = ch === ' ' ? ' ' : ch; f.appendChild(i); });
   }
-  setInterval(tick, 2800);
+  function flipTo(row, text){
+    var tiles = row.querySelectorAll('.flaps i');
+    text = text.padEnd(tiles.length, ' ');
+    Array.prototype.forEach.call(tiles, function(t, k){
+      var target = text.charAt(k) === ' ' ? ' ' : text.charAt(k);
+      if (t.textContent === target) return;
+      var n = 0;
+      (function step(){
+        t.classList.remove('flip'); void t.offsetWidth; t.classList.add('flip');
+        if (n++ < 2) { t.textContent = GLYPHS.charAt((Math.random() * GLYPHS.length) | 0) || '0'; setTimeout(step, 70 + k * 12); }
+        else t.textContent = target;
+      })();
+    });
+  }
+  var width = 8;
+  rows.forEach(function(r){ lay(r, (r.dataset.a || '').padEnd(width, ' ')); });
+  if (rows.length && !reduce){
+    var moved = false;
+    setInterval(function(){
+      if (!onScreen(rows[0])) return;
+      moved = !moved;
+      rows.forEach(function(r, idx){
+        var a = r.dataset.a, b = r.dataset.b || a;
+        if (a === b) return;                                  // this one didn't change
+        setTimeout(function(){ flipTo(r, moved ? b : a); r.classList.toggle('moved', moved); }, idx * 260);
+      });
+      if (toastEl){
+        toastEl.querySelector('.toast-m').textContent = moved ? 'Doors moved to 8:00 PM — sent to 24 phones' : 'Back to 7:00 PM — sent to 24 phones';
+        toastEl.classList.remove('show');
+        setTimeout(function(){ toastEl.classList.add('show'); }, 900);
+      }
+    }, 4200);
+  } else if (toastEl) toastEl.classList.add('show');
+
+  // Guest list lock — the slider slides across, the list locks, then opens again.
+  var glk = document.getElementById('glk');
+  if (glk && !reduce){
+    setInterval(function(){ if (onScreen(glk)) glk.classList.toggle('locked'); }, 3200);
+  }
+
+  // Live chat ticker — a new message slides in every few seconds and the
+  // thread scrolls up (FLIP: drop by the new bubble's height, glide back to 0).
+  var feed = document.getElementById('chatfeed');
+  if (feed){
+    var POOL = [
+      {s:'alert', w:'BANDMATE · NOW', t:'Doors moved to 8:00 PM — soundcheck pushed to 6:30.'},
+      {w:'MAYA · TM', s:'them', t:'Bus call is 30 after load-out tonight'},
+      {s:'me', t:'Copy — telling the band now'},
+      {w:'DEV · FOH', s:'them', t:'Copy that, see you at the dock'},
+      {w:'SAM · MERCH', s:'them', t:'Need 2 more reps for load-in'},
+      {s:'me', t:'On it — sending Theo + Priya'},
+      {s:'alert', w:'BANDMATE · NOW', t:'Lobby call updated to 4:15 PM — pushed to everyone.'},
+      {w:'JJ · DRUMS', s:'them', t:'Got it, thanks'},
+      {w:'MAYA · TM', s:'them', t:'Hotel keys at front desk under Atlas'},
+      {w:'DEV · FOH', s:'them', t:'Stage power confirmed — we\'re good'}
+    ];
+    var ci = 0;
+    var mk = function(m){
+      var b = document.createElement('div');
+      b.className = 'cbub ' + (m.s === 'me' ? 'me' : m.s === 'alert' ? 'alert' : 'them');
+      if (m.w){ var w = document.createElement('b'); w.textContent = m.w; b.appendChild(w); }
+      b.appendChild(document.createTextNode(m.t));
+      return b;
+    };
+    for (var k = 0; k < 3; k++) { feed.appendChild(mk(POOL[ci % POOL.length])); ci++; }
+    if (!reduce){
+      setInterval(function(){
+        if (!onScreen(feed)) return;
+        var b = mk(POOL[ci % POOL.length]); ci++;
+        feed.appendChild(b);
+        while (feed.children.length > 7) feed.removeChild(feed.firstChild);
+        var h = b.offsetHeight + 7;
+        feed.style.transition = 'none';
+        feed.style.transform = 'translateY(' + h + 'px)';
+        void feed.offsetHeight;
+        feed.style.transition = 'transform .55s cubic-bezier(.22,.61,.36,1)';
+        feed.style.transform = 'translateY(0)';
+      }, 2800);
+    }
+  }
 })();
 </script>
 </body>
