@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0a0705" />
 <title>Bandmate — Run your tour from one place.</title>
 <meta name="description" content="Bandmate is the shared road book for tour managers and crew. Build your tour once and every phone stays current — live flight tracking, guest list lock, TM Mobile, calendar sync. $49.99/mo, crew free." />
 <meta property="og:title" content="Bandmate — Run your tour from one place." />
@@ -44,6 +45,16 @@ body{background:var(--ink);color:var(--warm);font-family:'Inter',system-ui,sans-
     var(--ink);}
 .bg::after{content:"";position:absolute;inset:0;mix-blend-mode:overlay;opacity:.5;
   background:repeating-linear-gradient(0deg,rgba(232,148,58,.03) 0 1px,transparent 1px 4px);}
+/* Edge to edge on phones. Safari paints the strips above and below the page
+   itself — the status bar, and the band behind its floating toolbar (the deck
+   scrolls inside its own box, so Safari treats the page as fixed) — in the
+   page's theme colour, #0a0705 (set above). So the backdrop fades into that
+   same black at its top and bottom edges, and page and strips meet without a
+   seam. */
+.bg::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(180deg,var(--ink) 0,rgba(10,7,5,0) 110px,rgba(10,7,5,0) calc(100% - 110px),var(--ink) 100%)}
+.twk{-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 110px,#000 calc(100% - 110px),transparent 100%);
+  mask-image:linear-gradient(180deg,transparent 0,#000 110px,#000 calc(100% - 110px),transparent 100%)}
 /* Twinkling dots — 3 sparse, offset dot-fields each fading in/out on its own clock. */
 .twk{position:fixed;inset:0;z-index:0;pointer-events:none;will-change:opacity}
 .twk1{background:radial-gradient(circle,rgba(255,179,90,.70) .6px,rgba(255,179,90,.22) 1.6px,transparent 2.8px) 10px 22px/128px 110px;animation:twinkle 3.4s ease-in-out infinite}
