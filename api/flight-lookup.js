@@ -112,7 +112,18 @@ module.exports = async function handler(req, res) {
   try {
     const url = `https://${HOST}/flights/number/${encodeURIComponent(flightKey)}/${date}` +
       '?withAircraftImage=false&withLocation=false&dateLocalRole=Departure';
-    const r = await fetch(url, { headers: { 'x-rapidapi-key': apiKey, 'x-rapidapi-host': HOST } });
+    // The plan allows only so many calls per second, and several phones (or a
+    // tour manager's whole travel day) can ask at once. A per-second refusal
+    // is retried twice after a short, jittered wait; a used-up monthly quota
+    // isn't (retrying can't help).
+    let r, quotaText = '';
+    for (let attempt = 0; ; attempt++) {
+      r = await fetch(url, { headers: { 'x-rapidapi-key': apiKey, 'x-rapidapi-host': HOST } });
+      if (r.status !== 429) break;
+      quotaText = await r.text().catch(() => '');
+      if (attempt >= 2 || /month|quota/i.test(quotaText)) break;
+      await new Promise(res => setTimeout(res, 1100 * (attempt + 1) + Math.floor(Math.random() * 400)));
+    }
 
     let flights = [];
     if (r.status === 204 || r.status === 404) {
@@ -121,9 +132,13 @@ module.exports = async function handler(req, res) {
       console.error('[flight-lookup] provider refused the key:', r.status);
       fail(502, 'key', "Flight lookup isn't set up correctly (the key or subscription was refused)."); return;
     } else if (r.status === 429) {
-      // Logged so a used-up plan shows in Vercel's logs, not only as stale statuses.
-      console.error('[flight-lookup] provider quota / rate limit (429) for', flightKey, date);
-      fail(429, 'quota', 'Flight lookups are used up for now. Fill this one in by hand.'); return;
+      // Logged so it shows in Vercel's logs, with the provider's own words —
+      // "rate limit per second" vs "monthly quota" are different problems.
+      const monthly = /month|quota/i.test(quotaText);
+      console.error('[flight-lookup] provider 429 (' + (monthly ? 'monthly quota' : 'per-second limit') + ') for', flightKey, date, '·', quotaText.slice(0, 200));
+      if (monthly) fail(429, 'quota', 'Flight lookups are used up for this month.');
+      else fail(429, 'rate', 'Too many flight lookups at once. Try again in a moment.');
+      return;
     } else if (!r.ok) {
       const text = await r.text().catch(() => '');
       console.error('[flight-lookup] provider error:', r.status, text.slice(0, 300));
@@ -153,12 +168,16 @@ module.exports = async function handler(req, res) {
   }
 };
 
-// How long a saved answer stays fresh. Far-off flights barely change; the day
-// before, hourly is enough to catch schedule changes. Around departure (2 hours
-// before until 30 minutes after) and landing (45 minutes before until an hour
-// after) the status moves all the time — gates, delays, takeoff, touchdown,
-// belt — so it's refreshed every 5 minutes; while cruising, every 10. Once
-// every leg has landed, been canceled or diverted, it freezes.
+// How long a saved answer stays fresh — which is what each lookup costs: the
+// plan is metered (2 units a call), so refresh only as often as the answer
+// can actually change.
+//   day before → 3 h before departure   every 3 hours (schedule changes)
+//   3 h → 1 h before                    every 30 min
+//   1 h before → 30 min after takeoff   every 10 min (gate, boarding, delay, wheels up)
+//   cruising                            every 30 min
+//   40 min before landing → 1 h after   every 10 min (touchdown, gate, belt)
+//   once every leg has landed (20 min after), been canceled or diverted, it freezes.
+// About 30 lookups for a typical flight's day, down from about 80.
 function cacheTtlMs(flights, date) {
   const MIN = 60 * 1000, HOUR = 60 * MIN, now = Date.now();
   const legs = Array.isArray(flights) ? flights : [];
@@ -167,16 +186,19 @@ function cacheTtlMs(flights, date) {
   const arrs = legs.flatMap(l => times(l.arrival));
   if (deps.length) {
     const dep = Math.min(...deps);
-    const end = arrs.length ? Math.max(...arrs) + HOUR : dep + 12 * HOUR;
+    const arr = arrs.length ? Math.max(...arrs) : dep + 11 * HOUR;
+    const end = arr + HOUR;
     const done = legs.every(l => /^(Arrived|Canceled|Diverted)$/.test(l.status || ''));
     if (now > end) return done ? 24 * HOUR : 6 * HOUR;
-    if (now >= dep - 2 * HOUR && now < dep + 30 * MIN) return 5 * MIN;
-    if (arrs.length && now >= Math.max(...arrs) - 45 * MIN) return 5 * MIN;
-    if (now >= dep + 30 * MIN) return 10 * MIN;
-    if (now >= dep - 24 * HOUR) return HOUR;
+    if (done && now > arr + 20 * MIN) return 24 * HOUR;
+    if (now >= dep - HOUR && now < dep + 30 * MIN) return 10 * MIN;
+    if (now >= arr - 40 * MIN && now >= dep) return 10 * MIN;
+    if (now >= dep + 30 * MIN) return 30 * MIN;
+    if (now >= dep - 3 * HOUR) return 30 * MIN;
+    if (now >= dep - 24 * HOUR) return 3 * HOUR;
   }
   const daysAway = Math.abs(Date.parse(date + 'T12:00:00Z') - now) / (24 * HOUR);
-  return daysAway > 3 ? 24 * HOUR : 2 * HOUR;
+  return daysAway > 3 ? 24 * HOUR : 3 * HOUR;
 }
 
 // One provider time → { date, time } local to the airport, plus a UTC ISO
