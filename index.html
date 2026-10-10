@@ -12464,10 +12464,26 @@ function _flightStatusInfo(leg, fetchedAt) {
 }
 // How old the status is, said plainly when it can't be trusted as current:
 // an estimate, or a refresh that keeps failing.
+// Why the last lookup failed — told to tour managers and co-managers only,
+// since they're the ones who can do something about it.
+function _flightFailWhy(e) {
+  if (!e || !e.failed) return '';
+  let mgmt = false;
+  try { mgmt = viewerKey === 'tm' || _viewerHasMgmtAccess(getCrewById(viewerKey)); } catch (x) {}
+  if (!mgmt) return '';
+  return ({
+    rate: 'too many flights checked at once; retrying',
+    quota: 'the flight-data plan is out of lookups this month',
+    key: 'the flight-data service refused the key',
+    provider: 'the flight-data service returned an error',
+    failed: 'the lookup failed',
+    session: 'your sign-in needs refreshing',
+  })[e.error] || (e.error ? 'error ' + e.error : '');
+}
 function _flightAgeText(live, key, long) {
   const ago = _agoShort(live.fetchedAt), e = key && _flightLive[key];
   if (live.info.est) return long ? `Estimated from the schedule · last update ${ago}` : `Est. · ${ago}`;
-  if (e && e.failed) return long ? `Live updates unavailable right now · last update ${ago}` : `Last update ${ago}`;
+  if (e && e.failed) { const why = long ? _flightFailWhy(e) : ''; return long ? `Live updates unavailable (${why || 'right now'}) · last update ${ago}` : `Last update ${ago}`; }
   return long ? `Updated ${ago}` : ago;
 }
 function _flightAgeStale(live, key) {
@@ -12520,7 +12536,7 @@ function _flightTrackNote(t, date) {
   if (!_flightTrackable(t, date)) return 'Live status starts the day before';
   const e = _flightLive[_flightLiveKey(t, date)];
   if (e && Array.isArray(e.legs)) return 'No live status found for this flight number';
-  if (e && e.failed) return 'Live status unavailable right now';
+  if (e && e.failed) { const why = _flightFailWhy(e); return why ? `Live status unavailable: ${why}` : 'Live status unavailable right now'; }
   return 'Checking live status…';
 }
 function _agoShort(iso) {
@@ -12544,6 +12560,17 @@ function _flightTimeHTML(entered24, mv) {
   return (was ? `<s>${esc(_fmt12Safe(was))}</s>${esc(_fmt12Safe(current))}` : esc(_fmt12Safe(current))) + tag;
 }
 
+// Lookups go out one at a time. A tour manager's travel day can hold a dozen
+// or more flights, and firing them all at once tripped the flight-data plan's
+// per-second limit — every flight but one came back refused ("unavailable").
+// After a live (uncached) answer the next waits a beat; cached answers cost
+// the provider nothing, so those don't.
+let _flightQueue = Promise.resolve();
+function _flightQueued(job) {
+  const run = _flightQueue.then(job);
+  _flightQueue = run.then(gap => new Promise(res => setTimeout(res, gap || 0)), () => {});
+  return run;
+}
 async function _flightLiveFetch(t, date, force) {
   const key = _flightLiveKey(t, date);
   if (!key || !sb || _flightApiConfigured === false) return;
@@ -12551,6 +12578,11 @@ async function _flightLiveFetch(t, date, force) {
   if (!force && cur && Date.now() - (cur.checkedAt || 0) < FLIGHT_POLL_MS - 30000) return;
   if (_flightLiveInFlight[key]) return;
   _flightLiveInFlight[key] = true;
+  return _flightQueued(() => _flightLiveFetchNow(t, date, key));
+}
+async function _flightLiveFetchNow(t, date, key) {
+  const cur = _flightLive[key];
+  let gap = 0;
   try {
     const token = await _placeAuthToken();
     if (!token) { if (!_flightLiveNoAuth) { _flightLiveNoAuth = true; _flightLiveRedraw(key); } return; }
@@ -12560,9 +12592,10 @@ async function _flightLiveFetch(t, date, force) {
       body: JSON.stringify({ flight: t.flightNumber, date, supabaseAccessToken: token }),
     });
     const j = await r.json().catch(() => null);
+    gap = j && j.cached && !j.stale ? 0 : 1100;
     if (j && j.configured === false) { _flightApiConfigured = false; _flightLiveRedraw(key); return; }
     if (!j || !r.ok) {
-      _flightLive[key] = { ...(cur || {}), checkedAt: Date.now(), failed: true, error: (j && j.error) || 'http' };
+      _flightLive[key] = { ...(cur || {}), checkedAt: Date.now(), failed: true, error: (j && j.error) || 'http ' + r.status };
       if (!cur || !cur.failed) _flightLiveRedraw(key);   // the age line changes to say updates stopped
       return;
     }
@@ -12579,6 +12612,7 @@ async function _flightLiveFetch(t, date, force) {
     if (changed) _flightLiveRedraw(key);
   } catch (e) { /* offline: keep the last known status */ }
   finally { delete _flightLiveInFlight[key]; }
+  return gap;
 }
 // Redraw what shows live status: the phone screens, and an open flight sheet.
 function _flightLiveRedraw(key) {
