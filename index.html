@@ -23833,10 +23833,14 @@ async function processImportFile(file) {
           // ("→ LA 11/24" reads as flight LA 11; "Phoenix, AZ 545" miles as AZ 545).
           // Keep its flights only when the document actually talks about flying.
           const mentionsFlying = /\b(flight|flt|airline|depart(s|ure)? [A-Z]{3}\b|boarding)\b/i.test(text);
-          const keep = (result.extracted.travel || []).filter(t => (t.type || '') === 'flight' && mentionsFlying);
+          const tblFlights = tbl.travel.filter(t => t.type === 'flight').length;
+          const keep = tblFlights ? [] : (result.extracted.travel || []).filter(t => (t.type || '') === 'flight' && mentionsFlying);
           if (tbl.travel.length || !mentionsFlying) result.extracted.travel = keep.concat(tbl.travel);
           const shows = tbl.dates.filter(d => d.status === 'show').length;
-          result.notes.push(`Table · ${tbl.dates.length} dates read column by column (${shows} show${shows === 1 ? '' : 's'}${tbl.travel.length ? ', ' + tbl.travel.length + ' drives' : ''})`);
+          const drives = tbl.travel.length - tblFlights;
+          const moves = [drives ? drives + ' drive' + (drives === 1 ? '' : 's') : '', tblFlights ? tblFlights + ' flight' + (tblFlights === 1 ? '' : 's') : ''].filter(Boolean).join(', ');
+          result.notes = result.notes.filter(n => !/^Itinerary · /.test(n));
+          result.notes.push(`Table · ${tbl.dates.length} dates read column by column (${shows} show${shows === 1 ? '' : 's'}${moves ? ', ' + moves : ''})`);
         }
       } catch (e) { console.warn('[Bandmate] pdf table pass failed:', e); }
       (result.extracted.dates || []).forEach(_sanitizeImportedDate);
@@ -26508,7 +26512,10 @@ function _sanitizeImportedDate(d) {
 //     the calendar — the next time that date comes round.
 const _PDF_COLS = [
   ['date', /^(date|showdate|dates?)$/], ['dow', /^(day|dow|weekday)$/],
-  ['city', /^(city|citystate|cityst|market|town|location)$/], ['state', /^(st|state|prov|province|region|stateprov)$/],
+  ['city', /^(city|citystate|cityst|market|town|location|activecity)$/], ['state', /^(st|state|prov|province|region|stateprov)$/],
+  ['country', /^(country|nation)$/],
+  ['airports', /^(airportpair|airports|airportcodes)$/], ['flightHrs', /^(privateflighthrs|privateflighthours|flighthrs|flighthours|flighttime)$/],
+  ['leg', /^(travelleg|leg)$/],
   ['venue', /^(venue.*|club|room)$/], ['capacity', /^(cap|capacity|roomcap|venuecap)$/],
   ['doors', /^doors?$/], ['setTime', /^(set|settime|showtime|stage|onstage)$/], ['loadIn', /^(loadin|load)$/],
   ['soundcheck', /^(soundcheck|sc)$/], ['curfew', /^curfew$/], ['promoter', /^(promoter|buyer|talentbuyer)$/],
@@ -26521,17 +26528,32 @@ function _pdfColKey(label) {
   const hit = _PDF_COLS.find(([, re]) => re.test(n));
   return hit ? hit[0] : '';
 }
+// A date cell: "10/24", "10/24/2026", "Sun, Dec 6, 2026", "Dec 6", "6 Dec 2026".
+// → { mo, da, yr } (yr 0 when the cell has none), or null.
+const _PDF_MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12 };
+function _pdfCellDate(s) {
+  s = String(s || '').trim();
+  let m = /(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?/.exec(s);
+  if (m && s.length <= 22) return { mo: +m[1], da: +m[2], yr: m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : 0 };
+  if (s.length > 32) return null;
+  const t = s.replace(/^(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)[a-z]*\.?,?\s+/i, '');
+  const mon = w => { w = String(w || '').toLowerCase().replace(/\.$/, ''); return _PDF_MONTHS[w.slice(0, 4)] || _PDF_MONTHS[w.slice(0, 3)] || 0; };
+  m = /^([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?$/.exec(t);
+  if (m && mon(m[1])) return { mo: mon(m[1]), da: +m[2], yr: m[3] ? +m[3] : 0 };
+  m = /^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})\.?(?:,?\s+(\d{4}))?$/.exec(t);
+  if (m && mon(m[2])) return { mo: mon(m[2]), da: +m[1], yr: m[3] ? +m[3] : 0 };
+  return null;
+}
 function _pdfTableToDates(rows, fullText) {
   const none = { dates: [], travel: [], confident: false };
   if (!Array.isArray(rows) || rows.length < 3) return none;
-  const DATE_RE = /(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?/;
-  const hasDate = r => r.cells.length && DATE_RE.test(r.cells[0].s) && r.cells[0].s.length <= 22;
+  const hasDate = r => r.cells.length && !!_pdfCellDate(r.cells[0].s);
   const t24 = v => { const m = /^(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m?\.?$/i.exec(String(v || '').trim()); if (!m) { const h = /^(\d{1,2}):(\d{2})$/.exec(String(v || '').trim()); return h ? String(+h[1]).padStart(2, '0') + ':' + h[2] : ''; } let h = +m[1] % 12; if (/p/i.test(m[3])) h += 12; return String(h).padStart(2, '0') + ':' + (m[2] || '00'); };
   const blank = v => !v || /^[—–\-]+$/.test(String(v).trim());
   const yearInDoc = (() => { const m = /\b(20\d\d)\b/.exec(String(fullText || '')); return m ? +m[1] : 0; })();
 
   const dates = [], travel = [];
-  let model = null, prevMonth = 0, year = 0, lastRec = null, lastRow = null, lastPlace = { city: '', state: '' };
+  let model = null, prevMonth = 0, year = 0, lastRec = null, lastRow = null, lastPlace = { city: '', state: '', country: '' };
   rows.forEach((row, ri) => {
     // a header row: at least two recognised column names, one of them the date
     const keys = row.cells.map(c => _pdfColKey(c.s));
@@ -26548,7 +26570,7 @@ function _pdfTableToDates(rows, fullText) {
       const names = cols.map(() => '');
       row.cells.forEach((c, ci) => { if (keys[ci]) { const i = colOf(c.x + c.w / 2); if (!names[i]) names[i] = keys[ci]; } });
       if (!names.includes('date')) names[0] = 'date';
-      model = { colOf, names };
+      model = { colOf, names, privateFlights: row.cells.some((c, ci) => keys[ci] === 'flightHrs' && /private|charter/i.test(c.s)) };
       return;
     }
     if (!model) return;
@@ -26558,9 +26580,9 @@ function _pdfTableToDates(rows, fullText) {
       if (lastRec && lastRow && lastRow.page === row.page && lastRow.y - row.y < 16) { if (rec.notes) lastRec.notes = [lastRec.notes, rec.notes].filter(Boolean).join(' '); if (rec.venue && lastRec.venue && lastRec.status === 'show') lastRec.venue += ' ' + rec.venue; }
       return;
     }
-    const m = DATE_RE.exec(rec.date || row.cells[0].s); if (!m) return;
-    const mo = +m[1], da = +m[2]; if (mo < 1 || mo > 12 || da < 1 || da > 31) return;
-    if (m[3]) year = +m[3] < 100 ? 2000 + +m[3] : +m[3];
+    const m = _pdfCellDate(rec.date || row.cells[0].s) || _pdfCellDate(row.cells[0].s); if (!m) return;
+    const mo = m.mo, da = m.da; if (mo < 1 || mo > 12 || da < 1 || da > 31) return;
+    if (m.yr) year = m.yr;
     else {
       if (!year) { const now = new Date(); year = yearInDoc || now.getFullYear(); if (!yearInDoc && new Date(year, mo - 1, da) < new Date(now.getTime() - 90 * 864e5)) year++; }
       else if (prevMonth && mo < prevMonth - 6) year++;                // Dec → Jan
@@ -26569,7 +26591,27 @@ function _pdfTableToDates(rows, fullText) {
     const iso = year + '-' + String(mo).padStart(2, '0') + '-' + String(da).padStart(2, '0');
 
     let city = blank(rec.city) ? '' : rec.city, state = blank(rec.state) ? '' : rec.state, venue = blank(rec.venue) ? '' : rec.venue;
+    let country = blank(rec.country) ? '' : rec.country;
     let status = 'show'; const extra = [];
+    // The flight that day, from an "Airport pair" (SHA → HGH) and/or a
+    // "Travel leg" ("Shanghai to Hangzhou") column.
+    const codes = String(rec.airports || '').split(/\s*(?:→|->|–>|>|–|—|-|\/)\s*/).map(x => x.trim().toUpperCase()).filter(x => /^[A-Z]{3}$/.test(x));
+    const legTxt = blank(rec.leg) ? '' : String(rec.leg).trim();
+    const legEnds = /\s+to\s+/i.test(legTxt) ? legTxt.split(/\s+to\s+/i).map(x => x.trim()) : [];
+    const flies = codes.length === 2 || (legEnds.length === 2 && !blank(rec.flightHrs));
+    if (legTxt && !legEnds.length) extra.push(legTxt);              // "Arrive Shanghai"
+    const dayType = String(rec.status || '').trim().toLowerCase();
+    if (/^(live|show|show day|confirmed|performance|gig)$/.test(dayType)) {
+      // a show — the default
+    } else if (/^(open|open day|avail|available|unbooked|tbd|hold)$/.test(dayType)) {
+      // Nothing booked. Still somewhere: where they flew to that day, or where they already are.
+      status = flies ? 'travel' : 'off';
+      extra.unshift('Open day');
+      if (!city) { city = legEnds[1] || lastPlace.city; if (!country && city === lastPlace.city) country = lastPlace.country; }
+    } else if (/^(content|content day|shoot|shoot day|promo|media|press|press day)$/.test(dayType)) {
+      status = 'press';
+      if (/content|shoot/.test(dayType)) extra.unshift('Content day');
+    }
     const offWord = v => /^(off|day off|off day|travel|travel day|drive day|stay put|rest day|fly day)$/i.test(String(v || '').trim());
     const st = String(rec.status || '').trim();
     if (offWord(city) || offWord(venue) || offWord(st)) {
@@ -26593,19 +26635,101 @@ function _pdfTableToDates(rows, fullText) {
     else if (city && state && new RegExp(',\\s*' + state + '$', 'i').test(city)) city = city.replace(/,\s*[A-Za-z]{2,3}$/, '').trim();
     if (!blank(rec.notes)) extra.push(rec.notes);
 
-    const d = { date: iso, city, state, venue, status, capacity: blank(rec.capacity) ? '' : rec.capacity, promoter: blank(rec.promoter) ? '' : rec.promoter,
+    const d = { date: iso, city, state, country, venue, status, capacity: blank(rec.capacity) ? '' : rec.capacity, promoter: blank(rec.promoter) ? '' : rec.promoter,
       doors: t24(rec.doors), setTime: t24(rec.setTime), loadIn: t24(rec.loadIn), soundcheck: t24(rec.soundcheck), curfew: t24(rec.curfew), notes: extra.join(' · ') };
     dates.push(d); lastRec = d; lastRow = row;
-    if (d.city) lastPlace = { city: d.city, state: d.state };
+    if (d.city) lastPlace = { city: d.city, state: d.state, country: d.country || (d.city === lastPlace.city ? lastPlace.country : '') };
 
     const legs = String(rec.drive || '').split(/\s*(?:→|->|–>)\s*/).map(x => x.trim()).filter(Boolean);
     if (legs.length === 2) {
       const bits = [blank(rec.miles) ? '' : rec.miles + ' mi', blank(rec.hrs) ? '' : rec.hrs + ' hrs'].filter(Boolean).join(' · ');
       travel.push({ date: iso, type: 'van', description: legs[0] + ' → ' + legs[1], time: t24(rec.rollBy), arriveTime: t24(rec.arrive), notes: bits });
     }
+    if (flies) {
+      const from = legEnds[0] || codes[0], to = legEnds[1] || codes[1];
+      const hrs = blank(rec.flightHrs) ? '' : String(rec.flightHrs).trim();
+      travel.push({
+        date: iso, type: 'flight', description: from + ' → ' + to,
+        fromCity: codes[0] && legEnds[0] ? `${legEnds[0]} (${codes[0]})` : from,
+        toCity: codes[1] && legEnds[1] ? `${legEnds[1]} (${codes[1]})` : to,
+        _codes: codes, time: t24(rec.rollBy), arriveTime: t24(rec.arrive),
+        notes: [model.privateFlights ? 'Private flight' : '', hrs ? `~${hrs} hrs in the air` : ''].filter(Boolean).join(' · '),
+        everyone: !!model.privateFlights,
+      });
+    }
   });
+  try { _pdfApplyCityTables(rows, dates, travel); } catch (e) { console.warn('[Bandmate] city tables:', e); }
+  travel.forEach(t => { delete t._codes; });
   const good = dates.filter(d => d.city || d.venue || d.status !== 'show').length;
   return { dates, travel, confident: dates.length >= 2 && good / dates.length >= 0.6 };
+}
+
+// A routing sheet often carries reference tables keyed by city — the stop's
+// plan ("Brand Narrative", "Key Brand Beat") or its airport ("Airport",
+// "Code"). Read every table whose first column is City (and has no Date
+// column), then: plan columns become a note on the first day in that city;
+// airport names (and the airport's own note) go onto the flights.
+function _pdfCityTables(rows) {
+  const out = [];
+  const strip = s => String(s || '').replace(/\[\d+\]/g, '').replace(/\s+/g, ' ').trim();
+  rows.forEach((row, ri) => {
+    const first = strip(row.cells[0] && row.cells[0].s);
+    if (!/^city$/i.test(first) || row.cells.length < 3) return;
+    if (row.cells.some(c => _pdfColKey(c.s) === 'date')) return;
+    const data = [];
+    for (let k = ri + 1; k < rows.length && rows[k].page === row.page; k++) {
+      const r = rows[k];
+      if (/^city$/i.test(strip(r.cells[0].s))) break;
+      if (r.cells.length >= 2) data.push(r);
+    }
+    if (data.length < 2) return;
+    const xs = []; data.forEach(r => r.cells.forEach(c => xs.push(c.x))); xs.sort((a, b) => a - b);
+    const anchors = []; xs.forEach(x => { const a = anchors[anchors.length - 1]; if (a && x - a.max <= 7) { a.max = x; a.n++; } else anchors.push({ min: x, max: x, n: 1 }); });
+    const cols = anchors.filter(a => a.n >= Math.max(1, Math.floor(data.length * 0.12))).map(a => a.min);
+    const colOf = x => { let i = 0; for (let k = 0; k < cols.length; k++) if (x >= cols[k] - 4) i = k; return i; };
+    const labels = cols.map(() => '');
+    row.cells.forEach(c => { const i = colOf(c.x + c.w / 2); if (!labels[i]) labels[i] = strip(c.s); });
+    labels[0] = 'City';
+    data.forEach(r => {
+      const rec = {};
+      r.cells.forEach(c => { const l = labels[colOf(c.x)] || ''; rec[l] = rec[l] ? rec[l] + ' ' + c.s : c.s; });
+      if (rec.City && !/^\d/.test(rec.City)) out.push(rec);
+    });
+  });
+  return out;
+}
+function _pdfApplyCityTables(rows, dates, travel) {
+  const recs = _pdfCityTables(rows);
+  if (!recs.length) return;
+  const key = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const SKIP = /^(city|country|status|dates?( in deck)?|live days|days|latitude|longitude|lat|lon|lng|code|airport|notes?)$/i;
+  const airports = {};            // CODE → { name, note }
+  recs.forEach(rec => {
+    const labels = Object.keys(rec);
+    const codeL = labels.find(l => /^code$/i.test(l)), airL = labels.find(l => /^airport$/i.test(l));
+    if (codeL && airL && /^[A-Z]{3}$/.test(String(rec[codeL]).trim())) {
+      // the airport's own remark — in a Notes column, or run into a number cell beside it
+      const note = labels.filter(l => l !== 'City' && l !== codeL && l !== airL)
+        .map(l => String(rec[l]).replace(/^(?:-?\d+(?:\.\d+)?\s*)+/, '').trim()).filter(v => /[a-z]{3}/i.test(v)).join(' ');
+      airports[String(rec[codeL]).trim()] = { name: String(rec[airL]).trim(), note };
+      return;
+    }
+    // a plan for the stop: everything that isn't bookkeeping
+    const bits = labels.filter(l => !SKIP.test(l) && String(rec[l]).trim()).map(l => `${l}: ${String(rec[l]).trim()}`);
+    if (!bits.length) return;
+    const city = key(rec.City);
+    const sameCity = dates.filter(d => key(d.city) === city);
+    const target = sameCity.find(d => d.status === 'show') || sameCity.find(d => d.status === 'press') || sameCity[0];
+    if (target) target.notes = [target.notes, bits.join(' · ')].filter(Boolean).join(' · ');
+  });
+  // flights: full airport names, and what the arrival airport's row says about it
+  travel.forEach(t => {
+    const c = t._codes || [];
+    if (c.length !== 2) return;
+    const a = airports[c[0]], b = airports[c[1]];
+    const names = a && b ? `${a.name} → ${b.name}` : '';
+    t.notes = [t.notes, names, b && b.note].filter(Boolean).join(' · ');
+  });
 }
 
 function _validImportedDate(d) {
@@ -27506,10 +27630,13 @@ function izApply() {
     // to pick who's actually on the flight. Buses / vans / trains /
     // cars usually carry the whole tour, so default them to "All".
     const isFlight = (t.type || 'flight').toLowerCase() === 'flight';
+    const everyone = !isFlight || !!t.everyone;             // a private charter carries the whole party
     target.travel.push({
       id: uid('tv'),
       type: t.type || 'flight',
       description: t.description || '',
+      fromCity: t.fromCity || '',
+      toCity: t.toCity || '',
       time: t.time || '',
       arriveTime: t.arriveTime || '',
       flightNumber: t.flightNumber || '',
@@ -27517,9 +27644,9 @@ function izApply() {
       person: t.person || '',
       notes: t.notes || '',
       allDay: !!t.allDay,
-      groups: isFlight ? [] : ['All'],
+      groups: everyone ? ['All'] : [],
       individuals: [],
-      _audienceNeeded: isFlight,
+      _audienceNeeded: !everyone,
     });
   });
 
@@ -38172,10 +38299,13 @@ function _applyImportResults(results, files) {
     // scan) so the TM picks who's flying; buses/vans/etc. default to
     // "All" since they usually carry the whole tour.
     const isFlight = (t.type || 'flight').toLowerCase() === 'flight';
+    const everyone = !isFlight || !!t.everyone;             // a private charter carries the whole party
     target.travel.push({
       id: uid('tv'),
       type: t.type || 'flight',
       description: t.description || '',
+      fromCity: t.fromCity || '',
+      toCity: t.toCity || '',
       time: t.time || '',
       arriveTime: t.arriveTime || '',
       flightNumber: t.flightNumber || '',
@@ -38183,9 +38313,9 @@ function _applyImportResults(results, files) {
       person: t.person || '',
       notes: t.notes || '',
       allDay: !!t.allDay,
-      groups: isFlight ? [] : ['All'],
+      groups: everyone ? ['All'] : [],
       individuals: [],
-      _audienceNeeded: isFlight,
+      _audienceNeeded: !everyone,
     });
     stats.travelAttached = (stats.travelAttached || 0) + 1;
     stats.fieldsFilled++;
