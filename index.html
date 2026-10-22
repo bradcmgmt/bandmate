@@ -13062,7 +13062,17 @@ function _dateIs24h(d) { return !!_prefs().h24; }
 function _fmt24(t) { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? String(+m[1]).padStart(2, '0') + ':' + m[2] : (t || ''); }
 // The one formatter every surface should use: a stored HH:MM plus the date
 // it belongs to. Anything that isn't a clock time passes through untouched.
+// Times typed by hand ("3:00 PM", "3pm", "3:00 p.m." — the hotel check-in box
+// is free text, and Airbnb listings write it that way) are read with their
+// AM/PM first. Before, "3:00 PM" matched as "3:00" and showed as 3:00 AM.
+function _clockFromText(t) {
+  const m = /^\s*(\d{1,2})(?:[:.](\d{2}))?\s*([ap])\.?\s*m?\.?\s*$/i.exec(String(t || ''));
+  if (!m || +m[1] < 1 || +m[1] > 12 || (m[2] && +m[2] > 59)) return '';
+  let h = +m[1] % 12; if (/p/i.test(m[3])) h += 12;
+  return String(h).padStart(2, '0') + ':' + (m[2] || '00');
+}
 function fmtClock(t, d) {
+  t = _clockFromText(t) || t;
   if (!/^\d{1,2}:\d{2}/.test(t || '')) return t || '';
   return _dateIs24h(d) ? _fmt24(t) : _tvFmt12(t);
 }
@@ -13995,6 +14005,22 @@ function _hotelWhoToggle(sel) {
   if (lbl) lbl.hidden = !custom;
 }
 
+// Check-in / check-out use the same HH : MM AM|PM picker as every other time
+// in the app (a 24-hour one for anyone who chose 24-hour time), so a time is
+// always saved as HH:MM. They used to be free text, where "3:00 PM" was saved
+// as typed and then shown as 3:00 AM. A note that isn't a time ("After 4") is
+// kept when nobody enters a time over it.
+function _hotelTimeField(prefix, value, ad) {
+  const v24 = _clockFromText(value) || (/^\d{1,2}:\d{2}$/.test(String(value || '').trim()) ? String(value).trim() : '');
+  const kept = value && !v24 ? `<div class="help" style="margin-top:6px">Saved as “${esc(value)}” — set a time to replace it.</div>` : '';
+  return renderTime12Picker(prefix, v24, { h24: _dateIs24h(ad) }) + kept;
+}
+function _hotelTimeRead(prefix, before) {
+  const t = readTime12Picker(prefix);
+  if (t) return t;
+  const was = String(before || '').trim();
+  return was && !_clockFromText(was) && !/^\d{1,2}:\d{2}$/.test(was) ? was : '';
+}
 function openHotelModal(stayId) {
   const ad = getActiveDate();
   if (!ad) return;
@@ -14034,8 +14060,8 @@ function openHotelModal(stayId) {
         <div class="field full"><label>Address</label><input id="h_addr" value="${esc(h.address)}"></div>
         <div class="field"><label>Check-in date *</label><input id="h_indate" type="date" value="${esc(h.checkInDate || ad.date)}"></div>
         <div class="field"><label>Check-out date *</label><input id="h_outdate" type="date" value="${esc(h.checkOutDate || h.checkInDate || ad.date)}"></div>
-        <div class="field"><label>Check-in time</label><input id="h_in" value="${esc(h.checkIn)}" placeholder="e.g. 15:00"></div>
-        <div class="field"><label>Check-out time</label><input id="h_out" value="${esc(h.checkOut)}" placeholder="e.g. 11:00"></div>
+        <div class="field"><label>Check-in time</label>${_hotelTimeField('h_in', h.checkIn, ad)}</div>
+        <div class="field"><label>Check-out time</label>${_hotelTimeField('h_out', h.checkOut, ad)}</div>
         ${_tzNoteRowHTML(ad, 'hotel', { city: h.city, state: h.state, country: h.country })}
         <div class="field full"><div class="lbl-row"><label>Who's staying here <span class="muted mono" style="font-size:10px;letter-spacing:.1em">(All = everyone)</span></label><button type="button" class="ember-mini" onclick="_manageGroupsFromForm()">Manage groups</button></div>
           ${renderGroupPicker('h_grp', initGroups, true)}
@@ -14072,7 +14098,7 @@ function openHotelModal(stayId) {
       if (editing && !_hasAudience && !_legacyGroups.length && everyone && !individuals.length && h.who) who = h.who;
       const data = {
         name, address: $('#h_addr').value.trim(), conf: $('#h_conf').value.trim(),
-        phone: $('#h_phone').value.trim(), checkIn: $('#h_in').value.trim(), checkOut: $('#h_out').value.trim(),
+        phone: $('#h_phone').value.trim(), checkIn: _hotelTimeRead('h_in', editing && editing.checkIn), checkOut: _hotelTimeRead('h_out', editing && editing.checkOut),
         checkInDate: inDate, checkOutDate: outDate, who, notes: $('#h_notes').value.trim(),
         groups, individuals, airbnb,
       };
@@ -17982,7 +18008,7 @@ function renderDashboard() {
 
   const _dayHotels = _hotelsForDate(ad);
   const hotelMeta = _dayHotels.length
-    ? `${esc(_dayHotels[0].name)}${_dayHotels[0].checkOut ? ' · check-out ' + esc(_dayHotels[0].checkOut) : ''}${_dayHotels.length > 1 ? ` · +${_dayHotels.length - 1} more` : ''}`
+    ? `${esc(_dayHotels[0].name)}${_dayHotels[0].checkOut ? ' · check-out ' + esc(fmtClock(_dayHotels[0].checkOut, ad)) : ''}${_dayHotels.length > 1 ? ` · +${_dayHotels.length - 1} more` : ''}`
     : (ad.noHotel ? 'No hotel required' : 'Not added yet');
   const promoter = ad.promoter || 'Not set';
   const nextDate = T().dates[T().dates.findIndex(d => d.id === ad.id) + 1];
@@ -19006,7 +19032,7 @@ function _hotelStayCardHTML(s) {
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-top:12px">
         ${cell('Address', s.address)}
         ${cell('Conf #', s.conf, true, true)}
-        ${cell('Check-in / out', `${s.checkIn || '—'} / ${s.checkOut || '—'}`, true)}
+        ${cell('Check-in / out', `${s.checkIn ? fmtClock(s.checkIn) : '—'} / ${s.checkOut ? fmtClock(s.checkOut) : '—'}`, true)}
         ${cell('Phone', s.phone, true)}
       </div>
       ${s.notes ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:13px;color:var(--warm-mute)">${esc(s.notes)}</div>` : ''}
@@ -22758,8 +22784,8 @@ function renderPhone() {
       const cityLine = _cityStateZip(h);
       if (cityLine) addressLines.push(cityLine);
       const detailPairs = [];
-      if (h.checkIn) detailPairs.push({ k: 'Check-in', v: h.checkIn });
-      if (h.checkOut) detailPairs.push({ k: 'Check-out', v: h.checkOut });
+      if (h.checkIn) detailPairs.push({ k: 'Check-in', v: fmtClock(h.checkIn) });
+      if (h.checkOut) detailPairs.push({ k: 'Check-out', v: fmtClock(h.checkOut) });
       if (h.phone) detailPairs.push({ k: 'Phone', v: h.phone });
       if (h.conf) detailPairs.push({ k: 'Conf #', v: h.conf });
       const roleTag = h._role === 'out' ? ' · CHECK-OUT' : h._role === 'mid' ? ' · STAYING' : h._role === 'in' ? ' · CHECK-IN' : '';
@@ -30868,7 +30894,7 @@ function renderTourBook(opts) {
             ${h.address ? `<div class="tb-pair"><span class="tb-p-l">Address</span><span class="tb-p-v">${esc(h.address)}</span></div>` : ''}
             ${h.conf ? `<div class="tb-pair"><span class="tb-p-l">Conf #</span><span class="tb-p-v">${esc(h.conf)}</span></div>` : ''}
             ${h.phone ? `<div class="tb-pair"><span class="tb-p-l">Phone</span><span class="tb-p-v">${esc(h.phone)}</span></div>` : ''}
-            <div class="tb-pair"><span class="tb-p-l">Stay</span><span class="tb-p-v">${esc(fmtMD(h._ci))} → ${esc(fmtMD(h._co))}${h.checkIn || h.checkOut ? ` · ${esc(h.checkIn || '—')} / ${esc(h.checkOut || '—')}` : ''}</span></div>
+            <div class="tb-pair"><span class="tb-p-l">Stay</span><span class="tb-p-v">${esc(fmtMD(h._ci))} → ${esc(fmtMD(h._co))}${h.checkIn || h.checkOut ? ` · ${esc(h.checkIn ? fmtClock(h.checkIn) : '—')} / ${esc(h.checkOut ? fmtClock(h.checkOut) : '—')}` : ''}</span></div>
             ${rooms.length ? `
               <h4 style="margin-top:10px">Rooms · ${rooms.length}</h4>
               <div class="tb-rooms">
