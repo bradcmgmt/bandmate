@@ -13981,6 +13981,28 @@ function _findStay(stayId) {
 }
 
 // Whole nights between check-in and check-out dates.
+// A stay's check-in and check-out, said relative to the day being looked at.
+// A bare "Check-out 11:00 AM" on every night of a three-night stay reads as
+// "out tomorrow morning" each time, so the check-out always carries its day
+// (Today / Tomorrow / Wed 10.28), and check-in, once it's behind you, becomes
+// "Checked in Mon 10.26". A one-night stay (same in/out date) ends next morning.
+function _stayDayWord(iso, day) {
+  if (iso === day) return 'Today';
+  if (iso === _isoAddDays(day, 1)) return 'Tomorrow';
+  const d = new Date(iso + 'T12:00:00Z');
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getUTCDay()] + ' ' + fmtMD(iso);
+}
+function _stayTimes(h, day, ctx) {
+  const ci = h._ci || h.checkInDate || day;
+  const co = (h._co && h._co !== ci) ? h._co : _isoAddDays(ci, 1);
+  const tIn = h.checkIn ? fmtClock(h.checkIn, ctx) : '', tOut = h.checkOut ? fmtClock(h.checkOut, ctx) : '';
+  const out = { nights: _stayNights({ checkInDate: ci, checkOutDate: co }), night: 0, checkIn: null, checkOut: null };
+  if (day >= ci && day < co) out.night = Math.round((new Date(day + 'T12:00:00Z') - new Date(ci + 'T12:00:00Z')) / 864e5) + 1;
+  if (day === ci) { if (tIn) out.checkIn = { label: 'Check-in', main: tIn, sub: 'Today', tz: true }; }
+  else out.checkIn = { label: 'Checked in', main: _stayDayWord(ci, day), sub: '', tz: false };
+  out.checkOut = { label: 'Check-out', main: tOut || _stayDayWord(co, day), sub: tOut ? _stayDayWord(co, day) : '', tz: !!tOut };
+  return out;
+}
 function _stayNights(stay) {
   const ci = stay.checkInDate, co = stay.checkOutDate;
   if (!ci || !co || ci === co) return 1;
@@ -22784,8 +22806,9 @@ function renderPhone() {
       const cityLine = _cityStateZip(h);
       if (cityLine) addressLines.push(cityLine);
       const detailPairs = [];
-      if (h.checkIn) detailPairs.push({ k: 'Check-in', v: fmtClock(h.checkIn) });
-      if (h.checkOut) detailPairs.push({ k: 'Check-out', v: fmtClock(h.checkOut) });
+      const st = _stayTimes(h, ad.date, ad);
+      if (st.checkIn) detailPairs.push({ k: st.checkIn.label, v: st.checkIn.main, sub: st.checkIn.sub, tz: st.checkIn.tz });
+      if (st.checkOut) detailPairs.push({ k: st.checkOut.label, v: st.checkOut.main, sub: st.checkOut.sub, tz: st.checkOut.tz });
       if (h.phone) detailPairs.push({ k: 'Phone', v: h.phone });
       if (h.conf) detailPairs.push({ k: 'Conf #', v: h.conf });
       const roleTag = h._role === 'out' ? ' · CHECK-OUT' : h._role === 'mid' ? ' · STAYING' : h._role === 'in' ? ' · CHECK-IN' : '';
@@ -22801,7 +22824,8 @@ function renderPhone() {
               ${detailPairs.map(p => `
                 <div>
                   <div class="lbl" style="font-size:9px">${esc(p.k)}</div>
-                  <div class="mono" style="font-size:12px;color:var(--warm);font-weight:600">${p.k === 'Phone' ? _telLinkHTML(p.v) : esc(p.v) + (/^Check/.test(p.k) ? _tzTag(ad) : '')}</div>
+                  <div class="mono" style="font-size:12px;color:var(--warm);font-weight:600">${p.k === 'Phone' ? _telLinkHTML(p.v) : esc(p.v) + (p.tz ? _tzTag(ad) : '')}</div>
+                  ${p.sub ? `<div class="mono" style="font-size:10px;letter-spacing:.06em;color:${/^(Today|Tomorrow)$/.test(p.sub) ? 'var(--warm-mute)' : 'var(--hi)'};margin-top:1px">${esc(p.sub)}</div>` : ''}
                 </div>
               `).join('')}
             </div>
@@ -22979,8 +23003,11 @@ function renderPhone() {
   // same-day check-out + check-in). Each shows this viewer's room if assigned.
   $('#ph-hotel').innerHTML = _dayStays.length ? _dayStays.map(h => {
     const myR = (h.rooms || []).find(r => r.personId === viewerKey);
-    const roleLbl = h._role === 'out' ? 'CHECK-OUT' : h._role === 'mid' ? 'STAYING' : h._role === 'in' ? 'TONIGHT' : 'TONIGHT';
+    const st = _stayTimes(h, ad.date, ad);
+    const nightsLbl = st.nights > 1 && st.night ? ` · NIGHT ${st.night} OF ${st.nights}` : '';
+    const roleLbl = (h._role === 'out' ? 'CHECK-OUT' : h._role === 'mid' ? 'STAYING' : 'TONIGHT') + nightsLbl;
     const whoLbl = (h.who && h.who !== 'Everyone') ? esc(String(h.who).toUpperCase()) + ' · ' : '';
+    const timeCell = p => p ? `<div><div class="lbl">${esc(p.label.toUpperCase())}</div><div class="mono" style="font-size:14px;font-weight:700;color:var(--warm)">${esc(p.main)}${p.tz ? _tzTag(ad) : ''}</div>${p.sub ? `<div class="mono" style="font-size:10.5px;letter-spacing:.06em;color:${/^(Today|Tomorrow)$/.test(p.sub) ? 'var(--warm-mute)' : 'var(--hi)'};margin-top:2px">${esc(p.sub)}</div>` : ''}</div>` : '';
     return `
     <div class="p-card${h._role === 'out' ? ' is-checkout' : ''}">
       <div class="lbl">${whoLbl}${roleLbl}</div>
@@ -22993,8 +23020,8 @@ function renderPhone() {
       })()}
       <div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(232,148,58,.1);display:grid;grid-template-columns:1fr 1fr;gap:10px">
         ${myR ? `<div><div class="lbl">YOUR ROOM</div><div class="mono" style="font-size:22px;font-weight:800;color:var(--hi);text-shadow:0 0 12px rgba(232,148,58,.4)">${esc(myR.roomNum || '—')}</div></div>` : ''}
-        ${h.checkIn ? `<div><div class="lbl">CHECK-IN</div><div class="mono" style="font-size:14px;font-weight:700;color:var(--warm)">${esc(fmtClock(h.checkIn, ad))}${_tzTag(ad)}</div></div>` : ''}
-        ${h.checkOut ? `<div><div class="lbl">CHECK-OUT</div><div class="mono" style="font-size:14px;font-weight:700;color:var(--warm)">${esc(fmtClock(h.checkOut, ad))}${_tzTag(ad)}</div></div>` : ''}
+        ${timeCell(st.checkIn)}
+        ${timeCell(st.checkOut)}
         ${h.conf ? `<div><div class="lbl">CONF</div><div class="mono" style="font-size:11px;color:var(--warm)">${esc(h.conf)}</div></div>` : ''}
         ${h.phone ? `<div><div class="lbl">PHONE</div><div class="mono" style="font-size:12px;color:var(--warm)">${_telLinkHTML(h.phone)}</div></div>` : ''}
       </div>
