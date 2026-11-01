@@ -8158,7 +8158,7 @@ _onTourChange(payload) {
   //      whose user_id is null but the JWT email matches.
   async fetchSubscription() {
     if (!sb) return null;
-    const COLUMNS = 'status, current_period_end, trial_end, plan, cancel_at_period_end, stripe_customer_id, email, user_id';
+    const COLUMNS = 'status, current_period_end, trial_end, plan, cancel_at_period_end, stripe_customer_id, stripe_subscription_id, email, user_id';
 
     // Pass 1 — prefer the most recent active/trialing row
     const { data: positive, error: e1 } = await sb.from('subscriptions')
@@ -8393,6 +8393,7 @@ _onTourChange(payload) {
       u.subscriptionPeriodEnd = payload.new.current_period_end;
       u.trialEnd = payload.new.trial_end;
       u.subscriptionCancelAtPeriodEnd = !!payload.new.cancel_at_period_end;
+      u.subscriptionStripeId = payload.new.stripe_subscription_id || '';
       saveState();
       if (!wasSubscribed && userIsSubscribed(u)) {
         try { hidePricingScreen(); } catch (e) {}
@@ -23748,7 +23749,7 @@ async function izStartAnalyze() {
 }
 
 function emptyExtract() {
-  return { dates: [], contacts: [], hotels: [], crew: [], travel: [], attachOnly: false, money: [] };
+  return { dates: [], contacts: [], hotels: [], crew: [], travel: [], schedule: [], attachOnly: false, money: [] };
 }
 
 function renderImportAnalyzing() {
@@ -23813,7 +23814,7 @@ async function processImportFile(file) {
         const rows = sheets[sheetName];
         if (!rows.length) continue;
         const headers = Object.keys(rows[0]);
-        const kind = detectCSVKind(headers);
+        const kind = _namedSheetKind(sheetName, headers) || detectCSVKind(headers);
         const headerPreview = headers.slice(0, 5).filter(Boolean).join(', ') || '(no headers)';
         if (kind === 'tour_grid') {
           const filled = _forwardFillDate(rows);
@@ -23823,8 +23824,19 @@ async function processImportFile(file) {
           processed = true;
         } else if (kind === 'hotels') {
           const hotels = rows.map(r => mapCSVRow(r, 'hotel')).filter(h => h.name);
+          hotels.forEach(h => { h._listed = true; });
           result.extracted.hotels.push(...hotels);
           sheetNotes.push(`"${sheetName}" → ${hotels.length} hotel${hotels.length===1?'':'s'}`);
+          processed = true;
+        } else if (kind === 'travel') {
+          const items = rows.map(r => mapCSVRow(r, 'travel')).filter(t => t.date && (t.flightNumber || t.description));
+          result.extracted.travel.push(...items);
+          sheetNotes.push(`"${sheetName}" → ${items.length} travel item${items.length===1?'':'s'}`);
+          processed = true;
+        } else if (kind === 'schedule') {
+          const items = rows.map(r => mapCSVRow(r, 'schedule')).filter(x => x.date && x.what);
+          result.extracted.schedule.push(...items);
+          sheetNotes.push(`"${sheetName}" → ${items.length} schedule item${items.length===1?'':'s'}`);
           processed = true;
         } else if (kind === 'contacts') {
           const contacts = rows.map(r => mapCSVRow(r, 'contact')).filter(c => c.name);
@@ -26814,6 +26826,18 @@ function detectCSVKind(headers) {
   return 'unknown';
 }
 
+// A workbook can say what a tab is by naming it. Travel and Schedule have no
+// column shape detectCSVKind could recognise, so the tab name decides, as long
+// as the columns agree. Anything else falls through to the usual detection.
+function _namedSheetKind(name, headers) {
+  const n = String(name || '').trim().toLowerCase();
+  const hh = (headers || []).map(_normalizeKey);
+  if (!hh.includes('date')) return '';
+  if (/^(travel|flights?)$/.test(n) && hh.some(h => /^(flight|flightnumber|from|to|depart|departtime|departure)$/.test(h))) return 'travel';
+  if (/^(schedule|run of show|ros)$/.test(n) && hh.some(h => /^(item|what)$/.test(h))) return 'schedule';
+  return '';
+}
+
 function _normalizeKey(s) { return String(s).toLowerCase().replace(/[\s_\-/.()]+/g,''); }
 function normalizeDate(s) {
   if (!s) return '';
@@ -26949,6 +26973,7 @@ function mapCSVRow(row, kind) {
       date: normalizeDate(get('date', 'showdate', 'dateofshow', 'showday')),
       city,
       state,
+      country: get('country'),
       venue,
       capacity: get('capacity', 'cap', 'roomcap', 'venuecap', 'venuecapacity', 'tickets', 'ticketcap'),
       status,
@@ -26969,8 +26994,42 @@ function mapCSVRow(row, kind) {
       conf: get('conf', 'confirmation', 'confnum', 'confirmationnumber'),
       checkIn: get('checkin', 'checkindate'),
       checkOut: get('checkout', 'checkoutdate'),
+      checkOutDate: (d => /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : '')(normalizeDate(get('checkoutdate'))),
       phone: get('phone'),
       notes: get('notes'),
+    };
+  } else if (kind === 'travel') {
+    // Exact column names only: the substring fallback in get() would read "to"
+    // out of any header that happens to contain those letters.
+    const exact = (...keys) => { for (const k of keys) if (k in norm) return String(norm[k]).trim(); return ''; };
+    const from = exact('from', 'fromcity', 'origin'), to = exact('to', 'tocity', 'destination');
+    const flightNumber = exact('flight', 'flightnumber', 'flightno');
+    return {
+      date: normalizeDate(exact('date')),
+      type: (exact('type') || 'flight').toLowerCase(),
+      flightNumber,
+      fromCity: from,
+      toCity: to,
+      // Same wording the Travel form auto-fills for a flight.
+      description: exact('description') || [flightNumber, from && to ? `${from} → ${to}` : ''].filter(Boolean).join(' · '),
+      time: normalizeTime(exact('departtime', 'depart', 'departs', 'departure', 'time')),
+      arriveTime: normalizeTime(exact('arrivetime', 'arrive', 'arrives', 'arrival')),
+      conf: exact('conf', 'confirmation', 'confirmationnumber'),
+      person: exact('passengers', 'passenger', 'person', 'who'),
+      notes: exact('notes'),
+      allDay: false,
+      _namedPax: true,
+    };
+  } else if (kind === 'schedule') {
+    const exact = (...keys) => { for (const k of keys) if (k in norm) return String(norm[k]).trim(); return ''; };
+    const time = normalizeTime(exact('time', 'start', 'starttime'));
+    return {
+      date: normalizeDate(exact('date')),
+      time,
+      endTime: normalizeTime(exact('endtime', 'end')),
+      what: exact('item', 'what'),
+      notes: exact('notes'),
+      allDay: !time,
     };
   } else if (kind === 'contact') {
     return {
@@ -27306,13 +27365,14 @@ async function _uploadImportedFilesToStorage(files, targets) {
 }
 
 function mergeImportResults(results) {
-  const merged = { dates: [], contacts: [], hotels: [], crew: [], travel: [] };
+  const merged = { dates: [], contacts: [], hotels: [], crew: [], travel: [], schedule: [] };
   results.forEach(r => {
     merged.dates.push(...(r.extracted.dates || []));
     merged.contacts.push(...(r.extracted.contacts || []));
     merged.hotels.push(...(r.extracted.hotels || []));
     merged.crew.push(...(r.extracted.crew || []));
     merged.travel.push(...(r.extracted.travel || []));
+    merged.schedule.push(...(r.extracted.schedule || []));
   });
 
   // dedupe dates by date+city, merging fields preferentially
@@ -27534,6 +27594,26 @@ function renderImportReview() {
           </div>
         ` : ''}
 
+        ${(s.merged.travel || []).length ? `
+          <div class="review-section">
+            <h4>Travel · ${s.merged.travel.length} extracted</h4>
+            <div class="review-list">
+              ${s.merged.travel.map(t => `
+                <div class="review-list-item">
+                  <b>${esc(t.flightNumber || t.description || '')}</b> <span class="muted mono">${esc(t.date || '')}${t.flightNumber ? ' · ' + esc(_travelShortDesc(t)) : ''}${t.time ? ' · ' + esc(fmtClock(t.time, t)) : ''}${t.arriveTime ? ' → ' + esc(fmtClock(t.arriveTime, t)) : ''}</span>
+                  <span class="rmono muted">${esc(t.conf || '')}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        ${(s.merged.schedule || []).length ? `
+          <div class="review-section">
+            <h4>Schedule · ${s.merged.schedule.length} items across ${new Set(s.merged.schedule.map(x => x.date)).size} days</h4>
+          </div>
+        ` : ''}
+
         ${s.merged.crew.length ? `
           <div class="review-section">
             <h4>Crew · ${s.merged.crew.length} extracted</h4>
@@ -27568,6 +27648,51 @@ function renderImportReview() {
 function izBack() {
   importWizard.step = 'start';
   renderImportStart();
+}
+
+// One stay per date is the rule for a scraped document, whose "hotels" can be
+// the same booking read twice. A Hotels tab is a list someone wrote, so a
+// different hotel on the same date is a real second stay.
+function _importStayFits(target, h) {
+  const have = target.hotels || [];
+  if (!have.length) return true;
+  return !!h._listed && !have.some(x => (x.name || '').toLowerCase() === (h.name || '').toLowerCase());
+}
+
+// A Schedule tab's lines go on their day, in time order. Lines without a time
+// are all-day items. Re-importing the same tab adds nothing.
+function _attachImportedSchedule(tour, items) {
+  let n = 0;
+  (items || []).forEach(x => {
+    const target = (tour.dates || []).find(d => d.date === x.date);
+    if (!target) return;
+    target.schedule = target.schedule || [];
+    if (target.schedule.some(i => (i.time || '') === (x.time || '') && (i.what || '').toLowerCase() === x.what.toLowerCase())) return;
+    target.schedule.push({ id: uid('s'), time: x.time || '', endTime: x.endTime || '', allDay: !!x.allDay, what: x.what, notes: x.notes || '', groups: ['All'], individuals: [], nextDay: false });
+    target.schedule.sort((a, b) => {
+      if (a.allDay && !b.allDay) return -1;
+      if (b.allDay && !a.allDay) return 1;
+      return (a.time || '').localeCompare(b.time || '');
+    });
+    n++;
+  });
+  return n;
+}
+
+// Passengers named on a Travel tab: anyone on the roster becomes a real pick,
+// anyone else stays a typed name — the same two places the Travel form writes.
+function _bindImportedPassengers(tour) {
+  const crew = tour.crew || [];
+  (tour.dates || []).forEach(d => (d.travel || []).forEach(t => {
+    if (!t._namedPax) return;
+    delete t._namedPax;
+    const typed = [];
+    String(t.person || '').split(/[,;]/).map(x => x.trim()).filter(Boolean).forEach(n => {
+      const c = crew.find(x => String(x.name || '').trim().toLowerCase() === n.toLowerCase());
+      if (c) { if (!t.individuals.includes(c.id)) t.individuals.push(c.id); } else typed.push(n);
+    });
+    t.person = typed.join(', ');
+  }));
 }
 
 function izApply() {
@@ -27613,6 +27738,7 @@ function izApply() {
   // the matching dashboard fields. Without this, a perfectly parsed
   // document with "Doors 7:00 PM" in the schedule still shows the
   // dashboard "Doors not set" gap on that date.
+  _attachImportedSchedule(T(), s.merged.schedule);
   T().dates.forEach(d => _liftScheduleToDashboardFields(d));
 
   // Pad one travel day on each end of the tour. The first show is
@@ -27621,8 +27747,9 @@ function izApply() {
   // explicitly (so they're real date rows on the dashboard) prevents
   // the TM from having to remember to create them, AND it gives the
   // gap-filler a proper anchor instead of extrapolating from boilerplate
-  // dates buried elsewhere in the source PDFs.
-  _padTourEdgesWithTravelDays();
+  // dates buried elsewhere in the source PDFs. A workbook with a Travel tab
+  // already says how they get there and back, so it isn't padded.
+  if (!(s.merged.travel || []).some(t => t._namedPax)) _padTourEdgesWithTravelDays();
 
   // Fill calendar gaps between imported dates with empty off-days. The tour
   // dashboard treats each tour day as its own tab, so a 5-day jump between
@@ -27646,7 +27773,7 @@ function izApply() {
     let target = null;
     if (h.date) target = T().dates.find(d => d.date === h.date);
     if (!target && h.city) target = T().dates.find(d => (d.city || '').toLowerCase() === h.city.toLowerCase());
-    if (target && !(target.hotels && target.hotels.length)) {
+    if (target && _importStayFits(target, h)) {
       (target.hotels = target.hotels || []).push(_normStay({
         name: h.name, address: h.address || '', conf: h.conf || '',
         checkIn: h.checkIn || '', checkOut: h.checkOut || '',
@@ -27699,9 +27826,12 @@ function izApply() {
       allDay: !!t.allDay,
       groups: everyone ? ['All'] : [],
       individuals: [],
-      _audienceNeeded: !everyone,
+      _audienceNeeded: !everyone && !(t._namedPax && t.person),
+      ...(t._namedPax ? { _namedPax: true } : {}),
     });
   });
+
+  _bindImportedPassengers(T());
 
   // Attach each uploaded file (metadata only) to every tour date that
   // received data from it. A deal-memo PDF for "Detroit · Mar 4" lands
@@ -35234,6 +35364,7 @@ async function hydrateSubscription() {
     u.subscriptionPeriodEnd = sub.current_period_end;
     u.trialEnd = sub.trial_end;
     u.subscriptionCancelAtPeriodEnd = !!sub.cancel_at_period_end;
+    u.subscriptionStripeId = sub.stripe_subscription_id || '';
     u.stripeCustomerId = sub.stripe_customer_id || u.stripeCustomerId;
   }
   saveState();
@@ -35442,9 +35573,14 @@ function userIsSubscribed(user) {
   const status = user.subscriptionStatus;
   // Definitively unsubscribed → block
   if (['none', 'canceled', 'past_due', 'unpaid', 'incomplete_expired'].includes(status)) return false;
-  // Active / trialing → confirm period hasn't expired
   if (status === 'active' || status === 'trialing') {
-    const end = user.subscriptionPeriodEnd || user.trialEnd;
+    // Billed by Stripe: its status is the truth. Stripe itself moves a plan to
+    // past_due or canceled when a payment fails or it ends, and the webhook
+    // brings that here. The stored date can only be out of date — a missed or
+    // blank renewal update used to lock out customers who had paid on time.
+    if (/^sub_/.test(user.subscriptionStripeId || '')) return true;
+    // A manual grant has no Stripe behind it, so its end date is what ends it.
+    const end = status === 'trialing' ? (user.trialEnd || user.subscriptionPeriodEnd) : user.subscriptionPeriodEnd;
     if (end && new Date(end).getTime() < Date.now()) return false;
     return true;
   }
@@ -38239,6 +38375,7 @@ function _applyImportResults(results, files) {
   const allHotels = [];
   const allCrew = [];
   const allTravel = [];
+  const allSchedule = [];
   (results || []).forEach(result => {
     if (!result) return;
     const ex = result.extracted || {};
@@ -38247,9 +38384,10 @@ function _applyImportResults(results, files) {
     if (ex.hotels) allHotels.push(...ex.hotels);
     if (ex.crew) allCrew.push(...ex.crew);
     if (ex.travel) allTravel.push(...ex.travel);
+    if (ex.schedule) allSchedule.push(...ex.schedule);
   });
 
-  const stats = { datesUpdated: 0, datesAdded: 0, hotelsAttached: 0, travelAttached: 0, contactsAdded: 0, crewAdded: 0, fieldsFilled: 0, attachmentsAdded: 0 };
+  const stats = { datesUpdated: 0, datesAdded: 0, hotelsAttached: 0, travelAttached: 0, scheduleAttached: 0, contactsAdded: 0, crewAdded: 0, fieldsFilled: 0, attachmentsAdded: 0 };
 
   // ── Dates: match by ISO date, fill missing fields only ───────────────
   allDates.forEach(d => {
@@ -38304,12 +38442,13 @@ function _applyImportResults(results, files) {
       stats.datesAdded++;
     }
   });
+  stats.scheduleAttached = _attachImportedSchedule(tour, allSchedule);
   if (allDates.length) {
     tour.dates.sort((a, b) => (a.date || 'zz').localeCompare(b.date || 'zz'));
     // Pad the tour edges with travel days BEFORE gap-filling so the
     // gap-filler has anchored bounds. Idempotent — _padTourEdgesWithTravelDays
     // checks whether each pad already exists before adding.
-    _padTourEdgesWithTravelDays();
+    if (!allTravel.some(t => t._namedPax)) _padTourEdgesWithTravelDays();
     fillDateGapsWithOffDays();
     // Lift schedule-item times into dashboard fields on every date that
     // got new schedule data from this merge — same fix as the initial
@@ -38322,7 +38461,7 @@ function _applyImportResults(results, files) {
     let target = null;
     if (h.date) target = tour.dates.find(d => d.date === h.date);
     if (!target && h.city) target = tour.dates.find(d => (d.city || '').toLowerCase() === (h.city || '').toLowerCase());
-    if (target && !(target.hotels && target.hotels.length)) {
+    if (target && _importStayFits(target, h)) {
       (target.hotels = target.hotels || []).push(_normStay({
         name: h.name || '', address: h.address || '', conf: h.conf || '',
         checkIn: h.checkIn || '', checkOut: h.checkOut || '',
@@ -38368,7 +38507,8 @@ function _applyImportResults(results, files) {
       allDay: !!t.allDay,
       groups: everyone ? ['All'] : [],
       individuals: [],
-      _audienceNeeded: !everyone,
+      _audienceNeeded: !everyone && !(t._namedPax && t.person),
+      ...(t._namedPax ? { _namedPax: true } : {}),
     });
     stats.travelAttached = (stats.travelAttached || 0) + 1;
     stats.fieldsFilled++;
@@ -38398,6 +38538,7 @@ function _applyImportResults(results, files) {
       stats.crewAdded++;
     }
   });
+  _bindImportedPassengers(tour);
 
   // ── Attachments: for each analyzed file, find its single best-match
   //   date, then upload the real binary to Supabase Storage (never inline
@@ -38432,6 +38573,7 @@ function _toastImportStats(stats) {
   if (stats.datesAdded) msgBits.push(`${stats.datesAdded} new date${stats.datesAdded===1?'':'s'}`);
   if (stats.hotelsAttached) msgBits.push(`${stats.hotelsAttached} hotel${stats.hotelsAttached===1?'':'s'} attached`);
   if (stats.travelAttached) msgBits.push(`${stats.travelAttached} flight${stats.travelAttached===1?'':'s'} attached`);
+  if (stats.scheduleAttached) msgBits.push(`${stats.scheduleAttached} schedule item${stats.scheduleAttached===1?'':'s'} added`);
   if (stats.contactsAdded) msgBits.push(`${stats.contactsAdded} new contact${stats.contactsAdded===1?'':'s'}`);
   if (stats.crewAdded) msgBits.push(`${stats.crewAdded} new crew`);
   if (stats.attachmentsAdded) msgBits.push(`${stats.attachmentsAdded} file${stats.attachmentsAdded===1?'':'s'} filed under matching dates`);

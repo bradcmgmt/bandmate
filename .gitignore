@@ -1,0 +1,30 @@
+# This repository is PUBLIC and Vercel deploys whatever lands on main.
+# Everything below stays on this Mac only.
+
+# Real documents used to test the import parser (deal memos, itineraries)
+parser-tests/
+
+# SQL patches and one-off grants (they name customers); run in Supabase instead
+supabase/
+
+# Local TM Mobile preview
+tm-mobile-preview*
+
+# Layout screenshots, drafts and notes
+_pf_*
+_pm_*
+PUSH_SETUP.md
+Bunny Logo 3D.html
+brand/
+
+# Secrets, should one ever land in this folder
+.env*
+*.p8
+*.pem
+*.keystore
+
+# Tools and system files
+.claude/
+node_modules/
+.vercel/
+.DS_Store

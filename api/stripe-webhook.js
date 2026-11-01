@@ -28,6 +28,18 @@ function toIso(unixSeconds) {
   return new Date(unixSeconds * 1000).toISOString();
 }
 
+// Event payloads use the WEBHOOK ENDPOINT's API version, not the one pinned on
+// the client below. From Stripe's 2025-03-31 versions on, the billing period
+// moved off the subscription onto its items, and an invoice's subscription
+// moved under parent.subscription_details. Read both shapes.
+function periodEndOf(sub) {
+  return sub.current_period_end || sub.items?.data?.[0]?.current_period_end || null;
+}
+function subscriptionIdOf(inv) {
+  const id = inv.subscription || inv.parent?.subscription_details?.subscription || null;
+  return id && typeof id === 'object' ? id.id : id;
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).send('Method not allowed'); return; }
 
@@ -77,10 +89,12 @@ module.exports = async function handler(req, res) {
       stripe_subscription_id: sub.id,
       plan: 'standard',
       status: sub.status,
-      current_period_end: toIso(sub.current_period_end),
       trial_end: toIso(sub.trial_end),
       cancel_at_period_end: !!sub.cancel_at_period_end,
     };
+    // Never blank a good date: only write the period end when this event has one.
+    const periodEnd = toIso(periodEndOf(sub));
+    if (periodEnd) row.current_period_end = periodEnd;
     // PREFERRED PATH: signup-first flow gave us client_reference_id — that
     // IS the user_id. Trust it (we set it ourselves at redirect time).
     if (clientReferenceId) {
@@ -154,10 +168,13 @@ module.exports = async function handler(req, res) {
         await upsertFromSubscription(sub, email, existingUserId);
         break;
       }
+      // A paid invoice is a renewal: refresh the period end from Stripe directly.
+      case 'invoice.paid':
       case 'invoice.payment_failed': {
         const inv = event.data.object;
-        if (inv.subscription) {
-          const sub = await stripe.subscriptions.retrieve(inv.subscription);
+        const invSubId = subscriptionIdOf(inv);
+        if (invSubId) {
+          const sub = await stripe.subscriptions.retrieve(invSubId);
           let existingUserId = null;
           try {
             const { data: existing } = await supa
