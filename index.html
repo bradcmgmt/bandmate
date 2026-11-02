@@ -3195,7 +3195,7 @@ html body.phone-app .tz-tag,html body.tm-mobile .tz-tag,html body.mobile .tz-tag
 .profile-tile .pt-stat{font-family:'Bricolage Grotesque',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;padding:3px 8px;border-radius:4px;margin-left:auto}
 .profile-tile.submitted .pt-stat{color:var(--good);background:rgba(109,207,139,.08);border:1px solid rgba(109,207,139,.3)}
 .profile-tile.pending .pt-stat{color:var(--hi);background:rgba(232,148,58,.08);border:1px solid rgba(232,148,58,.3)}
-/* Invite not accepted yet — the gray state. Distinct from PENDING (they're
+/* Invite not accepted yet — the gray state. Distinct from FORM DUE (they're
    in, but haven't submitted the form), which stays amber. */
 .profile-tile.unclaimed{border-color:rgba(168,158,142,.25);border-style:dashed;background:rgba(168,158,142,.03)}
 .profile-tile.unclaimed .pt-ini{filter:grayscale(1);opacity:.55}
@@ -7826,6 +7826,7 @@ _onTourChange(payload) {
     // Ignore it; the next full update or a re-hydrate carries the complete row.
     if (!row.owner_id) {
       console.warn('[realtime] ignoring truncated tours payload for', row.id);
+      this.refreshRosterStatus(row.id);
       return;
     }
     // Preserve existing local arrays that don't live on the tours row.
@@ -7896,6 +7897,9 @@ _onTourChange(payload) {
     }
     if (!state.currentTourId) state.currentTourId = row.id;
     this._safeRenderAll();
+    // Added to a tour with the app already open: this is the row arriving, and
+    // no hydrate is coming to join them until the app is next closed and reopened.
+    _autoAcceptInvites().catch(e => console.warn('[realtime] autoAccept', e));
   },
   // --- Attachments · binary in Storage, metadata in public.attachments ---
   async uploadAttachment(tourId, dateId, file, meta) {
@@ -8237,7 +8241,57 @@ _onTourChange(payload) {
       if (error || !Array.isArray(data)) return;
       data.forEach(row => { try { this._onDateChange({ eventType: 'UPDATE', new: row }, true); } catch (e) {} });
       this._safeRenderAll();
+      this.refreshRosterStatus(tour.id);
     } catch (e) { console.warn('[catchUp]', e && e.message || e); }
+  },
+  // Who has joined, read from the row itself. A tour too big for realtime arrives
+  // with no columns (see _onTourChange) and catch-up above only covers dates, so a
+  // dashboard left open kept reading NOT ACCEPTED for someone who joined days ago.
+  // Takes the join and the submitted form, nothing else: the roster may be holding
+  // unsent edits, and neither of these is ever undone by a stale read.
+  _rosterReadAt: {},
+  async refreshRosterStatus(tourId) {
+    const tour = sb && state && state.tours && state.tours[tourId];
+    if (!tour || !_isUuid(tourId)) return;
+    if (Date.now() - (this._rosterReadAt[tourId] || 0) < 15000) return;
+    this._rosterReadAt[tourId] = Date.now();
+    try {
+      const { data, error } = await sb.from('tours').select('crew,member_ids').eq('id', tourId).maybeSingle();
+      if (error || !data || !Array.isArray(data.crew)) return;
+      let changed = false;
+      (tour.crew || []).forEach(c => {
+        const key = String(c.email || '').toLowerCase();
+        if (!key) return;
+        const cloud = data.crew.find(x => String(x.email || '').toLowerCase() === key);
+        if (!cloud) return;
+        if (cloud.claimed && (!c.claimed || c.userId !== cloud.userId)) {
+          c.claimed = true; c.userId = cloud.userId; c.claimedAt = cloud.claimedAt || c.claimedAt;
+          changed = true;
+        }
+        if (cloud.profileSubmittedAt && !c.profileSubmittedAt) {
+          c.profile = cloud.profile; c.profileSubmittedAt = cloud.profileSubmittedAt;
+          changed = true;
+        }
+      });
+      if (!Array.isArray(tour.memberIds)) tour.memberIds = [];
+      (data.member_ids || []).forEach(id => {
+        if (!tour.memberIds.includes(id)) { tour.memberIds.push(id); changed = true; }
+      });
+      if (changed) this._safeRenderAll();
+    } catch (e) { console.warn('[rosterStatus]', e && e.message || e); }
+  },
+  // Put on a tour while this device was asleep: realtime missed it and nothing
+  // replays it, so the tour stayed out of sight (and the manager read NOT ACCEPTED)
+  // until the app was next closed and reopened. Hydrate joins them.
+  async catchUpNewTours() {
+    if (!sb || !state || !state.currentUserId || _isGodAccount()) return;
+    try {
+      const { data, error } = await sb.from('tours').select('id');
+      if (error || !Array.isArray(data)) return;
+      if (!data.some(r => !state.tours[r.id] && !_isTombstoned(r.id))) return;
+      await this.hydrateUserData(state.currentUserId);
+      this._safeRenderAll();
+    } catch (e) { console.warn('[catchUpNewTours]', e && e.message || e); }
   },
   _onDateChange(payload, quiet) {
     const { eventType, new: row, old } = payload;
@@ -8867,6 +8921,24 @@ function _pendingTourInvites() {
   });
 }
 
+// Tours where the roster doesn't yet show this person as joined. Wider than the
+// card above: someone taken off a roster and added back keeps their uid in
+// member_ids, so they can already see everything and no card is owed, but their
+// new entry starts unclaimed and the manager reads NOT ACCEPTED until it's stamped.
+function _toursAwaitingJoin() {
+  const u = (typeof U === 'function') ? U() : null;
+  if (!u || !state || !state.tours) return [];
+  const email = (u.email || '').toLowerCase();
+  if (!email) return [];
+  return Object.values(state.tours).filter(t => {
+    if (!t || t.id === '_empty') return false;
+    if (t.ownerId === u.id || (t.managerIds || []).includes(u.id)) return false;
+    const mine = (t.crew || []).filter(c => (c.email || '').toLowerCase() === email);
+    if (!mine.length) return false;
+    return !(t.memberIds || []).includes(u.id) || mine.some(c => !c.claimed || c.userId !== u.id);
+  });
+}
+
 /* ── Joining a tour ──────────────────────────────────────────────────────
    A manager putting someone on the roster IS the invitation; the tap that
    used to follow it confirmed nothing they hadn't already decided. Worse, it
@@ -8887,10 +8959,11 @@ async function _autoAcceptInvites() {
   try { if (typeof _isGodAccount === 'function' && _isGodAccount()) return 0; } catch (e) {}
   const email = String(u.email || '').toLowerCase();
   if (!email) return 0;
-  const waiting = _pendingTourInvites().filter(t => _isUuid(t.id) && !_autoAcceptTried.has(t.id));
+  const waiting = _toursAwaitingJoin().filter(t => _isUuid(t.id) && !_autoAcceptTried.has(t.id));
   if (!waiting.length) return 0;
   _autoAcceptBusy = true;
-  const joined = [];
+  const joined = [];                       // newly on a tour: worth telling them
+  let stamped = 0;
   try {
     for (const t of waiting) {
       _autoAcceptTried.add(t.id);          // one attempt per tour per session, so a
@@ -8902,21 +8975,22 @@ async function _autoAcceptInvites() {
       // Mirror exactly what the RPC just wrote, rather than re-hydrating from
       // inside a hydrate.
       const tour = state.tours[t.id];
+      stamped++;
       if (tour) {
         if (!Array.isArray(tour.memberIds)) tour.memberIds = [];
-        if (!tour.memberIds.includes(u.id)) tour.memberIds.push(u.id);
-        const rec = (tour.crew || []).find(c => String(c.email || '').toLowerCase() === email);
-        if (rec) { rec.userId = u.id; rec.claimed = true; rec.claimedAt = rec.claimedAt || Date.now(); }
+        if (!tour.memberIds.includes(u.id)) { tour.memberIds.push(u.id); joined.push(t); }
+        (tour.crew || []).filter(c => String(c.email || '').toLowerCase() === email).forEach(rec => {
+          rec.userId = u.id; rec.claimed = true; rec.claimedAt = rec.claimedAt || Date.now();
+        });
       }
-      joined.push(t);
     }
   } finally { _autoAcceptBusy = false; }
-  if (!joined.length) return 0;
+  if (!stamped) return 0;
   try { _clearPendingCrewInvite(); } catch (e) {}
   try { saveState(); } catch (e) {}
   try { (typeof renderAll === 'function' ? renderAll() : renderPhone()); } catch (e) {}
   // Say it once, naming the tour when there's only one.
-  try {
+  if (joined.length) try {
     toast(joined.length === 1
       ? `You're on ${joined[0].name || 'the tour'}`
       : `You're on ${joined.length} tours`, 'good');
@@ -16891,9 +16965,10 @@ function renderCrewList() {
     wrap.innerHTML = `<div class="empty"><h3>No crew yet</h3><p>Add your band, crew, and production team. They'll show up in the room assignments and the crew mobile preview.</p></div>`;
     return;
   }
-  // Status badge: PENDING when invited but not yet claimed; ACCEPTED
+  // Status badge: NOT ACCEPTED when invited but not yet claimed; ACCEPTED
   // once the user signs up with the matching email. Crew without an
-  // email on file get no badge (can't be invited yet).
+  // email on file get no badge (can't be invited yet). Same words as the
+  // Crew tab, where the amber state means something else: joined, form due.
   const _crewAccepted = (c) => {
     const userRec = c.userId ? state.users?.[c.userId] : null;
     return !!(c.claimed || (userRec && userRec.claimed));
@@ -16904,7 +16979,7 @@ function renderCrewList() {
     if (accepted) {
       return '<span class="crew-status accepted" title="This person has signed up with the invited email">✓ ACCEPTED</span>';
     }
-    return '<span class="crew-status pending" title="Invite sent — waiting for them to sign up">⧖ PENDING</span>';
+    return '<span class="crew-status pending" title="Invite sent — waiting for them to sign up">○ NOT ACCEPTED</span>';
   };
   // Access-level chip — the permission set in Edit, visible at a glance.
   // Missing/legacy records default to 'view-all' (same as the Edit modal).
@@ -28005,7 +28080,7 @@ function ensureProfile(c) {
 
 // Invite still unaccepted? Same rule as the roster's ✓ ACCEPTED badge.
 // Someone with no email can't be invited at all, so they're never "awaiting"
-// — the TM fills their form in directly and they show as plain PENDING.
+// — the TM fills their form in directly and they show as plain FORM DUE.
 function crewAwaitingInvite(c) {
   if (!c || !c.email) return false;
   const userRec = c.userId ? (state.users || {})[c.userId] : null;
@@ -29176,14 +29251,14 @@ function renderCrewProfiles() {
   root.innerHTML = `
     <div class="section-title">
       <h2>Crew</h2>
-      <span class="crumb">/ ${roster.length} CREW${comgrs.length ? ' · ' + comgrs.length + ' CO-MANAGER' + (comgrs.length===1?'':'S') : ''} · ${submitted.length} SUBMITTED · ${pendingForm.length} PENDING${awaiting.length ? ' · ' + awaiting.length + ' NOT ACCEPTED' : ''}</span>
+      <span class="crumb">/ ${roster.length} CREW${comgrs.length ? ' · ' + comgrs.length + ' CO-MANAGER' + (comgrs.length===1?'':'S') : ''} · ${submitted.length} SUBMITTED · ${pendingForm.length} FORM${pendingForm.length === 1 ? '' : 'S'} DUE${awaiting.length ? ' · ' + awaiting.length + ' NOT ACCEPTED' : ''}</span>
     </div>
 
     ${renderManagersCard()}
 
     <div class="profiles-toolbar">
       <span class="stat"><b>${submitted.length}</b> / ${people.length} profiles submitted</span>
-      ${pendingForm.length ? `<span class="stat" style="color:var(--hi)">⚠ ${pendingForm.length} pending</span>` : ''}
+      ${pendingForm.length ? `<span class="stat" style="color:var(--hi)">⚠ ${pendingForm.length} form${pendingForm.length === 1 ? '' : 's'} due</span>` : ''}
       ${awaiting.length ? `<span class="stat" style="color:var(--warm-mute)">○ ${awaiting.length} not accepted</span>` : ''}
       ${_tmMobileOn() ? '' : `<div class="view-toggle">
         <button type="button" class="${crewView==='grid'?'on':''}" onclick="setCrewView('grid')">Grid</button>
@@ -29193,7 +29268,7 @@ function renderCrewProfiles() {
       <button type="button" class="tb-btn cool flame" onclick="openManageGroupsModal()">Manage groups</button>
       <button type="button" class="tb-btn" onclick="downloadProfilesCSV()">↓ CSV</button>
       <button type="button" class="tb-btn" onclick="downloadProfilesJSON()">↓ JSON</button>
-      <button type="button" class="tb-btn" onclick="remindAllPending()">Remind pending</button>
+      <button type="button" class="tb-btn" onclick="remindAllPending()">Remind forms due</button>
     </div>
 
     ${(crewView === 'list' && !_tmMobileOn()) ? renderCrewListTable() : `<div class="profiles-grid">
@@ -29208,8 +29283,8 @@ function _profileTileHtml(c) {
         const p = c.profile || {};
         const awaiting = !sub && crewAwaitingInvite(c);
         const cls = sub ? 'submitted' : awaiting ? 'unclaimed' : 'pending';
-        const stat = sub ? '✓ SUBMITTED' : awaiting ? '○ NOT ACCEPTED' : '⧖ PENDING';
-        let subText = sub ? `Submitted ${_fmtStamp(c.profileSubmittedAt)}` : awaiting ? "Hasn't accepted the invite yet" : 'Not yet submitted';
+        const stat = sub ? '✓ SUBMITTED' : awaiting ? '○ NOT ACCEPTED' : '⧖ FORM DUE';
+        let subText = sub ? `Submitted ${_fmtStamp(c.profileSubmittedAt)}` : awaiting ? "Hasn't accepted the invite yet" : c.email ? 'On the tour · form not submitted yet' : 'Form not submitted yet';
         if (sub) {
           // Filled out on an earlier tour and sent here / edited since: say so.
           const _done = Number(p._completedAt) || 0, _upd = Number(p._updatedAt) || 0, _s = _fmtStamp(c.profileSubmittedAt);
@@ -29274,7 +29349,7 @@ function renderCrewListTable() {
               esc(c.isManager ? 'mgmt' : (c.type || '')),
               (c.groups || []).map(g => `<span class="group-chip">${esc(g)}</span>`).join('') || '<span class="muted mono">none</span>',
               (() => { const ps = _pushStateFor(c); return ps ? `<span class="push-cell${ps.on ? ' on' : ''}">${esc(ps.on ? 'ON' : 'OFF')}</span>` : '<span class="muted mono">—</span>'; })(),
-              `<span class="stat-cell ${submitted?'sub':(crewAwaitingInvite(c)?'wait':'pend')}">${submitted ? '✓ DONE' : crewAwaitingInvite(c) ? '○ NOT ACCEPTED' : '⧖ PEND'}</span>`,
+              `<span class="stat-cell ${submitted?'sub':(crewAwaitingInvite(c)?'wait':'pend')}">${submitted ? '✓ DONE' : crewAwaitingInvite(c) ? '○ NOT ACCEPTED' : '⧖ FORM DUE'}</span>`,
               esc(p.cell || ''),
               esc(p.email || ''),
               esc(p.address || ''),
@@ -34913,6 +34988,12 @@ function _renderSignupInviteBanner() {
     // Crew accounts only — flip the role dropdown so it defaults correctly.
     const roleEl = document.getElementById('su_role');
     if (roleEl) roleEl.value = 'crew';
+    // An invite only matches the address it went to, and nothing checks a new
+    // account's email, so a different address makes an account with no tour.
+    ['su_email', 'li_email'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && pending.email && !el.value) el.value = pending.email;
+    });
   } else if (banner) {
     banner.style.display = 'none';
   }
@@ -34973,12 +35054,15 @@ function _stashPendingCrewInvite() {
   const q = new URLSearchParams(window.location.search || '');
   const tourId = q.get('invite') || '';
   if (!tourId) return null;
-  const data = { tourId, capturedAt: Date.now() };
+  // The invited address, carried in the fragment so it never reaches a server log.
+  const email = new URLSearchParams((window.location.hash || '').replace(/^#/, '')).get('email') || '';
+  const data = { tourId, email, capturedAt: Date.now() };
   try { localStorage.setItem(PENDING_CREW_INVITE_KEY, JSON.stringify(data)); } catch (e) {}
   // Clean the param so a refresh doesn't repeatedly trigger the banner.
   try {
     const cleaned = new URL(window.location.href);
     cleaned.searchParams.delete('invite');
+    if (email) cleaned.hash = '';
     window.history.replaceState({}, '', cleaned.pathname + (cleaned.search ? cleaned.search : '') + cleaned.hash);
   } catch (e) {}
   return data;
@@ -36182,9 +36266,13 @@ async function signUp() {
     toast(`Welcome, ${firstName} — found you on ${linkedTours} tour${linkedTours===1?'':'s'}`, 'good');
   } else if (matches.length > 0) {
     toast(`Welcome, ${firstName} — claimed your existing crew account`, 'good');
-  } else if (role === 'crew' && matches.length === 0) {
+  } else if (role === 'crew' && !findCrewMatchesByEmail(email).length) {
     // Crew signed up but no TM has added their email to any tour yet — show a
     // friendly explainer modal so they know what's expected next.
+    // Asks again rather than reading `matches`: that ran before hydrate, and a
+    // new device holds no rosters, so everyone invited was told they weren't on
+    // a tour and to chase their manager. The resend that followed looked like
+    // the fix, because tapping it signed in ran the accept.
     setTimeout(() => _showCrewNoToursModal(firstName, email), 100);
   } else {
     toast(`Welcome, ${firstName}`, 'good');
@@ -38060,7 +38148,7 @@ function scanTour(tour) {
     if (unsubmitted.length) {
       scan.globalGaps.push({
         what: `Awaiting ${unsubmitted.length} of ${total} crew profile submission${unsubmitted.length===1?'':'s'}`,
-        fix: `Pending: ${unsubmitted.slice(0,4).map(c => c.name).join(', ')}${unsubmitted.length>4?`, +${unsubmitted.length-4} more`:''} — Crew tab → Remind pending`
+        fix: `Form due: ${unsubmitted.slice(0,4).map(c => c.name).join(', ')}${unsubmitted.length>4?`, +${unsubmitted.length-4} more`:''} — Crew tab → Remind forms due`
       });
     } else {
       scan.completeGlobal.push(`Crew roster · ${total} ${total===1?'person':'people'} · all profiles submitted`);
@@ -40945,12 +41033,12 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') { _hiddenSince = Date.now(); _flushPendingSync(); return; }
   // Back after 30s+ away (phone locked, app switched, laptop woke): pick up
   // whatever realtime missed meanwhile.
-  if (_hiddenSince && Date.now() - _hiddenSince > 30000) { try { db.catchUpActiveTour(); } catch (e) {} }
+  if (_hiddenSince && Date.now() - _hiddenSince > 30000) { try { db.catchUpActiveTour(); db.catchUpNewTours(); } catch (e) {} }
   _hiddenSince = 0;
   try { _refreshMyProfile(); } catch (e) {}
 });
 window.addEventListener('focus', () => { try { _refreshMyProfile(); } catch (e) {} });
-window.addEventListener('online', () => { try { db.catchUpActiveTour(); } catch (e) {} });
+window.addEventListener('online', () => { try { db.catchUpActiveTour(); db.catchUpNewTours(); } catch (e) {} });
 
 // ────────────────────────────────────────────────────────────────────
 // No-zoom in the native app. The CSS touch-action:manipulation kills

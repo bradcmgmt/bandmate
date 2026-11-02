@@ -65,7 +65,9 @@ module.exports = async function handler(req, res) {
   // "you're being invited to <tour name>" banner on the signup form.
   // For users who already have an account, this just lands them on the
   // dashboard — they'll see the new tour as soon as they sign in.
-  const inviteUrl = `${baseUrl}/?invite=${encodeURIComponent(tourId)}`;
+  // The fragment prefills the address the invite went to, since that's the only
+  // one that will match the roster. Fragments aren't sent to the server.
+  const inviteUrl = `${baseUrl}/?invite=${encodeURIComponent(tourId)}#email=${encodeURIComponent(crewEmail)}`;
 
   // Plain-text fallback (every transactional email should have one).
   const isCoManager = !!body.coManager;
