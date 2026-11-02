@@ -8247,8 +8247,8 @@ _onTourChange(payload) {
   // Who has joined, read from the row itself. A tour too big for realtime arrives
   // with no columns (see _onTourChange) and catch-up above only covers dates, so a
   // dashboard left open kept reading NOT ACCEPTED for someone who joined days ago.
-  // Takes the join and the submitted form, nothing else: the roster may be holding
-  // unsent edits, and neither of these is ever undone by a stale read.
+  // Takes the join, the submitted form and any removal, nothing else: the roster
+  // may be holding unsent edits, and none of these is ever undone by a stale read.
   _rosterReadAt: {},
   async refreshRosterStatus(tourId) {
     const tour = sb && state && state.tours && state.tours[tourId];
@@ -8256,9 +8256,14 @@ _onTourChange(payload) {
     if (Date.now() - (this._rosterReadAt[tourId] || 0) < 15000) return;
     this._rosterReadAt[tourId] = Date.now();
     try {
-      const { data, error } = await sb.from('tours').select('crew,member_ids').eq('id', tourId).maybeSingle();
+      const { data, error } = await sb.from('tours').select('crew,member_ids,removed_crew_ids').eq('id', tourId).maybeSingle();
       if (error || !data || !Array.isArray(data.crew)) return;
       let changed = false;
+      const gone = Array.isArray(data.removed_crew_ids) ? data.removed_crew_ids : [];
+      if ((tour.crew || []).some(c => gone.includes(c.id))) {
+        tour.crew = tour.crew.filter(c => !gone.includes(c.id));
+        changed = true;
+      }
       (tour.crew || []).forEach(c => {
         const key = String(c.email || '').toLowerCase();
         if (!key) return;
@@ -8280,18 +8285,47 @@ _onTourChange(payload) {
       if (changed) this._safeRenderAll();
     } catch (e) { console.warn('[rosterStatus]', e && e.message || e); }
   },
-  // Put on a tour while this device was asleep: realtime missed it and nothing
-  // replays it, so the tour stayed out of sight (and the manager read NOT ACCEPTED)
-  // until the app was next closed and reopened. Hydrate joins them.
-  async catchUpNewTours() {
+  // Put on a tour, or taken off one, while this device was asleep or just sitting
+  // open: nothing replays the first, and a row you can no longer read sends no
+  // event at all. Hydrate joins them or clears the tour.
+  async catchUpTourAccess() {
     if (!sb || !state || !state.currentUserId || _isGodAccount()) return;
     try {
       const { data, error } = await sb.from('tours').select('id');
       if (error || !Array.isArray(data)) return;
-      if (!data.some(r => !state.tours[r.id] && !_isTombstoned(r.id))) return;
+      const added = data.some(r => !state.tours[r.id] && !_isTombstoned(r.id));
+      if (!added && !this._lostTours(state.currentUserId, new Set(data.map(r => r.id))).length) return;
       await this.hydrateUserData(state.currentUserId);
       this._safeRenderAll();
-    } catch (e) { console.warn('[catchUpNewTours]', e && e.message || e); }
+    } catch (e) { console.warn('[catchUpTourAccess]', e && e.message || e); }
+  },
+  // Tours this device holds because this user was on them, which the cloud no
+  // longer returns. Nothing else counts: a tour with a stub owner may just not
+  // have synced yet, and another account's tours on a shared device aren't this
+  // user's to clear.
+  _lostTours(userId, liveIds) {
+    if (!state || !state.tours || _isGodAccount()) return [];
+    const me = state.users && state.users[userId];
+    const email = String((me && me.email) || '').toLowerCase();
+    return Object.values(state.tours).filter(t => t && _isUuid(t.id) && !liveIds.has(t.id)
+      && _isUuid(t.ownerId) && t.ownerId !== userId
+      && ((t.memberIds || []).includes(userId) || (t.managerIds || []).includes(userId)
+          || (!!email && (t.crew || []).some(c => String(c.email || '').toLowerCase() === email))));
+  },
+  async _dropLostTours(userId, rows) {
+    try {
+      // A read with no session comes back empty instead of failing, which would
+      // look like losing every tour.
+      const { data } = await sb.auth.getSession();
+      if (!data || !data.session || data.session.user.id !== userId) return;
+      const lost = this._lostTours(userId, new Set(rows.map(r => r.id)));
+      if (!lost.length) return;
+      lost.forEach(t => { delete state.tours[t.id]; delete this._syncShadow[t.id]; });
+      if (!state.tours[state.currentTourId]) state.currentTourId = (rows[0] && rows[0].id) || null;
+      saveState();
+      this._safeRenderAll();
+      toast(lost.length === 1 ? `You're no longer on ${lost[0].name || 'that tour'}` : `You're no longer on ${lost.length} tours`);
+    } catch (e) { console.warn('[hydrate] lost tours', e); }
   },
   _onDateChange(payload, quiet) {
     const { eventType, new: row, old } = payload;
@@ -8548,6 +8582,7 @@ _onTourChange(payload) {
       const { data: tourRows, error: tourErr } = await sb
         .from('tours').select('*').order('created_at');
       if (tourErr) { this._err('hydrate.tours', tourErr); return { tours: 0, dates: 0 }; }
+      await this._dropLostTours(userId, tourRows || []);
       if (!tourRows || !tourRows.length) return { tours: 0, dates: 0 };
 
       const tourIds = tourRows.map(t => t.id);
@@ -10986,7 +11021,7 @@ function _phPageClose(instant) {
   _phPageCloseT = setTimeout(done, 210);
 }
 
-function openModal({ title, body, onSubmit, submitLabel = 'Save', size = '', showDelete = false, onDelete = null, hideFooter = false, deleteLabel = 'Delete', locked = false }) {
+function openModal({ title, body, onSubmit, submitLabel = 'Save', size = '', showDelete = false, onDelete = null, hideFooter = false, deleteLabel = 'Delete', deleteConfirm = 'Delete this item?', locked = false }) {
   _modalOnSubmit = onSubmit;
   // locked: a step that must be completed — always a centred window, with no
   // close button, no Cancel and no closing by clicking outside it.
@@ -10994,7 +11029,7 @@ function openModal({ title, body, onSubmit, submitLabel = 'Save', size = '', sho
   if (phoneHost) {
     $('#modalRoot').innerHTML = '';
     _phPageOpen(phoneHost, title, body, { submitLabel, showDelete, deleteLabel, hideFooter });
-    if (onDelete) window._modalDelete = () => { if (confirm('Delete this item?')) { onDelete(); closeModal(); renderAll(); } };
+    if (onDelete) window._modalDelete = () => { if (confirm(deleteConfirm)) { onDelete(); closeModal(); renderAll(); } };
     try { _wireAllAutocomplete(phoneHost); } catch (e) {}
     return;
   }
@@ -11031,7 +11066,7 @@ function openModal({ title, body, onSubmit, submitLabel = 'Save', size = '', sho
     </div>
   `;
   }
-  if (onDelete) window._modalDelete = () => { if (confirm('Delete this item?')) { onDelete(); closeModal(); renderAll(); } };
+  if (onDelete) window._modalDelete = () => { if (confirm(deleteConfirm)) { onDelete(); closeModal(); renderAll(); } };
   // Wire custom autocomplete on any input with data-ac inside the modal.
   // Cheap: short-circuits if the input was already wired this session.
   try { _wireAllAutocomplete(root); } catch (e) {}
@@ -17053,13 +17088,38 @@ async function resendCrewInvite(crewId, btn) {
   }, ok ? 1800 : 2600);
 }
 
+// Taking someone off a roster has to take their access with it, and only the
+// server can do that: a roster entry can carry a stale id, so it alone can tell
+// which account an email belongs to (patch-061). If the call fails they stay on
+// the roster, so the screen never says they're gone while they can still get in.
+async function _removeCrewMember(tour, c) {
+  const drop = (ids) => {
+    tour.crew = (tour.crew || []).filter(x => x.id !== c.id);
+    tour.memberIds = (tour.memberIds || []).filter(id => !ids.includes(id));
+    saveState();
+  };
+  if (!sb || !_isUuid(tour.id)) { drop([c.userId]); return true; }   // nothing in the cloud to revoke
+  try {
+    const { data, error } = await sb.rpc('remove_crew_member', { p_tour_id: tour.id, p_crew_id: c.id });
+    if (error && !/tour not found/i.test(error.message || '')) throw error;
+    drop(data && data.removed ? (data.user_ids || []) : [c.userId]);
+    return true;
+  } catch (e) {
+    console.warn('[removeCrew]', e && e.message || e);
+    toast(`Couldn't remove ${c.name || 'them'}, so they still have access. Check your connection and try again.`, 'error');
+    return false;
+  }
+}
+
 function openCrewMemberModal(id) {
   const c = id ? T().crew.find(x => x.id === id) : null;
   const v = c || { name: '', role: '', type: 'Crew', email: '', phone: '', permissions: 'view-all' };
   openModal({
     title: c ? 'Edit crew member' : 'Add crew member',
     showDelete: !!c,
-    onDelete: c ? () => { T().crew = T().crew.filter(x => x.id !== c.id); saveState(); setTimeout(openCrewModal, 100); } : null,
+    deleteLabel: 'Remove from tour',
+    deleteConfirm: c ? `Remove ${c.name || 'this person'} from this tour? They lose access to it right away.` : undefined,
+    onDelete: c ? () => { _removeCrewMember(T(), c).then(() => { try { renderAll(); } catch (e) {} setTimeout(openCrewModal, 100); }); } : null,
     body: `
       <div class="form-grid">
         <div class="field full"><label>Name *</label><input id="cm_name" value="${esc(v.name)}"></div>
@@ -17101,8 +17161,15 @@ function openCrewMemberModal(id) {
         permissions: $('#cm_perms').value,
         groups
       };
-      if (c) Object.assign(c, data);
-      else {
+      if (c) {
+        // A different address is a different person: whoever held this seat loses
+        // it and the access that came with it, and the new address joins for itself.
+        if (String(c.email || '').trim().toLowerCase() !== email.toLowerCase()) {
+          T().memberIds = (T().memberIds || []).filter(id => id !== c.userId);
+          c.userId = ''; c.claimed = false; delete c.claimedAt;
+        }
+        Object.assign(c, data);
+      } else {
         // Co-manager path: the owner ticked "add as co-manager" for an email
         // that belongs to an existing Tour Manager account. Grant edit access
         // server-side (grant_co_manager) instead of creating a crew record.
@@ -41033,12 +41100,12 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') { _hiddenSince = Date.now(); _flushPendingSync(); return; }
   // Back after 30s+ away (phone locked, app switched, laptop woke): pick up
   // whatever realtime missed meanwhile.
-  if (_hiddenSince && Date.now() - _hiddenSince > 30000) { try { db.catchUpActiveTour(); db.catchUpNewTours(); } catch (e) {} }
+  if (_hiddenSince && Date.now() - _hiddenSince > 30000) { try { db.catchUpActiveTour(); db.catchUpTourAccess(); } catch (e) {} }
   _hiddenSince = 0;
   try { _refreshMyProfile(); } catch (e) {}
 });
 window.addEventListener('focus', () => { try { _refreshMyProfile(); } catch (e) {} });
-window.addEventListener('online', () => { try { db.catchUpActiveTour(); db.catchUpNewTours(); } catch (e) {} });
+window.addEventListener('online', () => { try { db.catchUpActiveTour(); db.catchUpTourAccess(); } catch (e) {} });
 
 // ────────────────────────────────────────────────────────────────────
 // No-zoom in the native app. The CSS touch-action:manipulation kills
